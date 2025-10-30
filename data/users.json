@@ -1,0 +1,35 @@
+[
+  {
+    "id": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "password": "6ef1e4774deafd4ca7b5c6243ceeb1303d4adec1620d56350527419a977e149f",
+    "credits": 200130290,
+    "isAdmin": true,
+    "createdAt": "2025-10-28T06:27:39.939Z",
+    "emailVerified": true
+  },
+  {
+    "id": "0f4fe157-2d83-4745-94cc-f43a8696a747",
+    "email": "oldmoon.com@gmail.com",
+    "password": "6ef1e4774deafd4ca7b5c6243ceeb1303d4adec1620d56350527419a977e149f",
+    "name": "최종문",
+    "phone": "01099691822",
+    "address": "강원도 원주시 봉바위길 54-1",
+    "emailVerified": true,
+    "credits": 42000,
+    "isAdmin": false,
+    "createdAt": "2025-10-29T04:29:28.887Z"
+  },
+  {
+    "id": "8849b49d-5542-49fd-bd96-c89b7e175092",
+    "email": "oldmoon@wdtt3.xyz",
+    "password": "6ef1e4774deafd4ca7b5c6243ceeb1303d4adec1620d56350527419a977e149f",
+    "name": "Oldmoon",
+    "phone": "01099691822",
+    "address": "봉바위길 54-1",
+    "emailVerified": true,
+    "credits": 0,
+    "isAdmin": false,
+    "createdAt": "2025-10-29T10:35:45.791Z"
+  }
+]

@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trend Video Frontend
 
-## Getting Started
+![Architecture Overview](public/architecture-overview.svg)
 
-First, run the development server:
+## Overview
+- Single-page Next.js 16 (App Router) application built with React 19 and TypeScript.
+- Focused on finding high-potential YouTube videos, filtering them, and handing selected items to an automation pipeline.
+- Styling is implemented with the Tailwind CSS v4 beta PostCSS plugin and custom gradients defined in `globals.css`.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Layered Architecture
+- **Presentation (src/app/page.tsx)**: Client component coordinates filters, state, and UI feedback. Uses local storage to persist filter presets (`trend-video-filters`).
+- **Search API (src/app/api/search/route.ts)**: Server action that proxies the YouTube Data API `search` and `videos` endpoints. Applies quota-friendly caching directives (`cache: "no-store"`), normalises results, and enriches them with statistics required by the UI.
+- **Pipeline API (src/app/api/pipeline/route.ts)**: Lightweight content generator. Fetches subtitles from YouTube timed text, derives heuristics, and crafts LLM-ready prompts and thumbnail prompts for downstream tools.
+- **Shared Types (src/types/video.ts)**: Canonical `VideoItem`, filter enums, and shared option literals.
+
+## Runtime Flow
+1. User adjusts filters (type, view/subscriber ranges, category, duration, title search) inside `Home` component.
+2. `fetchVideos` posts the active filter payload to `/api/search`. The route expands a YouTube query, filters out low-signal items, and returns an array of `VideoItem` objects.
+3. The client memoises `filteredVideos`, supports manual selection, and exposes actions for automation.
+4. `runPipeline` posts the selected subset to `/api/pipeline`. The route optionally fetches transcripts, creates summary scripts, highlight bullets, and thumbnail prompts.
+5. Based on the chosen action:
+   - **Automation preview**: Presents the generated scripts inside an alert and logs the run.
+   - **LLM hand-off**: Opens tabs for GPT, Gemini, Claude, or Groq with prefilled prompts via `composeLLMPrompt` and `openModelTab`.
+
+## State and Data Management
+- React hooks manage all filter and fetch state; derived collections use `useMemo` to avoid unnecessary recomputation.
+- `pushLog` maintains a bounded activity log (50 entries) for API calls and pipeline results.
+- Duration filtering supports both API-provided seconds and fallback ISO 8601 parsing (`parseIsoDurationLocal`).
+- Date filtering logic is duplicated client-side (`matchesDateFilterLocal`) to keep UI responsiveness even when the API returns extra data.
+
+## External Dependencies and Configuration
+- Requires `YOUTUBE_API_KEY` in `.env.local` for the `/api/search` route. Missing keys return informative HTTP 500 responses.
+- Uses the built-in `fetch` polyfill provided by Next.js in both client and server environments.
+- Default YouTube query is `korea trending`; adjust the constant in `/api/search/route.ts` for different markets.
+
+## Project Layout
+```
+trend-video-frontend/
+|- public/                     # Static assets and generated diagrams
+|- src/
+|  |- app/
+|  |  |- api/search/route.ts   # Search proxy and filtering pipeline
+|  |  |- api/pipeline/route.ts # Narrative and thumbnail generator
+|  |  |- layout.tsx            # Root layout and metadata
+|  |  |- page.tsx              # Main UI (filters, grid, pipeline actions)
+|  |- types/video.ts           # Shared DTOs and enums
+|- next.config.ts              # Next.js configuration (image domains, etc.)
+|- eslint.config.mjs           # ESLint plus Next.js preset
+|- tsconfig.json               # TypeScript compiler options
+|- package.json                # Scripts and dependency versions
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Development Scripts
+- `npm install` - install dependencies.
+- `npm run dev` - launch the Next.js dev server on port 3000.
+- `npm run lint` - run ESLint with the Next.js config.
+- `npm run build` / `npm run start` - production build and boot.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Generated Artefacts
+- `public/architecture-overview.svg` - high-level component and request flow diagram.
+- `docs/architecture-overview.pdf` - printable snapshot of this architecture overview.

@@ -1,0 +1,74 @@
+{
+  "959413a3-15a0-4818-82b2-5c97600b9740": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1762240348566
+  },
+  "40572d30-e53f-47b3-8fec-20af18df63ec": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1762240390623
+  },
+  "28eb80c7-92dc-45f2-93b6-0b54cb239b63": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1762240879865
+  },
+  "e425fa7e-a9f8-490e-95a5-2a6dde6be9f0": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1762241178839
+  },
+  "7aaacdbc-f352-4500-b3d7-3db7bfe7a041": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1762241234453
+  },
+  "81c5f794-7d6e-40bf-b3e2-5a7ea64c0e29": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1793191250084
+  },
+  "25dda4a6-d08e-4a5f-9dd6-08032e5b8c3f": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1793243188867
+  },
+  "1e6fe904-d72a-4eb9-aefb-ce22c08e379d": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1793254547075
+  },
+  "fe3ac831-938a-49c7-b9e4-2efd028a197c": {
+    "userId": "8849b49d-5542-49fd-bd96-c89b7e175092",
+    "email": "oldmoon@wdtt3.xyz",
+    "isAdmin": false,
+    "expiresAt": 1793270261246
+  },
+  "98d39382-9056-469d-8259-2b37d5cadbe3": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1793271472044
+  },
+  "c8ff79b7-10ef-428f-bb46-49e8d7941f68": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1793275023324
+  },
+  "a221519a-8d0b-4802-b236-70e959029abb": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1793282937203
+  }
+}

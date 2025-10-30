@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Trend Video Frontend Architecture</title>
+  <desc id="desc">Diagram showing the flow between the browser UI, Next.js API routes, and external services.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; fill: #f9fafb; font-size: 14px; }
+      .title { font-size: 20px; font-weight: 600; }
+      .box { fill: rgba(15, 23, 42, 0.78); stroke: rgba(148, 163, 184, 0.6); stroke-width: 1.5; rx: 16; }
+      .label { font-size: 12px; fill: #cbd5f5; text-transform: uppercase; letter-spacing: 1px; }
+      .accent { fill: rgba(56, 189, 248, 0.18); stroke: #38bdf8; }
+      .second { fill: rgba(16, 185, 129, 0.18); stroke: #22c55e; }
+      .callout { fill: rgba(30, 64, 175, 0.16); stroke: #60a5fa; }
+      .note { fill: #e2e8f0; font-size: 12px; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="540" fill="url(#bg)" />
+  <text x="40" y="60" class="title">Trend Video Frontend - High-level Architecture</text>
+
+  <!-- Browser UI -->
+  <rect x="60" y="110" width="280" height="170" class="box accent" />
+  <text x="80" y="142" class="label">Browser UI</text>
+  <text x="80" y="168">React 19 client component (`Home`)</text>
+  <text x="80" y="188">Filter controls, selection grid, logs</text>
+  <text x="80" y="208">Local storage preset cache</text>
+  <text x="80" y="228">Actions: Fetch videos, run pipeline, LLM hand-off</text>
+
+  <!-- Search API -->
+  <rect x="380" y="110" width="220" height="170" class="box callout" />
+  <text x="400" y="142" class="label">/api/search</text>
+  <text x="400" y="168">Validates payload, builds YouTube query</text>
+  <text x="400" y="188">Calls YouTube Data API `search` and `videos`</text>
+  <text x="400" y="208">Filters by type, stats, duration, categories</text>
+  <text x="400" y="228">Returns `VideoItem` list to client</text>
+
+  <!-- Pipeline API -->
+  <rect x="380" y="320" width="220" height="170" class="box second" />
+  <text x="400" y="352" class="label">/api/pipeline</text>
+  <text x="400" y="378">Receives selected videos and model preference</text>
+  <text x="400" y="398">Fetches captions (multiple locales)</text>
+  <text x="400" y="418">Derives hook/body/outro plus highlight bullets</text>
+  <text x="400" y="438">Builds prompt bundle for LLM tooling</text>
+
+  <!-- External services -->
+  <rect x="660" y="110" width="240" height="110" class="box" />
+  <text x="680" y="142" class="label">YouTube APIs</text>
+  <text x="680" y="168">Data API: search, videos statistics</text>
+  <text x="680" y="188">Timed text captions endpoint</text>
+  <text x="680" y="208">Requires `YOUTUBE_API_KEY`</text>
+
+  <rect x="660" y="260" width="240" height="80" class="box" />
+  <text x="680" y="288" class="label">LLM Destinations</text>
+  <text x="680" y="314">GPT, Gemini, Claude, Groq playground</text>
+
+  <rect x="660" y="360" width="240" height="90" class="box" />
+  <text x="680" y="388" class="label">Operators</text>
+  <text x="680" y="414">Choose filters, review scripts, launch remix workflow</text>
+
+  <!-- Local storage -->
+  <rect x="60" y="320" width="280" height="90" class="box" />
+  <text x="80" y="348" class="label">Client Cache</text>
+  <text x="80" y="374">`localStorage` key `trend-video-filters`</text>
+  <text x="80" y="394">Stores last used filter ranges and model choice</text>
+
+  <!-- arrows -->
+  <g stroke="#38bdf8" stroke-width="2" fill="none">
+    <path d="M340 195 L380 195" />
+    <polygon points="380,195 370,190 370,200" fill="#38bdf8" />
+  </g>
+
+  <g stroke="#60a5fa" stroke-width="2" fill="none">
+    <path d="M600 195 L660 195" />
+    <polygon points="660,195 650,190 650,200" fill="#60a5fa" />
+  </g>
+
+  <g stroke="#22c55e" stroke-width="2" fill="none">
+    <path d="M340 365 L380 365" />
+    <polygon points="380,365 370,360 370,370" fill="#22c55e" />
+  </g>
+
+  <g stroke="#60a5fa" stroke-width="2" fill="none">
+    <path d="M600 365 L660 365" />
+    <polygon points="660,365 650,360 650,370" fill="#60a5fa" />
+  </g>
+
+  <g stroke="#64748b" stroke-width="2" fill="none">
+    <path d="M200 280 L200 320" />
+    <polygon points="200,320 195,310 205,310" fill="#64748b" />
+  </g>
+
+  <text x="350" y="180" class="note">POST filter payload</text>
+  <text x="620" y="180" class="note">REST requests to YouTube</text>
+  <text x="350" y="350" class="note">POST selected videos</text>
+  <text x="620" y="350" class="note">Prompts opened in new tabs</text>
+  <text x="120" y="310" class="note">Persist preferences</text>
+</svg>
+

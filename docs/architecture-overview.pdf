@@ -1,0 +1,86 @@
+%PDF-1.4
+%ÿÿÿÿ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1601 >>
+stream
+BT
+/F1 16 Tf
+1 0 0 1 72 760 Tm
+(Trend Video Frontend Architecture) Tj
+/F1 11 Tf
+1 0 0 1 72 735 Tm
+( ) Tj
+1 0 0 1 72 719 Tm
+(Overview) Tj
+1 0 0 1 72 703 Tm
+(- Single-page Next.js 16 \(App Router\) with React 19 + TypeScript.) Tj
+1 0 0 1 72 687 Tm
+(- Tailwind CSS v4 beta styling and custom gradients.) Tj
+1 0 0 1 72 671 Tm
+(- Local storage persists filter presets \(trend-video-filters\).) Tj
+1 0 0 1 72 655 Tm
+( ) Tj
+1 0 0 1 72 639 Tm
+(Server Routes) Tj
+1 0 0 1 72 623 Tm
+(- POST /api/search proxies YouTube Data API, filters, enriches stats.) Tj
+1 0 0 1 72 607 Tm
+(- POST /api/pipeline fetches captions, builds prompt bundle for LLM tools.) Tj
+1 0 0 1 72 591 Tm
+( ) Tj
+1 0 0 1 72 575 Tm
+(Client Behaviour) Tj
+1 0 0 1 72 559 Tm
+(- Home component manages filters, selection grid, and automation actions.) Tj
+1 0 0 1 72 543 Tm
+(- Memoised views maintain responsiveness across large result sets.) Tj
+1 0 0 1 72 527 Tm
+(- pushLog keeps a 50-line activity feed of API calls.) Tj
+1 0 0 1 72 511 Tm
+( ) Tj
+1 0 0 1 72 495 Tm
+(Data Flow) Tj
+1 0 0 1 72 479 Tm
+(1. Operator tunes filters and triggers fetch.) Tj
+1 0 0 1 72 463 Tm
+(2. Browser posts payload to /api/search \(requires YOUTUBE_API_KEY\).) Tj
+1 0 0 1 72 447 Tm
+(3. Results populate grid; selected items post to /api/pipeline.) Tj
+1 0 0 1 72 431 Tm
+(4. Pipeline response opens GPT/Gemini/Claude/Groq tabs with prompts.) Tj
+1 0 0 1 72 415 Tm
+( ) Tj
+1 0 0 1 72 399 Tm
+(Notes) Tj
+1 0 0 1 72 383 Tm
+(- Default YouTube query: "korea trending" \(adjust in search route\).) Tj
+1 0 0 1 72 367 Tm
+(- Duration filter uses API seconds or ISO 8601 parsing.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000001900 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1970
+%%EOF

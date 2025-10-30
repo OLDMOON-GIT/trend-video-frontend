@@ -1,0 +1,62 @@
+[
+  {
+    "id": "0775ca16-d3fe-4d02-a1c1-aa116c842a1e",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "action": "login",
+    "details": "로그인 성공 (RememberMe: Yes)",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "createdAt": "2025-10-29T06:15:47.087Z"
+  },
+  {
+    "id": "9f09c151-24de-45d7-beb6-cef27c620d5b",
+    "userId": "0f4fe157-2d83-4745-94cc-f43a8696a747",
+    "userEmail": "oldmoon.com@gmail.com",
+    "action": "login",
+    "details": "로그인 성공 (RememberMe: Yes)",
+    "ipAddress": "::ffff:192.168.0.1",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
+    "createdAt": "2025-10-29T06:16:25.958Z"
+  },
+  {
+    "id": "8fe10159-7cb1-4803-a146-a15d0a5c02bc",
+    "userId": "8849b49d-5542-49fd-bd96-c89b7e175092",
+    "userEmail": "oldmoon@wdtt3.xyz",
+    "action": "login",
+    "details": "로그인 성공 (RememberMe: Yes)",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "createdAt": "2025-10-29T10:37:41.257Z"
+  },
+  {
+    "id": "337bf55f-da87-4d1a-aa95-0d26dafc51d5",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "action": "login",
+    "details": "로그인 성공 (RememberMe: Yes)",
+    "ipAddress": "::ffff:192.168.0.1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "createdAt": "2025-10-29T10:57:52.060Z"
+  },
+  {
+    "id": "e2aef68f-7d01-40ac-91a1-8924c77564d0",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "action": "login",
+    "details": "로그인 성공 (RememberMe: Yes)",
+    "ipAddress": "::ffff:192.168.0.1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "createdAt": "2025-10-29T11:57:03.337Z"
+  },
+  {
+    "id": "fd06a90a-b389-4432-97a1-106539e5b7e2",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "action": "login",
+    "details": "로그인 성공 (RememberMe: Yes)",
+    "ipAddress": "::ffff:192.168.0.1",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
+    "createdAt": "2025-10-29T14:08:57.211Z"
+  }
+]

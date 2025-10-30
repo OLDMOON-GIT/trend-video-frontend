@@ -1,0 +1,51 @@
+[
+  {
+    "id": "5a8320f8-8f48-4952-8bda-f30000c5fc90",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "amount": 10000,
+    "status": "approved",
+    "createdAt": "2025-10-29T04:57:50.782Z",
+    "approvedAt": "2025-10-29T04:58:11.437Z",
+    "approvedBy": "moony75@gmail.com"
+  },
+  {
+    "id": "51782a2e-5e53-483b-ad9b-08b4ffe2c705",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "amount": 2000,
+    "status": "approved",
+    "createdAt": "2025-10-29T05:01:53.041Z",
+    "approvedAt": "2025-10-29T05:02:04.653Z",
+    "approvedBy": "moony75@gmail.com"
+  },
+  {
+    "id": "04f5b149-eba8-48a7-9c1f-4c20ae4a6f4d",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "amount": 120000,
+    "status": "approved",
+    "createdAt": "2025-10-29T05:16:51.951Z",
+    "approvedAt": "2025-10-29T05:17:09.414Z",
+    "approvedBy": "moony75@gmail.com"
+  },
+  {
+    "id": "a1433837-bea9-4072-990b-7a148fa369d1",
+    "userId": "0f4fe157-2d83-4745-94cc-f43a8696a747",
+    "userName": "최종문",
+    "userEmail": "oldmoon.com@gmail.com",
+    "amount": 12000,
+    "status": "approved",
+    "createdAt": "2025-10-29T08:53:46.957Z",
+    "approvedAt": "2025-10-29T08:53:55.178Z",
+    "approvedBy": "moony75@gmail.com"
+  },
+  {
+    "id": "babd0845-1c84-49a7-835e-b42584de78c3",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "amount": 12000,
+    "status": "pending",
+    "createdAt": "2025-10-29T08:54:18.102Z"
+  }
+]

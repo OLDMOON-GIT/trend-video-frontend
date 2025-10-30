@@ -1,0 +1,20 @@
+[
+  {
+    "id": "longform-default",
+    "type": "longform",
+    "name": "롱폼 기본 프롬프트",
+    "systemPrompt": "당신은 16:9 가로형 롱폼 영상을 위한 대본 작가입니다.\nYouTube나 TV에서 시청하기 적합한 형식으로 작성합니다.\n각 씬은 자세하고 풍부한 설명을 포함합니다.",
+    "sceneTemplate": "씬 {{sceneNumber}}: {{sceneContent}}\n\n이 씬을 16:9 가로형 화면에 최적화된 형식으로 작성하세요.\n- 배경과 등장인물을 상세히 묘사\n- 카메라 앵글과 구도 설명\n- 감정과 분위기 전달",
+    "dalleTemplate": "16:9 landscape, cinematic composition, {{sceneContent}},\nprofessional photography, detailed background,\nhorizontal framing, widescreen format, NO TEXT",
+    "updatedAt": "2025-10-30T01:47:13.402Z"
+  },
+  {
+    "id": "shortform-default",
+    "type": "shortform",
+    "name": "숏폼 기본 프롬프트",
+    "systemPrompt": "당신은 9:16 세로형 숏폼 영상을 위한 대본 작가입니다.\nTikTok, Instagram Reels, YouTube Shorts에 최적화된 형식으로 작성합니다.\n각 씬은 짧고 강렬하며, 시선을 사로잡는 내용으로 구성합니다.",
+    "sceneTemplate": "씬 {{sceneNumber}}: {{sceneContent}}\n\n이 씬을 9:16 세로형 화면에 최적화된 형식으로 작성하세요.\n- 인물 중심의 클로즈업 구도\n- 빠른 템포와 강렬한 임팩트\n- 모바일 화면에 적합한 구성",
+    "dalleTemplate": "9:16 portrait, vertical format, mobile-optimized, {{sceneContent}},\nclose-up shot, centered subject, dramatic lighting,\nportrait orientation, NO TEXT",
+    "updatedAt": "2025-10-30T01:47:13.402Z"
+  }
+]

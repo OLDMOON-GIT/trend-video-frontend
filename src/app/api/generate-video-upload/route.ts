@@ -1,0 +1,550 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { spawn, ChildProcess } from 'child_process';
+import fs from 'fs/promises';
+import path from 'path';
+import { getCurrentUser } from '@/lib/session';
+import { createJob, updateJob, addJobLog, flushJobLogs, findJobById, getSettings, deductCredits, addCredits, addCreditHistory } from '@/lib/db';
+
+// 실행 중인 프로세스 관리
+const runningProcesses = new Map<string, ChildProcess>();
+
+export async function POST(request: NextRequest) {
+  try {
+    // 사용자 인증 확인
+    console.log('=== 영상 생성 요청 시작 ===');
+    console.log('쿠키:', request.cookies.getAll());
+
+    const user = await getCurrentUser(request);
+    console.log('인증된 사용자:', user);
+
+    if (!user) {
+      console.log('❌ 인증 실패: 로그인이 필요합니다');
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    console.log('✅ 인증 성공:', user.email);
+
+    const formData = await request.formData();
+    const jsonFile = formData.get('json') as File;
+
+    if (!jsonFile) {
+      return NextResponse.json(
+        { error: 'JSON 파일이 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // JSON 파일에서 제목 추출
+    let videoTitle = 'Untitled';
+    try {
+      let jsonText = await jsonFile.text();
+
+      // 마크다운 코드 블록 제거 (```json ... ``` 형식)
+      jsonText = jsonText
+        .replace(/^```json\s*/i, '')  // 시작 부분 제거
+        .replace(/\s*```\s*$/i, '')   // 끝 부분 제거
+        .trim();
+
+      const jsonData = JSON.parse(jsonText);
+      if (jsonData.title) {
+        videoTitle = jsonData.title;
+      }
+    } catch (error) {
+      console.log('JSON title 추출 실패, 기본 제목 사용');
+    }
+
+    // 이미지 소스 확인
+    const imageSource = formData.get('imageSource') as string || 'none';
+    console.log('이미지 소스:', imageSource);
+
+    // 이미지 파일들 수집
+    const imageFiles: File[] = [];
+    for (let i = 0; i < 50; i++) { // 최대 50개까지 확인
+      const img = formData.get(`image_${i}`) as File;
+      if (img) imageFiles.push(img);
+    }
+
+    // 직접 업로드 모드일 때만 이미지 필수 체크
+    if (imageSource === 'none' && imageFiles.length === 0) {
+      return NextResponse.json(
+        { error: '최소 1개 이상의 이미지가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 크레딧 설정 가져오기
+    const settings = await getSettings();
+    const cost = settings.videoGenerationCost;
+
+    // 크레딧 차감 시도
+    const deductResult = await deductCredits(user.userId, cost);
+
+    if (!deductResult.success) {
+      console.log(`❌ 크레딧 부족: ${user.email}, 필요: ${cost}, 보유: ${deductResult.balance}`);
+      return NextResponse.json(
+        {
+          error: `크레딧이 부족합니다. (필요: ${cost}, 보유: ${deductResult.balance})`,
+          requiredCredits: cost,
+          currentCredits: deductResult.balance
+        },
+        { status: 402 } // 402 Payment Required
+      );
+    }
+
+    console.log(`✅ 크레딧 차감 성공: ${user.email}, ${cost} 크레딧 차감, 잔액: ${deductResult.balance}`);
+
+    // 크레딧 히스토리 기록
+    await addCreditHistory(user.userId, 'use', -cost, '영상 생성');
+
+    // AutoShortsEditor 경로
+    const autoShortsPath = path.join(process.cwd(), '..', 'AutoShortsEditor');
+    const jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const projectName = `uploaded_${jobId}`;
+    const inputPath = path.join(autoShortsPath, 'input', projectName);
+
+    // Job을 DB에 저장 (JSON의 title 사용)
+    await createJob(user.userId, jobId, videoTitle);
+
+    // 비동기로 영상 생성 시작
+    generateVideoFromUpload(jobId, user.userId, cost, {
+      autoShortsPath,
+      inputPath,
+      projectName,
+      jsonFile,
+      imageFiles,
+      imageSource,
+      isAdmin: user.isAdmin || false
+    });
+
+    return NextResponse.json({
+      success: true,
+      jobId,
+      message: '영상 생성이 시작되었습니다.'
+    });
+
+  } catch (error: any) {
+    console.error('Error generating video from upload:', error);
+    return NextResponse.json(
+      { error: error?.message || '영상 생성 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
+}
+
+async function generateVideoFromUpload(
+  jobId: string,
+  userId: string,
+  creditCost: number,
+  config: {
+    autoShortsPath: string;
+    inputPath: string;
+    projectName: string;
+    jsonFile: File;
+    imageFiles: File[];
+    imageSource: string;
+    isAdmin: boolean;
+  }
+) {
+  try {
+    // 1. 입력 폴더 생성
+    await updateJob(jobId, {
+      status: 'processing',
+      progress: 10,
+      step: '프로젝트 폴더 생성 중...'
+    });
+    await fs.mkdir(config.inputPath, { recursive: true });
+
+    // 2. JSON 파일 저장 (scene_number 추가)
+    await updateJob(jobId, {
+      progress: 20,
+      step: 'JSON 대본 저장 중...'
+    });
+
+    const jsonText = await config.jsonFile.text();
+    let jsonData = JSON.parse(jsonText.replace(/^```json\s*/i, '').replace(/\s*```\s*$/i, '').trim());
+
+    // Python 스크립트를 위해 scene_number 필드 추가
+    if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
+      jsonData.scenes = jsonData.scenes.map((scene: any, index: number) => ({
+        ...scene,
+        scene_number: index + 1
+      }));
+    }
+
+    await fs.writeFile(
+      path.join(config.inputPath, 'story.json'),
+      JSON.stringify(jsonData, null, 2)
+    );
+
+    // 3. 이미지 파일 저장 (직접 업로드 모드일 때만)
+    if (config.imageSource === 'none' && config.imageFiles.length > 0) {
+      await updateJob(jobId, {
+        progress: 30,
+        step: '이미지 저장 중...'
+      });
+
+      await addJobLog(jobId, `\n📷 이미지 ${config.imageFiles.length}개를 순서대로 저장 (씬 1부터)`);
+
+      for (let i = 0; i < config.imageFiles.length; i++) {
+        const imgFile = config.imageFiles[i];
+        const imgBuffer = Buffer.from(await imgFile.arrayBuffer());
+        const ext = imgFile.name.split('.').pop() || 'jpg';
+
+        // 파일명을 image_01, image_02 형식으로 저장 (씬 순서 유지)
+        await fs.writeFile(
+          path.join(config.inputPath, `image_${String(i + 1).padStart(2, '0')}.${ext}`),
+          imgBuffer
+        );
+
+        await addJobLog(jobId, `  씬 ${i + 1}: ${imgFile.name}`);
+      }
+    } else if (config.imageSource === 'google') {
+      await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
+    } else if (config.imageSource === 'dalle') {
+      await addJobLog(jobId, `\n🎨 DALL-E 3를 사용하여 이미지 자동 생성 예정`);
+    }
+
+    // 4. Python 스크립트 실행 (영상 생성) - 실시간 로그
+    await updateJob(jobId, {
+      progress: 40,
+      step: '영상 생성 중... (몇 분 소요될 수 있습니다)'
+    });
+
+    const startLog = `${'='.repeat(70)}\n🎬 영상 생성 시작 - Job ID: ${jobId}\n📂 프로젝트: ${config.projectName}\n${'='.repeat(70)}`;
+    console.log(`\n${startLog}`);
+    await addJobLog(jobId, startLog);
+
+    // 이미지 소스 옵션 추가
+    const imageSourceArg = config.imageSource && config.imageSource !== 'none'
+      ? ['--image-source', config.imageSource]
+      : [];
+
+    // 관리자 플래그 추가
+    const isAdminArg = config.isAdmin ? ['--is-admin'] : [];
+
+    // 비율 설정 (16:9 가로형 롱폼)
+    const aspectRatioArg = ['--aspect-ratio', '16:9'];
+
+    // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
+    const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...isAdminArg];
+    console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
+
+    const pythonProcess = spawn('python', pythonArgs, {
+      cwd: config.autoShortsPath,
+      shell: true,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUNBUFFERED: '1'
+      }
+    });
+
+    // 프로세스를 맵에 저장
+    runningProcesses.set(jobId, pythonProcess);
+
+    let stdoutBuffer = '';
+    let stderrBuffer = '';
+    let lastProgress = 40;
+    let isCancelled = false;
+
+    // stdout 실시간 처리
+    pythonProcess.stdout.on('data', async (data) => {
+      const text = data.toString('utf-8');
+      stdoutBuffer += text;
+      console.log(text);
+      await addJobLog(jobId, text);
+
+      // 진행률 추정 (간단한 키워드 기반)
+      if (text.includes('TTS 음성 생성') || text.includes('TTS')) {
+        lastProgress = Math.min(50, lastProgress + 2);
+        await updateJob(jobId, { progress: lastProgress, step: 'TTS 음성 생성 중...' });
+      } else if (text.includes('장면 처리') || text.includes('Scene') || text.includes('씬') || text.includes('scene')) {
+        lastProgress = Math.min(85, lastProgress + 3);
+        await updateJob(jobId, { progress: lastProgress, step: '장면 영상 처리 중...' });
+      } else if (text.includes('병합') || text.includes('merge') || text.includes('concat')) {
+        lastProgress = 90;
+        await updateJob(jobId, { progress: lastProgress, step: '최종 영상 병합 중...' });
+      }
+    });
+
+    // stderr 실시간 처리
+    pythonProcess.stderr.on('data', async (data) => {
+      const text = data.toString('utf-8');
+      stderrBuffer += text;
+      console.error(text);
+      await addJobLog(jobId, text);
+    });
+
+    // 프로세스 완료 대기
+    await new Promise<void>((resolve, reject) => {
+      pythonProcess.on('close', (code) => {
+        // 맵에서 프로세스 제거
+        runningProcesses.delete(jobId);
+
+        if (isCancelled) {
+          reject(new Error('사용자가 작업을 취소했습니다.'));
+        } else if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Python 프로세스가 코드 ${code}로 종료되었습니다.`));
+        }
+      });
+
+      pythonProcess.on('error', (error) => {
+        runningProcesses.delete(jobId);
+        reject(error);
+      });
+
+      // 타임아웃 (2시간)
+      setTimeout(() => {
+        if (runningProcesses.has(jobId)) {
+          pythonProcess.kill();
+          runningProcesses.delete(jobId);
+          reject(new Error('Python 실행 시간 초과 (2시간)'));
+        }
+      }, 120 * 60 * 1000);
+    });
+
+    // 5. 생성된 영상 찾기
+    await updateJob(jobId, {
+      progress: 90,
+      step: '영상 파일 확인 중...'
+    });
+
+    const generatedPath = path.join(config.inputPath, 'generated_videos');
+    const files = await fs.readdir(generatedPath);
+    const videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+
+    if (!videoFile) {
+      throw new Error('생성된 영상 파일을 찾을 수 없습니다.');
+    }
+
+    const videoPath = path.join(generatedPath, videoFile);
+
+    // 썸네일 찾기 (generated_videos 폴더 또는 상위 폴더에서)
+    let thumbnailPath: string | undefined;
+
+    console.log('📸 썸네일 검색 시작...');
+    console.log('  generated_videos 폴더:', generatedPath);
+    console.log('  generated_videos 파일들:', files);
+
+    // 1. generated_videos 폴더에서 찾기
+    const generatedThumbnailFile = files.find(f =>
+      (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
+       f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
+    );
+
+    if (generatedThumbnailFile) {
+      thumbnailPath = path.join(generatedPath, generatedThumbnailFile);
+      console.log('✅ 썸네일 발견 (generated_videos):', thumbnailPath);
+    } else {
+      console.log('⚠️  generated_videos에서 썸네일 없음, 상위 폴더 확인...');
+      // 2. 상위 input 폴더에서 찾기
+      try {
+        const inputFiles = await fs.readdir(config.inputPath);
+        console.log('  input 폴더 파일들:', inputFiles);
+        const inputThumbnailFile = inputFiles.find(f =>
+          (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
+           f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
+        );
+
+        if (inputThumbnailFile) {
+          thumbnailPath = path.join(config.inputPath, inputThumbnailFile);
+          console.log('✅ 썸네일 발견 (input):', thumbnailPath);
+        } else {
+          console.log('❌ 썸네일 파일을 찾을 수 없습니다.');
+        }
+      } catch (error) {
+        console.log('❌ 썸네일 검색 중 오류:', error);
+      }
+    }
+
+    console.log('최종 썸네일 경로:', thumbnailPath || '없음');
+
+    // 6. 완료
+    const completeLog = `\n${'='.repeat(70)}\n✅ 영상 생성 완료!\n📹 파일: ${videoPath}\n${thumbnailPath ? `🖼️ 썸네일: ${thumbnailPath}\n` : ''}🆔 Job ID: ${jobId}\n${'='.repeat(70)}`;
+    console.log(completeLog);
+    await addJobLog(jobId, completeLog);
+
+    // 모든 로그를 즉시 플러시
+    await flushJobLogs();
+
+    // 제목은 이미 Job 생성 시 JSON의 title로 설정되었으므로 업데이트하지 않음
+    await updateJob(jobId, {
+      status: 'completed',
+      progress: 100,
+      step: '완료!',
+      videoPath,
+      thumbnailPath
+    });
+
+  } catch (error: any) {
+    console.error(`Job ${jobId} failed:`, error);
+
+    // 에러 로그 추가
+    await addJobLog(jobId, `\n❌ 오류 발생: ${error.message}`);
+
+    // 모든 로그를 즉시 플러시
+    await flushJobLogs();
+
+    // 취소인지 확인
+    const isCancelledError = error.message?.includes('취소');
+
+    // 실패 시 크레딧 환불 (취소는 환불 안 함)
+    if (!isCancelledError) {
+      await addCredits(userId, creditCost);
+      await addCreditHistory(userId, 'refund', creditCost, '영상 생성 실패 환불');
+      console.log(`💰 크레딧 환불: ${userId}, ${creditCost} 크레딧 환불 (영상 생성 실패)`);
+      await addJobLog(jobId, `\n💰 ${creditCost} 크레딧이 환불되었습니다.`);
+    }
+
+    await updateJob(jobId, {
+      status: isCancelledError ? 'cancelled' : 'failed',
+      error: error.message || '알 수 없는 오류'
+    });
+  }
+}
+
+// GET 요청 - 상태 확인
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const jobId = searchParams.get('jobId');
+
+    if (!jobId) {
+      return NextResponse.json(
+        { error: 'jobId가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    const { findJobById } = await import('@/lib/db');
+    const job = await findJobById(jobId);
+
+    if (!job) {
+      return NextResponse.json(
+        { error: '작업을 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
+    let videoUrl = null;
+    if (job.status === 'completed' && job.videoPath) {
+      videoUrl = `/api/download-video?jobId=${jobId}`;
+    }
+
+    return NextResponse.json({
+      status: job.status,
+      progress: job.progress,
+      step: job.step,
+      videoUrl,
+      error: job.error || null,
+      logs: job.logs || []
+    });
+
+  } catch (error: any) {
+    console.error('Error checking video status:', error);
+    return NextResponse.json(
+      { error: error?.message || '상태 확인 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE 요청 - 작업 취소
+export async function DELETE(request: NextRequest) {
+  try {
+    console.log('🛑 DELETE 요청 받음');
+
+    const user = await getCurrentUser(request);
+
+    if (!user) {
+      console.log('❌ 인증 실패');
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const jobId = searchParams.get('jobId');
+
+    console.log(`🛑 취소 요청 jobId: ${jobId}`);
+
+    if (!jobId) {
+      console.log('❌ jobId 없음');
+      return NextResponse.json(
+        { error: 'jobId가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // Job 확인
+    console.log(`🔍 DB에서 job 조회 중: ${jobId}`);
+    const job = await findJobById(jobId);
+    console.log(`📋 Job 조회 결과:`, job ? `찾음 (userId: ${job.userId}, status: ${job.status})` : '없음');
+
+    if (!job) {
+      return NextResponse.json(
+        { error: '작업을 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
+    // 본인 작업인지 확인
+    if (job.userId !== user.userId) {
+      return NextResponse.json(
+        { error: '권한이 없습니다.' },
+        { status: 403 }
+      );
+    }
+
+    // 이미 완료되었거나 실패한 작업은 취소할 수 없음
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+      return NextResponse.json(
+        { error: '이미 완료된 작업은 취소할 수 없습니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 실행 중인 프로세스 찾기
+    const process = runningProcesses.get(jobId);
+
+    if (process) {
+      console.log(`🛑 작업 취소 요청 (프로세스 종료): ${jobId}`);
+
+      // 프로세스 종료
+      process.kill('SIGTERM');
+
+      // 맵에서 제거
+      runningProcesses.delete(jobId);
+    } else {
+      console.log(`🛑 작업 취소 요청 (프로세스 없음, 상태만 변경): ${jobId}`);
+    }
+
+    // Job 상태 업데이트 (프로세스가 없어도 실행)
+    await updateJob(jobId, {
+      status: 'cancelled',
+      error: '사용자가 작업을 취소했습니다.',
+      step: '취소됨'
+    });
+
+    await addJobLog(jobId, '\n🛑 사용자가 영상 생성을 취소했습니다.');
+    await flushJobLogs();
+
+    return NextResponse.json({
+      success: true,
+      message: '작업이 취소되었습니다.'
+    });
+
+  } catch (error: any) {
+    console.error('Error cancelling video generation:', error);
+    return NextResponse.json(
+      { error: error?.message || '작업 취소 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
+}

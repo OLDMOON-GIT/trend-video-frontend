@@ -1,0 +1,30 @@
+당신은 유튜브 쇼츠 오프닝 전문가입니다.
+
+제목: {TITLE}
+주제: {TOPIC}
+
+3초 폭탄 오프닝 씬을 작성하세요:
+
+규칙:
+- 300-400자 엄수
+- 첫 문장에 신체적 행동 (때리다/던지다/찢다)
+- 구체적 숫자 2개 이상
+- 물리적 증거 (피/상처/소리)
+- "실화입니다" 포함
+- 단정형 문장 (질문 금지)
+
+ImageFX 프롬프트 규칙:
+- 150 단어 이하
+- DIRECTLY STARING INTO CAMERA 필수
+- face occupying 40% of frame
+- violent/brutal + extreme close-up
+- hyper-saturated crimson
+- NO TEXT 필수
+
+JSON 형식으로 응답:
+{
+  "scene_id": "scene_00_bomb",
+  "word_count": 숫자,
+  "narration": "대본 텍스트",
+  "image_prompt": "ImageFX 프롬프트"
+}
