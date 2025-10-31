@@ -185,6 +185,51 @@ export default function AdminPage() {
               관리하기 →
             </div>
           </Link>
+
+          {/* Tasks 관리 */}
+          <Link
+            href="/admin/tasks"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 p-8 backdrop-blur transition hover:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/20"
+          >
+            <div className="mb-4 text-5xl">📋</div>
+            <h2 className="mb-2 text-2xl font-bold text-white">작업 관리</h2>
+            <p className="text-sm text-slate-300">
+              TODO 작업 생성, 진행 상태 관리, 작업 로그 조회
+            </p>
+            <div className="mt-4 flex items-center text-sm font-semibold text-emerald-300 transition group-hover:translate-x-2">
+              관리하기 →
+            </div>
+          </Link>
+
+          {/* 대본 제목 등록 */}
+          <Link
+            href="/admin/titles"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-rose-500/20 to-pink-500/20 p-8 backdrop-blur transition hover:border-rose-500/50 hover:shadow-2xl hover:shadow-rose-500/20"
+          >
+            <div className="mb-4 text-5xl">🎬</div>
+            <h2 className="mb-2 text-2xl font-bold text-white">대본 제목 등록</h2>
+            <p className="text-sm text-slate-300">
+              영상 제목을 입력하면 Claude AI가 자동으로 대본 생성
+            </p>
+            <div className="mt-4 flex items-center text-sm font-semibold text-rose-300 transition group-hover:translate-x-2">
+              등록하기 →
+            </div>
+          </Link>
+
+          {/* DB 백업 관리 */}
+          <Link
+            href="/admin/backup"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 p-8 backdrop-blur transition hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-500/20"
+          >
+            <div className="mb-4 text-5xl">💾</div>
+            <h2 className="mb-2 text-2xl font-bold text-white">DB 백업 관리</h2>
+            <p className="text-sm text-slate-300">
+              데이터베이스 백업 생성, 복원, 삭제 및 상태 모니터링
+            </p>
+            <div className="mt-4 flex items-center text-sm font-semibold text-cyan-300 transition group-hover:translate-x-2">
+              관리하기 →
+            </div>
+          </Link>
         </div>
 
         {/* 안내 */}
@@ -195,10 +240,22 @@ export default function AdminPage() {
             <p>• <strong>충전 요청 관리:</strong> 사용자 크레딧 충전 요청 승인/거부 처리</p>
             <p>• <strong>크레딧 설정:</strong> AI 대본 생성 및 영상 생성 시 차감되는 크레딧 금액 설정</p>
             <p>• <strong>사용자 활동 로그:</strong> 로그인/로그아웃 기록, 활동 시간, 활성 세션 모니터링</p>
+            <p>• <strong>DB 백업 관리:</strong> 데이터베이스 자동/수동 백업, 복원, 무결성 체크</p>
             <p>• <strong>권한:</strong> 이 페이지는 관리자만 접근할 수 있습니다.</p>
           </div>
         </div>
       </div>
+
+      {/* 맨 위로 플로팅 버튼 */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="fixed bottom-6 right-6 rounded-full bg-purple-600 p-4 text-white shadow-lg transition hover:bg-purple-500 hover:shadow-xl z-50 cursor-pointer"
+        title="맨 위로"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+      </button>
     </div>
   );
 }

@@ -37,6 +37,9 @@ export default function Breadcrumb() {
     } else if (pathname.startsWith('/admin/user-activity')) {
       crumbs.push({ label: '관리자', href: '/admin' });
       crumbs.push({ label: '사용자 활동', href: '/admin/user-activity' });
+    } else if (pathname.startsWith('/admin/prompts')) {
+      crumbs.push({ label: '관리자', href: '/admin' });
+      crumbs.push({ label: '프롬프트 관리', href: '/admin/prompts' });
     } else if (pathname.startsWith('/admin')) {
       crumbs.push({ label: '관리자', href: '/admin' });
     } else if (pathname.startsWith('/auth')) {

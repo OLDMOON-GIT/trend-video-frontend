@@ -58,5 +58,65 @@
     "ipAddress": "::ffff:192.168.0.1",
     "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
     "isActive": true
+  },
+  {
+    "id": "7eb055ae-0ea0-4273-81e0-2d88cebca2bb",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-10-30T10:43:26.681Z",
+    "lastActivityAt": "2025-10-30T10:43:26.681Z",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "isActive": true
+  },
+  {
+    "id": "690ad8c3-1b35-4a26-8365-a136469106c4",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-10-30T10:54:08.777Z",
+    "lastActivityAt": "2025-10-30T10:54:08.777Z",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "isActive": true
+  },
+  {
+    "id": "40c2a0a7-88dd-4eb1-8c44-c6a6fb6ccb8f",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-10-30T11:03:57.680Z",
+    "lastActivityAt": "2025-10-30T11:03:57.680Z",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "isActive": true
+  },
+  {
+    "id": "a8ccdc85-1db9-448d-9d76-abfae8d4d6ec",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-10-30T11:14:59.814Z",
+    "lastActivityAt": "2025-10-30T11:14:59.814Z",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "isActive": true
+  },
+  {
+    "id": "7e259ef1-759b-4a1a-afc2-3243780a9b25",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-10-30T11:29:24.070Z",
+    "lastActivityAt": "2025-10-30T11:29:24.070Z",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "isActive": true
+  },
+  {
+    "id": "8234c8a2-05cc-47f0-9f42-acba88afa6b2",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-10-30T12:11:08.503Z",
+    "lastActivityAt": "2025-10-30T12:11:08.503Z",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "isActive": true
   }
 ]

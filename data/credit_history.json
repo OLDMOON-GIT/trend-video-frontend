@@ -385,5 +385,50 @@
     "balance": 200130290,
     "description": "영상 생성",
     "createdAt": "2025-10-29T19:01:49.255Z"
+  },
+  {
+    "id": "3485d548-0fde-4d18-bf7c-eafec6235abd",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200130140,
+    "description": "영상 생성",
+    "createdAt": "2025-10-30T02:22:07.153Z"
+  },
+  {
+    "id": "6c6470c9-304c-4064-b3cb-094af4028330",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200129990,
+    "description": "영상 생성",
+    "createdAt": "2025-10-30T03:08:48.657Z"
+  },
+  {
+    "id": "dc80f9bb-f84a-4faa-8f8f-a1225d932948",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200129840,
+    "description": "영상 생성",
+    "createdAt": "2025-10-30T18:08:12.321Z"
+  },
+  {
+    "id": "7f0620bf-2d81-4c1f-a407-4669669737ae",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200129690,
+    "description": "영상 생성",
+    "createdAt": "2025-10-30T18:53:16.769Z"
+  },
+  {
+    "id": "84e36a85-bc6a-4f74-8e91-ab180de82f5d",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200129540,
+    "description": "영상 생성",
+    "createdAt": "2025-10-30T18:55:59.903Z"
   }
 ]

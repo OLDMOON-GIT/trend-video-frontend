@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { getCurrentUser } from '@/lib/session';
@@ -7,25 +7,22 @@ import { findJobById } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('📁 폴더 열기 API 호출됨');
+
     const user = await getCurrentUser(request);
+    console.log('👤 사용자:', user?.email, '관리자:', user?.isAdmin);
 
     if (!user) {
+      console.log('❌ 로그인 필요');
       return NextResponse.json(
         { error: '로그인이 필요합니다.' },
         { status: 401 }
       );
     }
 
-    // 관리자 권한 확인
-    if (!user.isAdmin) {
-      return NextResponse.json(
-        { error: '관리자 권한이 필요합니다.' },
-        { status: 403 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get('jobId');
+    console.log('🆔 Job ID:', jobId);
 
     if (!jobId) {
       return NextResponse.json(
@@ -41,6 +38,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: '작업을 찾을 수 없습니다.' },
         { status: 404 }
+      );
+    }
+
+    // 권한 확인: 관리자이거나 자신의 작업인 경우만 허용
+    if (!user.isAdmin && job.userId !== user.id) {
+      return NextResponse.json(
+        { error: '이 작업의 폴더를 열 권한이 없습니다.' },
+        { status: 403 }
       );
     }
 
@@ -79,15 +84,18 @@ export async function POST(request: NextRequest) {
     // Windows 경로 형식으로 변환 (백슬래시)
     const windowsPath = absoluteFolderPath.replace(/\//g, '\\');
 
-    // start 명령어 사용 (더 안정적)
-    exec(`start "" "${windowsPath}"`, (error, stdout, stderr) => {
-      if (error) {
-        console.error('폴더 열기 오류:', error);
-        console.error('stderr:', stderr);
-      } else {
-        console.log('✅ 폴더 열림:', windowsPath);
-      }
+    console.log(`🔍 폴더 열기: ${windowsPath}`);
+
+    // spawn을 사용하여 explorer 실행 (인자를 배열로 전달)
+    const explorerProcess = spawn('explorer', [windowsPath], {
+      detached: true,
+      stdio: 'ignore'
     });
+
+    // 프로세스를 분리하여 부모 프로세스와 독립적으로 실행
+    explorerProcess.unref();
+
+    console.log('✅ explorer 프로세스 시작됨:', windowsPath);
 
     return NextResponse.json({
       success: true,

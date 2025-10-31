@@ -21,22 +21,35 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 프로젝트 루트에서 prompt로 시작하는 .txt 파일 찾기
-    const projectRoot = process.cwd();
-    const files = await fs.readdir(projectRoot);
+    // format 파라미터 받기 (longform 또는 shortform)
+    const { searchParams } = new URL(request.url);
+    const format = searchParams.get('format') || 'longform';
 
-    const promptFile = files.find(file =>
-      file.startsWith('prompt') && file.endsWith('.txt')
+    // prompts 디렉토리에서 해당 format의 프롬프트 파일 찾기
+    const projectRoot = process.cwd();
+    const promptsDir = path.join(projectRoot, 'prompts');
+    const files = await fs.readdir(promptsDir);
+
+    // format에 맞는 파일 우선 검색 (예: prompt_longform.txt, prompt_shortform.txt)
+    let promptFile = files.find(file =>
+      file === `prompt_${format}.txt`
     );
+
+    // 없으면 기본 prompt.txt 사용
+    if (!promptFile) {
+      promptFile = files.find(file =>
+        file.startsWith('prompt') && file.endsWith('.txt')
+      );
+    }
 
     if (!promptFile) {
       return NextResponse.json(
-        { error: 'prompt로 시작하는 .txt 파일을 찾을 수 없습니다.' },
+        { error: `prompts/${format} 파일을 찾을 수 없습니다.` },
         { status: 404 }
       );
     }
 
-    const filePath = path.join(projectRoot, promptFile);
+    const filePath = path.join(promptsDir, promptFile);
     const stats = await fs.stat(filePath);
     const lastModified = stats.mtimeMs;
 
@@ -524,6 +537,23 @@ export async function GET(request: NextRequest) {
   </style>
 </head>
 <body>
+  <!-- 네비게이션 -->
+  <div style="margin-bottom: 20px;">
+    <a href="/" style="color: #a78bfa; text-decoration: none; font-weight: 600; font-size: 14px; transition: color 0.2s;" onmouseover="this.style.color='#c4b5fd'" onmouseout="this.style.color='#a78bfa'">
+      🏠 HOME
+    </a>
+    <span style="color: #64748b; margin: 0 8px;">/</span>
+    <a href="/admin" style="color: #a78bfa; text-decoration: none; font-weight: 600; font-size: 14px; transition: color 0.2s;" onmouseover="this.style.color='#c4b5fd'" onmouseout="this.style.color='#a78bfa'">
+      관리자
+    </a>
+    <span style="color: #64748b; margin: 0 8px;">/</span>
+    <a href="/admin/prompts" style="color: #a78bfa; text-decoration: none; font-weight: 600; font-size: 14px; transition: color 0.2s;" onmouseover="this.style.color='#c4b5fd'" onmouseout="this.style.color='#a78bfa'">
+      프롬프트 관리
+    </a>
+    <span style="color: #64748b; margin: 0 8px;">/</span>
+    <span style="color: #94a3b8; font-weight: 600; font-size: 14px;">롱폼 프롬프트</span>
+  </div>
+
   <div class="header">
     <div>
       <h1>📝 ${promptFile} <span class="badge ${cached ? 'cached' : 'fresh'}">${cached ? '캐시됨' : '새로 읽음'}</span></h1>
@@ -1404,11 +1434,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // API 호출 시 JSON 반환
+    // API 호출 시 JSON 반환 (충돌 감지용 lastModified 포함)
     return NextResponse.json({
       filename: promptFile,
       content: content,
-      cached: cached
+      cached: cached,
+      lastModified: lastModified
     });
   } catch (error) {
     console.error('Error reading prompt file:', error);
@@ -1431,10 +1462,11 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { content, action } = body;
+    const { content, action, lastModified: clientLastModified } = body;
 
     const projectRoot = process.cwd();
-    const files = await fs.readdir(projectRoot);
+    const promptsDir = path.join(projectRoot, 'prompts');
+    const files = await fs.readdir(promptsDir);
 
     const promptFile = files.find(file =>
       file.startsWith('prompt') && file.endsWith('.txt')
@@ -1442,12 +1474,12 @@ export async function PUT(request: NextRequest) {
 
     if (!promptFile) {
       return NextResponse.json(
-        { error: 'prompt로 시작하는 .txt 파일을 찾을 수 없습니다.' },
+        { error: 'prompts 디렉토리에서 프롬프트 파일을 찾을 수 없습니다.' },
         { status: 404 }
       );
     }
 
-    const filePath = path.join(projectRoot, promptFile);
+    const filePath = path.join(promptsDir, promptFile);
 
     // 버전 목록 조회
     if (action === 'list-versions') {
@@ -1506,8 +1538,18 @@ export async function PUT(request: NextRequest) {
       const currentBackupPath = path.join(backupDir, `prompt_${timestamp}_before_restore.txt`);
       await fs.writeFile(currentBackupPath, currentContent, 'utf-8');
 
-      // 롤백
+      // 롤백 (프론트엔드 루트)
       await fs.writeFile(filePath, backupContent, 'utf-8');
+
+      // multi-ai-aggregator 폴더에도 동시 롤백
+      try {
+        const multiAiPath = path.join(projectRoot, '..', 'multi-ai-aggregator', promptFile);
+        await fs.writeFile(multiAiPath, backupContent, 'utf-8');
+        console.log('✅ multi-ai-aggregator 프롬프트 동기화 완료 (롤백):', promptFile);
+      } catch (error) {
+        console.warn('⚠️ multi-ai-aggregator 동기화 실패 (계속 진행):', error);
+      }
+
       promptCache = null;
 
       console.log('✅ 프롬프트 롤백 완료:', body.version);
@@ -1527,6 +1569,21 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // 충돌 감지: 파일이 변경되었는지 확인
+    let conflictDetected = false;
+    let conflictBackupFile = '';
+
+    if (clientLastModified) {
+      const stats = await fs.stat(filePath);
+      const currentLastModified = stats.mtimeMs;
+
+      // 클라이언트가 읽은 시점과 현재 파일 수정 시각이 다르면 충돌
+      if (currentLastModified !== clientLastModified) {
+        conflictDetected = true;
+        console.warn('⚠️ 충돌 감지: 파일이 변경되었습니다');
+      }
+    }
+
     // 백업 디렉토리 생성
     const backupDir = path.join(projectRoot, 'backup', 'prompt-history');
     try {
@@ -1539,26 +1596,56 @@ export async function PUT(request: NextRequest) {
     try {
       const currentContent = await fs.readFile(filePath, 'utf-8');
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const backupPath = path.join(backupDir, `prompt_${timestamp}.txt`);
-      await fs.writeFile(backupPath, currentContent, 'utf-8');
-      console.log('📦 이전 버전 백업:', `prompt_${timestamp}.txt`);
+
+      // 충돌 발생 시 별도의 conflict_backup 파일 생성
+      if (conflictDetected) {
+        conflictBackupFile = `prompt_${timestamp}_conflict_backup.txt`;
+        const conflictBackupPath = path.join(backupDir, conflictBackupFile);
+        await fs.writeFile(conflictBackupPath, currentContent, 'utf-8');
+        console.log('⚠️ 충돌 백업 저장:', conflictBackupFile);
+      } else {
+        // 일반 백업
+        const backupPath = path.join(backupDir, `prompt_${timestamp}.txt`);
+        await fs.writeFile(backupPath, currentContent, 'utf-8');
+        console.log('📦 이전 버전 백업:', `prompt_${timestamp}.txt`);
+      }
     } catch (error) {
       console.error('백업 실패 (계속 진행):', error);
     }
 
-    // 파일 저장
+    // 파일 저장 (프론트엔드 루트)
     await fs.writeFile(filePath, content, 'utf-8');
+
+    // multi-ai-aggregator 폴더에도 동시 저장 (실제 스크립트 생성용)
+    try {
+      const multiAiPath = path.join(projectRoot, '..', 'multi-ai-aggregator', promptFile);
+      await fs.writeFile(multiAiPath, content, 'utf-8');
+      console.log('✅ multi-ai-aggregator 프롬프트 동기화 완료:', promptFile);
+    } catch (error) {
+      console.warn('⚠️ multi-ai-aggregator 동기화 실패 (계속 진행):', error);
+    }
 
     // 캐시 무효화
     promptCache = null;
 
     console.log('✅ 프롬프트 파일 저장 완료:', promptFile);
 
-    return NextResponse.json({
+    // 응답에 충돌 정보 포함
+    const response: any = {
       success: true,
-      message: '프롬프트가 성공적으로 저장되었습니다.',
+      message: conflictDetected
+        ? '⚠️ 파일이 변경되었지만 저장되었습니다. 이전 버전은 백업되었습니다.'
+        : '프롬프트가 성공적으로 저장되었습니다.',
       filename: promptFile
-    });
+    };
+
+    if (conflictDetected) {
+      response.conflictDetected = true;
+      response.conflictBackupFile = conflictBackupFile;
+      response.warning = '다른 사용자가 파일을 수정했을 수 있습니다. 백업 파일을 확인하세요.';
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error saving prompt file:', error);
     return NextResponse.json(

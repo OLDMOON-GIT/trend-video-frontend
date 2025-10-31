@@ -16,6 +16,7 @@ interface Job {
   createdAt: string;
   updatedAt: string;
   title?: string;
+  logs?: any[];
 }
 
 export default function MyVideosPage() {
@@ -42,7 +43,8 @@ export default function MyVideosPage() {
       setOffset(0);
       fetchJobs(true);
     }
-  }, [user, filter, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, searchQuery]);
 
   // localStorage에서 세션 ID 가져오기
   const getSessionId = () => {
@@ -182,6 +184,30 @@ export default function MyVideosPage() {
     }
   };
 
+  const handleOpenFolder = async (jobId: string) => {
+    console.log('📁 폴더 열기 버튼 클릭됨, jobId:', jobId);
+
+    try {
+      const response = await fetch(`/api/open-folder?jobId=${jobId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+      console.log('📁 폴더 열기 응답:', data);
+
+      if (response.ok) {
+        alert('폴더를 열었습니다.');
+      } else {
+        alert('폴더 열기 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    } catch (error) {
+      console.error('❌ 폴더 열기 오류:', error);
+      alert('폴더 열기 중 오류가 발생했습니다.');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const styles = {
       pending: 'bg-yellow-500/20 text-yellow-300',
@@ -220,20 +246,12 @@ export default function MyVideosPage() {
             </h1>
             {user && <p className="mt-1 text-sm text-slate-400">{user.email}</p>}
           </div>
-          <div className="flex gap-3">
-            <Link
-              href="/"
-              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-            >
-              메인으로
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-            >
-              로그아웃
-            </button>
-          </div>
+          <button
+            onClick={handleLogout}
+            className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+          >
+            로그아웃
+          </button>
         </div>
 
         {/* 검색 */}
@@ -360,13 +378,22 @@ export default function MyVideosPage() {
                       </button>
                     )}
                     {job.status === 'completed' && job.videoPath && (
-                      <a
-                        href={`/api/download-video?jobId=${job.id}`}
-                        download
-                        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
-                      >
-                        다운로드
-                      </a>
+                      <>
+                        <button
+                          onClick={() => handleOpenFolder(job.id)}
+                          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                          title="폴더 열기"
+                        >
+                          📁 폴더 열기
+                        </button>
+                        <a
+                          href={`/api/download-video?jobId=${job.id}`}
+                          download
+                          className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
+                        >
+                          다운로드
+                        </a>
+                      </>
                     )}
                   </div>
                 </div>
@@ -405,6 +432,17 @@ export default function MyVideosPage() {
           </div>
         )}
       </div>
+
+      {/* 맨 위로 플로팅 버튼 */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="fixed bottom-6 right-6 rounded-full bg-purple-600 p-4 text-white shadow-lg transition hover:bg-purple-500 hover:shadow-xl z-50"
+        title="맨 위로"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+      </button>
     </div>
   );
 }

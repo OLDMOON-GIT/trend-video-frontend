@@ -11,6 +11,7 @@ interface Script {
   content: string;
   status?: string;
   progress?: number;
+  type?: 'longform' | 'shortform' | 'sora2';
   tokenUsage?: {
     input_tokens: number;
     output_tokens: number;
@@ -328,9 +329,20 @@ export default function MyScriptsPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-white mb-2">
-                      {script.title}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold text-white">
+                        {script.title}
+                      </h3>
+                      {script.type && (
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          script.type === 'shortform' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                          script.type === 'longform' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
+                          'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                        }`}>
+                          {script.type === 'shortform' ? '⚡ 숏폼' : script.type === 'longform' ? '📝 롱폼' : '🎬 Sora2'}
+                        </span>
+                      )}
+                    </div>
 
                     <div className="mb-3 space-y-1 text-sm text-slate-400">
                       <p>생성 시간: {formatDate(script.createdAt)}</p>
@@ -407,10 +419,11 @@ export default function MyScriptsPage() {
                               }
                             }
 
-                            // 로컬 스토리지에 저장
+                            // 로컬 스토리지에 저장 (포맷 타입 포함)
                             localStorage.setItem('pipelineScript', JSON.stringify({
                               title: script.title,
-                              content: scriptJson
+                              content: scriptJson,
+                              type: script.type || 'longform' // 기본값은 longform
                             }));
                             // 메인 페이지로 이동
                             window.location.href = '/';
@@ -442,6 +455,17 @@ export default function MyScriptsPage() {
           </div>
         )}
       </div>
+
+      {/* 맨 위로 플로팅 버튼 */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="fixed bottom-6 right-6 rounded-full bg-purple-600 p-4 text-white shadow-lg transition hover:bg-purple-500 hover:shadow-xl z-50 cursor-pointer"
+        title="맨 위로"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+      </button>
     </div>
   );
 }

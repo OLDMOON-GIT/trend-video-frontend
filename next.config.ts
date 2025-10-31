@@ -1,6 +1,12 @@
 ﻿import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Fast Refresh 로그 최소화
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
+  },
   images: {
     remotePatterns: [
       {

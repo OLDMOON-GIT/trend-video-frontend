@@ -98,7 +98,7 @@ function loadStoredFilters(): StoredFilters | null {
 }
 
 const defaultViewRange = { min: 200_000, max: 100_000_000 };
-const defaultSubRange = { min: 0, max: 10_000_000 };
+const defaultSubRange = { min: 1, max: 10_000_000 };
 const defaultDurationRange = { min: 0, max: 120 };
 
 const modelOptions = [
@@ -127,7 +127,7 @@ export default function Home() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(storedFilters?.selectedCategories ?? []);
   const [titleQuery, setTitleQuery] = useState(storedFilters?.titleQuery ?? "");
   const [durationRange, setDurationRange] = useState(() => storedFilters?.durationRange ?? defaultDurationRange);
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(storedFilters?.selectedModel ?? 'gpt');
+  const [selectedModel, setSelectedModel] = useState<ModelOption>('gpt'); // 초기값은 서버와 동일하게
   const [videos, setVideos] = useState<VideoItem[]>(fallbackVideos);
   const [isFetching, setIsFetching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -139,7 +139,7 @@ export default function Home() {
   const [isTransforming, setIsTransforming] = useState(false);
   const [showTitleInput, setShowTitleInput] = useState(false);
   const [manualTitle, setManualTitle] = useState('');
-  const [titleInputMode, setTitleInputMode] = useState<'copy' | 'generate' | null>(null);
+  const [titleInputMode, setTitleInputMode] = useState<'copy' | 'generate' | 'generate-api' | null>(null);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState<{step: string; progress: number} | null>(null);
   const [videoLogs, setVideoLogs] = useState<string[]>([]);
@@ -150,7 +150,11 @@ export default function Home() {
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [toast, setToast] = useState<{message: string; type: 'success' | 'info' | 'error'} | null>(null);
+  const [isFilterExpanded, setIsFilterExpanded] = useState(true);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2'>('longform'); // 항상 기본값으로 시작
+  const [sora2Script, setSora2Script] = useState<string>(''); // SORA2 대본
+  const [showSora2Review, setShowSora2Review] = useState(false); // SORA2 대본 확인 모달
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [scriptProgress, setScriptProgress] = useState<{current: number; total: number; content?: string} | null>(null);
   const [showScriptConfirmModal, setShowScriptConfirmModal] = useState(false);
@@ -167,10 +171,19 @@ export default function Home() {
 
   // 대본 생성 로그 (기존 변수 유지)
   const [scriptGenerationLog, setScriptGenerationLog] = useState<string[]>([]);
+  const [currentScriptId, setCurrentScriptId] = useState<string | null>(null); // 현재 생성 중인 스크립트 ID
+  const [scriptPollingInterval, setScriptPollingInterval] = useState<NodeJS.Timeout | null>(null); // 폴링 인터벌
+  const [scriptGenerationLogs, setScriptGenerationLogs] = useState<Array<{timestamp: string; message: string}>>([]); // 로그 배열
+  const [showScriptLogs, setShowScriptLogs] = useState(false); // 로그 표시 여부
   const scriptContentRef = useRef<HTMLDivElement>(null);
   const videoLogsRef = useRef<HTMLDivElement>(null);
   const pipelineLogsRef = useRef<HTMLDivElement>(null);
   const scriptGenerationLogRef = useRef<HTMLDivElement>(null);
+
+  // 프롬프트 API URL 헬퍼 함수
+  const getPromptApiUrl = () => {
+    return videoFormat === 'shortform' ? '/api/shortform-prompt' : '/api/prompt';
+  };
 
   // 대본 생성 중 자동 스크롤
   useEffect(() => {
@@ -198,35 +211,92 @@ export default function Home() {
     if (scriptGenerationLogRef.current) {
       scriptGenerationLogRef.current.scrollTop = scriptGenerationLogRef.current.scrollHeight;
     }
-  }, [scriptGenerationLog]);
+  }, [scriptGenerationLog, scriptGenerationLogs]);
+
+  // videoFormat이 변경될 때마다 localStorage에 저장
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isMounted) {
+      console.log('💾 videoFormat 저장:', videoFormat);
+      localStorage.setItem('videoFormat', videoFormat);
+    }
+  }, [videoFormat, isMounted]);
+
+  // 컴포넌트 언마운트 시 폴링 인터벌 정리
+  useEffect(() => {
+    return () => {
+      if (scriptPollingInterval) {
+        clearInterval(scriptPollingInterval);
+      }
+    };
+  }, [scriptPollingInterval]);
 
   useEffect(() => {
     setIsMounted(true);
     checkAuth();
 
-    // 진행 중인 작업 복구
-    const savedJobId = localStorage.getItem('currentJobId');
-    if (savedJobId) {
-      setCurrentJobId(savedJobId);
-      setIsGeneratingVideo(true);
-      startPollingVideoStatus(savedJobId);
+    // localStorage에서 videoFormat 복원 (클라이언트에서만)
+    const savedVideoFormat = localStorage.getItem('videoFormat');
+    console.log('📂 localStorage에서 videoFormat 불러오기:', savedVideoFormat);
+    if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2') {
+      console.log('✅ videoFormat 복원:', savedVideoFormat);
+      setVideoFormat(savedVideoFormat);
+    } else {
+      console.log('⚠️ 저장된 videoFormat 없음, 기본값(longform) 사용');
     }
 
-    // 저장된 영상 목록 복구
-    const savedVideos = localStorage.getItem('trend-video-results');
-    const savedFetchedAt = localStorage.getItem('trend-video-fetched-at');
-    if (savedVideos && savedFetchedAt) {
+    // localStorage에서 selectedModel 복원
+    const savedFilters = localStorage.getItem('trend-video-filters');
+    if (savedFilters) {
       try {
-        const parsedVideos = JSON.parse(savedVideos);
-        if (Array.isArray(parsedVideos) && parsedVideos.length > 0) {
-          setVideos(parsedVideos);
-          setLastFetchedAt(savedFetchedAt);
-          pushLog(`이전 검색 결과 복원: ${parsedVideos.length}개 영상`);
+        const filters = JSON.parse(savedFilters);
+        if (filters.selectedModel) {
+          setSelectedModel(filters.selectedModel);
         }
       } catch (error) {
-        console.error('저장된 영상 목록 복구 실패:', error);
+        console.error('Failed to restore selectedModel:', error);
       }
     }
+
+    // 진행 중인 작업 복구 (유효성 체크 포함)
+    const savedJobId = localStorage.getItem('currentJobId');
+    if (savedJobId) {
+      // 먼저 job이 유효한지 체크
+      fetch(`/api/generate-video-upload?jobId=${savedJobId}`, {
+        headers: getAuthHeaders()
+      })
+        .then(response => {
+          if (response.ok) {
+            // job이 유효하면 폴링 시작
+            setCurrentJobId(savedJobId);
+            setIsGeneratingVideo(true);
+            startPollingVideoStatus(savedJobId);
+          } else {
+            // job이 유효하지 않으면 localStorage 정리
+            console.warn('Saved job is no longer valid, cleaning up:', savedJobId);
+            localStorage.removeItem('currentJobId');
+          }
+        })
+        .catch(error => {
+          console.error('Job validation error:', error);
+          localStorage.removeItem('currentJobId');
+        });
+    }
+
+    // 저장된 영상 목록 자동 복구 비활성화 - 버튼 클릭 시에만 데이터 로드
+    // const savedVideos = localStorage.getItem('trend-video-results');
+    // const savedFetchedAt = localStorage.getItem('trend-video-fetched-at');
+    // if (savedVideos && savedFetchedAt) {
+    //   try {
+    //     const parsedVideos = JSON.parse(savedVideos);
+    //     if (Array.isArray(parsedVideos) && parsedVideos.length > 0) {
+    //       setVideos(parsedVideos);
+    //       setLastFetchedAt(savedFetchedAt);
+    //       pushLog(`이전 검색 결과 복원: ${parsedVideos.length}개 영상`);
+    //     }
+    //   } catch (error) {
+    //     console.error('저장된 영상 목록 복구 실패:', error);
+    //   }
+    // }
 
     // 파이프라인 스크립트 로드 (내 콘텐츠에서 실행 버튼 눌렀을 때)
     const pipelineScript = localStorage.getItem('pipelineScript');
@@ -236,12 +306,13 @@ export default function Home() {
       console.log('🎬 파이프라인 스크립트 감지됨');
       try {
         const parsed = JSON.parse(pipelineScript);
-        const { title, content, imageSource } = parsed;
+        const { title, content, imageSource, type } = parsed;
         console.log('📝 파싱된 데이터:', {
           title,
           hasContent: !!content,
           imageSource: imageSource || 'dalle (기본값)',
-          contentType: typeof content
+          contentType: typeof content,
+          type: type || 'longform (기본값)'
         });
 
         // JSON 객체를 File 객체로 변환
@@ -263,6 +334,11 @@ export default function Home() {
         const source = imageSource || 'dalle';
         setImageSource(source);
         console.log('  ✓ imageSource 설정:', source);
+
+        // 포맷 타입 설정 (기본값: longform)
+        const formatType = type || 'longform';
+        setVideoFormat(formatType);
+        console.log('  ✓ videoFormat 설정:', formatType);
 
         setShowUploadSection(true);
         console.log('  ✓ showUploadSection: true');
@@ -304,6 +380,21 @@ export default function Home() {
         const statusResponse = await fetch(`/api/generate-video-upload?jobId=${jobId}`, {
           headers: getAuthHeaders()
         });
+
+        // 404 또는 기타 에러 응답 처리
+        if (!statusResponse.ok) {
+          if (statusResponse.status === 404) {
+            console.warn('Job not found, stopping polling:', jobId);
+            clearInterval(checkInterval);
+            setPollingInterval(null);
+            setIsGeneratingVideo(false);
+            setVideoProgress(null);
+            localStorage.removeItem('currentJobId');
+            return;
+          }
+          throw new Error(`HTTP error! status: ${statusResponse.status}`);
+        }
+
         const statusData = await statusResponse.json();
 
         setVideoProgress({
@@ -514,6 +605,68 @@ export default function Home() {
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
     setToast({ message, type });
+  };
+
+  // SORA2 대본 생성
+  const generateSora2Script = async () => {
+    if (!topicOrTitle.trim()) {
+      showToast('주제를 먼저 입력해주세요', 'error');
+      return;
+    }
+
+    try {
+      showToast('SORA2 전용 대본 생성 중...', 'info');
+
+      const response = await fetch('/api/scripts/generate', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          topic: topicOrTitle.trim(),
+          videoFormat: 'sora2' // SORA2 전용 프롬프트 사용
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('대본 생성 실패');
+      }
+
+      const data = await response.json();
+      setSora2Script(data.script);
+      setShowSora2Review(true);
+      showToast('SORA2 대본 생성 완료! 확인 후 비디오 제작으로 진행하세요', 'success');
+
+    } catch (error) {
+      console.error('SORA2 script generation error:', error);
+      showToast('SORA2 대본 생성 실패: ' + (error as Error).message, 'error');
+    }
+  };
+
+  // SORA2 비디오 생성 (대본 확인 후)
+  const startSora2VideoGeneration = async () => {
+    try {
+      showToast('SORA2 비디오 생성 시작...', 'info');
+
+      const response = await fetch('/api/sora/generate', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          script: sora2Script,
+          title: topicOrTitle.trim()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('SORA2 비디오 생성 실패');
+      }
+
+      const data = await response.json();
+      showToast('SORA2 비디오 생성 시작! 작업 ID: ' + data.taskId, 'success');
+      setShowSora2Review(false);
+
+    } catch (error) {
+      console.error('SORA2 generation error:', error);
+      showToast('SORA2 비디오 생성 실패: ' + (error as Error).message, 'error');
+    }
   };
 
   const hasCategoryFilter = selectedCategories.length > 0;
@@ -738,17 +891,56 @@ export default function Home() {
   }, []);
 
   const handleMoveToLLM = useCallback(async () => {
-    // 영상이 선택되지 않았으면 모델 홈페이지로 이동
+    // 영상이 선택되지 않았으면 프롬프트만 복사하고 모델 홈페이지로 이동
     if (!selectedIds.length) {
-      const modelUrls: Record<string, string> = {
-        'gpt': 'https://chatgpt.com',
-        'gemini': 'https://gemini.google.com',
-        'claude': 'https://claude.ai',
-        'groq': 'https://groq.com'
-      };
+      try {
+        // 프롬프트 파일 가져오기
+        const response = await fetch(`/api/prompt?format=${videoFormat}`);
 
-      const url = modelUrls[selectedModel] || 'https://chatgpt.com';
-      window.open(url, '_blank');
+        if (!response.ok) {
+          showToast('프롬프트를 가져오는데 실패했습니다.', 'error');
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.content) {
+          // 안전한 클립보드 복사
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(data.content);
+            } else {
+              // 폴백: textarea를 사용한 복사
+              const textarea = document.createElement('textarea');
+              textarea.value = data.content;
+              textarea.style.position = 'fixed';
+              textarea.style.opacity = '0';
+              document.body.appendChild(textarea);
+              textarea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textarea);
+            }
+            showToast('프롬프트가 클립보드에 복사되었습니다!', 'success');
+          } catch (clipError) {
+            console.error('클립보드 복사 실패:', clipError);
+            showToast('클립보드 복사 실패', 'error');
+          }
+        }
+
+        // 모델 홈페이지 열기
+        const modelUrls: Record<string, string> = {
+          'gpt': 'https://chatgpt.com',
+          'gemini': 'https://gemini.google.com',
+          'claude': 'https://claude.ai',
+          'groq': 'https://groq.com'
+        };
+
+        const url = modelUrls[selectedModel] || 'https://chatgpt.com';
+        window.open(url, '_blank');
+      } catch (error) {
+        console.error('프롬프트 복사 실패:', error);
+        showToast('프롬프트 복사에 실패했습니다.', 'error');
+      }
       return;
     }
 
@@ -785,7 +977,7 @@ export default function Home() {
 
     pushLog(`LLM 이동 완료 (${results.length}건)`);
     alert(`✅ 모델: ${pipelineModel.toUpperCase()}로 ${results.length}개 탭을 열었습니다.\n\n📋 각 탭의 프롬프트가 클립보드에 복사되었습니다.\n(마지막 탭의 내용이 클립보드에 남아있습니다)\n\n이제 LLM 사이트에서 Ctrl+V로 붙여넣으세요.`);
-  }, [runPipeline, pushLog, selectedIds]);
+  }, [runPipeline, pushLog, selectedIds, videoFormat, selectedModel]);
 
   const handleGenerateSubtitle = useCallback(async () => {
     if (!selectedIds.length) {
@@ -909,7 +1101,15 @@ export default function Home() {
         {/* 사용자 정보 바 */}
         <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-2">
           <div className="flex items-center gap-3 text-xs text-slate-300 sm:text-sm">
-            <Breadcrumb />
+            <a
+              href="/"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-md shadow-purple-500/20 transition hover:shadow-lg hover:shadow-purple-500/30"
+              title="홈으로"
+            >
+              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+            </a>
             {user ? (
               <span>👤 {user.email}</span>
             ) : (
@@ -942,6 +1142,12 @@ export default function Home() {
                 >
                   📂 내 콘텐츠
                 </a>
+                <a
+                  href="/coupang"
+                  className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-2 py-1 text-xs font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500 sm:px-3 sm:py-1.5 sm:text-sm"
+                >
+                  🛒 쿠팡 파트너스
+                </a>
                 <button
                   onClick={handleLogout}
                   className="rounded-lg bg-slate-700 px-2 py-1 text-xs font-semibold text-white transition hover:bg-slate-600 sm:px-3 sm:py-1.5 sm:text-sm"
@@ -960,617 +1166,755 @@ export default function Home() {
           </div>
         </div>
 
-        <header className="flex flex-col gap-3">
-          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-400">
-            Auto Video Intelligence
-          </p>
-          <h1 className="text-3xl font-bold text-white sm:text-4xl">
-            유튜브 트렌드 필터 & 자동 영상 파이프라인
-          </h1>
-          <p className="max-w-3xl text-sm text-slate-300 sm:text-base">
-            관심 있는 영상을 골라 필터링하고, 선택한 아이템으로 자동 대본 생성과 제작 파이프라인을 실행할 준비를 하세요.
-          </p>
-        </header>
+        {/* AI 콘텐츠 생성 Flow */}
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-white">🎬 AI 콘텐츠 생성 Flow</h3>
+              <p className="mt-1 text-xs text-slate-300">
+                AI 대본을 생성하고, LLM을 사용하거나 자동으로 영상을 제작하세요.
+              </p>
+            </div>
+            {/* 롱폼/숏폼/SORA2 선택 */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setVideoFormat('longform')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  videoFormat === 'longform'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                🎬 롱폼
+              </button>
+              <button
+                onClick={() => setVideoFormat('shortform')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  videoFormat === 'shortform'
+                    ? 'bg-pink-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                📱 숏폼
+              </button>
+              <button
+                onClick={() => setVideoFormat('sora2')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  videoFormat === 'sora2'
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                🎥 SORA2
+              </button>
+            </div>
+          </div>
+          <div className="mb-4 h-px bg-white/10"></div>
 
-        {/* 대본 생성 섹션 */}
-        <section className="rounded-3xl border border-emerald-500/20 bg-emerald-950/20 p-6 backdrop-blur">
-          <h2 className="mb-4 text-xl font-bold text-emerald-400">🎬 AI 대본 생성</h2>
-          <p className="mb-4 text-sm text-slate-300">
-            프롬프트를 복사하거나, Claude AI로 자동으로 대본을 생성하세요.
-          </p>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="flex gap-3 w-full">
-              {user?.isAdmin && (
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Flow 1: AI 대본 생성 */}
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 backdrop-blur">
+              <div className="mb-3 flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white">1</span>
+                    <h4 className="text-sm font-semibold text-emerald-300">AI 대본 생성</h4>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    주제를 입력하여 AI로 대본을 생성하거나 프롬프트를 복사하세요
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                {user?.isAdmin && (
+                  <button
+                    onClick={async () => {
+                      setShowTitleInput(true);
+                      setTitleInputMode('copy');
+                      setManualTitle('');
+                      setSuggestedTitles([]);
+                      setSelectedSuggestedTitle(null);
+                    }}
+                    className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
+                      titleInputMode === 'copy' && showTitleInput
+                        ? 'bg-slate-600 ring-2 ring-slate-400'
+                        : 'bg-slate-700 hover:bg-slate-600'
+                    }`}
+                  >
+                    📋 프롬프트 복사
+                  </button>
+                )}
+                {user?.isAdmin && (
+                  <button
+                    onClick={async () => {
+                      setShowTitleInput(true);
+                      setTitleInputMode('generate-api');
+                      setManualTitle('');
+                      setSuggestedTitles([]);
+                      setSelectedSuggestedTitle(null);
+                    }}
+                    className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
+                      titleInputMode === 'generate-api' && showTitleInput
+                        ? 'bg-red-500 ring-2 ring-red-300'
+                        : 'bg-red-600 hover:bg-red-500'
+                    }`}
+                  >
+                    🔴 AI 대본생성(API)
+                  </button>
+                )}
                 <button
                   onClick={async () => {
                     setShowTitleInput(true);
-                    setTitleInputMode('copy');
+                    setTitleInputMode('generate');
                     setManualTitle('');
                     setSuggestedTitles([]);
                     setSelectedSuggestedTitle(null);
                   }}
-                  className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white transition ${
-                    titleInputMode === 'copy' && showTitleInput
-                      ? 'bg-slate-600 ring-2 ring-slate-400'
-                      : 'bg-slate-700 hover:bg-slate-600'
+                  className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
+                    titleInputMode === 'generate' && showTitleInput
+                      ? 'bg-emerald-500 ring-2 ring-emerald-300'
+                      : 'bg-emerald-600 hover:bg-emerald-500'
                   }`}
                 >
-                  📋 프롬프트 복사 (무료)
+                  🤖 AI 대본 생성
                 </button>
-              )}
+              </div>
+            </div>
 
+            {/* Flow 2: 영상 제작 */}
+            <div className="rounded-2xl border border-purple-500/30 bg-purple-950/20 p-4 backdrop-blur">
+              <div className="mb-3 flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white">2</span>
+                    <h4 className="text-sm font-semibold text-purple-300">영상 제작</h4>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    완성된 대본으로 자동으로 쇼츠 영상을 제작합니다
+                  </p>
+                </div>
+              </div>
               <button
-                onClick={async () => {
-                  setShowTitleInput(true);
-                  setTitleInputMode('generate');
-                  setManualTitle('');
-                  setSuggestedTitles([]);
-                  setSelectedSuggestedTitle(null);
-                }}
-                className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white transition ${
-                  titleInputMode === 'generate' && showTitleInput
-                    ? 'bg-emerald-500 ring-2 ring-emerald-300'
-                    : 'bg-emerald-600 hover:bg-emerald-500'
-                }`}
+                type="button"
+                onClick={handleRunAutomation}
+                disabled={isPipelineProcessing}
+                className="w-full rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-wait disabled:opacity-70"
               >
-                {`🤖 AI로 대본 생성${settings ? ` (${settings.aiScriptCost} 크레딧)` : ' (유료)'}`}
+                {isPipelineProcessing ? '⏳ 제작 중...' : '🎥 영상 제작 시작'}
               </button>
             </div>
           </div>
+        </div>
 
-          {/* 제목 입력 폼 - 버튼 아래로 이동 */}
-          {showTitleInput && (
-            <div className="mt-4 overflow-hidden rounded-xl border border-white/20 bg-white/5 backdrop-blur animate-in slide-in-from-top-2">
-              <div className="p-4">
-                {/* 선택된 모드 표시 */}
-                <div className="mb-3 flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2">
-                  <span className="text-lg">
-                    {titleInputMode === 'copy' ? '📋' : '🤖'}
-                  </span>
-                  <span className="text-sm font-semibold text-white">
-                    {titleInputMode === 'copy'
-                      ? '프롬프트 복사 모드 (무료)'
-                      : `AI 대본 생성 모드 (${settings?.aiScriptCost || 25} 크레딧)`}
-                  </span>
-                </div>
-                <label className="mb-2 block text-sm font-medium text-slate-300">
-                  제목을 입력하세요
-                </label>
-                <div className="flex gap-2 mb-3">
-                  <input
-                    type="text"
-                    value={manualTitle}
-                    onChange={(e) => {
-                      setManualTitle(e.target.value);
-                      setSuggestedTitles([]);
-                      setSelectedSuggestedTitle(null);
-                    }}
-                    placeholder="예: 70대 할머니의 첫 해외여행 이야기"
-                    className="flex-1 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-white placeholder-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && manualTitle.trim()) {
-                        if (titleInputMode === 'copy') {
-                          // 프롬프트 복사
-                          (async () => {
-                            try {
-                              const response = await fetch('/api/prompt');
-                              const data = await response.json();
-                              if (data.content) {
-                                const fullPrompt = `${data.content}\n\n주제: ${manualTitle.trim()}`;
-                                await navigator.clipboard.writeText(fullPrompt);
-                                setToast({
-                                  message: `프롬프트가 클립보드에 복사되었습니다! 제목: ${manualTitle.trim()} - 이제 Claude.ai에 붙여넣으세요.`,
-                                  type: 'success'
-                                });
-                                setTimeout(() => setToast(null), 5000);
-                                setShowTitleInput(false);
-                                setManualTitle('');
-                              } else {
-                                setToast({
-                                  message: data.error || '프롬프트를 읽을 수 없습니다.',
-                                  type: 'error'
-                                });
-                                setTimeout(() => setToast(null), 5000);
-                              }
-                            } catch (error) {
-                              console.error(error);
-                              setToast({
-                                message: '프롬프트 복사 중 오류가 발생했습니다.',
-                                type: 'error'
-                              });
-                              setTimeout(() => setToast(null), 5000);
-                            }
-                          })();
-                        }
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={async () => {
-                      if (!manualTitle.trim()) {
-                        setToast({
-                          message: '먼저 주제를 입력해주세요.',
-                          type: 'info'
-                        });
-                        setTimeout(() => setToast(null), 5000);
-                        return;
-                      }
+        {/* AI 대본 제목 입력 */}
+        {showTitleInput && (
+        <section className="rounded-3xl border border-emerald-500/20 bg-emerald-950/20 p-6 backdrop-blur">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-emerald-400">
+              {titleInputMode === 'copy' ? '📋 프롬프트 복사' :
+               titleInputMode === 'generate-api' ? '🔴 AI 대본생성(API)' :
+               '🤖 AI 대본 생성'}
+            </h2>
+            <button
+              type="button"
+              onClick={() => {
+                setShowTitleInput(false);
+                setManualTitle('');
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+              aria-label="닫기"
+            >
+              ✕
+            </button>
+          </div>
 
-                      setIsSuggestingTitles(true);
-                      try {
-                        const promptResponse = await fetch('/api/prompt');
-                        const promptData = await promptResponse.json();
+          {/* 선택된 모드 표시 */}
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-white/10 px-4 py-3">
+            <span className="text-2xl">
+              {titleInputMode === 'copy' ? '📋' : titleInputMode === 'generate-api' ? '🔴' : '🤖'}
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-white">
+                {titleInputMode === 'copy'
+                  ? '프롬프트 복사 모드 (무료)'
+                  : titleInputMode === 'generate-api'
+                  ? '⚠️ Claude API 직접 호출 (관리자 전용)'
+                  : `AI 대본 생성 모드 (${settings?.aiScriptCost || 25} 크레딧)`}
+              </div>
+              <div className="text-xs text-slate-400">
+                {titleInputMode === 'copy'
+                  ? '프롬프트를 클립보드에 복사하여 Claude.ai에서 무료로 사용하세요'
+                  : titleInputMode === 'generate-api'
+                  ? 'Claude API를 직접 호출합니다 (테스트용, 비용 발생)'
+                  : '로컬 Claude로 대본을 생성합니다 (실패 시 API 사용)'}
+              </div>
+            </div>
+          </div>
 
-                        if (!promptData.content) {
-                          setToast({
-                            message: '프롬프트를 읽을 수 없습니다.',
-                            type: 'error'
-                          });
-                          setTimeout(() => setToast(null), 5000);
-                          return;
-                        }
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              영상 제목을 입력하세요
+            </label>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={manualTitle}
+                onChange={(e) => {
+                  setManualTitle(e.target.value);
+                  setSuggestedTitles([]);
+                  setSelectedSuggestedTitle(null);
+                }}
+                placeholder="예: 70대 할머니의 첫 해외여행 이야기"
+                className="flex-1 rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && manualTitle.trim() && !isGeneratingScript) {
+                    e.currentTarget.nextElementSibling?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                  }
+                }}
+              />
+              <button
+                onClick={async () => {
+                  if (!manualTitle.trim()) {
+                    setToast({
+                      message: '제목을 입력해주세요.',
+                      type: 'error'
+                    });
+                    setTimeout(() => setToast(null), 3000);
+                    return;
+                  }
 
-                        const response = await fetch('/api/generate-script', {
-                          method: 'POST',
-                          headers: {
-                            ...getAuthHeaders(),
-                            'Content-Type': 'application/json'
-                          },
-                          body: JSON.stringify({
-                            prompt: promptData.content,
-                            topic: manualTitle.trim(),
-                            suggestTitles: true
-                          })
-                        });
+                  if (titleInputMode === 'copy') {
+                    // 프롬프트 복사 - /api/prompt에서 텍스트 파일 전체 내용 가져오기
+                    try {
+                      const response = await fetch(`/api/prompt?format=${videoFormat}`);
 
-                        const data = await response.json();
-
-                        if (data.suggestedTitles && data.suggestedTitles.length > 0) {
-                          setSuggestedTitles(data.suggestedTitles);
-                        } else {
-                          setToast({
-                            message: '제목 제안에 실패했습니다.',
-                            type: 'error'
-                          });
-                          setTimeout(() => setToast(null), 5000);
-                        }
-                      } catch (error) {
-                        console.error(error);
-                        setToast({
-                          message: '제목 제안 중 오류가 발생했습니다.',
-                          type: 'error'
-                        });
-                        setTimeout(() => setToast(null), 5000);
-                      } finally {
-                        setIsSuggestingTitles(false);
-                      }
-                    }}
-                    disabled={isSuggestingTitles}
-                    className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    {isSuggestingTitles ? '⏳ 제안 중...' : '💡 제목 제안'}
-                  </button>
-                </div>
-
-                {/* 제안된 제목 표시 */}
-                {suggestedTitles.length > 0 && (
-                  <div className="mb-3 rounded-lg border border-purple-500/30 bg-purple-500/10 p-3">
-                    <p className="mb-2 text-xs font-semibold text-purple-300">💡 제안된 제목 (클릭하여 선택)</p>
-                    <div className="space-y-2">
-                      {suggestedTitles.map((title, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setSelectedSuggestedTitle(title);
-                            setManualTitle(title);
-                          }}
-                          className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${
-                            selectedSuggestedTitle === title
-                              ? 'bg-purple-600 text-white font-semibold ring-2 ring-purple-300'
-                              : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                          }`}
-                        >
-                          {selectedSuggestedTitle === title && <span className="mr-2">✓</span>}
-                          {idx + 1}. {title}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-4 flex gap-2">
-                  <button
-                    onClick={async () => {
-                      if (!manualTitle.trim()) {
-                        setToast({
-                          message: '제목을 입력해주세요.',
-                          type: 'info'
-                        });
-                        setTimeout(() => setToast(null), 5000);
-                        return;
+                      if (!response.ok) {
+                        throw new Error(`API 오류: ${response.status}`);
                       }
 
-                      if (titleInputMode === 'copy') {
-                        // 프롬프트 복사
+                      const data = await response.json();
+
+                      if (data.content) {
+                        // 파일 전체 내용에 주제 추가
+                        const promptContent = `${data.content}\n\n주제: ${manualTitle.trim()}\n\n위 주제로 영상 대본을 작성해주세요.`;
+
+                        // 안전한 클립보드 복사
                         try {
-                          const response = await fetch('/api/prompt');
-                          const data = await response.json();
-                          if (data.content) {
-                            const fullPrompt = `${data.content}\n\n주제: ${manualTitle.trim()}`;
-
-                            // 클립보드에 복사 시도
-                            let copySuccess = false;
-
-                            // 방법 1: Clipboard API (최신 브라우저, HTTPS)
-                            if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-                              try {
-                                await navigator.clipboard.writeText(fullPrompt);
-                                copySuccess = true;
-                              } catch (clipboardError) {
-                                console.warn('Clipboard API 실패, 폴백 방법 시도:', clipboardError);
-                              }
-                            }
-
-                            // 방법 2: execCommand 폴백 (구형 브라우저, HTTP)
-                            if (!copySuccess && typeof document !== 'undefined') {
-                              try {
-                                const textarea = document.createElement('textarea');
-                                textarea.value = fullPrompt;
-                                textarea.style.position = 'fixed';
-                                textarea.style.top = '0';
-                                textarea.style.left = '0';
-                                textarea.style.opacity = '0';
-                                document.body.appendChild(textarea);
-                                textarea.focus();
-                                textarea.select();
-                                const successful = document.execCommand('copy');
-                                document.body.removeChild(textarea);
-                                if (successful) {
-                                  copySuccess = true;
-                                }
-                              } catch (execError) {
-                                console.warn('execCommand 실패:', execError);
-                              }
-                            }
-
-                            if (copySuccess) {
-                              setToast({
-                                message: `프롬프트가 클립보드에 복사되었습니다! 제목: ${manualTitle.trim()} - 이제 Claude.ai에 붙여넣으세요.`,
-                                type: 'success'
-                              });
-                            } else {
-                              setToast({
-                                message: '클립보드 복사에 실패했습니다. 브라우저 설정을 확인해주세요.',
-                                type: 'error'
-                              });
-                            }
-
-                            setTimeout(() => setToast(null), 5000);
-                            setShowTitleInput(false);
-                            setManualTitle('');
-                            setSuggestedTitles([]);
-                            setSelectedSuggestedTitle(null);
+                          if (navigator.clipboard && navigator.clipboard.writeText) {
+                            await navigator.clipboard.writeText(promptContent);
                           } else {
-                            setToast({
-                              message: data.error || '프롬프트를 읽을 수 없습니다.',
-                              type: 'error'
-                            });
-                            setTimeout(() => setToast(null), 5000);
+                            // 폴백: textarea를 사용한 복사
+                            const textarea = document.createElement('textarea');
+                            textarea.value = promptContent;
+                            textarea.style.position = 'fixed';
+                            textarea.style.opacity = '0';
+                            document.body.appendChild(textarea);
+                            textarea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textarea);
                           }
-                        } catch (error) {
-                          console.error(error);
                           setToast({
-                            message: '프롬프트 복사 중 오류가 발생했습니다.',
+                            message: `프롬프트가 클립보드에 복사되었습니다! 제목: ${manualTitle.trim()} - 이제 Claude.ai에 붙여넣으세요.`,
+                            type: 'success'
+                          });
+                          setTimeout(() => setToast(null), 5000);
+                          setShowTitleInput(false);
+                          setManualTitle('');
+                        } catch (clipError) {
+                          console.error('클립보드 복사 실패:', clipError);
+                          setToast({
+                            message: '클립보드 복사 실패. 프롬프트를 수동으로 복사하세요.',
                             type: 'error'
                           });
                           setTimeout(() => setToast(null), 5000);
                         }
                       } else {
-                        // AI 대본 생성
-                        // 크레딧 확인
-                        if (user && settings && user.credits < settings.aiScriptCost) {
-                          setToast({
-                            message: `크레딧이 부족합니다. (필요: ${settings.aiScriptCost}, 보유: ${user.credits})`,
-                            type: 'error'
-                          });
-                          setTimeout(() => setToast(null), 5000);
-                          return;
-                        }
+                        console.error('프롬프트 데이터:', data);
+                        setToast({
+                          message: '프롬프트를 찾을 수 없습니다. prompt*.txt 파일이 프로젝트 루트에 있는지 확인하세요.',
+                          type: 'error'
+                        });
+                        setTimeout(() => setToast(null), 5000);
+                      }
+                    } catch (error) {
+                      console.error('프롬프트 복사 오류:', error);
+                      setToast({
+                        message: '프롬프트 복사 중 오류가 발생했습니다.',
+                        type: 'error'
+                      });
+                      setTimeout(() => setToast(null), 5000);
+                    }
+                  } else if (titleInputMode === 'generate-api') {
+                    // AI 대본생성(API) - 백그라운드 작업 + 폴링 방식
+                    setIsGeneratingScript(true);
+                    setShowScriptLogs(true); // 로그창 처음부터 열기
+                    setScriptProgress({ current: 0, total: 100 });
+                    setScriptGenerationLogs([{
+                      timestamp: new Date().toISOString(),
+                      message: '💰 Claude API를 사용하여 대본 생성 시작...'
+                    }]);
 
-                        // 확인 모달 표시
-                        setScriptConfirmCallback(() => async () => {
-                          // 모달 초기화 및 표시
-                          setIsGeneratingScript(true);
-                          setScriptGenerationLog([]);
-                          setScriptProgress({ current: 10, total: 100 });
-                          setCompletedScript(null);
+                    try {
+                      const promptResponse = await fetch(getPromptApiUrl());
+                      const promptData = await promptResponse.json();
 
-                          try {
-                          setScriptGenerationLog(prev => [...prev, '📝 프롬프트 로드 중...']);
+                      setScriptGenerationLogs(prev => [...prev, {
+                        timestamp: new Date().toISOString(),
+                        message: '📝 프롬프트 로드 완료'
+                      }]);
 
-                          const promptResponse = await fetch('/api/prompt', {
+                      const response = await fetch('/api/generate-script', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                        body: JSON.stringify({
+                          prompt: promptData.content,
+                          topic: manualTitle.trim(),
+                          format: videoFormat
+                        })
+                      });
+                      const data = await response.json();
+
+                      console.log('🔍 API 응답:', data);
+
+                      if (!response.ok) {
+                        throw new Error(data.error || `API 오류: ${response.status}`);
+                      }
+
+                      // scriptId 받아서 폴링 시작
+                      if (!data.scriptId) {
+                        throw new Error('scriptId를 받지 못했습니다.');
+                      }
+
+                      const scriptId = data.scriptId;
+                      setCurrentScriptId(scriptId);
+
+                      setScriptGenerationLogs(prev => [...prev, {
+                        timestamp: new Date().toISOString(),
+                        message: `📝 대본 생성 작업 시작 (ID: ${scriptId.substring(0, 8)}...)`
+                      }]);
+
+                      // 2초마다 상태 확인하는 폴링 시작
+                      let checkCount = 0;
+                      const maxChecks = 180; // 최대 6분 대기
+
+                      const interval = setInterval(async () => {
+                        try {
+                          const statusResponse = await fetch(`/api/scripts/${scriptId}`, {
                             headers: getAuthHeaders()
                           });
-                          const promptData = await promptResponse.json();
+                          const statusData = await statusResponse.json();
 
-                          if (!promptData.content) {
-                            setIsGeneratingScript(false);
+                          if (statusData.script?.status === 'completed') {
+                            // 완료!
+                            clearInterval(interval);
+                            setScriptPollingInterval(null);
+                            setScriptProgress({ current: 100, total: 100 });
+                            setScriptGenerationLogs(prev => [...prev, {
+                              timestamp: new Date().toISOString(),
+                              message: '✅ 대본 생성 완료!'
+                            }]);
+
+                            const scriptContent = statusData.script.content || '';
+                            setCompletedScript({
+                              title: manualTitle.trim(),
+                              content: scriptContent,
+                              scriptId: scriptId
+                            });
+
+                            // 크레딧 업데이트
+                            fetchCreditsAndSettings();
+
                             setToast({
-                              message: '프롬프트를 읽을 수 없습니다.',
+                              message: 'API로 대본이 생성되었습니다!',
+                              type: 'success'
+                            });
+                            setTimeout(() => setToast(null), 3000);
+                            setShowTitleInput(false);
+                            setManualTitle('');
+                            setIsGeneratingScript(false);
+                            setCurrentScriptId(null);
+                          } else if (statusData.script?.status === 'failed') {
+                            clearInterval(interval);
+                            setScriptPollingInterval(null);
+                            setIsGeneratingScript(false);
+
+                            // 에러 로그 추가 (기존 로그 유지)
+                            if (statusData.script.logs && statusData.script.logs.length > 0) {
+                              const formattedLogs = statusData.script.logs.map((log: string) => ({
+                                timestamp: new Date().toISOString(),
+                                message: log
+                              }));
+                              setScriptGenerationLogs(formattedLogs);
+                            }
+                            setScriptGenerationLogs(prev => [...prev, {
+                              timestamp: new Date().toISOString(),
+                              message: `❌ 오류: ${statusData.script?.error || '알 수 없는 오류'}`
+                            }]);
+
+                            // 진행률은 에러 표시를 위해 유지
+                            setScriptProgress({ current: 0, total: 100 });
+                            setCurrentScriptId(null);
+
+                            // 크레딧 환불되었으므로 새로고침
+                            fetchCreditsAndSettings();
+
+                            setToast({
+                              message: statusData.script?.error || 'API 대본 생성 중 오류가 발생했습니다.',
                               type: 'error'
                             });
                             setTimeout(() => setToast(null), 5000);
-                            return;
-                          }
-
-                          setScriptGenerationLog(prev => [...prev, '✅ 프롬프트 로드 완료']);
-                          setScriptGenerationLog(prev => [...prev, `🤖 대본 생성 작업 시작... (주제: ${manualTitle.trim()})`]);
-
-                          const scriptResponse = await fetch('/api/generate-script', {
-                            method: 'POST',
-                            headers: {
-                              ...getAuthHeaders(),
-                              'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                              prompt: promptData.content,
-                              topic: manualTitle.trim()
-                            })
-                          });
-
-                          const scriptData = await scriptResponse.json();
-
-                          if (scriptData.scriptId) {
-                            setScriptGenerationLog(prev => [...prev, '✅ 대본 생성 작업이 시작되었습니다!']);
-                            setScriptGenerationLog(prev => [...prev, '⏳ 대본 생성 중... (약 30초 소요)']);
-
-                            // 메인 페이지에서 상태 확인을 위한 폴링 시작
-                            startPollingScriptStatus(scriptData.scriptId);
-                          } else {
-                            setIsGeneratingScript(false);
-                            setToast({
-                              message: `오류: ${scriptData.error || '대본 생성에 실패했습니다.'}`,
-                              type: 'error'
+                          } else if (statusData.script?.status === 'processing') {
+                            // 처리 중 - 진행률, 콘텐츠, 로그 업데이트
+                            const progress = statusData.script.progress || 50;
+                            setScriptProgress({
+                              current: progress,
+                              total: 100,
+                              content: statusData.script.content || ''
                             });
-                            setTimeout(() => setToast(null), 5000);
-                          }
-                          } catch (error) {
-                            console.error(error);
-                            setIsGeneratingScript(false);
-                            setToast({
-                              message: `오류: ${error}`,
-                              type: 'error'
-                            });
-                            setTimeout(() => setToast(null), 5000);
-                          }
-                        });
-                        setShowScriptConfirmModal(true);
-                      }
-                    }}
-                    className={`flex-1 rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${
-                      titleInputMode === 'copy'
-                        ? 'bg-slate-700 hover:bg-slate-600'
-                        : 'bg-emerald-600 hover:bg-emerald-500'
-                    }`}
-                  >
-                    {titleInputMode === 'copy' ? '📋 클립보드에 복사' : `🤖 AI 대본 생성 (${settings?.aiScriptCost || 25} 크레딧)`}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowTitleInput(false);
-                      setManualTitle('');
-                      setSuggestedTitles([]);
-                      setSelectedSuggestedTitle(null);
-                    }}
-                    className="rounded-lg bg-slate-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-500"
-                  >
-                    취소
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* 대본 생성 로딩 모달 (간단 버전) */}
-          {isGeneratingScript && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-              <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl border border-white/20 bg-gradient-to-br from-slate-800 to-slate-900 p-8 shadow-2xl">
-                <h3 className="mb-6 text-3xl font-bold text-white">
-                  {completedScript ? '✅ AI 대본 생성 완료' : '🤖 AI 대본 생성 중'}
-                </h3>
+                            // 로그 업데이트
+                            if (statusData.script.logs && statusData.script.logs.length > 0) {
+                              const formattedLogs = statusData.script.logs.map((log: string) => ({
+                                timestamp: new Date().toISOString(),
+                                message: log
+                              }));
+                              setScriptGenerationLogs(formattedLogs);
+                            }
+                          } else if (statusData.script?.status === 'pending') {
+                            // 대기 중 - 로그만 업데이트, 진행률은 10%로 표시
+                            setScriptProgress({ current: 10, total: 100 });
 
-                {/* 프로그레스바 */}
-                {!completedScript && scriptProgress && (
-                  <div className="mb-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-300">대본 생성 진행률</span>
-                      <span className="text-sm font-bold text-purple-400">
-                        {scriptProgress.current}%
-                      </span>
-                    </div>
-                    <div className="h-3 overflow-hidden rounded-full bg-slate-700">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-purple-500 to-purple-400 transition-all duration-500"
-                        style={{ width: `${scriptProgress.current}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
+                            // 로그 업데이트
+                            if (statusData.script.logs && statusData.script.logs.length > 0) {
+                              const formattedLogs = statusData.script.logs.map((log: string) => ({
+                                timestamp: new Date().toISOString(),
+                                message: log
+                              }));
+                              setScriptGenerationLogs(formattedLogs);
+                            }
 
-                {/* 생성 중인 대본 미리보기 */}
-                {!completedScript && scriptProgress && scriptProgress.content && (
-                  <div className="mb-6 rounded-lg border border-purple-500/30 bg-purple-500/10 p-6">
-                    <h4 className="mb-3 text-lg font-semibold text-purple-300">📝 생성 중인 대본</h4>
-                    <div ref={scriptContentRef} className="max-h-96 overflow-y-auto rounded bg-slate-900/50 p-4">
-                      <pre className="whitespace-pre-wrap text-sm text-slate-300 leading-relaxed">{scriptProgress.content}</pre>
-                    </div>
-                    <div className="mt-3 text-right text-sm text-purple-400 font-semibold">
-                      {scriptProgress.content.length.toLocaleString()}자 생성됨
-                    </div>
-                  </div>
-                )}
-
-                {/* 로그 */}
-                <div ref={scriptGenerationLogRef} className="mb-6 max-h-48 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
-                  <div className="space-y-1">
-                    {scriptGenerationLog.map((log, idx) => (
-                      <div key={idx} className="text-sm text-slate-300 font-mono">
-                        {log}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 완료 시 저장 버튼 */}
-                {completedScript && (
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
-                      <h4 className="mb-2 font-semibold text-emerald-300">📄 생성된 대본</h4>
-                      <p className="text-sm text-slate-300 mb-2"><strong>제목:</strong> {completedScript.title}</p>
-                      <div className="max-h-40 overflow-y-auto rounded bg-slate-900/50 p-3">
-                        <pre className="whitespace-pre-wrap text-xs text-slate-400">{completedScript.content.substring(0, 500)}...</pre>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-3">
-                      <div className="flex gap-3">
-                        <button
-                          onClick={async () => {
-                            // JSON 파싱 및 파이프라인 실행
-                            try {
-                              const scriptJson = JSON.parse(completedScript.content);
-
-                              // JSON을 파일로 만들어서 업로드한 것처럼 처리
-                              setJsonName(completedScript.title || 'generated_script.json');
-                              setUploadedJson(scriptJson);
-                              setShowUploadSection(true); // 파일 업로드 섹션 자동으로 열기
-
-                              // 모달 닫기
+                            checkCount++;
+                            if (checkCount >= maxChecks) {
+                              clearInterval(interval);
+                              setScriptPollingInterval(null);
                               setIsGeneratingScript(false);
-                              setScriptGenerationLog([]);
-                              setCompletedScript(null);
-                              setShowTitleInput(false);
-                              setManualTitle('');
-                              setSuggestedTitles([]);
-                              setSelectedSuggestedTitle(null);
+
+                              // 타임아웃 로그 추가 (기존 로그 유지)
+                              setScriptGenerationLogs(prev => [...prev, {
+                                timestamp: new Date().toISOString(),
+                                message: '⏱️ 대본 생성 시간이 초과되었습니다.'
+                              }]);
+
+                              // 진행률은 타임아웃 표시를 위해 유지
+                              setScriptProgress({ current: 0, total: 100 });
+                              setCurrentScriptId(null);
 
                               setToast({
-                                message: '대본이 로드되었습니다! 이미지 소스를 선택하고 영상을 생성하세요.',
-                                type: 'success'
-                              });
-                              setTimeout(() => setToast(null), 5000);
-                            } catch (error) {
-                              setToast({
-                                message: 'JSON 파싱 오류: ' + error,
+                                message: '대본 생성 시간이 초과되었습니다.',
                                 type: 'error'
                               });
                               setTimeout(() => setToast(null), 5000);
                             }
-                          }}
-                          className="flex-1 rounded-lg bg-purple-600 px-4 py-3 font-semibold text-white transition hover:bg-purple-500"
-                        >
-                          🎬 영상 제작
-                        </button>
-                      </div>
+                          } else {
+                            // 알 수 없는 상태
+                            checkCount++;
+                            if (checkCount >= maxChecks) {
+                              clearInterval(interval);
+                              setScriptPollingInterval(null);
+                              setIsGeneratingScript(false);
 
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => {
-                            setIsGeneratingScript(false);
-                            setScriptGenerationLog([]);
-                            setCompletedScript(null);
-                            setShowTitleInput(false);
-                            setManualTitle('');
-                            setSuggestedTitles([]);
-                            setSelectedSuggestedTitle(null);
-                            setToast({
-                              message: '대본이 저장되었습니다! "내 대본" 페이지에서 확인하세요.',
-                              type: 'success'
+                              // 타임아웃 로그 추가 (기존 로그 유지)
+                              setScriptGenerationLogs(prev => [...prev, {
+                                timestamp: new Date().toISOString(),
+                                message: '⏱️ 대본 생성 시간이 초과되었습니다.'
+                              }]);
+
+                              // 진행률은 타임아웃 표시를 위해 유지
+                              setScriptProgress({ current: 0, total: 100 });
+                              setCurrentScriptId(null);
+
+                              setToast({
+                                message: '대본 생성 시간이 초과되었습니다.',
+                                type: 'error'
+                              });
+                              setTimeout(() => setToast(null), 5000);
+                            }
+                          }
+                        } catch (error: any) {
+                          console.error('폴링 오류:', error);
+                        }
+                      }, 2000);
+
+                      setScriptPollingInterval(interval);
+                    } catch (error: any) {
+                      console.error(error);
+                      setScriptGenerationLogs(prev => [...prev, {
+                        timestamp: new Date().toISOString(),
+                        message: `❌ 오류: ${error.message || '알 수 없는 오류'}`
+                      }]);
+                      setScriptProgress(null);
+                      setToast({
+                        message: error.message || 'API 대본 생성 중 오류가 발생했습니다.',
+                        type: 'error'
+                      });
+                      setTimeout(() => setToast(null), 5000);
+                      setIsGeneratingScript(false);
+                    }
+                  } else {
+                    // AI 대본 생성 (로컬 Claude 사용)
+                    setIsGeneratingScript(true);
+                    setShowScriptLogs(true); // 로그창 처음부터 열기
+                    setScriptProgress({ current: 0, total: 100 });
+                    setScriptGenerationLogs([{
+                      timestamp: new Date().toISOString(),
+                      message: '🖥️ 로컬 Claude를 사용하여 대본 생성 시작...'
+                    }]);
+
+                    try {
+                      const response = await fetch('/api/scripts/generate', {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({
+                          title: manualTitle.trim(),
+                          type: videoFormat
+                        })
+                      });
+
+                      const data = await response.json();
+
+                      if (!response.ok) {
+                        throw new Error(data.error || '대본 생성에 실패했습니다.');
+                      }
+
+                      // 스크립트 ID 확인 (API는 taskId로 반환)
+                      if (!data.taskId) {
+                        console.error('API 응답에 taskId가 없습니다:', data);
+                        throw new Error('스크립트 ID를 받지 못했습니다.');
+                      }
+
+                      // 스크립트 ID 저장
+                      const scriptId = data.taskId;
+                      setCurrentScriptId(scriptId);
+                      console.log('대본 생성 시작, ID:', scriptId);
+
+                      setScriptGenerationLogs(prev => [...prev, {
+                        timestamp: new Date().toISOString(),
+                        message: `📝 대본 생성 작업 시작 (ID: ${scriptId.substring(0, 8)}...)`
+                      }]);
+
+                      // 2초마다 상태 확인하는 폴링 시작
+                      let checkCount = 0;
+                      const maxChecks = 180; // 최대 6분 대기
+
+                      const interval = setInterval(async () => {
+                        try {
+                          const statusResponse = await fetch(`/api/scripts?id=${scriptId}`, {
+                            headers: getAuthHeaders()
+                          });
+                          const statusData = await statusResponse.json();
+
+                          // 진행률과 로그 업데이트
+                          if (statusData.script?.logs && statusData.script.logs.length > 0) {
+                            const formattedLogs = statusData.script.logs.map((log: any) => ({
+                              timestamp: typeof log === 'object' ? log.timestamp : new Date().toISOString(),
+                              message: typeof log === 'object' ? log.message : log
+                            }));
+                            setScriptGenerationLogs(formattedLogs);
+
+                            // 로그 개수로 대략적인 진행률 계산 (최대 90%까지)
+                            const progress = Math.min(Math.floor((statusData.script.logs.length / 10) * 90), 90);
+                            setScriptProgress({ current: progress, total: 100 });
+                          }
+
+                          if (statusData.script?.status === 'DONE') {
+                            // 완료!
+                            clearInterval(interval);
+                            setScriptPollingInterval(null);
+                            setScriptProgress({ current: 100, total: 100 });
+                            setScriptGenerationLogs(prev => [...prev, {
+                              timestamp: new Date().toISOString(),
+                              message: '✅ 대본 생성 완료!'
+                            }]);
+
+                            const scriptContent = statusData.script.message || '{}';
+                            setCompletedScript({
+                              title: manualTitle.trim(),
+                              content: scriptContent,
+                              scriptId: scriptId
                             });
-                            setTimeout(() => setToast(null), 5000);
-                          }}
-                          className="flex-1 rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-500"
-                        >
-                          ✅ 저장만 하기
-                        </button>
-                        <button
-                          onClick={async () => {
-                            await navigator.clipboard.writeText(completedScript.content);
+
+                            // 크레딧 업데이트
+                            fetchCreditsAndSettings();
+
                             setToast({
-                              message: '대본이 클립보드에 복사되었습니다!',
+                              message: '대본이 생성되었습니다!',
                               type: 'success'
                             });
                             setTimeout(() => setToast(null), 3000);
-                          }}
-                          className="rounded-lg bg-slate-600 px-4 py-3 font-semibold text-white transition hover:bg-slate-500"
-                        >
-                          📋 복사
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                            setShowTitleInput(false);
+                            setManualTitle('');
+                            setIsGeneratingScript(false);
+                            setCurrentScriptId(null);
+                          } else if (statusData.script?.status === 'ERROR') {
+                            clearInterval(interval);
+                            setScriptPollingInterval(null);
+                            setIsGeneratingScript(false);
 
-          {user?.isAdmin && (
-            <p className="mt-3 text-xs text-slate-400">
-              💡 팁: 무료로 사용하려면 "프롬프트 복사" 버튼을 누르고 Claude.ai에 직접 붙여넣으세요.
-            </p>
+                            // 에러 로그 추가 (기존 로그 유지)
+                            if (statusData.script.logs && statusData.script.logs.length > 0) {
+                              const formattedLogs = statusData.script.logs.map((log: any) => ({
+                                timestamp: typeof log === 'object' ? log.timestamp : new Date().toISOString(),
+                                message: typeof log === 'object' ? log.message : log
+                              }));
+                              setScriptGenerationLogs(formattedLogs);
+                            }
+                            setScriptGenerationLogs(prev => [...prev, {
+                              timestamp: new Date().toISOString(),
+                              message: `❌ 오류: ${statusData.script?.message || '알 수 없는 오류'}`
+                            }]);
+
+                            // 진행률은 에러 표시를 위해 유지
+                            setScriptProgress({ current: 0, total: 100 });
+                            setCurrentScriptId(null);
+
+                            // 크레딧 환불되었으므로 새로고침
+                            fetchCreditsAndSettings();
+
+                            setToast({
+                              message: statusData.script?.message || '대본 생성 중 오류가 발생했습니다.',
+                              type: 'error'
+                            });
+                            setTimeout(() => setToast(null), 5000);
+                          } else {
+                            // 아직 진행 중
+                            checkCount++;
+                            if (checkCount >= maxChecks) {
+                              clearInterval(interval);
+                              setScriptPollingInterval(null);
+                              setIsGeneratingScript(false);
+
+                              // 타임아웃 로그 추가 (기존 로그 유지)
+                              setScriptGenerationLogs(prev => [...prev, {
+                                timestamp: new Date().toISOString(),
+                                message: '⏱️ 대본 생성 시간이 초과되었습니다.'
+                              }]);
+
+                              // 진행률은 타임아웃 표시를 위해 유지
+                              setScriptProgress({ current: 0, total: 100 });
+                              setCurrentScriptId(null);
+
+                              setToast({
+                                message: '대본 생성 시간이 초과되었습니다.',
+                                type: 'error'
+                              });
+                              setTimeout(() => setToast(null), 5000);
+                            }
+                          }
+                        } catch (error: any) {
+                          clearInterval(interval);
+                          setScriptPollingInterval(null);
+                          setIsGeneratingScript(false);
+                          setCurrentScriptId(null);
+
+                          setToast({
+                            message: error.message || '대본 상태 확인 중 오류가 발생했습니다.',
+                            type: 'error'
+                          });
+                          setTimeout(() => setToast(null), 5000);
+                        }
+                      }, 2000);
+
+                      setScriptPollingInterval(interval);
+
+                      setToast({
+                        message: '로컬 Claude로 대본 생성 중... 잠시만 기다려주세요.',
+                        type: 'info'
+                      });
+                    } catch (error: any) {
+                      console.error(error);
+                      setIsGeneratingScript(false);
+                      setCurrentScriptId(null);
+
+                      setToast({
+                        message: error.message || 'AI 대본 생성 중 오류가 발생했습니다.',
+                        type: 'error'
+                      });
+                      setTimeout(() => setToast(null), 5000);
+                    }
+                  }
+                }}
+                disabled={!manualTitle.trim() || isGeneratingScript}
+                className="rounded-lg bg-emerald-600 px-8 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isGeneratingScript ? '⏳ 생성 중...' : titleInputMode === 'copy' ? '📋 복사' : '🤖 생성'}
+              </button>
+            </div>
+          </div>
+
+          {/* 대본 생성 중 UI */}
+          {!completedScript && scriptProgress && (
+            <div className="mt-6 space-y-4">
+              {/* 진행률 바 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-300">대본 생성 진행률</span>
+                  <span className="text-sm font-bold text-purple-400">
+                    {scriptProgress.current}%
+                  </span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-700">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-purple-400 transition-all duration-500"
+                    style={{ width: `${scriptProgress.current}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* 생성 중인 대본 미리보기 */}
+              {scriptProgress.content && (
+                <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-6">
+                  <h4 className="mb-3 text-lg font-semibold text-purple-300">📝 생성 중인 대본</h4>
+                  <div ref={scriptContentRef} className="max-h-96 overflow-y-auto rounded bg-slate-900/50 p-4">
+                    <pre className="whitespace-pre-wrap text-sm text-slate-300 leading-relaxed">{scriptProgress.content}</pre>
+                  </div>
+                  <div className="mt-3 text-right text-sm text-purple-400 font-semibold">
+                    {scriptProgress.content.length.toLocaleString()}자 생성됨
+                  </div>
+                </div>
+              )}
+
+              {/* 로그 */}
+              {scriptGenerationLogs.length > 0 && (
+                <div ref={scriptGenerationLogRef} className="max-h-48 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                  <div className="space-y-1">
+                    {scriptGenerationLogs.map((log, idx) => {
+                      // API 사용 여부 감지
+                      const isUsingAPI = log.message.includes('Claude API') ||
+                                        log.message.includes('API 호출') ||
+                                        log.message.includes('Using Claude API') ||
+                                        log.message.includes('💰');
+                      const isUsingLocal = log.message.includes('로컬 Claude') ||
+                                          log.message.includes('Local Claude') ||
+                                          log.message.includes('python') ||
+                                          log.message.includes('🖥️');
+
+                      return (
+                        <div key={idx} className="text-sm text-slate-300 font-mono">
+                          <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                          {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                          {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                          {log.message}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </section>
-
-        <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 p-3 backdrop-blur sm:p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <span className="w-full text-xs font-semibold uppercase tracking-wider text-slate-300 sm:w-auto">모델 선택</span>
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" suppressHydrationWarning>
-              {modelOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setSelectedModel(option.value)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition sm:px-3 ${
-                    selectedModel === option.value
-                      ? 'bg-emerald-400 text-emerald-950 shadow shadow-emerald-400/40'
-                      : 'bg-white/10 text-slate-200 hover:bg-white/20'
-                  }`}
-                  suppressHydrationWarning
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={handleMoveToLLM}
-              disabled={isPipelineProcessing}
-              className="flex items-center justify-center gap-1 rounded-xl bg-white/15 px-2.5 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/25 disabled:cursor-wait disabled:opacity-70 sm:px-3 sm:py-2"
-            >
-              LLM 이동
-            </button>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <button
-              type="button"
-              onClick={fetchVideos}
-              disabled={isFetching}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-400 px-3 py-2 text-xs font-semibold text-sky-950 shadow-lg shadow-sky-500/30 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-4"
-            >
-              {isFetching ? '불러오는 중...' : 'YouTube 데이터'}
-            </button>
-            <button
-              type="button"
-              onClick={handleRunAutomation}
-              disabled={isPipelineProcessing}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 py-2 text-xs font-semibold text-emerald-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-70 sm:w-auto sm:px-4"
-            >
-              {isPipelineProcessing ? '준비 중...' : '영상 제작 시작'}
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* 파일 업로드로 직접 영상 생성 */}
         {showUploadSection && (
@@ -1669,7 +2013,7 @@ export default function Home() {
                   setIsDraggingFiles(false);
 
                   const files = Array.from(e.dataTransfer.files);
-                  const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json'));
+                  const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
                   const imageFiles = files.filter(f => f.type.startsWith('image/'));
 
                   if (jsonFile) setUploadedJson(jsonFile);
@@ -1688,7 +2032,7 @@ export default function Home() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="text-4xl">📁</div>
                   <div>
-                    <p className="text-sm text-slate-300">JSON과 이미지를 한번에 드래그하세요</p>
+                    <p className="text-sm text-slate-300">JSON/TXT 파일과 이미지를 한번에 드래그하세요</p>
                     <p className="mt-1 text-xs text-slate-400">또는 파일을 선택하세요</p>
                   </div>
 
@@ -1761,10 +2105,10 @@ export default function Home() {
                     <input
                       type="file"
                       multiple
-                      accept=".json,image/*"
+                      accept=".json,.txt,image/*"
                       onChange={(e) => {
                         const files = Array.from(e.target.files || []);
-                        const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json'));
+                        const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
                         const imageFiles = files.filter(f => f.type.startsWith('image/'));
 
                         if (jsonFile) setUploadedJson(jsonFile);
@@ -1798,10 +2142,10 @@ export default function Home() {
                   setIsDraggingFiles(false);
 
                   const file = e.dataTransfer.files[0];
-                  if (file && (file.type === 'application/json' || file.name.endsWith('.json'))) {
+                  if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt'))) {
                     setUploadedJson(file);
                   } else {
-                    showToast('JSON 파일만 업로드 가능합니다.', 'error');
+                    showToast('JSON 또는 TXT 파일만 업로드 가능합니다.', 'error');
                   }
                 }}
                 className={`rounded-lg border-2 border-dashed transition-all ${
@@ -1827,18 +2171,18 @@ export default function Home() {
                 ) : (
                   <div className="space-y-3">
                     <div className="text-4xl">📄</div>
-                    <p className="text-sm text-slate-300">JSON 파일을 드래그하거나 선택하세요</p>
+                    <p className="text-sm text-slate-300">JSON 또는 TXT 파일을 드래그하거나 선택하세요</p>
                     <label className="cursor-pointer rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 inline-block">
                       파일 선택
                       <input
                         type="file"
-                        accept=".json"
+                        accept=".json,.txt"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file && (file.type === 'application/json' || file.name.endsWith('.json'))) {
+                          if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt'))) {
                             setUploadedJson(file);
                           } else {
-                            showToast('JSON 파일만 업로드 가능합니다.', 'error');
+                            showToast('JSON 또는 TXT 파일만 업로드 가능합니다.', 'error');
                           }
                         }}
                         className="hidden"
@@ -1958,6 +2302,7 @@ export default function Home() {
                       const formData = new FormData();
                       formData.append('json', uploadedJson!);
                       formData.append('imageSource', imageSource);
+                      formData.append('videoFormat', videoFormat); // 롱폼/숏폼 정보 추가
 
                       // 직접 업로드 모드일 때만 이미지 추가
                       if (imageSource === 'none') {
@@ -2117,40 +2462,82 @@ export default function Home() {
           </div>
         )}
 
-        {/* 대본 생성 프로그레스 */}
-        {isGeneratingScript && scriptProgress && (
-          <div className="rounded-3xl border border-purple-500/30 bg-purple-950/20 p-6 backdrop-blur">
-            <h3 className="mb-4 text-lg font-bold text-purple-400">🤖 AI 대본 생성 진행 상황</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-300">
-                  대본 생성 중 ({scriptProgress.current}/{scriptProgress.total})
-                </span>
-                <span className="text-sm font-bold text-purple-400">
-                  {Math.round((scriptProgress.current / scriptProgress.total) * 100)}%
-                </span>
+
+        <section className="flex flex-col gap-6">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-white">소재찾기</h2>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-700">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-purple-500 to-purple-400 transition-all duration-500"
-                  style={{ width: `${(scriptProgress.current / scriptProgress.total) * 100}%` }}
-                />
+              <div className="flex flex-wrap items-center gap-2">
+                {/* LLM 이동 버튼들 */}
+                {[
+                  { value: 'chatgpt', label: 'ChatGPT' },
+                  { value: 'gemini', label: 'Gemini' },
+                  { value: 'claude', label: 'Claude' },
+                  { value: 'groq', label: 'Groq' }
+                ].map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedModel(option.value as any);
+                      // localStorage에 저장
+                      const currentFilters = localStorage.getItem('trend-video-filters');
+                      if (currentFilters) {
+                        const filters = JSON.parse(currentFilters);
+                        filters.selectedModel = option.value;
+                        localStorage.setItem('trend-video-filters', JSON.stringify(filters));
+                      }
+                    }}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      selectedModel === option.value
+                        ? 'bg-sky-400 text-sky-950 shadow shadow-sky-400/40'
+                        : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleMoveToLLM}
+                  disabled={isPipelineProcessing}
+                  className="rounded-lg bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-500 disabled:cursor-wait disabled:opacity-70"
+                >
+                  🚀 LLM으로 이동
+                </button>
+                <div className="h-4 w-px bg-white/20"></div>
+                <button
+                  type="button"
+                  onClick={fetchVideos}
+                  disabled={isFetching}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-sky-400 px-4 py-2 text-sm font-semibold text-sky-950 shadow-lg shadow-sky-500/30 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isFetching ? "불러오는 중..." : "🔍 YouTube 데이터 불러오기"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/20"
+                  aria-label={isFilterExpanded ? "접기" : "펼치기"}
+                >
+                  <svg
+                    className={`h-5 w-5 transition-transform ${isFilterExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
               </div>
-              <p className="text-xs text-slate-400">
-                ⏳ AI가 대본을 생성하는 중입니다. 잠시만 기다려주세요...
-              </p>
             </div>
-          </div>
-        )}
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,320px)_1fr]">
-          <aside className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-            <h2 className="text-lg font-semibold text-white">필터</h2>
-            <p className="mb-6 mt-1 text-xs text-slate-300">
-              조회수, 구독자, 타입, 게시일, 카테고리 조건으로 원하는 영상을 추려보세요.
-            </p>
-
-            <div className="space-y-8">
+            {isFilterExpanded && (
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,320px)_1fr]">
+              {/* 필터 섹션 */}
+              <aside className="space-y-8">
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-200">제목 키워드</label>
                 <div className="flex gap-2">
@@ -2166,14 +2553,6 @@ export default function Home() {
                     placeholder="예: 여행 브이로그"
                     className="flex-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white shadow-inner focus:border-emerald-300 focus:outline-none"
                   />
-                  <button
-                    type="button"
-                    onClick={fetchVideos}
-                    disabled={isFetching}
-                    className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    🔍
-                  </button>
                 </div>
               </div>
 
@@ -2188,22 +2567,24 @@ export default function Home() {
               />
               <RangeControl
                 label="조회수"
-                min={0}
+                min={1}
                 max={10_000_000_000}
                 step={50_000}
                 value={viewRange}
                 onChange={setViewRange}
                 suffix="회"
+                useLogScale={true}
               />
 
               <RangeControl
                 label="구독자 수"
-                min={0}
+                min={1}
                 max={10_000_000_000}
                 step={10_000}
                 value={subRange}
                 onChange={setSubRange}
                 suffix="명"
+                useLogScale={true}
               />
 
               <div className="space-y-4 text-sm">
@@ -2296,15 +2677,6 @@ export default function Home() {
               <div className="space-y-3">
                 <button
                   type="button"
-                  onClick={fetchVideos}
-                  disabled={isFetching}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-400 px-4 py-3 text-sm font-semibold text-sky-950 shadow-lg shadow-sky-500/30 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isFetching ? "불러오는 중..." : "YouTube 데이터 불러오기"}
-                </button>
-
-                <button
-                  type="button"
                   onClick={handleRunAutomation}
                   disabled={isPipelineProcessing}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-70"
@@ -2312,10 +2684,10 @@ export default function Home() {
                   {isPipelineProcessing ? "준비 중..." : "선택 영상으로 제작"}
                 </button>
               </div>
-            </div>
-          </aside>
+              </aside>
 
-          <section className="flex flex-col gap-6">
+              {/* 검색 결과 및 로그 섹션 */}
+              <section className="flex flex-col gap-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">검색 결과</h2>
@@ -2334,27 +2706,6 @@ export default function Home() {
             {errorMessage && (
               <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-xs text-red-200">
                 {errorMessage}
-              </div>
-            )}
-
-            {/* 선택한 영상으로 자막 생성 버튼 */}
-            {selectedIds.length > 0 && (
-              <div className="rounded-2xl border border-purple-500/30 bg-purple-950/20 p-4 backdrop-blur">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-purple-300">📝 선택한 영상으로 자막 생성</h3>
-                    <p className="text-xs text-slate-400">
-                      선택한 영상 ({selectedIds.length}개)의 제목을 AI가 변형하고 대본을 생성합니다
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleGenerateSubtitle}
-                    disabled={isTransforming}
-                    className="rounded-xl bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isTransforming ? '⏳ 제목 변형 중...' : '🎬 자막 생성 시작'}
-                  </button>
-                </div>
               </div>
             )}
 
@@ -2398,6 +2749,9 @@ export default function Home() {
               </div>
             </section>
           </section>
+          </div>
+          )}
+          </div>
         </section>
       </div>
 
@@ -2541,7 +2895,7 @@ export default function Home() {
                   // 확인 모달 표시
                   setScriptConfirmCallback(() => async () => {
                     try {
-                    const promptResponse = await fetch('/api/prompt');
+                    const promptResponse = await fetch(getPromptApiUrl());
                     const promptData = await promptResponse.json();
 
                     if (!promptData.content) {
@@ -2694,6 +3048,72 @@ export default function Home() {
         </div>
       )}
 
+      {/* SORA2 대본 확인 및 편집 모달 */}
+      {showSora2Review && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-4xl rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-slate-800 to-slate-900 p-8 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🎥</span>
+                <h3 className="text-xl font-bold text-white">SORA2 대본 확인 및 편집</h3>
+              </div>
+              <button
+                onClick={() => setShowSora2Review(false)}
+                className="text-slate-400 hover:text-white text-xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-6 space-y-4">
+              <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 p-4">
+                <p className="text-sm text-cyan-200 mb-2">
+                  💡 생성된 대본을 확인하고 필요시 수정하세요. 수정 후 영상 제작을 시작합니다.
+                </p>
+                <p className="text-xs text-slate-400">
+                  SoraExtend를 통해 8초 길이의 고품질 영상이 생성됩니다.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                  대본 내용
+                </label>
+                <textarea
+                  value={sora2Script}
+                  onChange={(e) => setSora2Script(e.target.value)}
+                  className="w-full min-h-[400px] rounded-lg bg-slate-900 border border-slate-700 p-4 text-white font-mono text-sm placeholder-slate-500 focus:border-cyan-500 focus:outline-none resize-none"
+                  placeholder="SORA2 대본이 생성 중입니다..."
+                />
+              </div>
+
+              <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-4">
+                <p className="text-xs text-yellow-200">
+                  ⚠️ 영상 제작은 약 5-10분 정도 소요됩니다. 백그라운드에서 처리되며 완료 후 알림을 받게 됩니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={startSora2VideoGeneration}
+                disabled={!sora2Script.trim() || isGenerating}
+                className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? '⏳ 처리 중...' : '✅ 확인 및 영상 제작 시작'}
+              </button>
+              <button
+                onClick={() => setShowSora2Review(false)}
+                disabled={isGenerating}
+                className="rounded-lg bg-slate-600 px-6 py-4 font-semibold text-white transition hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ✕ 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast 알림 */}
       {toast && (
         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-2">
@@ -2739,6 +3159,7 @@ function RangeControl({
   step,
   onChange,
   suffix = "",
+  useLogScale = false,
 }: {
   label: string;
   value: { min: number; max: number };
@@ -2747,7 +3168,23 @@ function RangeControl({
   step: number;
   onChange: (next: { min: number; max: number }) => void;
   suffix?: string;
+  useLogScale?: boolean;
 }) {
+  // 로그 스케일 변환 함수
+  const toLog = (val: number) => {
+    if (!useLogScale) return val;
+    return Math.log10(Math.max(val, 1));
+  };
+
+  const fromLog = (logVal: number) => {
+    if (!useLogScale) return logVal;
+    return Math.round(Math.pow(10, logVal));
+  };
+
+  const logMin = toLog(min);
+  const logMax = toLog(max);
+  const logStep = useLogScale ? 0.01 : step; // 로그 스케일에서는 작은 step 사용
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -2759,27 +3196,29 @@ function RangeControl({
       <div className="flex items-center gap-3">
         <input
           type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value.min}
+          min={logMin}
+          max={logMax}
+          step={logStep}
+          value={toLog(value.min)}
           className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-emerald-400"
           onChange={(event) => {
-            const nextMin = Number(event.target.value);
-            onChange({ min: Math.min(nextMin, value.max - step), max: value.max });
+            const nextMin = fromLog(Number(event.target.value));
+            const minGap = useLogScale ? 1 : step;
+            onChange({ min: Math.min(nextMin, value.max - minGap), max: value.max });
           }}
           suppressHydrationWarning
         />
         <input
           type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value.max}
+          min={logMin}
+          max={logMax}
+          step={logStep}
+          value={toLog(value.max)}
           className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-emerald-400"
           onChange={(event) => {
-            const nextMax = Number(event.target.value);
-            onChange({ min: value.min, max: Math.max(nextMax, value.min + step) });
+            const nextMax = fromLog(Number(event.target.value));
+            const minGap = useLogScale ? 1 : step;
+            onChange({ min: value.min, max: Math.max(nextMax, value.min + minGap) });
           }}
           suppressHydrationWarning
         />
@@ -2790,11 +3229,12 @@ function RangeControl({
           <input
             type="number"
             min={min}
-            max={value.max - step}
-            step={step}
+            max={value.max - (useLogScale ? 1 : step)}
+            step={useLogScale ? 1 : step}
             value={value.min}
             onChange={(event) => {
-              const nextMin = Math.min(Number(event.target.value), value.max - step);
+              const minGap = useLogScale ? 1 : step;
+              const nextMin = Math.min(Number(event.target.value), value.max - minGap);
               onChange({ min: nextMin, max: value.max });
             }}
             className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-sm text-white focus:border-emerald-300 focus:outline-none"
@@ -2805,12 +3245,13 @@ function RangeControl({
           <span className="font-medium">최대</span>
           <input
             type="number"
-            min={value.min + step}
+            min={value.min + (useLogScale ? 1 : step)}
             max={max}
-            step={step}
+            step={useLogScale ? 1 : step}
             value={value.max}
             onChange={(event) => {
-              const nextMax = Math.max(Number(event.target.value), value.min + step);
+              const minGap = useLogScale ? 1 : step;
+              const nextMax = Math.max(Number(event.target.value), value.min + minGap);
               onChange({ min: value.min, max: nextMax });
             }}
             className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-sm text-white focus:border-emerald-300 focus:outline-none"
@@ -2887,59 +3328,60 @@ function VideoCard({
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-3 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h3
-              className="text-base font-semibold leading-5 text-zinc-900"
-              style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}
-              title={video.title}
-            >
-              {video.title}
-            </h3>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <a
-              href={video.videoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-500 hover:text-slate-900"
-            >
-              영상 보기
-            </a>
-            <a
-              href={`http://downsub.com/?url=${encodeURIComponent(video.videoUrl)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-500 hover:text-slate-900"
-            >
-              자막 받기
-            </a>
-            <button
-              onClick={async (event) => {
-                event.stopPropagation();
-                try {
-                  const response = await fetch(video.thumbnailUrl);
-                  const blob = await response.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `thumbnail_${video.id}.jpg`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  window.URL.revokeObjectURL(url);
-                } catch (error) {
-                  console.error('썸네일 다운로드 실패:', error);
-                  alert('썸네일 다운로드에 실패했습니다.');
-                }
-              }}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-500 hover:text-slate-900"
-            >
-              썸네일
-            </button>
-          </div>
+        {/* 제목 영역 */}
+        <div className="min-w-0">
+          <h3
+            className="text-base font-semibold leading-5 text-zinc-900"
+            style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}
+            title={video.title}
+          >
+            {video.title}
+          </h3>
+        </div>
+
+        {/* 버튼 영역 */}
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={video.videoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-500 hover:text-slate-900"
+          >
+            영상 보기
+          </a>
+          <a
+            href={`http://downsub.com/?url=${encodeURIComponent(video.videoUrl)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-500 hover:text-slate-900"
+          >
+            자막 받기
+          </a>
+          <button
+            onClick={async (event) => {
+              event.stopPropagation();
+              try {
+                const response = await fetch(video.thumbnailUrl);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `thumbnail_${video.id}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+              } catch (error) {
+                console.error('썸네일 다운로드 실패:', error);
+                alert('썸네일 다운로드에 실패했습니다.');
+              }
+            }}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-zinc-200 px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-500 hover:text-slate-900"
+          >
+            썸네일
+          </button>
         </div>
         <dl className="grid grid-cols-2 gap-3 text-sm text-zinc-600">
           <div>

@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently \"next dev\" \"node prompt-sync-watcher.js\"",
+    "dev:server-only": "next dev",
     "dev:https": "node server.js",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "watch-tasks": "node watch-tasks.js",
+    "watch-prompts": "node prompt-sync-watcher.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.67.0",
@@ -27,6 +30,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "chokidar": "^4.0.3",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.0.0",
     "tailwindcss": "^4",

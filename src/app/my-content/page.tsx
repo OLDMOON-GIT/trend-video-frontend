@@ -14,6 +14,7 @@ interface Script {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   progress: number;
   error?: string;
+  type?: 'longform' | 'shortform' | 'sora2';
   logs?: string[];
   tokenUsage?: {
     input_tokens: number;
@@ -34,6 +35,7 @@ interface Job {
   createdAt: string;
   updatedAt: string;
   title?: string;
+  type?: 'longform' | 'shortform' | 'sora2';
   logs?: string[];
 }
 
@@ -263,19 +265,28 @@ export default function MyContentPage() {
 
   // ===== 대본 관련 함수 =====
   const fetchScripts = async () => {
+    console.log('📥 대본 목록 가져오기 시작...');
     setIsLoadingScripts(true);
     try {
       const response = await fetch('/api/my-scripts', {
         headers: getAuthHeaders(),
         credentials: 'include'
       });
+      console.log('응답 상태:', response.status, response.statusText);
+
       const data = await response.json();
+      console.log('응답 데이터:', data);
 
       if (response.ok) {
+        console.log('✅ 대본 설정:', data.scripts.length, '개');
         setScripts(data.scripts);
+      } else {
+        console.error('❌ 대본 가져오기 실패:', data.error);
+        toast.error(data.error || '대본을 불러올 수 없습니다.');
       }
     } catch (error) {
-      console.error('Error fetching scripts:', error);
+      console.error('❌ Error fetching scripts:', error);
+      toast.error('대본 목록을 불러오는 중 오류가 발생했습니다.');
     } finally {
       setIsLoadingScripts(false);
     }
@@ -486,6 +497,8 @@ export default function MyContentPage() {
   };
 
   const handleOpenFolder = async (jobId: string) => {
+    console.log('📁 폴더 열기 버튼 클릭됨, jobId:', jobId);
+
     try {
       const response = await fetch(`/api/open-folder?jobId=${jobId}`, {
         method: 'POST',
@@ -494,15 +507,16 @@ export default function MyContentPage() {
       });
 
       const data = await response.json();
+      console.log('📁 폴더 열기 응답:', data);
 
       if (response.ok) {
-        alert('폴더가 열렸습니다.');
+        toast.success('폴더를 열었습니다.');
       } else {
-        alert('폴더 열기 실패: ' + (data.error || '알 수 없는 오류'));
+        toast.error('폴더 열기 실패: ' + (data.error || '알 수 없는 오류'));
       }
     } catch (error) {
-      console.error('Open folder error:', error);
-      alert('폴더 열기 중 오류가 발생했습니다.');
+      console.error('❌ 폴더 열기 오류:', error);
+      toast.error('폴더 열기 중 오류가 발생했습니다.');
     }
   };
 
@@ -572,20 +586,12 @@ export default function MyContentPage() {
             </h1>
             {user && <p className="mt-1 text-sm text-slate-400">{user.email}</p>}
           </div>
-          <div className="flex gap-3">
-            <Link
-              href="/"
-              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-            >
-              메인으로
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-            >
-              로그아웃
-            </button>
-          </div>
+          <button
+            onClick={handleLogout}
+            className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+          >
+            로그아웃
+          </button>
         </div>
 
         {/* 탭 */}
@@ -700,7 +706,7 @@ export default function MyContentPage() {
                     >
                       {item.type === 'video' ? (
                         // 영상 아이템
-                        <div className="flex items-start gap-4">
+                        <div className="flex flex-col md:flex-row md:items-start gap-4">
                           {item.data.status === 'completed' && item.data.thumbnailPath && (
                             <a
                               href={`/api/download-thumbnail?jobId=${item.data.id}`}
@@ -711,14 +717,13 @@ export default function MyContentPage() {
                               <img
                                 src={`/api/thumbnail?jobId=${item.data.id}`}
                                 alt="썸네일"
-                                className="w-48 h-auto object-contain rounded-lg border-2 border-white/20 group-hover:border-purple-500 transition"
+                                className="w-full md:w-48 h-auto object-contain rounded-lg border-2 border-white/20 group-hover:border-purple-500 transition"
                               />
                             </a>
                           )}
-                          <div className="flex-1">
-                            <div className="mb-2 flex items-center gap-3">
-                              <span className="text-lg">🎬</span>
-                              <h3 className="text-lg font-semibold text-white">
+                          <div className="flex-1 min-w-0 w-full">
+                            <div className="mb-2 flex items-center gap-3 flex-wrap">
+                              <h3 className="text-lg font-semibold text-white break-words">
                                 {item.data.title || item.data.id}
                               </h3>
                               {getStatusBadge(item.data.status)}
@@ -750,69 +755,67 @@ export default function MyContentPage() {
                               </div>
                             )}
                           </div>
-                          <div className="ml-4 flex gap-2">
+                          <div className="flex flex-wrap gap-2 mt-4 md:mt-0 md:ml-4 md:flex-shrink-0">
                             {(item.data.status === 'pending' || item.data.status === 'processing') && (
-                              <button
-                                onClick={() => handleCancelJob(item.data.id)}
-                                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                              >
-                                🛑 중지
-                              </button>
-                            )}
-                            {item.data.logs && item.data.logs.length > 0 && (
                               <>
+                                {item.data.logs && item.data.logs.length > 0 && (
+                                  <button
+                                    onClick={() => setExpandedLogJobId(expandedLogJobId === item.data.id ? null : item.data.id)}
+                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                  >
+                                    {expandedLogJobId === item.data.id ? '📋 로그 닫기' : '📋 로그'}
+                                  </button>
+                                )}
                                 <button
-                                  onClick={() => setExpandedLogJobId(expandedLogJobId === item.data.id ? null : item.data.id)}
-                                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                                  onClick={() => handleCancelJob(item.data.id)}
+                                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
                                 >
-                                  {expandedLogJobId === item.data.id ? '📋 로그 닫기' : '📋 로그 보기'}
+                                  🛑 중지
                                 </button>
-                                {user?.isAdmin && (
+                              </>
+                            )}
+                            {item.data.status === 'completed' && item.data.videoPath && (
+                              <>
+                                {item.data.logs && item.data.logs.length > 0 && (
                                   <button
                                     onClick={() => handleCopyLogs(item.data.logs || [])}
-                                    className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-                                    title="로그 복사 (관리자)"
+                                    className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
+                                    title="로그 복사"
                                   >
                                     📋 복사
                                   </button>
                                 )}
+                                <a
+                                  href={`/api/download-video?jobId=${item.data.id}`}
+                                  download
+                                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
+                                >
+                                  다운로드
+                                </a>
+                                <button
+                                  onClick={() => handleOpenFolder(item.data.id)}
+                                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                  title="폴더 열기"
+                                >
+                                  📁 폴더
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteVideo(item.data.id, item.data.title || item.data.id)}
+                                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                                >
+                                  🗑️ 삭제
+                                </button>
                               </>
-                            )}
-                            {item.data.status === 'failed' && (
-                              <button
-                                onClick={() => handleRestartVideo(item.data.id)}
-                                className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500"
-                              >
-                                🔄 재시작
-                              </button>
-                            )}
-                            {item.data.status === 'completed' && item.data.videoPath && (
-                              <a
-                                href={`/api/download-video?jobId=${item.data.id}`}
-                                download
-                                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
-                              >
-                                다운로드
-                              </a>
-                            )}
-                            {user?.isAdmin && (
-                              <button
-                                onClick={() => handleOpenFolder(item.data.id)}
-                                className="rounded-lg bg-gray-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-500"
-                                title="프로젝트 폴더 열기 (관리자)"
-                              >
-                                📁 폴더
-                              </button>
                             )}
                           </div>
                         </div>
                       ) : (
                         // 대본 아이템
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="mb-2 flex items-center gap-3">
+                        <div className="flex flex-col md:flex-row md:items-start gap-4">
+                          <div className="flex-1 min-w-0 w-full">
+                            <div className="mb-2 flex items-center gap-3 flex-wrap">
                               <span className="text-lg">📝</span>
-                              <h3 className="text-lg font-semibold text-white">
+                              <h3 className="text-lg font-semibold text-white break-words">
                                 {item.data.title}
                               </h3>
                               {getStatusBadge(item.data.status)}
@@ -915,9 +918,15 @@ export default function MyContentPage() {
                               </div>
                             )}
                           </div>
-                          <div className="ml-4 flex flex-col gap-2">
+                          <div className="flex flex-wrap gap-2 mt-4 md:mt-0 md:ml-4 md:flex-shrink-0">
                             {item.data.status === 'completed' && (
                               <>
+                                <button
+                                  onClick={() => toggleContent(item.data.id)}
+                                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                >
+                                  {expandedScriptId === item.data.id ? '📄 대본 닫기' : '📖 대본'}
+                                </button>
                                 <button
                                   onClick={() => {
                                     console.log('🎬 [내 콘텐츠] 영상 제작 버튼 클릭됨');
@@ -988,38 +997,24 @@ export default function MyContentPage() {
                                       alert('JSON 파싱 오류: ' + error);
                                     }
                                   }}
-                                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+                                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
                                 >
                                   🎬 영상 제작
                                 </button>
                                 <button
-                                  onClick={() => toggleContent(item.data.id)}
-                                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-                                >
-                                  {expandedScriptId === item.data.id ? '📄 접기' : '📖 펼치기'}
-                                </button>
-                                {item.data.logs && item.data.logs.length > 0 && (
-                                  <button
-                                    onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
-                                    className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500"
-                                  >
-                                    {expandedScriptLogId === item.data.id ? '📋 로그 닫기' : '📋 로그 보기'}
-                                  </button>
-                                )}
-                                <button
                                   onClick={() => handleDownload(item.data.id)}
-                                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
+                                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
                                 >
                                   📥 다운로드
                                 </button>
+                                <button
+                                  onClick={() => handleDeleteScript(item.data.id, item.data.title)}
+                                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                                >
+                                  🗑️ 삭제
+                                </button>
                               </>
                             )}
-                            <button
-                              onClick={() => handleDeleteScript(item.data.id, item.data.title)}
-                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                            >
-                              🗑️ 삭제
-                            </button>
                           </div>
                         </div>
                       )}
@@ -1057,7 +1052,16 @@ export default function MyContentPage() {
                             <span className="text-xs font-semibold text-slate-400">📋 서버 로그</span>
                             <span className="text-xs text-slate-500">{item.data.logs.length}개 항목</span>
                           </div>
-                          <div className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed">
+                          <div
+                            ref={(el) => {
+                              if (el) {
+                                jobLogRefs.current.set(item.data.id, el);
+                              } else {
+                                jobLogRefs.current.delete(item.data.id);
+                              }
+                            }}
+                            className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
+                          >
                             {item.data.logs.map((log, idx) => (
                               <div key={idx} className="text-green-400 whitespace-pre-wrap break-all mb-1">
                                 {log}
@@ -1162,13 +1166,23 @@ export default function MyContentPage() {
                     key={script.id}
                     className="rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur transition hover:bg-white/10"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="mb-2 flex items-center gap-3">
-                          <h3 className="text-lg font-semibold text-white">
+                    <div className="flex flex-col md:flex-row md:items-start gap-4">
+                      <div className="flex-1 min-w-0 w-full">
+                        <div className="mb-2 flex items-center gap-3 flex-wrap">
+                          <span className="text-lg">📝</span>
+                          <h3 className="text-lg font-semibold text-white break-words">
                             {script.title}
                           </h3>
                           {getStatusBadge(script.status)}
+                          {script.type && (
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                              script.type === 'shortform' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                              script.type === 'longform' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
+                              'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                            }`}>
+                              {script.type === 'shortform' ? '⚡ 숏폼' : script.type === 'longform' ? '📝 롱폼' : '🎬 Sora2'}
+                            </span>
+                          )}
                         </div>
 
                         <div className="mb-3 space-y-1 text-sm text-slate-400">
@@ -1258,9 +1272,15 @@ export default function MyContentPage() {
                         )}
                       </div>
 
-                      <div className="ml-4 flex flex-col gap-2">
+                      <div className="flex flex-wrap gap-2 mt-4 md:mt-0 md:ml-4 md:flex-shrink-0">
                         {script.status === 'completed' && (
                           <>
+                            <button
+                              onClick={() => toggleContent(script.id)}
+                              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                            >
+                              {expandedScriptId === script.id ? '📄 대본 닫기' : '📖 대본'}
+                            </button>
                             <button
                               onClick={() => {
                                 console.log('🎬 [대본 탭] 영상 제작 버튼 클릭됨');
@@ -1312,10 +1332,11 @@ export default function MyContentPage() {
                                     scenesCount: scriptJson.scenes?.length
                                   });
 
-                                  // 로컬 스토리지에 저장
+                                  // 로컬 스토리지에 저장 (포맷 타입 포함)
                                   const pipelineData = {
                                     title: script.title,
-                                    content: scriptJson
+                                    content: scriptJson,
+                                    type: script.type || 'longform' // 기본값은 longform
                                   };
                                   localStorage.setItem('pipelineScript', JSON.stringify(pipelineData));
                                   console.log('💾 localStorage에 저장 완료');
@@ -1329,38 +1350,24 @@ export default function MyContentPage() {
                                   alert('JSON 파싱 오류: ' + error);
                                 }
                               }}
-                              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+                              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
                             >
                               🎬 영상 제작
                             </button>
                             <button
-                              onClick={() => toggleContent(script.id)}
-                              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-                            >
-                              {expandedScriptId === script.id ? '📄 접기' : '📖 펼치기'}
-                            </button>
-                            {script.logs && script.logs.length > 0 && (
-                              <button
-                                onClick={() => setExpandedScriptLogId(expandedScriptLogId === script.id ? null : script.id)}
-                                className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500"
-                              >
-                                {expandedScriptLogId === script.id ? '📋 로그 닫기' : '📋 로그 보기'}
-                              </button>
-                            )}
-                            <button
                               onClick={() => handleDownload(script.id)}
-                              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
+                              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
                             >
                               📥 다운로드
                             </button>
+                            <button
+                              onClick={() => handleDeleteScript(script.id, script.title)}
+                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                            >
+                              🗑️ 삭제
+                            </button>
                           </>
                         )}
-                        <button
-                          onClick={() => handleDeleteScript(script.id, script.title)}
-                          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                        >
-                          🗑️ 삭제
-                        </button>
                       </div>
                     </div>
 
@@ -1455,7 +1462,7 @@ export default function MyContentPage() {
                     key={job.id}
                     className="rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur transition hover:bg-white/10"
                   >
-                    <div className="flex items-start gap-4">
+                    <div className="flex flex-col md:flex-row md:items-start gap-4">
                       {/* 썸네일 */}
                       {job.status === 'completed' && job.thumbnailPath && (
                         <a
@@ -1467,17 +1474,26 @@ export default function MyContentPage() {
                           <img
                             src={`/api/thumbnail?jobId=${job.id}`}
                             alt="썸네일"
-                            className="w-48 h-auto object-contain rounded-lg border-2 border-white/20 group-hover:border-purple-500 transition"
+                            className="w-full md:w-48 h-auto object-contain rounded-lg border-2 border-white/20 group-hover:border-purple-500 transition"
                           />
                         </a>
                       )}
 
-                      <div className="flex-1">
-                        <div className="mb-2 flex items-center gap-3">
-                          <h3 className="text-lg font-semibold text-white">
+                      <div className="flex-1 min-w-0 w-full">
+                        <div className="mb-2 flex items-center gap-3 flex-wrap">
+                          <h3 className="text-lg font-semibold text-white break-words">
                             {job.title || job.id}
                           </h3>
                           {getStatusBadge(job.status)}
+                          {job.type && (
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                              job.type === 'shortform' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                              job.type === 'longform' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
+                              'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                            }`}>
+                              {job.type === 'shortform' ? '⚡ 숏폼' : job.type === 'longform' ? '📝 롱폼' : '🎬 Sora2'}
+                            </span>
+                          )}
                         </div>
 
                         <div className="mb-3 space-y-1 text-sm text-slate-400">
@@ -1510,31 +1526,57 @@ export default function MyContentPage() {
                         )}
                       </div>
 
-                      <div className="ml-4 flex gap-2">
+                      <div className="flex flex-wrap gap-2 mt-4 md:mt-0 md:ml-4 md:flex-shrink-0">
                         {(job.status === 'pending' || job.status === 'processing') && (
-                          <button
-                            onClick={() => handleCancelJob(job.id)}
-                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                          >
-                            🛑 중지
-                          </button>
-                        )}
-                        {job.logs && job.logs.length > 0 && (
-                          <button
-                            onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
-                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-                          >
-                            {expandedLogJobId === job.id ? '📋 로그 닫기' : '📋 로그 보기'}
-                          </button>
+                          <>
+                            {job.logs && job.logs.length > 0 && (
+                              <button
+                                onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
+                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                              >
+                                {expandedLogJobId === job.id ? '📋 로그 닫기' : '📋 로그'}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleCancelJob(job.id)}
+                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                            >
+                              🛑 중지
+                            </button>
+                          </>
                         )}
                         {job.status === 'completed' && job.videoPath && (
-                          <a
-                            href={`/api/download-video?jobId=${job.id}`}
-                            download
-                            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
-                          >
-                            다운로드
-                          </a>
+                          <>
+                            {job.logs && job.logs.length > 0 && (
+                              <button
+                                onClick={() => handleCopyLogs(job.logs || [])}
+                                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
+                                title="로그 복사"
+                              >
+                                📋 복사
+                              </button>
+                            )}
+                            <a
+                              href={`/api/download-video?jobId=${job.id}`}
+                              download
+                              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
+                            >
+                              다운로드
+                            </a>
+                            <button
+                              onClick={() => handleOpenFolder(job.id)}
+                              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                              title="폴더 열기"
+                            >
+                              📁 폴더
+                            </button>
+                            <button
+                              onClick={() => handleDeleteVideo(job.id, job.title || job.id)}
+                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                            >
+                              🗑️ 삭제
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1546,7 +1588,16 @@ export default function MyContentPage() {
                           <span className="text-xs font-semibold text-slate-400">📋 서버 로그</span>
                           <span className="text-xs text-slate-500">{job.logs.length}개 항목</span>
                         </div>
-                        <div className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed">
+                        <div
+                          ref={(el) => {
+                            if (el) {
+                              jobLogRefs.current.set(job.id, el);
+                            } else {
+                              jobLogRefs.current.delete(job.id);
+                            }
+                          }}
+                          className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
+                        >
                           {job.logs.map((log, idx) => (
                             <div key={idx} className="text-green-400 whitespace-pre-wrap break-all mb-1">
                               {log}
@@ -1575,6 +1626,17 @@ export default function MyContentPage() {
           </>
         )}
       </div>
+
+      {/* 맨 위로 플로팅 버튼 */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="fixed bottom-6 right-6 rounded-full bg-purple-600 p-4 text-white shadow-lg transition hover:bg-purple-500 hover:shadow-xl z-50"
+        title="맨 위로"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+      </button>
     </div>
   );
 }

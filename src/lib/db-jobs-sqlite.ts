@@ -12,18 +12,28 @@ export interface Job {
   videoUrl?: string;
   error?: string;
   logs?: string[];
+  type?: 'longform' | 'shortform' | 'sora2';
+}
+
+// type 컬럼 추가 (기존 테이블에 컬럼이 없을 경우)
+try {
+  db.exec(`ALTER TABLE jobs ADD COLUMN type TEXT`);
+} catch (e: any) {
+  if (!e.message.includes('duplicate column')) {
+    console.error('jobs type 컬럼 추가 실패:', e);
+  }
 }
 
 // 작업 생성
-export function createJob(userId: string, jobId: string, title?: string): Job {
+export function createJob(userId: string, jobId: string, title?: string, type?: 'longform' | 'shortform' | 'sora2'): Job {
   const now = new Date().toISOString();
 
   const stmt = db.prepare(`
-    INSERT INTO jobs (id, user_id, status, progress, created_at, updated_at, title)
-    VALUES (?, ?, 'pending', 0, ?, ?, ?)
+    INSERT INTO jobs (id, user_id, status, progress, created_at, updated_at, title, type)
+    VALUES (?, ?, 'pending', 0, ?, ?, ?, ?)
   `);
 
-  stmt.run(jobId, userId, now, now, title || null);
+  stmt.run(jobId, userId, now, now, title || null, type || null);
 
   return {
     id: jobId,
@@ -32,7 +42,8 @@ export function createJob(userId: string, jobId: string, title?: string): Job {
     progress: 0,
     createdAt: now,
     updatedAt: now,
-    title
+    title,
+    type
   };
 }
 
@@ -63,7 +74,8 @@ export function findJobById(jobId: string): Job | null {
     title: row.title,
     videoUrl: row.video_url,
     error: row.error,
-    logs: row.logs ? row.logs.split('\n') : []
+    logs: row.logs ? row.logs.split('\n') : [],
+    type: row.type
   };
 }
 
@@ -164,7 +176,8 @@ export function getJobsByUserId(userId: string, limit: number = 10, offset: numb
     title: row.title,
     videoUrl: row.video_url,
     error: row.error,
-    logs: row.logs ? row.logs.split('\n') : []
+    logs: row.logs ? row.logs.split('\n') : [],
+    type: row.type
   }));
 }
 

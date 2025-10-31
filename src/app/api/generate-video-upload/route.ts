@@ -60,6 +60,10 @@ export async function POST(request: NextRequest) {
     const imageSource = formData.get('imageSource') as string || 'none';
     console.log('이미지 소스:', imageSource);
 
+    // 비디오 포맷 확인 (longform, shortform, sora2)
+    const videoFormat = formData.get('videoFormat') as string || 'longform';
+    console.log('비디오 포맷:', videoFormat);
+
     // 이미지 파일들 수집
     const imageFiles: File[] = [];
     for (let i = 0; i < 50; i++) { // 최대 50개까지 확인
@@ -105,8 +109,8 @@ export async function POST(request: NextRequest) {
     const projectName = `uploaded_${jobId}`;
     const inputPath = path.join(autoShortsPath, 'input', projectName);
 
-    // Job을 DB에 저장 (JSON의 title 사용)
-    await createJob(user.userId, jobId, videoTitle);
+    // Job을 DB에 저장 (JSON의 title과 videoFormat 사용)
+    await createJob(user.userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2');
 
     // 비동기로 영상 생성 시작
     generateVideoFromUpload(jobId, user.userId, cost, {
@@ -116,7 +120,8 @@ export async function POST(request: NextRequest) {
       jsonFile,
       imageFiles,
       imageSource,
-      isAdmin: user.isAdmin || false
+      isAdmin: user.isAdmin || false,
+      videoFormat // 롱폼/숏폼 정보 전달
     });
 
     return NextResponse.json({
@@ -146,6 +151,7 @@ async function generateVideoFromUpload(
     imageFiles: File[];
     imageSource: string;
     isAdmin: boolean;
+    videoFormat: string; // 'longform', 'shortform', 'sora2'
   }
 ) {
   try {
@@ -225,8 +231,10 @@ async function generateVideoFromUpload(
     // 관리자 플래그 추가
     const isAdminArg = config.isAdmin ? ['--is-admin'] : [];
 
-    // 비율 설정 (16:9 가로형 롱폼)
-    const aspectRatioArg = ['--aspect-ratio', '16:9'];
+    // 비율 설정 (longform: 16:9, shortform/sora2: 9:16)
+    const aspectRatio = (config.videoFormat === 'shortform' || config.videoFormat === 'sora2') ? '9:16' : '16:9';
+    const aspectRatioArg = ['--aspect-ratio', aspectRatio];
+    console.log(`📐 비디오 비율: ${aspectRatio} (${config.videoFormat})`);
 
     // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
     const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...isAdminArg];

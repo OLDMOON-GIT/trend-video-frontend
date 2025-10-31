@@ -67,6 +67,7 @@ export interface Job {
   createdAt: string;
   updatedAt: string;
   title?: string;
+  type?: 'longform' | 'shortform' | 'sora2';
 }
 
 // 대본 타입
@@ -1001,7 +1002,7 @@ export async function getScriptsByUserId(userId: string): Promise<Script[]> {
     SELECT
       id, user_id as userId, title, original_topic as originalTitle,
       content, status, progress, error,
-      input_tokens, output_tokens,
+      input_tokens, output_tokens, type,
       created_at as createdAt, updated_at as updatedAt
     FROM scripts
     WHERE user_id = ?
@@ -1025,6 +1026,7 @@ export async function getScriptsByUserId(userId: string): Promise<Script[]> {
       status: row.status || 'completed',
       progress: row.progress ?? 100,
       error: row.error,
+      type: row.type,
       logs: logs.length > 0 ? logs : undefined,
       tokenUsage: row.input_tokens || row.output_tokens ? {
         input_tokens: row.input_tokens || 0,
@@ -1080,5 +1082,172 @@ export async function deleteScript(scriptId: string): Promise<boolean> {
   const stmt = db.prepare('DELETE FROM scripts WHERE id = ?');
   const result = stmt.run(scriptId);
 
+  return result.changes > 0;
+}
+
+// ==================== 작업 관리 (Tasks) ====================
+
+// Task 타입
+export interface Task {
+  id: string;
+  content: string;
+  status: 'todo' | 'ing' | 'done';
+  priority: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  logs?: string[];
+}
+
+// Task 생성
+export function createTask(content: string, priority: number = 0): Task {
+  const taskId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const stmt = db.prepare(`
+    INSERT INTO tasks (id, content, status, priority, created_at, updated_at)
+    VALUES (?, ?, 'todo', ?, ?, ?)
+  `);
+
+  stmt.run(taskId, content, priority, now, now);
+
+  return {
+    id: taskId,
+    content,
+    status: 'todo',
+    priority,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+// 모든 Task 조회 (status별 정렬)
+export function getAllTasks(): Task[] {
+  const stmt = db.prepare(`
+    SELECT
+      id, content, status, priority,
+      created_at as createdAt,
+      updated_at as updatedAt,
+      completed_at as completedAt
+    FROM tasks
+    ORDER BY
+      CASE status
+        WHEN 'ing' THEN 1
+        WHEN 'todo' THEN 2
+        WHEN 'done' THEN 3
+      END,
+      priority DESC,
+      created_at DESC
+  `);
+
+  const rows = stmt.all() as any[];
+
+  return rows.map(row => {
+    // logs 가져오기
+    const logsStmt = db.prepare('SELECT log_message FROM task_logs WHERE task_id = ? ORDER BY created_at');
+    const logRows = logsStmt.all(row.id) as any[];
+    const logs = logRows.map(l => l.log_message);
+
+    return {
+      id: row.id,
+      content: row.content,
+      status: row.status,
+      priority: row.priority,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      completedAt: row.completedAt,
+      logs: logs.length > 0 ? logs : undefined
+    };
+  });
+}
+
+// Task ID로 찾기
+export function findTaskById(taskId: string): Task | null {
+  const stmt = db.prepare(`
+    SELECT
+      id, content, status, priority,
+      created_at as createdAt,
+      updated_at as updatedAt,
+      completed_at as completedAt
+    FROM tasks
+    WHERE id = ?
+  `);
+
+  const row = stmt.get(taskId) as any;
+  if (!row) return null;
+
+  // logs 가져오기
+  const logsStmt = db.prepare('SELECT log_message FROM task_logs WHERE task_id = ? ORDER BY created_at');
+  const logRows = logsStmt.all(taskId) as any[];
+  const logs = logRows.map(l => l.log_message);
+
+  return {
+    id: row.id,
+    content: row.content,
+    status: row.status,
+    priority: row.priority,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    completedAt: row.completedAt,
+    logs: logs.length > 0 ? logs : undefined
+  };
+}
+
+// Task 업데이트
+export function updateTask(taskId: string, updates: Partial<Pick<Task, 'content' | 'status' | 'priority'>>): Task | null {
+  const now = new Date().toISOString();
+
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (updates.content !== undefined) {
+    fields.push('content = ?');
+    values.push(updates.content);
+  }
+  if (updates.status !== undefined) {
+    fields.push('status = ?');
+    values.push(updates.status);
+
+    // done으로 변경되면 완료 시간 기록
+    if (updates.status === 'done') {
+      fields.push('completed_at = ?');
+      values.push(now);
+    }
+  }
+  if (updates.priority !== undefined) {
+    fields.push('priority = ?');
+    values.push(updates.priority);
+  }
+
+  fields.push('updated_at = ?');
+  values.push(now);
+
+  values.push(taskId);
+
+  const stmt = db.prepare(`
+    UPDATE tasks
+    SET ${fields.join(', ')}
+    WHERE id = ?
+  `);
+
+  stmt.run(...values);
+
+  return findTaskById(taskId);
+}
+
+// Task 로그 추가
+export function addTaskLog(taskId: string, logMessage: string): void {
+  const stmt = db.prepare(`
+    INSERT INTO task_logs (task_id, log_message)
+    VALUES (?, ?)
+  `);
+
+  stmt.run(taskId, logMessage);
+}
+
+// Task 삭제
+export function deleteTask(taskId: string): boolean {
+  const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
+  const result = stmt.run(taskId);
   return result.changes > 0;
 }
