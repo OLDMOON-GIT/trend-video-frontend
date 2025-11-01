@@ -30,9 +30,9 @@ export async function GET(request: NextRequest) {
     const promptsDir = path.join(projectRoot, 'prompts');
     const files = await fs.readdir(promptsDir);
 
-    // format에 맞는 파일 우선 검색 (예: prompt_longform.txt, prompt_shortform.txt)
+    // format에 맞는 파일 우선 검색 (예: prompt_longform.txt, prompt_shortform.txt, sora2_prompt.txt)
     let promptFile = files.find(file =>
-      file === `prompt_${format}.txt`
+      file === `prompt_${format}.txt` || file === `${format}_prompt.txt`
     );
 
     // 없으면 기본 prompt.txt 사용
@@ -1541,14 +1541,7 @@ export async function PUT(request: NextRequest) {
       // 롤백 (프론트엔드 루트)
       await fs.writeFile(filePath, backupContent, 'utf-8');
 
-      // multi-ai-aggregator 폴더에도 동시 롤백
-      try {
-        const multiAiPath = path.join(projectRoot, '..', 'multi-ai-aggregator', promptFile);
-        await fs.writeFile(multiAiPath, backupContent, 'utf-8');
-        console.log('✅ multi-ai-aggregator 프롬프트 동기화 완료 (롤백):', promptFile);
-      } catch (error) {
-        console.warn('⚠️ multi-ai-aggregator 동기화 실패 (계속 진행):', error);
-      }
+      // backend 동기화는 필요없음 (frontend/prompts만 사용)
 
       promptCache = null;
 
@@ -1616,14 +1609,7 @@ export async function PUT(request: NextRequest) {
     // 파일 저장 (프론트엔드 루트)
     await fs.writeFile(filePath, content, 'utf-8');
 
-    // multi-ai-aggregator 폴더에도 동시 저장 (실제 스크립트 생성용)
-    try {
-      const multiAiPath = path.join(projectRoot, '..', 'multi-ai-aggregator', promptFile);
-      await fs.writeFile(multiAiPath, content, 'utf-8');
-      console.log('✅ multi-ai-aggregator 프롬프트 동기화 완료:', promptFile);
-    } catch (error) {
-      console.warn('⚠️ multi-ai-aggregator 동기화 실패 (계속 진행):', error);
-    }
+    // backend 동기화는 필요없음 (frontend/prompts만 사용)
 
     // 캐시 무효화
     promptCache = null;
