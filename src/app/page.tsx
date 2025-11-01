@@ -158,7 +158,6 @@ export default function Home() {
   const [uploadedJson, setUploadedJson] = useState<File | null>(null);
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
-  const [addSubtitlesForMerge, setAddSubtitlesForMerge] = useState(false);
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [showJsonTextarea, setShowJsonTextarea] = useState(false);
   const [jsonTextareaValue, setJsonTextareaValue] = useState('');
@@ -1408,7 +1407,7 @@ export default function Home() {
               </p>
             </div>
             {/* 롱폼/숏폼/SORA2 선택 */}
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2">
               <button
                 onClick={() => handleFormatChange('longform')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
@@ -1438,30 +1437,6 @@ export default function Home() {
                 }`}
               >
                 🎥 SORA2
-              </button>
-            </div>
-
-            {/* 제작 방식 선택 */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setProductionMode('create')}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  productionMode === 'create'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-              >
-                🎬 영상제작
-              </button>
-              <button
-                onClick={() => setProductionMode('merge')}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  productionMode === 'merge'
-                    ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-              >
-                🎞️ 영상병합
               </button>
             </div>
           </div>
@@ -1546,17 +1521,35 @@ export default function Home() {
                     <h4 className="text-sm font-semibold text-purple-300">영상 제작</h4>
                   </div>
                   <p className="text-xs text-slate-400">
-                    완성된 대본으로 자동으로 쇼츠 영상을 제작합니다
+                    영상 제작 또는 영상 병합을 선택하세요
                   </p>
                 </div>
               </div>
+
+              {/* 큰 버튼: 영상제작 */}
               <button
                 type="button"
-                onClick={handleRunAutomation}
+                onClick={() => {
+                  setProductionMode('create');
+                  handleRunAutomation();
+                }}
                 disabled={isPipelineProcessing}
-                className="w-full rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-wait disabled:opacity-70"
+                className="mb-3 w-full rounded-xl bg-purple-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-purple-500 disabled:cursor-wait disabled:opacity-70"
               >
-                {isPipelineProcessing ? '⏳ 제작 중...' : '🎥 영상 제작'}
+                {isPipelineProcessing && productionMode === 'create' ? '⏳ 제작 중...' : '🎬 영상 제작'}
+              </button>
+
+              {/* 큰 버튼: 영상병합 */}
+              <button
+                type="button"
+                onClick={() => {
+                  setProductionMode('merge');
+                  handleRunAutomation();
+                }}
+                disabled={isPipelineProcessing}
+                className="w-full rounded-xl bg-teal-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-teal-500 disabled:cursor-wait disabled:opacity-70"
+              >
+                {isPipelineProcessing && productionMode === 'merge' ? '⏳ 병합 중...' : '🎞️ 영상 병합'}
               </button>
             </div>
           </div>
@@ -2250,16 +2243,7 @@ export default function Home() {
                   ) : (
                     <div className="space-y-3">
                       <div className="text-4xl">📁</div>
-                      <div className="space-y-2">
-                        <p className="text-sm text-slate-300 font-semibold">JSON/TXT와 비디오 파일을 한번에 드래그하세요</p>
-                        <p className="text-xs text-slate-400">
-                          💡 이미지를 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능
-                        </p>
-                        <div className="flex flex-col gap-2 items-center">
-                          <p className="text-xs text-slate-500">• JSON/TXT는 선택사항 (나레이션 TTS용)</p>
-                          <p className="text-xs text-slate-500">• 비디오 파일명에 숫자가 있으면 자동 정렬</p>
-                        </div>
-                      </div>
+                      <p className="text-sm text-slate-300 font-semibold">JSON/TXT 대본과 비디오 파일들을 한번에 드래그하세요</p>
                       <label className="cursor-pointer rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-purple-500 hover:to-orange-500 inline-block">
                         파일 선택
                         <input
@@ -2299,28 +2283,6 @@ export default function Home() {
             </div>
             )}
 
-            {/* 자막 추가 옵션 (VIDEO-MERGE 전용) */}
-            {productionMode === 'merge' && (
-            <div className={`rounded-lg border border-orange-500/20 p-4 ${uploadedJson ? 'bg-orange-500/5' : 'bg-gray-500/5 opacity-50'}`}>
-              <label className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={addSubtitlesForMerge}
-                  onChange={(e) => setAddSubtitlesForMerge(e.target.checked)}
-                  disabled={!uploadedJson}
-                  className="w-5 h-5 rounded border-orange-500/50 bg-white/10 text-orange-600 focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <div>
-                  <span className="text-sm font-medium text-slate-200">📝 TTS 나레이션에 자막 추가</span>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {uploadedJson
-                      ? 'JSON 대본의 텍스트를 자막으로 비디오에 표시합니다'
-                      : '⚠️ JSON 대본을 먼저 업로드해주세요'}
-                  </p>
-                </div>
-              </label>
-            </div>
-            )}
 
             {/* 이미지 소스 선택 (SORA2, VIDEO-MERGE 제외) */}
             {videoFormat !== 'sora2' && productionMode !== 'merge' && (
@@ -2383,7 +2345,7 @@ export default function Home() {
             )}
 
             {/* 파일 업로드 (JSON + 이미지) */}
-            {videoFormat !== 'sora2' && videoFormat !== 'video-merge' && imageSource === 'none' && (
+            {videoFormat !== 'sora2' && productionMode !== 'merge' && imageSource === 'none' && (
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-sm font-medium text-slate-300">
@@ -2850,8 +2812,8 @@ export default function Home() {
                       mergeFormData.append('json', uploadedJson);
                     }
 
-                    // 자막 옵션 추가
-                    mergeFormData.append('addSubtitles', addSubtitlesForMerge ? 'true' : 'false');
+                    // 자막 옵션 추가 (항상 true)
+                    mergeFormData.append('addSubtitles', 'true');
 
                     // API 호출
                     const response = await fetch('/api/video-merge', {
