@@ -534,6 +534,45 @@ export default function MyContentPage() {
     }
   };
 
+  const handleRestartScript = async (scriptId: string, title: string) => {
+    showConfirmModal(
+      '대본 재생성',
+      `"${title}" 대본을 다시 생성하시겠습니까?\n\n크레딧이 다시 차감됩니다.`,
+      async () => {
+        try {
+          const response = await fetch('/api/restart-script', {
+            method: 'POST',
+            headers: {
+              ...getAuthHeaders(),
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ scriptId })
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            toast.success('대본이 재생성되었습니다.\n\n새로운 대본이 생성 중입니다.');
+            // 대본 탭으로 전환
+            setActiveTab('scripts');
+            // 목록 새로고침
+            fetchScripts();
+            // 새로운 scriptId의 로그를 자동으로 열기
+            if (data.scriptId) {
+              setExpandedScriptLogId(data.scriptId);
+            }
+          } else {
+            toast.error('재시작 실패: ' + (data.error || '알 수 없는 오류'));
+          }
+        } catch (error) {
+          console.error('Restart script error:', error);
+          toast.error('대본 재시작 중 오류가 발생했습니다.');
+        }
+      }
+    );
+  };
+
   const handleCopyScript = async (content: string, title: string) => {
     try {
       if (!content || content.trim().length === 0) {
@@ -909,6 +948,13 @@ export default function MyContentPage() {
                                   </button>
                                 )}
                                 <button
+                                  onClick={() => handleRestartVideo(item.data.id)}
+                                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
+                                  title="재시도"
+                                >
+                                  🔄 재시도
+                                </button>
+                                <button
                                   onClick={() => handleDeleteVideo(item.data.id, item.data.title || item.data.id)}
                                   className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
                                 >
@@ -1087,10 +1133,47 @@ export default function MyContentPage() {
                                         console.warn('⚠️ JSON 파싱 실패, 자동 수정 시도 중...', firstError);
 
                                         try {
-                                          // 1. 이미 이스케이프된 따옴표를 임시 토큰으로 보호
-                                          let fixed = content.replace(/\\"/g, '__ESC_QUOTE__');
+                                          // 0. 코드 블록 마커와 { 이전의 모든 텍스트 제거
+                                          let fixed = content;
 
-                                          // 2. narration 필드의 값 내부에 있는 이스케이프 안 된 따옴표 수정
+                                          // ```json 또는 json 같은 코드 블록 마커 제거
+                                          fixed = fixed.replace(/^[\s\S]*?```json\s*/i, '');
+                                          fixed = fixed.replace(/^[\s\S]*?```\s*/i, '');
+
+                                          // {"title" 패턴을 찾아서 그 이전의 모든 텍스트 제거 (가장 정확한 방법)
+                                          // \s*는 공백, 탭, 줄바꿈(\n, \r) 모두 포함
+                                          const titleMatch = fixed.match(/\{\s*"title"/s);
+                                          if (titleMatch && titleMatch.index !== undefined && titleMatch.index > 0) {
+                                            fixed = fixed.substring(titleMatch.index);
+                                            console.log('✅ {"title" 패턴으로 JSON 시작점 발견 (위치:', titleMatch.index, ')');
+                                          } else {
+                                            // fallback: { 이전의 모든 텍스트 제거 (설명, "json", "I'll generate" 등)
+                                            const firstBrace = fixed.indexOf('{');
+                                            if (firstBrace > 0) {
+                                              fixed = fixed.substring(firstBrace);
+                                              console.log('⚠️ fallback: { 로 JSON 시작 (위치:', firstBrace, ')');
+                                            }
+                                          }
+
+                                          // 마지막 } 이후의 모든 텍스트 제거 (``` 등)
+                                          const lastBrace = fixed.lastIndexOf('}');
+                                          if (lastBrace > 0 && lastBrace < fixed.length - 1) {
+                                            fixed = fixed.substring(0, lastBrace + 1);
+                                          }
+
+                                          // 1. 이미 이스케이프된 따옴표를 임시 토큰으로 보호
+                                          fixed = fixed.replace(/\\"/g, '__ESC_QUOTE__');
+
+                                          // 2. title 필드의 값 내부에 있는 이스케이프 안 된 따옴표 수정
+                                          fixed = fixed.replace(
+                                            /"title"\s*:\s*"([^]*?)"\s*,/g,
+                                            (match, value) => {
+                                              const fixedValue = value.replace(/"/g, '\\"');
+                                              return `"title": "${fixedValue}",`;
+                                            }
+                                          );
+
+                                          // 3. narration 필드의 값 내부에 있는 이스케이프 안 된 따옴표 수정
                                           fixed = fixed.replace(
                                             /"narration"\s*:\s*"([^]*?)"\s*([,}\]])/g,
                                             (match, value, ending) => {
@@ -1099,8 +1182,23 @@ export default function MyContentPage() {
                                             }
                                           );
 
-                                          // 3. 보호한 임시 토큰을 다시 이스케이프된 따옴표로 복원
+                                          // 4. image_prompt 필드도 수정
+                                          fixed = fixed.replace(
+                                            /"image_prompt"\s*:\s*"([^]*?)"\s*,/g,
+                                            (match, value) => {
+                                              const fixedValue = value.replace(/"/g, '\\"');
+                                              return `"image_prompt": "${fixedValue}",`;
+                                            }
+                                          );
+
+                                          // 5. 보호한 임시 토큰을 다시 이스케이프된 따옴표로 복원
                                           fixed = fixed.replace(/__ESC_QUOTE__/g, '\\"');
+
+                                          // 6. Trailing comma 제거 (객체/배열 마지막 요소 뒤의 쉼표)
+                                          // 객체: ,}를 }로
+                                          fixed = fixed.replace(/,(\s*})/g, '$1');
+                                          // 배열: ,]를 ]로
+                                          fixed = fixed.replace(/,(\s*\])/g, '$1');
 
                                           scriptJson = JSON.parse(fixed);
                                           console.log('✅ JSON 자동 수정 후 파싱 성공');
@@ -1168,6 +1266,37 @@ export default function MyContentPage() {
                                   className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
                                 >
                                   🗑️
+                                </button>
+                              </>
+                            )}
+                            {(item.data.status === 'failed' || item.data.status === 'cancelled') && (
+                              <>
+                                {item.data.logs && item.data.logs.length > 0 && (
+                                  <button
+                                    onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
+                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                    title="로그 보기"
+                                  >
+                                    {expandedScriptLogId === item.data.id ? '📋 닫기' : `📋 로그 (${item.data.logs.length})`}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleRestartScript(item.data.id, item.data.title)}
+                                  className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
+                                  title="재시도"
+                                >
+                                  🔄 재시도
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    console.log('🔴 삭제 버튼 클릭됨 (All 탭 - Failed)');
+                                    handleDeleteScript(item.data.id, item.data.title);
+                                  }}
+                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
+                                >
+                                  🗑️ 삭제
                                 </button>
                               </>
                             )}
@@ -1499,10 +1628,47 @@ export default function MyContentPage() {
                                     console.warn('⚠️ JSON 파싱 실패, 자동 수정 시도 중...', firstError);
 
                                     try {
-                                      // 1. 이미 이스케이프된 따옴표를 임시 토큰으로 보호
-                                      let fixed = content.replace(/\\"/g, '__ESC_QUOTE__');
+                                      // 0. 코드 블록 마커와 { 이전의 모든 텍스트 제거
+                                      let fixed = content;
 
-                                      // 2. narration 필드의 값 내부에 있는 이스케이프 안 된 따옴표 수정
+                                      // ```json 또는 json 같은 코드 블록 마커 제거
+                                      fixed = fixed.replace(/^[\s\S]*?```json\s*/i, '');
+                                      fixed = fixed.replace(/^[\s\S]*?```\s*/i, '');
+
+                                      // {"title" 패턴을 찾아서 그 이전의 모든 텍스트 제거 (가장 정확한 방법)
+                                      // \s*는 공백, 탭, 줄바꿈(\n, \r) 모두 포함
+                                      const titleMatch = fixed.match(/\{\s*"title"/s);
+                                      if (titleMatch && titleMatch.index !== undefined && titleMatch.index > 0) {
+                                        fixed = fixed.substring(titleMatch.index);
+                                        console.log('✅ {"title" 패턴으로 JSON 시작점 발견 (위치:', titleMatch.index, ')');
+                                      } else {
+                                        // fallback: { 이전의 모든 텍스트 제거 (설명, "json", "I'll generate" 등)
+                                        const firstBrace = fixed.indexOf('{');
+                                        if (firstBrace > 0) {
+                                          fixed = fixed.substring(firstBrace);
+                                          console.log('⚠️ fallback: { 로 JSON 시작 (위치:', firstBrace, ')');
+                                        }
+                                      }
+
+                                      // 마지막 } 이후의 모든 텍스트 제거 (``` 등)
+                                      const lastBrace = fixed.lastIndexOf('}');
+                                      if (lastBrace > 0 && lastBrace < fixed.length - 1) {
+                                        fixed = fixed.substring(0, lastBrace + 1);
+                                      }
+
+                                      // 1. 이미 이스케이프된 따옴표를 임시 토큰으로 보호
+                                      fixed = fixed.replace(/\\"/g, '__ESC_QUOTE__');
+
+                                      // 2. title 필드의 값 내부에 있는 이스케이프 안 된 따옴표 수정
+                                      fixed = fixed.replace(
+                                        /"title"\s*:\s*"([^]*?)"\s*,/g,
+                                        (match, value) => {
+                                          const fixedValue = value.replace(/"/g, '\\"');
+                                          return `"title": "${fixedValue}",`;
+                                        }
+                                      );
+
+                                      // 3. narration 필드의 값 내부에 있는 이스케이프 안 된 따옴표 수정
                                       fixed = fixed.replace(
                                         /"narration"\s*:\s*"([^]*?)"\s*([,}\]])/g,
                                         (match, value, ending) => {
@@ -1511,8 +1677,23 @@ export default function MyContentPage() {
                                         }
                                       );
 
-                                      // 3. 보호한 임시 토큰을 다시 이스케이프된 따옴표로 복원
+                                      // 4. image_prompt 필드도 수정
+                                      fixed = fixed.replace(
+                                        /"image_prompt"\s*:\s*"([^]*?)"\s*,/g,
+                                        (match, value) => {
+                                          const fixedValue = value.replace(/"/g, '\\"');
+                                          return `"image_prompt": "${fixedValue}",`;
+                                        }
+                                      );
+
+                                      // 5. 보호한 임시 토큰을 다시 이스케이프된 따옴표로 복원
                                       fixed = fixed.replace(/__ESC_QUOTE__/g, '\\"');
+
+                                      // 6. Trailing comma 제거 (객체/배열 마지막 요소 뒤의 쉼표)
+                                      // 객체: ,}를 }로
+                                      fixed = fixed.replace(/,(\s*})/g, '$1');
+                                      // 배열: ,]를 ]로
+                                      fixed = fixed.replace(/,(\s*\])/g, '$1');
 
                                       scriptJson = JSON.parse(fixed);
                                       console.log('✅ JSON 자동 수정 후 파싱 성공');
@@ -1580,6 +1761,37 @@ export default function MyContentPage() {
                               className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
                             >
                               🗑️
+                            </button>
+                          </>
+                        )}
+                        {(script.status === 'failed' || script.status === 'cancelled') && (
+                          <>
+                            {script.logs && script.logs.length > 0 && (
+                              <button
+                                onClick={() => setExpandedScriptLogId(expandedScriptLogId === script.id ? null : script.id)}
+                                className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                title="로그 보기"
+                              >
+                                {expandedScriptLogId === script.id ? '📋 닫기' : `📋 로그 (${script.logs.length})`}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleRestartScript(script.id, script.title)}
+                              className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
+                              title="재시도"
+                            >
+                              🔄 재시도
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('🔴 삭제 버튼 클릭됨 (Scripts 탭 - Failed)');
+                                handleDeleteScript(script.id, script.title);
+                              }}
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
+                            >
+                              🗑️ 삭제
                             </button>
                           </>
                         )}
@@ -1809,6 +2021,32 @@ export default function MyContentPage() {
                               className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
                             >
                               🗑️
+                            </button>
+                          </>
+                        )}
+                        {(job.status === 'failed' || job.status === 'cancelled') && (
+                          <>
+                            {job.logs && job.logs.length > 0 && (
+                              <button
+                                onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
+                                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
+                                title="로그 보기"
+                              >
+                                {expandedLogJobId === job.id ? '📋 로그 닫기' : '📋 로그 보기'} ({job.logs.length})
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleRestartVideo(job.id)}
+                              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
+                              title="재시도"
+                            >
+                              🔄 재시도
+                            </button>
+                            <button
+                              onClick={() => handleDeleteVideo(job.id, job.title || job.id)}
+                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                            >
+                              🗑️ 삭제
                             </button>
                           </>
                         )}

@@ -250,7 +250,7 @@ export function findJobById(jobId: string): Job | null {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     title: row.title,
-    videoPath: row.video_url,
+    videoPath: row.video_path || row.video_url,
     thumbnailPath: row.thumbnail_path,
     error: row.error,
     logs: row.logs ? row.logs.split('\n') : []
@@ -277,7 +277,7 @@ export function updateJob(jobId: string, updates: Partial<Job>): Job | null {
     values.push(updates.step);
   }
   if (updates.videoPath !== undefined) {
-    fields.push('video_url = ?');
+    fields.push('video_path = ?');
     values.push(updates.videoPath);
   }
   if (updates.thumbnailPath !== undefined) {
@@ -357,7 +357,7 @@ export function getJobsByUserId(userId: string, limit: number = 10, offset: numb
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     title: row.title,
-    videoPath: row.video_url,
+    videoPath: row.video_path || row.video_url,
     thumbnailPath: row.thumbnail_path,
     error: row.error,
     logs: row.logs ? row.logs.split('\n') : []
@@ -389,7 +389,7 @@ export function getActiveJobsByUserId(userId: string): Job[] {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     title: row.title,
-    videoPath: row.video_url,
+    videoPath: row.video_path || row.video_url,
     thumbnailPath: row.thumbnail_path,
     error: row.error,
     logs: row.logs ? row.logs.split('\n') : []
@@ -1074,6 +1074,31 @@ export async function findScriptById(scriptId: string): Promise<Script | null> {
     } : undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt || row.createdAt
+  };
+}
+
+// scripts_temp에서 대본 찾기 (재시도용)
+export async function findScriptTempById(scriptId: string): Promise<any | null> {
+  const stmt = db.prepare(`
+    SELECT
+      id, user_id as userId, title, original_topic as originalTitle,
+      use_claude_local as useClaudeLocal, type,
+      created_at as createdAt
+    FROM scripts_temp
+    WHERE id = ? OR scriptId = ?
+  `);
+
+  const row = stmt.get(scriptId, scriptId) as any;
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    userId: row.userId,
+    title: row.title,
+    originalTitle: row.originalTitle,
+    useClaudeLocal: row.useClaudeLocal === 1,
+    type: row.type,
+    createdAt: row.createdAt
   };
 }
 
