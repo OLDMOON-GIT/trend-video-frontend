@@ -337,7 +337,7 @@ export async function POST(request: NextRequest) {
         addLog(taskId, `✅ 프롬프트에 제목 포함: ${prompt.includes(title) ? 'Yes' : 'No'}`);
 
         // 실행할 명령어 구성 (backend의 ai_aggregator 모듈 사용)
-        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude'];
+        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close'];
         const commandStr = `python ${pythonArgs.join(' ')}`;
 
         addLog(taskId, '📌 Python 스크립트 실행 시작');
@@ -578,7 +578,7 @@ export async function POST(request: NextRequest) {
 
           try {
             // headful 모드로 재실행 (브라우저 창 표시)
-            const pythonArgsHeadful = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude'];
+            const pythonArgsHeadful = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close'];
             const commandStrHeadful = `python ${pythonArgsHeadful.join(' ')}`;
 
             addLog(taskId, '🌐 브라우저 창을 열어 로그인하세요!');
