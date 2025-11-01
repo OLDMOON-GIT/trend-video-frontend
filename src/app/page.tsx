@@ -80,6 +80,16 @@ type RunPipelinePayload = {
 
 const FILTER_STORAGE_KEY = 'trend-video-filters';
 
+// 마크다운 코드 블록 제거 헬퍼 함수
+function stripMarkdownCodeBlock(text: string): string {
+  // ```json, ```JSON, ``` 로 시작하고 ``` 로 끝나는 패턴 제거
+  return text
+    .trim()
+    .replace(/^```(?:json|JSON)?\s*\n?/g, '')  // 시작 부분의 ```json 또는 ``` 제거
+    .replace(/\n?```\s*$/g, '')                 // 끝 부분의 ``` 제거
+    .trim();
+}
+
 let cachedFilters: StoredFilters | null | undefined = undefined;
 function loadStoredFilters(): StoredFilters | null {
   if (typeof window === 'undefined') {
@@ -147,7 +157,11 @@ export default function Home() {
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [uploadedJson, setUploadedJson] = useState<File | null>(null);
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
+  const [addSubtitlesForMerge, setAddSubtitlesForMerge] = useState(false);
   const [showUploadSection, setShowUploadSection] = useState(false);
+  const [showJsonTextarea, setShowJsonTextarea] = useState(false);
+  const [jsonTextareaValue, setJsonTextareaValue] = useState('');
   const [toast, setToast] = useState<{message: string; type: 'success' | 'info' | 'error'} | null>(null);
   const [isFilterExpanded, setIsFilterExpanded] = useState(() => {
     // 클라이언트에서만 localStorage 접근
@@ -164,7 +178,7 @@ export default function Home() {
     return false; // 기본값 false (접힌 상태)
   });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2'>('longform'); // 항상 기본값으로 시작
+  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2' | 'video-merge'>('longform'); // 항상 기본값으로 시작
   const [sora2Script, setSora2Script] = useState<string>(''); // SORA2 대본
   const [showSora2Review, setShowSora2Review] = useState(false); // SORA2 대본 확인 모달
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
@@ -195,6 +209,7 @@ export default function Home() {
   const videoLogsRef = useRef<HTMLDivElement>(null);
   const pipelineLogsRef = useRef<HTMLDivElement>(null);
   const scriptGenerationLogRef = useRef<HTMLDivElement>(null);
+  const uploadSectionRef = useRef<HTMLElement>(null);
 
   // 프롬프트 API URL 헬퍼 함수
   const getPromptApiUrl = () => {
@@ -216,13 +231,14 @@ export default function Home() {
   };
 
   // 포맷 변경 핸들러 (대본이 로드된 경우 경고)
-  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2') => {
+  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2' | 'video-merge') => {
     // 대본이 로드되어 있고, 원본 포맷과 다른 경우 경고
     if (originalFormat && originalFormat !== newFormat && uploadedJson) {
       const formatNames = {
         longform: '롱폼 (16:9 가로)',
         shortform: '숏폼 (9:16 세로)',
-        sora2: 'Sora2 (AI 시네마틱)'
+        sora2: 'Sora2 (AI 시네마틱)',
+        'video-merge': '영상 병합 (Concat)'
       };
 
       if (confirm(`⚠️ 포맷 변경 경고\n\n현재 불러온 대본은 ${formatNames[originalFormat]} 형식입니다.\n${formatNames[newFormat]}(으)로 변경하시겠습니까?\n\n대본 내용이 형식에 맞지 않을 수 있습니다.`)) {
@@ -320,9 +336,9 @@ export default function Home() {
     // localStorage에서 videoFormat 복원 (클라이언트에서만)
     const savedVideoFormat = localStorage.getItem('videoFormat');
     console.log('📂 localStorage에서 videoFormat 불러오기:', savedVideoFormat);
-    if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2') {
+    if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2' || savedVideoFormat === 'video-merge') {
       console.log('✅ videoFormat 복원:', savedVideoFormat);
-      setVideoFormat(savedVideoFormat);
+      setVideoFormat(savedVideoFormat as any);
     } else {
       console.log('⚠️ 저장된 videoFormat 없음, 기본값(longform) 사용');
     }
@@ -735,6 +751,48 @@ export default function Home() {
     }
   };
 
+  const handleCancelScript = async () => {
+    if (!currentScriptId) {
+      showToast('취소할 대본이 없습니다.', 'error');
+      return;
+    }
+
+    const confirmCancel = window.confirm('대본 생성을 취소하시겠습니까?');
+    if (!confirmCancel) return;
+
+    try {
+      const response = await fetch(`/api/scripts/${currentScriptId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        showToast('대본 생성이 취소되었습니다.', 'success');
+
+        // 폴링 중지
+        if (scriptPollingInterval) {
+          clearInterval(scriptPollingInterval);
+          setScriptPollingInterval(null);
+        }
+
+        // 상태 초기화
+        setIsGeneratingScript(false);
+        setScriptProgress(null);
+        setCurrentScriptId(null);
+
+        // 크레딧 새로고침
+        fetchCreditsAndSettings();
+      } else {
+        const data = await response.json();
+        showToast('취소 실패: ' + (data.error || '알 수 없는 오류'), 'error');
+      }
+    } catch (error) {
+      console.error('Cancel script error:', error);
+      showToast('취소 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
   // Toast 자동 제거
   useEffect(() => {
     if (toast) {
@@ -1029,8 +1087,28 @@ export default function Home() {
   const handleRunAutomation = useCallback(async () => {
     // 파일 업로드 섹션 표시
     setShowUploadSection(true);
-    showToast('📤 JSON 대본과 이미지 8컷을 업로드해주세요.', 'info');
-  }, []);
+
+    // 조건에 따라 토스트 메시지 변경
+    let message = '';
+    if (videoFormat === 'sora2') {
+      message = '📤 JSON 대본을 업로드해주세요. (이미지 불필요)';
+    } else if (videoFormat === 'video-merge') {
+      message = '📤 JSON 대본과 비디오 파일들을 업로드해주세요.';
+    } else if (imageSource === 'none') {
+      message = '📤 JSON 대본과 이미지 8컷을 업로드해주세요.';
+    } else if (imageSource === 'dalle') {
+      message = '📤 JSON 대본을 업로드해주세요. (DALL-E가 이미지 자동 생성)';
+    } else if (imageSource === 'google') {
+      message = '📤 JSON 대본을 업로드해주세요. (Google에서 이미지 자동 검색)';
+    }
+
+    showToast(message, 'info');
+
+    // 업로드 섹션으로 스크롤
+    setTimeout(() => {
+      uploadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }, [videoFormat, imageSource]);
 
   const handleMoveToLLM = useCallback(async () => {
     // 영상이 선택되지 않았으면 프롬프트만 복사하고 모델 홈페이지로 이동
@@ -1361,6 +1439,16 @@ export default function Home() {
               >
                 🎥 SORA2
               </button>
+              <button
+                onClick={() => handleFormatChange('video-merge')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  videoFormat === 'video-merge'
+                    ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                🎞️ 영상병합
+              </button>
             </div>
           </div>
           <div className="mb-4 h-px bg-white/10"></div>
@@ -1454,7 +1542,7 @@ export default function Home() {
                 disabled={isPipelineProcessing}
                 className="w-full rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-wait disabled:opacity-70"
               >
-                {isPipelineProcessing ? '⏳ 제작 중...' : '🎥 영상 제작 시작'}
+                {isPipelineProcessing ? '⏳ 제작 중...' : '🎥 영상 제작'}
               </button>
             </div>
           </div>
@@ -1893,9 +1981,18 @@ export default function Home() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-300">대본 생성 진행률</span>
-                  <span className="text-sm font-bold text-purple-400">
-                    {scriptProgress.current}%
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-purple-400">
+                      {scriptProgress.current}%
+                    </span>
+                    <button
+                      onClick={handleCancelScript}
+                      className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                      title="대본 생성 중지"
+                    >
+                      🛑 중지
+                    </button>
+                  </div>
                 </div>
                 <div className="h-3 overflow-hidden rounded-full bg-slate-700">
                   <div
@@ -1951,7 +2048,7 @@ export default function Home() {
 
         {/* 파일 업로드로 직접 영상 생성 */}
         {showUploadSection && (
-        <section className="rounded-3xl border border-purple-500/20 bg-purple-950/20 p-6 backdrop-blur">
+        <section ref={uploadSectionRef} className="rounded-3xl border border-purple-500/20 bg-purple-950/20 p-6 backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold text-purple-400">📤 파일 업로드로 영상 생성</h2>
             <button
@@ -1966,12 +2063,253 @@ export default function Home() {
           <p className="mb-4 text-sm text-slate-300">
             {videoFormat === 'sora2'
               ? 'JSON 대본을 업로드하여 AI 시네마틱 영상을 생성하세요. (이미지 불필요)'
+              : videoFormat === 'video-merge'
+              ? '여러 개의 비디오 파일을 업로드하여 하나로 병합하세요. TTS 나레이션 추가 가능'
               : 'JSON 대본을 업로드하고, 이미지 소스를 선택하여 영상을 생성하세요.'}
           </p>
 
           <div className="space-y-4">
-            {/* 이미지 소스 선택 (SORA2 제외) */}
-            {videoFormat !== 'sora2' && (
+            {/* VIDEO-MERGE 안내 메시지 */}
+            {videoFormat === 'video-merge' && (
+            <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">🎞️</span>
+                <div>
+                  <p className="text-sm font-semibold text-orange-200 mb-1">
+                    영상 병합 모드: 여러 비디오를 하나로 연결합니다
+                  </p>
+                  <p className="text-xs text-orange-300/80">
+                    1개 이상의 비디오 파일을 업로드하면 순서대로 병합됩니다. 선택적으로 TTS 나레이션을 추가할 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* SORA2 안내 메시지 */}
+            {videoFormat === 'sora2' && (
+            <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">🎬</span>
+                <div>
+                  <p className="text-sm font-semibold text-cyan-200 mb-1">
+                    SORA2 모드: 이미지 없이 AI가 영상을 생성합니다
+                  </p>
+                  <p className="text-xs text-cyan-300/80">
+                    JSON 대본만 업로드하면 SoraExtend가 자동으로 8초 시네마틱 영상을 제작합니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* 통합 파일 업로드 (VIDEO-MERGE 전용) */}
+            {videoFormat === 'video-merge' && (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-300">
+                📁 JSON/TXT 대본과 비디오 파일들을 한번에 드래그하세요
+              </label>
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingFiles(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDraggingFiles(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingFiles(false);
+
+                  const files = Array.from(e.dataTransfer.files);
+
+                  // JSON/TXT 파일 분류
+                  const jsonFile = files.find(f =>
+                    f.type === 'application/json' ||
+                    f.name.endsWith('.json') ||
+                    f.name.endsWith('.txt')
+                  );
+
+                  // 비디오 파일 분류
+                  const videoFiles = files.filter(f => f.type.startsWith('video/'));
+
+                  if (jsonFile) {
+                    setUploadedJson(jsonFile);
+                    showToast('✅ JSON/TXT 파일 업로드 완료', 'success');
+                  }
+
+                  if (videoFiles.length > 0) {
+                    setUploadedVideos(prev => [...prev, ...videoFiles]);
+                    showToast(`✅ ${videoFiles.length}개 비디오를 업로드했습니다!`, 'success');
+                  }
+
+                  if (!jsonFile && videoFiles.length === 0) {
+                    showToast('JSON/TXT 또는 비디오 파일을 업로드해주세요.', 'error');
+                  }
+                }}
+                onPaste={async (e) => {
+                  e.preventDefault();
+                  try {
+                    const rawText = e.clipboardData.getData('text');
+                    if (!rawText) {
+                      showToast('클립보드가 비어있습니다.', 'error');
+                      return;
+                    }
+
+                    // JSON 파싱 시도
+                    try {
+                      const text = stripMarkdownCodeBlock(rawText);
+                      const jsonData = JSON.parse(text);
+                      const blob = new Blob([text], { type: 'application/json' });
+                      const file = new File([blob], 'clipboard.json', { type: 'application/json' });
+                      setUploadedJson(file);
+                      showToast('✅ 클립보드에서 JSON을 가져왔습니다!', 'success');
+                    } catch (e) {
+                      showToast('클립보드 내용이 올바른 JSON 형식이 아닙니다.', 'error');
+                    }
+                  } catch (error) {
+                    console.error('클립보드 읽기 실패:', error);
+                    showToast('클립보드 읽기에 실패했습니다.', 'error');
+                  }
+                }}
+                className={`rounded-lg border-2 border-dashed transition-all ${
+                  isDraggingFiles
+                    ? 'border-purple-400 bg-purple-500/20'
+                    : 'border-white/20 bg-white/5'
+                } p-6 text-center mb-4`}
+                tabIndex={0}
+              >
+                <div className="space-y-4">
+                  {/* 업로드된 파일 표시 */}
+                  {(uploadedJson || uploadedVideos.length > 0) ? (
+                    <div className="space-y-3">
+                      <div className="text-4xl">✅</div>
+
+                      {/* JSON 파일 표시 */}
+                      {uploadedJson && (
+                        <div className="rounded-lg bg-purple-500/10 p-3 border border-purple-500/30">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-purple-400">📄 {uploadedJson.name}</p>
+                            <button
+                              onClick={() => setUploadedJson(null)}
+                              className="text-red-400 hover:text-red-300 text-xs"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 비디오 파일 표시 */}
+                      {uploadedVideos.length > 0 && (
+                        <div className="rounded-lg bg-orange-500/10 p-3 border border-orange-500/30">
+                          <p className="text-sm text-orange-400 mb-2">🎞️ {uploadedVideos.length}개 비디오</p>
+                          <div className="max-h-32 overflow-y-auto space-y-1">
+                            {uploadedVideos.map((vid, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs text-slate-300 bg-white/10 rounded px-2 py-1">
+                                <span>{idx + 1}. {vid.name}</span>
+                                <button
+                                  onClick={() => {
+                                    setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="ml-2 text-red-400 hover:text-red-300"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setUploadedJson(null);
+                          setUploadedVideos([]);
+                        }}
+                        className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
+                      >
+                        전체 삭제
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="text-4xl">📁</div>
+                      <div className="space-y-2">
+                        <p className="text-sm text-slate-300 font-semibold">JSON/TXT와 비디오 파일을 한번에 드래그하세요</p>
+                        <p className="text-xs text-slate-400">
+                          💡 이미지를 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능
+                        </p>
+                        <div className="flex flex-col gap-2 items-center">
+                          <p className="text-xs text-slate-500">• JSON/TXT는 선택사항 (나레이션 TTS용)</p>
+                          <p className="text-xs text-slate-500">• 비디오 파일명에 숫자가 있으면 자동 정렬</p>
+                        </div>
+                      </div>
+                      <label className="cursor-pointer rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-purple-500 hover:to-orange-500 inline-block">
+                        파일 선택
+                        <input
+                          type="file"
+                          multiple
+                          accept=".json,.txt,video/*"
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+
+                            const jsonFile = files.find(f =>
+                              f.type === 'application/json' ||
+                              f.name.endsWith('.json') ||
+                              f.name.endsWith('.txt')
+                            );
+
+                            const videoFiles = files.filter(f => f.type.startsWith('video/'));
+
+                            if (jsonFile) {
+                              setUploadedJson(jsonFile);
+                            }
+
+                            if (videoFiles.length > 0) {
+                              setUploadedVideos(prev => [...prev, ...videoFiles]);
+                            }
+
+                            if (jsonFile || videoFiles.length > 0) {
+                              showToast('✅ 파일 업로드 완료!', 'success');
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* 자막 추가 옵션 (VIDEO-MERGE 전용) */}
+            {videoFormat === 'video-merge' && (
+            <div className={`rounded-lg border border-orange-500/20 p-4 ${uploadedJson ? 'bg-orange-500/5' : 'bg-gray-500/5 opacity-50'}`}>
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={addSubtitlesForMerge}
+                  onChange={(e) => setAddSubtitlesForMerge(e.target.checked)}
+                  disabled={!uploadedJson}
+                  className="w-5 h-5 rounded border-orange-500/50 bg-white/10 text-orange-600 focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <div>
+                  <span className="text-sm font-medium text-slate-200">📝 TTS 나레이션에 자막 추가</span>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {uploadedJson
+                      ? 'JSON 대본의 텍스트를 자막으로 비디오에 표시합니다'
+                      : '⚠️ JSON 대본을 먼저 업로드해주세요'}
+                  </p>
+                </div>
+              </label>
+            </div>
+            )}
+
+            {/* 이미지 소스 선택 (SORA2, VIDEO-MERGE 제외) */}
+            {videoFormat !== 'sora2' && videoFormat !== 'video-merge' && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-300">
                 🎨 이미지 소스 선택
@@ -2031,12 +2369,26 @@ export default function Home() {
             )}
 
             {/* 파일 업로드 (JSON + 이미지) */}
-            {videoFormat !== 'sora2' && imageSource === 'none' && (
+            {videoFormat !== 'sora2' && videoFormat !== 'video-merge' && imageSource === 'none' && (
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-300">
-                📁 JSON 대본 + 이미지
-              </label>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-sm font-medium text-slate-300">
+                  📁 JSON 대본 + 이미지
+                </label>
+                <button
+                  onClick={() => setShowJsonTextarea(!showJsonTextarea)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition ${
+                    showJsonTextarea
+                      ? 'bg-purple-500 hover:bg-purple-600'
+                      : 'bg-purple-600 hover:bg-purple-500'
+                  }`}
+                  title="JSON 직접 입력"
+                >
+                  {showJsonTextarea ? '✕ 닫기' : '📋 JSON 붙여넣기'}
+                </button>
+              </div>
               <div
+                tabIndex={0}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setIsDraggingFiles(true);
@@ -2060,17 +2412,45 @@ export default function Home() {
                     showToast('JSON 또는 이미지 파일을 업로드해주세요.', 'error');
                   }
                 }}
+                onPaste={async (e) => {
+                  e.preventDefault();
+                  const items = Array.from(e.clipboardData.items);
+                  const imageItems = items.filter(item => item.type.startsWith('image/'));
+
+                  if (imageItems.length === 0) {
+                    showToast('클립보드에 이미지가 없습니다.', 'error');
+                    return;
+                  }
+
+                  const imageFiles: File[] = [];
+                  for (const item of imageItems) {
+                    const file = item.getAsFile();
+                    if (file) {
+                      // 파일명 생성
+                      const timestamp = Date.now();
+                      const ext = file.type.split('/')[1] || 'png';
+                      const renamedFile = new File([file], `clipboard_${timestamp}.${ext}`, { type: file.type });
+                      imageFiles.push(renamedFile);
+                    }
+                  }
+
+                  if (imageFiles.length > 0) {
+                    setUploadedImages(prev => [...prev, ...imageFiles].slice(0, 50));
+                    showToast(`✅ ${imageFiles.length}개 이미지를 클립보드에서 가져왔습니다!`, 'success');
+                  }
+                }}
                 className={`rounded-lg border-2 border-dashed transition-all ${
                   isDraggingFiles
                     ? 'border-purple-400 bg-purple-500/20'
                     : 'border-white/20 bg-white/5'
-                } p-8 text-center`}
+                } p-8 text-center focus:outline-none focus:ring-2 focus:ring-purple-500/50`}
               >
                 <div className="flex flex-col items-center gap-4">
                   <div className="text-4xl">📁</div>
                   <div>
                     <p className="text-sm text-slate-300">JSON/TXT 파일과 이미지를 한번에 드래그하세요</p>
                     <p className="mt-1 text-xs text-slate-400">또는 파일을 선택하세요</p>
+                    <p className="mt-1 text-xs text-purple-400">💡 이미지를 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능</p>
                   </div>
 
                   {/* 업로드된 파일 표시 */}
@@ -2156,16 +2536,103 @@ export default function Home() {
                   </label>
                 </div>
               </div>
+
+              {/* JSON 직접 입력 textarea */}
+              {showJsonTextarea && (
+                <div className="mt-3 rounded-lg border border-purple-500/30 bg-purple-500/10 p-4">
+                  <label className="mb-2 block text-sm font-semibold text-purple-300">
+                    📝 JSON 직접 입력
+                  </label>
+                  <textarea
+                    value={jsonTextareaValue}
+                    onChange={(e) => setJsonTextareaValue(e.target.value)}
+                    placeholder="JSON을 여기에 붙여넣으세요 (Ctrl+V)...&#10;&#10;예시:&#10;{&#10;  &quot;scenes&quot;: [&#10;    { &quot;text&quot;: &quot;첫 번째 장면&quot; },&#10;    { &quot;text&quot;: &quot;두 번째 장면&quot; }&#10;  ]&#10;}"
+                    className="w-full h-48 rounded-lg bg-slate-900 border border-slate-700 p-3 text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.ctrlKey) {
+                        // Ctrl+Enter로 적용
+                        const rawText = jsonTextareaValue.trim();
+                        if (!rawText) return;
+
+                        try {
+                          // 마크다운 코드 블록 제거
+                          const text = stripMarkdownCodeBlock(rawText);
+                          const jsonData = JSON.parse(text);
+                          const blob = new Blob([text], { type: 'application/json' });
+                          const file = new File([blob], 'clipboard.json', { type: 'application/json' });
+                          setUploadedJson(file);
+                          showToast('✅ JSON을 가져왔습니다!', 'success');
+                          setJsonTextareaValue('');
+                          setShowJsonTextarea(false);
+                        } catch (e) {
+                          showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                        }
+                      }
+                    }}
+                  />
+                  <div className="mt-3 flex gap-2 justify-end">
+                    <button
+                      onClick={() => {
+                        setJsonTextareaValue('');
+                        setShowJsonTextarea(false);
+                      }}
+                      className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={() => {
+                        const rawText = jsonTextareaValue.trim();
+                        if (!rawText) {
+                          showToast('JSON을 입력해주세요.', 'error');
+                          return;
+                        }
+
+                        try {
+                          // 마크다운 코드 블록 제거
+                          const text = stripMarkdownCodeBlock(rawText);
+                          const jsonData = JSON.parse(text);
+                          const blob = new Blob([text], { type: 'application/json' });
+                          const file = new File([blob], 'clipboard.json', { type: 'application/json' });
+                          setUploadedJson(file);
+                          showToast('✅ JSON을 가져왔습니다!', 'success');
+                          setJsonTextareaValue('');
+                          setShowJsonTextarea(false);
+                        } catch (e) {
+                          showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                        }
+                      }}
+                      className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+                    >
+                      적용 (Ctrl+Enter)
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             )}
 
             {/* JSON 파일만 업로드 (DALL-E, Google 검색, 또는 SORA2) */}
-            {(videoFormat === 'sora2' || imageSource !== 'none') && (
+            {videoFormat !== 'video-merge' && (videoFormat === 'sora2' || imageSource !== 'none') && (
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-300">
-                📄 JSON 대본 업로드
-              </label>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-sm font-medium text-slate-300">
+                  📄 JSON 대본 업로드
+                </label>
+                <button
+                  onClick={() => setShowJsonTextarea(!showJsonTextarea)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition ${
+                    showJsonTextarea
+                      ? 'bg-purple-500 hover:bg-purple-600'
+                      : 'bg-purple-600 hover:bg-purple-500'
+                  }`}
+                  title="JSON 직접 입력"
+                >
+                  {showJsonTextarea ? '✕ 닫기' : '📋 JSON 붙여넣기'}
+                </button>
+              </div>
               <div
+                tabIndex={0}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setIsDraggingFiles(true);
@@ -2185,11 +2652,38 @@ export default function Home() {
                     showToast('JSON 또는 TXT 파일만 업로드 가능합니다.', 'error');
                   }
                 }}
+                onPaste={async (e) => {
+                  e.preventDefault();
+                  try {
+                    const rawText = e.clipboardData.getData('text');
+                    if (!rawText) {
+                      showToast('클립보드가 비어있습니다.', 'error');
+                      return;
+                    }
+
+                    // JSON 파싱 시도
+                    try {
+                      // 마크다운 코드 블록 제거
+                      const text = stripMarkdownCodeBlock(rawText);
+                      const jsonData = JSON.parse(text);
+                      // JSON을 Blob으로 변환
+                      const blob = new Blob([text], { type: 'application/json' });
+                      const file = new File([blob], 'clipboard.json', { type: 'application/json' });
+                      setUploadedJson(file);
+                      showToast('✅ 클립보드에서 JSON을 가져왔습니다!', 'success');
+                    } catch (e) {
+                      showToast('클립보드 내용이 올바른 JSON 형식이 아닙니다.', 'error');
+                    }
+                  } catch (error) {
+                    console.error('클립보드 읽기 실패:', error);
+                    showToast('클립보드 읽기에 실패했습니다.', 'error');
+                  }
+                }}
                 className={`rounded-lg border-2 border-dashed transition-all ${
                   isDraggingFiles
                     ? 'border-purple-400 bg-purple-500/20'
                     : 'border-white/20 bg-white/5'
-                } p-6 text-center`}
+                } p-6 text-center focus:outline-none focus:ring-2 focus:ring-purple-500/50`}
               >
                 {uploadedJson ? (
                   <div className="space-y-3">
@@ -2209,6 +2703,7 @@ export default function Home() {
                   <div className="space-y-3">
                     <div className="text-4xl">📄</div>
                     <p className="text-sm text-slate-300">JSON 또는 TXT 파일을 드래그하거나 선택하세요</p>
+                    <p className="text-xs text-purple-400">💡 JSON을 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능</p>
                     <label className="cursor-pointer rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 inline-block">
                       파일 선택
                       <input
@@ -2228,6 +2723,79 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              {/* JSON 직접 입력 textarea */}
+              {showJsonTextarea && (
+                <div className="mt-3 rounded-lg border border-purple-500/30 bg-purple-500/10 p-4">
+                  <label className="mb-2 block text-sm font-semibold text-purple-300">
+                    📝 JSON 직접 입력
+                  </label>
+                  <textarea
+                    value={jsonTextareaValue}
+                    onChange={(e) => setJsonTextareaValue(e.target.value)}
+                    placeholder="JSON을 여기에 붙여넣으세요 (Ctrl+V)...&#10;&#10;예시:&#10;{&#10;  &quot;scenes&quot;: [&#10;    { &quot;text&quot;: &quot;첫 번째 장면&quot; },&#10;    { &quot;text&quot;: &quot;두 번째 장면&quot; }&#10;  ]&#10;}"
+                    className="w-full h-48 rounded-lg bg-slate-900 border border-slate-700 p-3 text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.ctrlKey) {
+                        // Ctrl+Enter로 적용
+                        const rawText = jsonTextareaValue.trim();
+                        if (!rawText) return;
+
+                        try {
+                          // 마크다운 코드 블록 제거
+                          const text = stripMarkdownCodeBlock(rawText);
+                          const jsonData = JSON.parse(text);
+                          const blob = new Blob([text], { type: 'application/json' });
+                          const file = new File([blob], 'clipboard.json', { type: 'application/json' });
+                          setUploadedJson(file);
+                          showToast('✅ JSON을 가져왔습니다!', 'success');
+                          setJsonTextareaValue('');
+                          setShowJsonTextarea(false);
+                        } catch (e) {
+                          showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                        }
+                      }
+                    }}
+                  />
+                  <div className="mt-3 flex gap-2 justify-end">
+                    <button
+                      onClick={() => {
+                        setJsonTextareaValue('');
+                        setShowJsonTextarea(false);
+                      }}
+                      className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={() => {
+                        const rawText = jsonTextareaValue.trim();
+                        if (!rawText) {
+                          showToast('JSON을 입력해주세요.', 'error');
+                          return;
+                        }
+
+                        try {
+                          // 마크다운 코드 블록 제거
+                          const text = stripMarkdownCodeBlock(rawText);
+                          const jsonData = JSON.parse(text);
+                          const blob = new Blob([text], { type: 'application/json' });
+                          const file = new File([blob], 'clipboard.json', { type: 'application/json' });
+                          setUploadedJson(file);
+                          showToast('✅ JSON을 가져왔습니다!', 'success');
+                          setJsonTextareaValue('');
+                          setShowJsonTextarea(false);
+                        } catch (e) {
+                          showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                        }
+                      }}
+                      className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+                    >
+                      적용 (Ctrl+Enter)
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             )}
 
@@ -2237,6 +2805,112 @@ export default function Home() {
               onClick={async () => {
                 if (!user) {
                   showToast('로그인이 필요합니다. 우측 상단의 로그인 버튼을 클릭하세요.', 'error');
+                  return;
+                }
+
+                // VIDEO-MERGE 전용 검증 및 API 호출
+                if (videoFormat === 'video-merge') {
+                  if (uploadedVideos.length === 0) {
+                    showToast('최소 1개 이상의 비디오를 업로드해주세요.', 'error');
+                    return;
+                  }
+
+                  // 영상 병합 시작
+                  setIsGeneratingVideo(true);
+                  setVideoLogs([]);
+                  setGeneratedVideoUrl(null);
+
+                  try {
+                    showToast('비디오 병합을 시작합니다...', 'info');
+
+                    // FormData 생성
+                    const mergeFormData = new FormData();
+
+                    // 비디오 파일들 추가
+                    uploadedVideos.forEach((video, index) => {
+                      mergeFormData.append(`video_${index}`, video);
+                    });
+
+                    // JSON 파일 추가 (있으면 - TTS 나레이션용)
+                    if (uploadedJson) {
+                      mergeFormData.append('json', uploadedJson);
+                    }
+
+                    // 자막 옵션 추가
+                    mergeFormData.append('addSubtitles', addSubtitlesForMerge ? 'true' : 'false');
+
+                    // API 호출
+                    const response = await fetch('/api/video-merge', {
+                      method: 'POST',
+                      body: mergeFormData
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                      throw new Error(data.error || '비디오 병합 실패');
+                    }
+
+                    if (data.jobId) {
+                      setCurrentJobId(data.jobId);
+                      showToast('✅ 비디오 병합이 시작되었습니다!', 'success');
+
+                      // 폴링 시작
+                      const interval = setInterval(async () => {
+                        try {
+                          const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
+                          const statusData = await statusRes.json();
+
+                          // 로그를 줄 단위로 분리해서 배열로 저장
+                          if (statusData.logs) {
+                            const logLines = typeof statusData.logs === 'string'
+                              ? statusData.logs.split('\n').filter(line => line.trim())
+                              : statusData.logs;
+                            setVideoLogs(logLines);
+                          }
+
+                          // 진행률 업데이트
+                          if (statusData.progress !== undefined) {
+                            setVideoProgress({
+                              step: statusData.status === 'processing' ? '비디오 병합 중...' : '준비 중...',
+                              progress: statusData.progress
+                            });
+                          }
+
+                          if (statusData.status === 'completed' && statusData.outputPath) {
+                            clearInterval(interval);
+                            setPollingInterval(null);
+                            setIsGeneratingVideo(false);
+                            setVideoProgress({
+                              step: '완료!',
+                              progress: 100
+                            });
+
+                            const videoUrl = `/api/video-stream?path=${encodeURIComponent(statusData.outputPath)}`;
+                            setGeneratedVideoUrl(videoUrl);
+                            showToast('✅ 비디오 병합 완료!', 'success');
+
+                            // 사용자 정보 갱신
+                            await checkAuth();
+                          } else if (statusData.status === 'failed') {
+                            clearInterval(interval);
+                            setPollingInterval(null);
+                            setIsGeneratingVideo(false);
+                            setVideoProgress(null);
+                            showToast(`❌ 비디오 병합 실패: ${statusData.error}`, 'error');
+                          }
+                        } catch (error) {
+                          console.error('폴링 오류:', error);
+                        }
+                      }, 2000);
+
+                      setPollingInterval(interval);
+                    }
+                  } catch (error: any) {
+                    console.error('비디오 병합 오류:', error);
+                    showToast(error.message || '비디오 병합 중 오류가 발생했습니다.', 'error');
+                    setIsGeneratingVideo(false);
+                  }
                   return;
                 }
 
@@ -2264,13 +2938,15 @@ export default function Home() {
                 setShowConfirmModal(true);
               }}
               disabled={
-                !uploadedJson ||
                 isGeneratingVideo ||
-                (videoFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0)
+                (videoFormat === 'video-merge' ? uploadedVideos.length === 0 :
+                  (!uploadedJson || (videoFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0)))
               }
               className="w-full rounded-xl bg-purple-600 px-6 py-3 font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isGeneratingVideo ? '영상 생성 중...' : `🎬 영상 생성 시작${settings ? ` (${settings.videoGenerationCost} 크레딧)` : ''}`}
+              {isGeneratingVideo ? '영상 생성 중...' :
+                videoFormat === 'video-merge' ? `🎞️ 비디오 병합${settings ? ` (${settings.videoGenerationCost} 크레딧)` : ''}` :
+                `🎬 영상 제작${settings ? ` (${settings.videoGenerationCost} 크레딧)` : ''}`}
             </button>
           </div>
         </section>
@@ -2288,7 +2964,8 @@ export default function Home() {
                   <p className="text-white text-lg font-bold">
                     {videoFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
                      videoFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
-                     '🎥 SORA2 (AI 시네마틱)'}
+                     videoFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
+                     '🎞️ 영상 병합 (Concat)'}
                   </p>
                 </div>
 
@@ -2339,7 +3016,9 @@ export default function Home() {
 
                     try {
                       // JSON 파일 읽기
-                      const jsonText = await uploadedJson!.text();
+                      const rawJsonText = await uploadedJson!.text();
+                      // 마크다운 코드 블록 제거
+                      const jsonText = stripMarkdownCodeBlock(rawJsonText);
                       const storyData = JSON.parse(jsonText);
 
                       setVideoProgress({ step: '이미지 업로드 중...', progress: 10 });
@@ -2394,7 +3073,7 @@ export default function Home() {
                   }}
                   className="flex-1 rounded-lg bg-purple-600 px-4 py-3 font-semibold text-white transition hover:bg-purple-500"
                 >
-                  생성 시작
+                  생성
                 </button>
               </div>
             </div>
@@ -2413,7 +3092,8 @@ export default function Home() {
                   <p className="text-white text-lg font-bold">
                     {videoFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
                      videoFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
-                     '🎥 SORA2 (AI 시네마틱)'}
+                     videoFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
+                     '🎞️ 영상 병합 (Concat)'}
                   </p>
                 </div>
 
@@ -3485,7 +4165,7 @@ export default function Home() {
                 }}
                 className="flex-1 rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-500"
               >
-                ✅ 생성 시작
+                ✅ 생성
               </button>
               <button
                 onClick={() => {
@@ -3553,7 +4233,7 @@ export default function Home() {
                 disabled={!sora2Script.trim() || isGenerating}
                 className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isGenerating ? '⏳ 처리 중...' : '✅ 확인 및 영상 제작 시작'}
+                {isGenerating ? '⏳ 처리 중...' : '✅ 확인 및 영상 제작'}
               </button>
               <button
                 onClick={() => setShowSora2Review(false)}
