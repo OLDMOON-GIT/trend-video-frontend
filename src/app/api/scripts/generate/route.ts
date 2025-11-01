@@ -467,16 +467,18 @@ export async function POST(request: NextRequest) {
 
         addLog(taskId, '📂 Claude 응답 파일 검색 중...');
 
-        // 최신 ai_responses 파일 찾기
+        // 최신 ai_responses 파일 찾기 (trend-video-backend에서)
         const fs = require('fs');
-        const aiResponseFiles = fs.readdirSync(multiAIPath)
+        const aiResponseFiles = fs.readdirSync(backendPath)
           .filter((f: string) => f.startsWith('ai_responses_') && f.endsWith('.txt'))
           .map((f: string) => ({
             name: f,
-            path: path.join(multiAIPath, f),
-            time: fs.statSync(path.join(multiAIPath, f)).mtime.getTime()
+            path: path.join(backendPath, f),
+            time: fs.statSync(path.join(backendPath, f)).mtime.getTime()
           }))
           .sort((a: any, b: any) => b.time - a.time);
+
+        addLog(taskId, `📁 검색 경로: ${backendPath}`);
 
         let scriptContent = '';
         if (aiResponseFiles.length > 0) {
