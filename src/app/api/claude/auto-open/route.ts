@@ -22,24 +22,35 @@ export async function POST(request: NextRequest) {
     const { exec } = require('child_process');
 
     // 프롬프트를 임시 파일로 저장
-    const tempFile = 'C:\\Users\\oldmoon\\workspace\\multi-ai-aggregator\\temp_prompt.txt';
+    const tempFile = 'C:\\Users\\oldmoon\\workspace\\trend-video-backend\\temp_prompt.txt';
     fs.writeFileSync(tempFile, prompt, 'utf-8');
 
     // Python 스크립트 경로
-    const pythonScript = 'C:\\Users\\oldmoon\\workspace\\multi-ai-aggregator\\open_claude_auto.py';
+    const pythonScript = 'C:\\Users\\oldmoon\\workspace\\trend-video-backend\\src\\ai_aggregator\\open_claude_auto.py';
 
-    // 임시 파일을 읽어서 실행
-    const command = `start "Claude Auto Open" cmd /k "python "${pythonScript}" "@${tempFile}""`;
+    console.log('[INFO] Python 스크립트 실행 (콘솔 창 표시)');
 
-    console.log('[INFO] 명령어 실행');
+    // python.exe 사용 (콘솔 창 표시)
+    const { spawn } = require('child_process');
 
-    exec(command, (error: any, stdout: any, stderr: any) => {
-      if (error) {
-        console.error('[ERROR] 실행 실패:', error);
-      }
-      if (stdout) console.log('[stdout]:', stdout);
-      if (stderr) console.log('[stderr]:', stderr);
+    // 환경 변수 설정 (프로세스가 독립적으로 실행되도록)
+    const env = { ...process.env, PYTHONUNBUFFERED: '1' };
+
+    const pythonProcess = spawn('python', [pythonScript, `@${tempFile}`], {
+      detached: true,
+      stdio: 'inherit',  // 콘솔 출력 표시
+      env: env,
+      cwd: 'C:\\Users\\oldmoon\\workspace\\trend-video-backend',
+      shell: true  // cmd 창에서 실행
     });
+
+    // 완전히 분리
+    pythonProcess.unref();
+
+    console.log('[INFO] 프로세스 분리 완료 (PID:', pythonProcess.pid, ')');
+
+    // 프로세스가 시작될 시간을 주기
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     console.log('✅ Claude.ai 자동 열기 프로세스 시작됨');
 
