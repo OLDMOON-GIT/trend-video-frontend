@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import { findScriptById } from '@/lib/db';
+import Database from 'better-sqlite3';
+import path from 'path';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,13 +16,31 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const scriptId = searchParams.get('scriptId');
+    let scriptId = searchParams.get('scriptId');
 
     if (!scriptId) {
       return NextResponse.json(
         { error: 'scriptId가 필요합니다.' },
         { status: 400 }
       );
+    }
+
+    // task_* ID인 경우 scripts_temp에서 실제 scriptId 조회
+    if (scriptId.startsWith('task_')) {
+      const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
+      const db = new Database(dbPath);
+
+      const tempScript = db.prepare('SELECT scriptId FROM scripts_temp WHERE id = ?').get(scriptId) as { scriptId: string } | undefined;
+      db.close();
+
+      if (!tempScript || !tempScript.scriptId) {
+        return NextResponse.json(
+          { error: '대본을 찾을 수 없습니다. 아직 생성 중이거나 생성에 실패했습니다.' },
+          { status: 404 }
+        );
+      }
+
+      scriptId = tempScript.scriptId;
     }
 
     const script = await findScriptById(scriptId);
