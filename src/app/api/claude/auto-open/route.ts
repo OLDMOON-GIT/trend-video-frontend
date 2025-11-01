@@ -28,20 +28,22 @@ export async function POST(request: NextRequest) {
     // Python 스크립트 경로
     const pythonScript = 'C:\\Users\\oldmoon\\workspace\\trend-video-backend\\src\\ai_aggregator\\open_claude_auto.py';
 
-    console.log('[INFO] Python 스크립트 실행 (콘솔 창 표시)');
+    console.log('[INFO] Python 스크립트 실행 (새 콘솔 창 표시)');
 
-    // python.exe 사용 (콘솔 창 표시)
+    // python.exe 사용 (새 CMD 창에서 실행)
     const { spawn } = require('child_process');
 
-    // 환경 변수 설정 (프로세스가 독립적으로 실행되도록)
-    const env = { ...process.env, PYTHONUNBUFFERED: '1' };
+    // Windows: 새 CMD 창 열기 (start 명령 사용)
+    const backendPath = 'C:\\Users\\oldmoon\\workspace\\trend-video-backend';
 
-    const pythonProcess = spawn('python', [pythonScript, `@${tempFile}`], {
+    // start 명령으로 새 창 열기, 창이 닫히지 않도록 pause 추가하지 않음 (브라우저가 열려있는 동안 유지)
+    const startCmd = `start "Claude 자동 열기" cmd /k "cd /d ${backendPath} && python ${pythonScript} @${tempFile}"`;
+
+    const pythonProcess = spawn('cmd', ['/c', startCmd], {
       detached: true,
-      stdio: 'inherit',  // 콘솔 출력 표시
-      env: env,
-      cwd: 'C:\\Users\\oldmoon\\workspace\\trend-video-backend',
-      shell: true  // cmd 창에서 실행
+      stdio: 'ignore',  // 부모 프로세스와 분리
+      env: { ...process.env, PYTHONUNBUFFERED: '1' },
+      shell: true
     });
 
     // 완전히 분리
