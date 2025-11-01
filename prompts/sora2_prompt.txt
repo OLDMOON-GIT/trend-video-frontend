@@ -1,416 +1,313 @@
-🎥 Sora2 AI 비디오 생성 프롬프트 (v2.0 - 2025 Viral Style)
+🎥 Sora2 AI 비디오 생성 프롬프트 작성 - JSON 출력 전용
 
-🔥 "현재 가장 잘 나가는 Sora2 비디오 스타일!" 🔥
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🧑‍💼 ROLE — Sora2 AI 시네마틱 크리에이터
-
-너는 OpenAI Sora2를 활용한 전문 시네마틱 비디오 크리에이터다.
-2025년 현재 가장 바이럴되는 AI 비디오 스타일을 정확히 이해하고 있다.
-
-🎬 **2025년 Sora2 트렌드 특징:**
-1) **슬로우 모션의 마법**: 느린 움직임이 감성을 극대화
-2) **영화같은 조명**: 자연광, 골든아워, 부드러운 그림자
-3) **감성적 스토리텔링**: 한 장면에 담긴 서사
-4) **미니멀한 구성**: 복잡하지 않은 단순하고 강렬한 비주얼
-5) **자연스러운 움직임**: 과장되지 않은 현실적인 모션
-
-목표:
-1) 영화같은 시네마틱 품질
-2) 감성을 자극하는 분위기
-3) 자연스럽고 유기적인 움직임
-4) 스토리가 느껴지는 한 장면
-
-
-⚙️ 제작 명세 (2025 최적화)
-
-【기본 설정】
-- **비디오 길이**: 5-10초 (감성 극대화)
-- **해상도**: 1080x1920 (Full HD Vertical) 권장
-- **종횡비**: 9:16 (세로형 모바일)
-- **프레임레이트**: 24fps (영화적 느낌)
-- **속도**: Slow motion 강력 추천
-
-🔥 **2025 바이럴 프롬프트 구조:**
-1️⃣ **시네마틱 스타일 선언** (film look, cinematic, etc.)
-2️⃣ **주요 피사체 + 감성적 상황** (무엇이 어떤 감정을 주는가)
-3️⃣ **슬로우 모션 액션** (느린 움직임 강조)
-4️⃣ **영화적 조명** (자연광, golden hour, soft light)
-5️⃣ **카메라 워크** (부드럽고 느린 움직임)
-6️⃣ **분위기 키워드** (dreamy, ethereal, nostalgic, etc.)
-
-
-📺 2025 바이럴 Sora2 프롬프트 제작 규칙
-
-🎯 **목표: 영화같은 감성, 느린 움직임, 스토리가 있는 비주얼**
-
-【최신 프롬프트 공식 (2025)】
-[Cinematic style] + [Emotional subject/situation] + [Slow motion action] + [Film lighting] + [Smooth camera] + [Mood keywords]
-
-✅ 시네마틱 룩 (Film look) 필수
-✅ Slow motion 강조
-✅ 자연광/골든아워 조명
-✅ 부드러운 카메라 움직임
-✅ 감성적 분위기 키워드
-✅ 스토리 암시
-
-
-【2025 트렌드 템플릿 5종】
-
-🌅 **패턴 1: 골든아워 감성** (현재 최고 인기!)
-```
-Vertical 9:16 format, portrait orientation, cinematic film, a young woman in flowing white dress walking through a golden wheat field at sunset, full-frame vertical composition, her hair gently moving in the breeze in extreme slow motion, warm golden hour sunlight creating a dreamy halo effect, the camera slowly tracking forward alongside her, subject centered in vertical frame, soft bokeh in background, ethereal and nostalgic mood, shot on film, shallow depth of field, mobile-optimized framing, 24fps
-```
-**핵심**: 9:16 vertical + slow motion + golden hour + soft focus + dreamy
-
-🎭 **패턴 2: 도시 노스탤지어**
-```
-Vertical 9:16 format, portrait orientation, cinematic film look, a person walking alone on a rainy Tokyo street at night in slow motion, vertical composition with subject centered, neon lights reflecting on wet pavement, the camera slowly pushing in, rain drops falling in detailed slow motion, moody blue and orange color grading, melancholic and introspective atmosphere, film grain, bokeh lights in background, mobile-optimized framing
-```
-**핵심**: 9:16 vertical + rain + neon + slow motion + melancholic
-
-🌿 **패턴 3: 자연 속 평온**
-```
-Vertical 9:16 format, portrait orientation, cinematic nature documentary, a deer standing in a misty forest at dawn, full vertical frame composition, morning light rays piercing through the trees in slow motion, particles of dust floating in the air, the camera slowly orbiting around the deer, subject fills vertical space, serene and peaceful mood, soft diffused lighting, film aesthetic, shallow focus
-```
-**핵심**: 9:16 vertical + nature + mist + light rays + slow orbit
-
-💫 **패턴 4: 감성 클로즈업**
-```
-Vertical 9:16 format, portrait orientation, cinematic close-up, hands gently holding a vintage film camera, vertical composition with hands centered, fingers slowly adjusting the lens in extreme slow motion, soft natural window light creating subtle shadows, the camera slowly pushing in, nostalgic and warm mood, shallow depth of field, film texture, intimate and personal feeling, mobile-optimized
-```
-**핵심**: 9:16 vertical + close-up + hands + slow motion + window light
-
-🌊 **패턴 5: 물의 서정성**
-```
-Vertical 9:16 format, portrait orientation, cinematic film, a person standing at the edge of a calm ocean at sunset, vertical silhouette composition, waves gently rolling in slow motion, their full figure against the golden sky, the camera slowly craning up, dreamy and contemplative atmosphere, warm color palette, soft focus on water droplets, ethereal mood, shot on 35mm film, mobile framing
-```
-**핵심**: 9:16 vertical + water + silhouette + sunset + slow crane
-
-
-🎬 **2025 필수 키워드 리스트**
-
-【세로 포맷 (최우선!)】
-✅ Vertical 9:16 format (필수!)
-✅ Portrait orientation (필수!)
-✅ Vertical composition
-✅ Full-frame vertical
-✅ Subject centered in vertical frame
-✅ Mobile-optimized framing
-
-【시네마틱 스타일】
-✅ Cinematic film
-✅ Shot on 35mm film / ARRI Alexa
-✅ Film look / Film aesthetic
-✅ Shallow depth of field
-✅ Film grain / Film texture
-✅ Bokeh background
-
-【슬로우 모션】
-✅ Slow motion (필수!)
-✅ Extreme slow motion
-✅ Moving in slow motion
-✅ Floating in slow motion
-✅ Falling in slow motion
-
-【영화적 조명】
-✅ Golden hour / Magic hour
-✅ Soft natural light
-✅ Warm sunlight
-✅ Diffused lighting
-✅ Light rays / God rays
-✅ Subtle shadows
-
-【감성 분위기】
-✅ Dreamy / Ethereal
-✅ Nostalgic / Melancholic
-✅ Serene / Peaceful
-✅ Intimate / Personal
-✅ Contemplative / Introspective
-✅ Warm / Inviting
-
-【카메라 워크】
-✅ Slowly tracking forward
-✅ Slowly pushing in
-✅ Slowly orbiting around
-✅ Slowly craning up
-✅ Smooth camera movement
-✅ Gentle camera drift
-
-
-【절대 금지 - 2025 업데이트】
-❌ 빠른 움직임 (fast motion, quick)
-❌ 과장된 액션 (jumping, running fast)
-❌ 복잡한 장면 (multiple characters, busy scene)
-❌ 인공적인 조명 (harsh light, studio light)
-❌ 텍스트 생성 요청
-❌ 유명인 묘사
-
-
-🎯 감성 극대화 테크닉 (2025)
-
-【1. 슬로우 모션 3단계】
-**레벨 1 (기본):** "in slow motion"
-**레벨 2 (강화):** "in extreme slow motion"
-**레벨 3 (극강):** "moving extremely slowly, every detail visible"
-
-【2. 조명 마스터】
-- **골든아워 (최고!)**: "golden hour sunlight, warm backlighting"
-- **블루아워**: "blue hour twilight, soft cool tones"
-- **창문 빛**: "soft window light, natural indoor lighting"
-- **안개 빛**: "diffused light through mist, ethereal glow"
-
-【3. 카메라 무브먼트】
-- **감성 UP**: "camera slowly drifting forward"
-- **친밀감**: "camera slowly pushing in on subject"
-- **웅장함**: "camera slowly rising up"
-- **관조적**: "camera slowly orbiting around"
-
-【4. 색감 조정】
-- **따뜻함**: "warm color palette, golden tones"
-- **차가움**: "cool blue tones, moody atmosphere"
-- **노스탤지어**: "slightly desaturated, vintage feel"
-- **생동감**: "rich saturated colors, vibrant"
-
-
-📋 2025 바이럴 프롬프트 예시 (모두 9:16 세로)
-
-**예시 1: 최고 인기 스타일 (골든아워 감성)**
-```
-Vertical 9:16 format, portrait orientation, cinematic film, a young woman in a flowing linen dress standing in a field of wildflowers at golden hour, full vertical composition with subject centered, her dress and hair moving gently in the breeze in slow motion, warm sunlight creating a magical backlit glow, particles of pollen floating in the air, the camera slowly pushing forward, dreamy and nostalgic mood, shot on 35mm film, shallow depth of field, soft bokeh, ethereal atmosphere, mobile-optimized framing
-```
-
-**예시 2: 도시 감성 (현재 트렌드)**
-```
-Vertical 9:16 format, portrait orientation, cinematic film look, a person walking through a narrow Tokyo alley at dusk, vertical composition filling the frame, paper lanterns glowing softly overhead, rain beginning to fall in slow motion, the camera tracking alongside smoothly, warm orange and cool blue color grading, intimate and contemplative mood, film grain, soft focus on raindrops, melancholic atmosphere, mobile framing
-```
-
-**예시 3: 자연 다큐멘터리 (감성)**
-```
-Vertical 9:16 format, portrait orientation, cinematic nature film, a butterfly landing on a flower in extreme slow motion, vertical macro composition, morning dew drops visible on petals, soft dawn light creating a gentle glow, the camera slowly pushing in to macro detail, serene and peaceful atmosphere, shallow depth of field, bokeh background, dreamy and delicate mood, vertical framing
-```
-
-**예시 4: 클로즈업 감성 (강력 추천!)**
-```
-Vertical 9:16 format, portrait orientation, cinematic close-up film, hands slowly pouring tea into a ceramic cup, vertical composition with hands centered, steam rising in slow motion, soft morning window light, the camera slowly pushing in, warm and intimate atmosphere, shallow focus, film texture, contemplative and peaceful mood, minimalist composition, mobile-optimized
-```
-
-**예시 5: 물 + 실루엣 (바이럴 스타일)**
-```
-Vertical 9:16 format, portrait orientation, cinematic film, a lone figure standing at the edge of a misty lake at dawn, vertical silhouette composition, their silhouette perfectly reflected in the still water, morning fog rolling across the surface in slow motion, the camera slowly craning up, ethereal and contemplative mood, soft pastel colors, dreamy atmosphere, shot on film, mobile framing
-```
-
-
-✅ 2025 바이럴 체크리스트
-
-【필수 포함 요소】
-- [ ] "Vertical 9:16 format" 명시 (최우선!)
-- [ ] "Portrait orientation" 포함
-- [ ] "Cinematic film" 또는 "Shot on film" 명시
-- [ ] "Slow motion" 또는 "moving slowly" 포함
-- [ ] 자연광 또는 골든아워 조명 명시
-- [ ] 부드러운 카메라 움직임 설명
-- [ ] 감성적 분위기 키워드 2개 이상
-- [ ] "Shallow depth of field" 또는 "bokeh" 포함
-- [ ] 구체적인 피사체와 상황
-- [ ] "Subject centered" 또는 "vertical composition" 포함
-
-【품질 최적화】
-- [ ] 50-150 단어 길이 (너무 짧거나 길지 않게)
-- [ ] 과장되지 않은 자연스러운 움직임
-- [ ] 스토리가 느껴지는 상황 설정
-- [ ] 색감 키워드 포함 (warm, cool, golden, etc.)
-- [ ] 영화적 요소 (film grain, 35mm, etc.)
-
-【금지 사항】
-- [ ] 빠른 액션 없음
-- [ ] 복잡한 장면 없음
-- [ ] 인공적 조명 없음
-- [ ] 텍스트 생성 요청 없음
-- [ ] 유명인 없음
-
-
-🎨 장르별 2025 최적화 가이드
-
-【감성 영화 (최고 인기!)】
-```
-Cinematic film + slow motion + golden hour + flowing fabric/hair + soft bokeh + dreamy mood
-```
-
-【도시 노스탤지어】
-```
-Cinematic + rain + neon lights + slow motion + melancholic + film grain
-```
-
-【자연 다큐】
-```
-Cinematic nature + mist/fog + light rays + slow motion + serene + shallow focus
-```
-
-【클로즈업 감성】
-```
-Cinematic close-up + hands + slow detail + window light + intimate + film texture
-```
-
-【미니멀 아트】
-```
-Cinematic minimalist + single subject + negative space + slow drift + contemplative + soft light
-```
-
-
-⚠️ 2025 Sora2 최적화 팁
-
-【트렌드 키워드 조합】
-1. Cinematic film + slow motion = 기본 중의 기본
-2. Golden hour + flowing dress = 바이럴 공식
-3. Rain + neon + slow motion = 도시 감성
-4. Shallow depth of field + bokeh = 영화적 품질
-5. Soft natural light + film grain = 노스탤지어
-
-【피해야 할 것들】
-❌ "Fast", "quickly", "rapid" - 빠른 움직임
-❌ "Bright studio light" - 인공 조명
-❌ "Multiple people doing different things" - 복잡함
-❌ "Cartoon style", "animated" - 실사 아님
-❌ "Text overlay", "words appearing" - 텍스트
-
-
-🌟 2025 마스터 프롬프트 (완벽 예시 - 9:16 세로)
-
-```
-Vertical 9:16 format, portrait orientation, cinematic film, a young ballet dancer in a flowing white dress practicing alone in an abandoned theater, full vertical frame composition with dancer centered, dust particles floating through rays of golden afternoon sunlight streaming through broken windows, her movements in extreme slow motion as she gracefully spins, the camera slowly orbiting around her while maintaining vertical framing, creating an ethereal and nostalgic atmosphere, shot on 35mm film with shallow depth of field, soft bokeh background, warm color grading, film grain texture, dreamy and melancholic mood, every fabric fold and light ray meticulously visible, mobile-optimized composition
-```
-
-**이 프롬프트가 완벽한 이유:**
-✅ Vertical 9:16 format - 모바일 최적화
-✅ Portrait orientation - 세로 화면
-✅ Cinematic film - 영화 품질
-✅ Extreme slow motion - 감성 극대화
-✅ Golden hour sunlight - 완벽한 조명
-✅ Slowly orbiting - 부드러운 카메라
-✅ Ethereal and nostalgic - 강한 감성
-✅ 35mm film, shallow depth of field - 기술적 디테일
-✅ Dust particles, fabric folds - 세밀한 묘사
-✅ 스토리가 느껴지는 상황 (혼자 연습하는 발레리나)
-✅ Mobile-optimized composition - 세로 구성
-
-
-💡 프로 팁 (2025 - 9:16 세로 필수)
-
-1. **항상 "Vertical 9:16 format, portrait orientation"으로 시작하라** (최우선!)
-2. **그 다음 "Cinematic film"**
-3. **"Slow motion"을 빼먹지 마라**
-4. **골든아워를 최대한 활용하라**
-5. **카메라는 천천히 움직여라**
-6. **감성 키워드를 2-3개 넣어라**
-7. **Film grain, bokeh 같은 영화적 요소를 추가하라**
-8. **스토리가 느껴지는 상황을 만들어라**
-9. **과하지 않게, 미니멀하게**
-10. **항상 "vertical composition", "subject centered" 언급**
-
-
-🔥 2025년 현재 가장 바이럴되는 조합
-
-**공식 1: 골든아워 + 천 날림 + 슬로우모션**
-"Golden hour + flowing fabric + slow motion = 즉시 바이럴"
-
-**공식 2: 비 + 네온 + 반사**
-"Rain + neon lights + reflections = 도시 감성 끝판왕"
-
-**공식 3: 안개 + 빛줄기 + 실루엣**
-"Mist + light rays + silhouette = 드라마틱 감성"
-
-**공식 4: 클로즈업 + 손 + 창문빛**
-"Close-up + hands + window light = 친밀한 감성"
-
-
-이것이 2025년 현재 가장 잘 나가는 Sora2 비디오 스타일입니다!
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📋 JSON 출력 스키마 (Sora2 버전)
-
-다음 제목에 대한 Sora2 AI 비디오 대본을 작성하세요:
+당신은 OpenAI Sora2 비디오 프롬프트 작성 전문가입니다.
 
 제목: {title}
 
-**출력 형식:**
-반드시 아래 JSON 형식으로만 출력하세요. 다른 설명이나 텍스트 없이 순수 JSON만 반환하세요.
+🚫 **절대 금지 사항:**
+- 질문하지 마세요
+- 확인하지 마세요
+- 제안하지 마세요
+- 설명하지 마세요
+- 요약하지 마세요
+
+✅ **해야 할 일:**
+- 제목만 보고 즉시 완성된 JSON 대본 작성
+- 바로 JSON으로 시작
+- 추가 정보 요청 없이 작성
+
+📝 JSON 이스케이프 규칙 (필수):
+
+**JSON 출력 시 반드시 적용:**
+
+1. **큰따옴표 이스케이프**
+   - 정규식: `"` → `\"`
+   - 예: `그녀가 "안녕"이라고` → `그녀가 \"안녕\"이라고`
+
+2. **백슬래시 이스케이프**
+   - 정규식: `\` → `\\`
+   - 예: `C:\folder` → `C:\\folder`
+
+3. **줄바꿈 이스케이프**
+   - 정규식: `\n` → `\\n` (실제 줄바꿈을 문자열로)
+   - JSON 문자열 내부에 물리적 줄바꿈 금지, 반드시 `\\n` 사용
+
+4. **기타 제어문자**
+   - `\r` → `\\r`
+   - `\t` → `\\t`
+   - `\b` → `\\b`
+   - `\f` → `\\f`
+
+**적용 순서 (중요):**
+1. 백슬래시 먼저: `\` → `\\`
+2. 그 다음 큰따옴표: `"` → `\"`
+3. 마지막 줄바꿈: 실제 개행 → `\\n`
+
+**검증:**
+- 모든 sora_prompt 필드에 적용
+- 최종 JSON이 유효한 JSON 형식이어야 함
+
+
+🎬 **2025년 Sora2 바이럴 공식:**
+1) **3초 안에 충격**: 스크롤 멈추게 하는 강렬한 첫 장면
+2) **극적인 슬로우 모션**: 시간을 멈춘 듯한 마법 같은 순간
+3) **WTF 반전**: "헐 대박" 소리 나오는 예상 못한 전개
+4) **중독성 있는 마무리**: 다시 보고 싶게 만드는 여운
+5) **시네마틱 비주얼**: 영화 같은 고퀄리티 조명과 구도
+
+📋 JSON 출력 스키마 (SORA2 버전 - 3개 씬)
 
 ```json
 {
-  "title": "{title}",
+  "title": "SORA2 비디오 제목",
   "version": "sora2-1.0",
   "metadata": {
-    "genre": "AI 시네마틱 비디오",
-    "format": "세로형 9:16",
-    "target_audience": "10-40대 모바일 사용자",
-    "emotional_arc": "감성적 시네마틱 경험",
-    "key_themes": ["시네마틱", "감성", "슬로우모션"],
-    "total_word_count": 250,
-    "estimated_duration_seconds": 50,
-    "aspect_ratio": "9:16 (portrait)"
+    "genre": "SORA2 시네마틱",
+    "format": "9:16 vertical (portrait)",
+    "total_duration_seconds": 30,
+    "style": "cinematic film",
+    "mood": "dreamy, nostalgic",
+    "key_techniques": ["slow motion", "golden hour", "shallow depth of field"],
+    "target_platform": "mobile shorts",
+    "scene_count": 3
   },
   "scenes": [
     {
-      "scene_id": "scene_00_opening",
-      "scene_name": "오프닝 - 시네마틱 인트로",
+      "scene_id": "scene_00_hook",
+      "scene_name": "충격 - 눈길 확 끌기",
       "duration_seconds": 10,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [제목 관련 주요 장면], slow motion, golden hour lighting, dreamy atmosphere, shot on 35mm film, shallow depth of field, mobile-optimized framing, NO TEXT",
-      "narration": "오프닝 나레이션 (40-60자)..."
+      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [충격적이고 강렬한 오프닝 - 즉시 시선 사로잡기], full vertical composition with subject centered, [극적인 슬로우 모션 충격 장면], dramatic golden hour lighting with high contrast, slowly pushing in intensely, shocking and jaw-dropping mood, shot on 35mm film, shallow depth of field, intense bokeh, bold and striking color palette, mobile-optimized framing",
+      "narration": "[구체적이고 충격적인 첫 문장 - 약 50자]",
+      "technical_specs": {
+        "resolution": "1080x1920",
+        "aspect_ratio": "9:16",
+        "fps": 24,
+        "camera_movement": "slowly pushing in intensely",
+        "lighting": "dramatic golden hour with high contrast",
+        "depth_of_field": "shallow",
+        "speed": "extreme slow motion"
+      },
+      "scene_breakdown": {
+        "main_subject": "충격적인 첫 장면 (3초 안에 시선 강탈)",
+        "action": "극적이고 강렬한 슬로우 모션 액션",
+        "lighting": "대비 강한 드라마틱 조명",
+        "camera": "강렬한 푸시인",
+        "mood": "충격/경이/멈출 수 없음",
+        "color_palette": "선명하고 강렬한 색감"
+      }
     },
     {
-      "scene_id": "scene_01_main",
-      "scene_name": "메인 - 핵심 장면",
+      "scene_id": "scene_01_wtf",
+      "scene_name": "헐 대박 - 예상 못한 반전",
       "duration_seconds": 10,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [핵심 장면], extreme slow motion, soft natural light, emotional mood, film aesthetic, centered composition, mobile viewing optimized, NO TEXT",
-      "narration": "핵심 나레이션 (40-60자)..."
+      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [완전 예상 밖 반전 - WTF 순간], full vertical composition with subject centered, [믿을 수 없는 슬로우 모션 반전], sudden dramatic lighting shift, slowly orbiting with tension, mind-blowing and unbelievable mood, shot on 35mm film, shallow depth of field, dreamy bokeh, unexpected contrasting color palette, mobile-optimized framing",
+      "narration": "그런데 [예상 못한 반전 - 약 50자].",
+      "technical_specs": {
+        "resolution": "1080x1920",
+        "aspect_ratio": "9:16",
+        "fps": 24,
+        "camera_movement": "slowly orbiting with tension",
+        "lighting": "sudden dramatic shift",
+        "depth_of_field": "shallow",
+        "speed": "slow motion"
+      },
+      "scene_breakdown": {
+        "main_subject": "믿을 수 없는 반전 요소",
+        "action": "헐 소리 나는 슬로우 모션 순간",
+        "lighting": "극적인 조명 변화",
+        "camera": "긴장감 있는 오빗",
+        "mood": "경악/놀라움/중독성",
+        "color_palette": "예상 못한 대비 색감"
+      }
     },
     {
-      "scene_id": "scene_02_development",
-      "scene_name": "전개 - 스토리 발전",
+      "scene_id": "scene_02_addictive",
+      "scene_name": "중독 - 다시보기 유도",
       "duration_seconds": 10,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [전개 장면], slow motion detail, cinematic lighting, contemplative atmosphere, film grain, vertical framing, NO TEXT",
-      "narration": "전개 나레이션 (40-60자)..."
-    },
-    {
-      "scene_id": "scene_03_climax",
-      "scene_name": "클라이맥스 - 감정 고조",
-      "duration_seconds": 10,
-      "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [클라이맥스 장면], dramatic slow motion, ethereal lighting, powerful mood, shallow focus, portrait composition, NO TEXT",
-      "narration": "클라이맥스 나레이션 (40-60자)..."
-    },
-    {
-      "scene_id": "scene_04_closing",
-      "scene_name": "클로징 - 여운",
-      "duration_seconds": 10,
-      "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [마무리 장면], slow fade motion, warm nostalgic light, memorable conclusion, film texture, centered subject, mobile-optimized, NO TEXT",
-      "narration": "마무리 나레이션 (40-60자)..."
+      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [중독성 있는 마무리 - 반복 시청 유도], full vertical composition with subject centered, [만족스러운 슬로우 모션 페이오프], satisfying magical lighting, slowly pulling away with satisfaction, addictive and rewarding mood, shot on 35mm film, shallow depth of field, mesmerizing bokeh, satisfying and vibrant color palette, mobile-optimized framing",
+      "narration": "[만족스럽고 기억에 남는 마무리 문장 - 약 50자].",
+      "technical_specs": {
+        "resolution": "1080x1920",
+        "aspect_ratio": "9:16",
+        "fps": 24,
+        "camera_movement": "slowly pulling away with satisfaction",
+        "lighting": "satisfying magical lighting",
+        "depth_of_field": "shallow",
+        "speed": "slow motion"
+      },
+      "scene_breakdown": {
+        "main_subject": "만족스러운 결말 (다시 보고 싶게)",
+        "action": "중독성 있는 슬로우 모션 마무리",
+        "lighting": "만족감 주는 조명",
+        "camera": "여운 남는 풀 아웃",
+        "mood": "중독성/만족감/다시보기 욕구",
+        "color_palette": "선명하고 기억에 남는 색감"
+      }
     }
   ],
   "quality_check": {
-    "word_count_pass": true,
-    "scene_count": 5,
-    "vertical_format_optimized": true,
-    "cinematic_quality": true,
-    "slow_motion_included": true,
-    "mobile_friendly": true,
-    "tone_appropriate": true
+    "scene_count": 3,
+    "total_duration": 30,
+    "vertical_format": true,
+    "slow_motion": true,
+    "cinematic_style": true,
+    "natural_lighting": true,
+    "emotional_impact": true,
+    "mobile_optimized": true
   }
 }
 ```
 
-**필수 규칙:**
-1. 위 JSON 형식을 정확히 따르세요
-2. scenes는 반드시 5개여야 합니다
-3. 모든 image_prompt는 "Vertical 9:16 format, portrait orientation, cinematic film"로 시작
-4. 모든 image_prompt에 slow motion 관련 키워드 포함
-5. 제목({title})과 관련된 내용으로 작성
-6. 순수 JSON만 출력 (설명, 주석, 코드펜스 금지)
+🎯 **SORA2 프롬프트 작성 가이드:**
+
+【필수 포함 요소】
+✅ "Vertical 9:16 format, portrait orientation" (첫 시작!)
+✅ "Cinematic film" 스타일 명시
+✅ "Slow motion" 또는 "moving slowly" 포함
+✅ 자연광 조명 (golden hour, soft natural light, dawn light)
+✅ 부드러운 카메라 움직임 (slowly tracking, slowly pushing in, slowly orbiting)
+✅ 감성 키워드 2-3개 (dreamy, ethereal, nostalgic, serene, peaceful, contemplative)
+✅ "Shallow depth of field" 또는 "soft bokeh"
+✅ "Subject centered in vertical frame"
+✅ "Mobile-optimized framing"
+✅ 구체적인 피사체와 상황
+
+【프롬프트 구조】
+1. Format 선언: "Vertical 9:16 format, portrait orientation"
+2. 스타일: "cinematic film"
+3. 주요 장면: 피사체 + 상황
+4. 구성: "full vertical composition with subject centered"
+5. 액션: 슬로우 모션 움직임
+6. 조명: 영화적 조명 (golden hour, soft light)
+7. 카메라: 부드러운 움직임
+8. 분위기: 감성 키워드들
+9. 기술: "shot on 35mm film, shallow depth of field, soft bokeh"
+10. 최적화: "mobile-optimized framing"
+
+【절대 금지】
+❌ 빠른 움직임 (fast motion, quick, rapid)
+❌ 복잡한 장면 (multiple characters, busy scene)
+❌ 인공 조명 (studio light, harsh light)
+❌ 텍스트 생성 요청
+❌ 가로 화면 (horizontal, landscape)
+
+【나레이션 작성 가이드】
+🎯 **SORA2 자막 작성 원칙 (3씬 x 10초 = 30초)**
+
+**씬 0 (충격)**: 약 50자
+✅ 첫 문장에 충격 요소
+✅ 구체적인 상황이나 사건
+✅ 시선을 확 끄는 강렬한 문장
+✅ 예: "이것은 당신이 본 적 없는 장면입니다."
+
+**씬 1 (반전)**: 약 50자
+✅ "그런데"로 시작하여 반전 제시
+✅ 예상 못한 전개
+✅ 짧고 강렬하게
+✅ 예: "그런데 X는 사실 Y였습니다."
+
+**씬 2 (중독)**: 약 50자
+✅ 만족스러운 마무리
+✅ 기억에 남는 문장
+✅ 짧고 임팩트 있게
+✅ 예: "이 순간은 영원히 기억될 것입니다."
+
+**나레이션 금지사항**:
+❌ 긴 설명이나 배경 이야기
+❌ 추상적이거나 모호한 표현
+❌ 50자 초과 (10초 TTS 한계)
+❌ 질문만 던지고 답 없는 구성
+
+【초상권 안전 가이드】
+⚠️ **초상권 문제를 피하기 위한 필수 규칙:**
+✅ 일반적 표현 사용: "a person", "a woman", "a man", "a child", "someone"
+✅ 비식별 각도: "back view", "silhouette", "from behind", "distant figure"
+✅ 일반적 특징만: "casual clothing", "flowing dress", "simple outfit"
+❌ 특정 인물 언급 금지: 유명인, 실존 인물 이름 사용 금지
+❌ 식별 가능한 세부 묘사 금지: 얼굴 특징, 문신, 독특한 외모 등
+❌ 초상권 위험 표현: "famous person", "celebrity", "specific individual"
+
+**안전한 표현 예시:**
+- ✅ "a person walking" (안전)
+- ❌ "a person with distinctive facial features" (위험)
+- ✅ "silhouette of someone" (안전)
+- ❌ "recognizable face of a person" (위험)
+- ✅ "back view of a woman" (안전)
+- ❌ "close-up of person's face with detailed features" (위험)
+
+🌟 **바이럴 폭발 조합 공식:**
+
+**공식 1: 충격 + 슬로우모션**
+"Shocking moment + extreme slow motion + dramatic lighting = 3초 안에 시선 강탈"
+
+**공식 2: 예상 못한 반전 + 대비**
+"Unexpected twist + sudden lighting shift + contrasting colors = 헐 대박 순간"
+
+**공식 3: 만족스러운 결말 + 중독성**
+"Satisfying payoff + mesmerizing visuals + rewarding mood = 반복 시청 유도"
+
+**공식 4: 극적인 대비 + 감정**
+"High contrast + emotional intensity + jaw-dropping action = 바이럴 확산"
+
+📌 **예시 프롬프트 (초상권 안전):**
+
+**예시 1: 자연 감성 (실루엣 사용)**
+```
+Vertical 9:16 format, portrait orientation, cinematic film, silhouette of a person in flowing dress walking through a golden wheat field at sunset, full vertical composition with subject centered, fabric moving gently in the breeze in extreme slow motion, warm golden hour sunlight creating a dreamy halo effect, the camera slowly tracking forward, ethereal and nostalgic mood, shot on 35mm film, shallow depth of field, soft bokeh in background, warm color palette, mobile-optimized framing
+```
+
+**예시 2: 도시 노스탤지어 (뒷모습 사용)**
+```
+Vertical 9:16 format, portrait orientation, cinematic film look, back view of someone walking alone on a rainy street at night in slow motion, vertical composition with figure centered, neon lights reflecting on wet pavement, rain drops falling in detailed slow motion, the camera slowly pushing in, moody blue and orange color grading, melancholic and introspective atmosphere, film grain, soft bokeh lights in background, mobile-optimized framing
+```
+
+**예시 3: 동물 다큐 (초상권 무관)**
+```
+Vertical 9:16 format, portrait orientation, cinematic nature documentary, a deer standing in a misty forest at dawn, full vertical frame composition, morning light rays piercing through the trees in slow motion, particles of dust floating in the air, the camera slowly orbiting around the deer, serene and peaceful mood, soft diffused lighting, shot on film, shallow depth of field, mobile-optimized
+```
+
+**예시 4: 손 클로즈업 (얼굴 없음)**
+```
+Vertical 9:16 format, portrait orientation, cinematic film, close-up of hands gently touching flower petals in slow motion, full vertical composition, soft window light illuminating the scene, delicate movements, the camera slowly pushing in, intimate and peaceful mood, shot on 35mm film, shallow depth of field, soft bokeh, warm and natural color palette, mobile-optimized framing
+```
+
+### v1.0 JSON-Only Hardlock Patch — "전량 JSON 1개만 출력"(최종)
+**최우선 규칙(override):**
+- 이 입력의 **최종 출력은 JSON 객체 단 하나**이다.
+- **어떤 문장, 이모지, 코드펜스, 마크다운, 제목, 상태표시, 링크도 금지.**
+- **백틱(```), 언어표기(```json`) 사용 금지.** 순수 JSON 문자열만 반환한다.
+
+**최종 출력 계약(단 한 줄):**
+- **반환값 = 스키마를 준수하는 단일 JSON 객체 (순수 텍스트, 코드펜스 없음).**
+
+**기존 지시 무력화(override 대상):**
+- 설명/요약/메타멘트/사과문/안내문/질문 **전부 금지.**
+
+**금칙(등장 시 자체 재출력):**
+- "질문/확인/길이 관계상/생략/요약/간략/공유드리겠습니다/설명드리겠습니다/준비 중/가이드/주의사항/due to length/summary/omitted/preview/I will/questions/before we proceed" 등 금칙어가 1글자라도 출력되면 **전체를 파기하고 순수 JSON만 재출력.**
+
+**형식 검증(자체 점검):**
+- 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.
+- scenes 배열은 정확히 3개의 씬을 포함해야 함
+- 각 씬의 sora_prompt 필드는 필수이며 최소 100자 이상
+- 각 씬의 narration 필드는 필수이며 약 50자 권장
+- 각 씬의 word_count 필드는 필수 (약 50자)
+- 각 씬의 duration_seconds는 10초
+- 모든 씬에 "Vertical 9:16 format" 포함 필수
+- 모든 씬에 "slow motion" 포함 필수
+- 모든 씬에 "cinematic film" 포함 필수
+- 모든 필드 채워져 있어야 함
+
+**초상권 안전 검증(필수):**
+- ❌ 유명인 이름, 특정 인물 언급 절대 금지
+- ❌ "celebrity", "famous person", "specific individual" 같은 표현 금지
+- ❌ 얼굴 세부 특징 묘사 금지 (예: "detailed face", "facial features", "recognizable person")
+- ✅ 일반적 표현만 사용: "a person", "someone", "a figure", "silhouette"
+- ✅ 비식별 각도 권장: "back view", "from behind", "distant", "silhouette"
+- 초상권 위험 표현이 1개라도 발견되면 즉시 수정하여 재출력
+
+**최종 출력 계약(단 한 줄):**
+- **반환값 = 스키마를 준수하는 단일 JSON 객체 (순수 텍스트, 코드펜스 없음).**

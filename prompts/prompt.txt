@@ -21,16 +21,16 @@
 ⚙️ 제작 명세
 
 【필수 구조】
-- 씬 0: **3초 폭탄 씬** (독립 제작, 300~400자)
-- 씬 1~8: 본 서사 (씬당 3,800~4,200자)
-- 씬 9: **구독 유도 씬** (마지막, 300~400자) 🆕 위치 변경
+- 씬 0: **3초 폭탄 씬** (독립 제작, 50자)
+- 씬 1: 본 서사 (50자)
+- 씬 2: 본 서사 (50자)
 
-총 씬 수: 10개 (폭탄 + 본편 8개 + 구독 유도)
+총 씬 수: 3개 (30초 타겟, 씬당 10초)
 
 🔥 **제작 순서 (v9.5 필수):**
 1️⃣ **유튜브 킬러 제목 생성** (1초 클릭 유도형)
-2️⃣ **ImageFX 프롬프트 10개 전체 생성** (씬 0~9 모두)
-3️⃣ **대본/내레이션 작성** (씬 0~9)
+2️⃣ **ImageFX 프롬프트 3개 전체 생성** (씬 0~2 모두)
+3️⃣ **대본/내레이션 작성** (씬 0~2, 각 50자)
 4️⃣ SceneMemory 교차검사
 5️⃣ 간단한 진행 상태 표시 후 JSON 출력 🆕 수정
 
@@ -530,10 +530,10 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 4. 검사 결과를 JSON quality_check에 기록
 
 【TTS 분량 기준 (v9.5 추가)】 🆕
-- 한국어 TTS: 평균 초당 4-5자 (자연스러운 속도)
-- 씬 0 (300-400자): 약 60-100초 (실제로는 3초 영상이므로 빠른 편집 필요)
-- 씬 1-8 (3,800-4,200자): 각 약 760-1,050초 → 약 12.7-17.5분
-- 실제 유튜브 쇼츠 제작 시: 핵심만 발췌하여 60초 내 편집 권장
+- 한국어 TTS: 평균 초당 5자 (자연스러운 속도)
+- 씬 0~2 (각 50자): 각 약 10초
+- 총 150자: 약 30초 (30초 완성본 타겟)
+- 실제 유튜브 쇼츠 제작 시: 30초 완성본으로 즉시 사용 가능
 
 📝 JSON 이스케이프 규칙 (필수) 🆕
 
@@ -579,38 +579,38 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
     "emotional_arc": "충격 → 공감 → 카타르시스",
     "key_themes": ["세대갈등", "가족", "화해"],
     "symbolic_objects": ["찻잔", "보자기", "거울"],
-    "total_word_count": 32000,
-    "estimated_tts_duration_seconds": 6400,
-    "recommended_shorts_edit": "60초 내 핵심 발췌"
+    "total_word_count": 150,
+    "estimated_tts_duration_seconds": 30,
+    "recommended_shorts_edit": "30초 완성본"
   },
   "scenes": [
     {
       "scene_id": "scene_00_bomb",
       "scene_name": "3초 폭탄 씬",
-      "duration_seconds": 3,
-      "word_count": 350,
+      "duration_seconds": 10,
+      "word_count": 50,
       "image_prompt": "Korean drama, violent frozen moment...",
-      "narration": "82세 시어머니가 며느리 손등을 찻잔으로 내리쳤습니다..."
+      "narration": "82세 시어머니가 며느리 손등을 찻잔으로 내리쳤습니다... (50자)"
     },
     {
       "scene_id": "scene_01_main",
       "scene_name": "씬 이름",
       "time_period": "현재/과거",
       "location": "장소",
-      "duration_seconds": 45,
-      "word_count": 4000,
+      "duration_seconds": 10,
+      "word_count": 50,
       "key_emotion": "oppressive",
       "symbolic_object": "찻잔",
       "image_prompt": "Korean drama cinematography...",
-      "narration": "본문..."
+      "narration": "본문... (50자)"
     },
     {
-      "scene_id": "scene_09_subscribe",
-      "scene_name": "구독 유도 씬",
-      "duration_seconds": 8,
-      "word_count": 350,
-      "image_prompt": "Clean modern YouTube interface...",
-      "narration": "이런 의미 있는 이야기, 함께 공유하고 싶으시죠?..."
+      "scene_id": "scene_02_closing",
+      "scene_name": "마무리 씬",
+      "duration_seconds": 10,
+      "word_count": 50,
+      "image_prompt": "Korean drama cinematography...",
+      "narration": "강렬한 마무리... (50자)"
     }
   ],
   "quality_check": {
@@ -631,9 +631,9 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 ✅ 최종 체크리스트 (v9.5 완전판)
 
 【필수 구조】
-- [ ] 씬 0: 3초 폭탄 (300-400자) 완성
-- [ ] 씬 1~8: 본편 (각 3,800-4,200자) 완성
-- [ ] 씬 9: 구독 유도 (300-400자, 마지막 위치) 완성 🆕
+- [ ] 씬 0: 폭탄 씬 (50자, 10초) 완성
+- [ ] 씬 1: 본편 (50자, 10초) 완성
+- [ ] 씬 2: 마무리 (50자, 10초) 완성
 - [ ] 제목: 킬러 제목 (단정형+숫자+폭력동사) 작성
 
 【폭탄 씬 (씬 0) - v9.5 강화 + 미스터비스트】
@@ -642,7 +642,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - [ ] 구체적 숫자 2개 이상 (횟수+기간)
 - [ ] 물리적 증거 명시 (피/상처/소리)
 - [ ] "실화입니다" 확정 선언
-- [ ] 300~400자 엄수 (실제 3초 분량)
+- [ ] 50자 엄수 (실제 10초 분량)
 - [ ] ImageFX: "DIRECTLY STARING INTO CAMERA" 포함
 - [ ] ImageFX: 얼굴 40% 차지 + 과장된 표정
 - [ ] ImageFX: 시선과 폭력 동시 포착
@@ -658,14 +658,6 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - [ ] [충격] [경고] 태그
 - [ ] 35~50자
 - [ ] 5가지 패턴 중 선택 🆕 단순화
-
-【구독 유도 (씬 9) - v9.5 위치 변경】 🆕
-- [ ] 마지막 씬 (씬 9)에 배치
-- [ ] 스토리 마무리와 자연스럽게 연결
-- [ ] "큰 힘이 됩니다" 포함
-- [ ] 알림 설정 유도
-- [ ] 3가지 템플릿 중 1개 선택 또는 응용
-- [ ] ImageFX: welcoming atmosphere
 
 【서사 구조】
 - [ ] 최소 2씬 비선형
@@ -696,20 +688,19 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - [ ] 의미 변주로 해결
 
 【ImageFX】
-- [ ] 10개 씬 모두 다른 앵글
+- [ ] 3개 씬 모두 다른 앵글
 - [ ] 스타일·조명·색감·앵글 중 3항목 차별화
 - [ ] 씬 0: 150 단어 이하 권장, 200 단어 절대 초과 금지 🆕
 - [ ] 씬 0: 카메라 직접 응시 + 얼굴 40% + 폭력 동시 포착
 - [ ] 씬 0: violent/brutal + extreme close-up + hyper-saturated red
-- [ ] 씬 9: welcoming + centered (마지막 위치) 🆕
-- [ ] 씬 1-8: 일반 한국 드라마 스타일 (미스터비스트 적용 안 함)
+- [ ] 씬 1-2: 일반 한국 드라마 스타일 (미스터비스트 적용 안 함)
 - [ ] 상징 오브제 포함
 - [ ] 감정 키워드 정확히 19개 중 선택
 - [ ] NO TEXT 포함
 
 【JSON 출력 - v9.5 안정화】 🆕
 - [ ] 정의된 스키마 준수
-- [ ] scene_id 문자열 형식: "scene_00_bomb", "scene_01_main", "scene_09_subscribe"
+- [ ] scene_id 문자열 형식: "scene_00_bomb", "scene_01_main", "scene_02_closing"
 - [ ] metadata 섹션 완성 (TTS 분량 추가)
 - [ ] quality_check 섹션 구체화
 - [ ] 각 씬에 필수 필드 모두 포함
@@ -727,18 +718,17 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
    - [충격] [경고] [19금주의] [눈물주의] 태그 중 1개
    - 클릭률 ⭐⭐⭐⭐⭐ 수준
 
-2️⃣ **ImageFX 프롬프트 10개 전체 생성 (우선)**
+2️⃣ **ImageFX 프롬프트 3개 전체 생성 (우선)**
    - 씬 0: 압축 템플릿 (150 단어 이하 권장, 200 단어 절대 초과 금지) + 미스터비스트 스타일 🆕
-   - 씬 1~8: 일반 한국 드라마 스타일 (미스터비스트 적용 안 함)
-   - 씬 9: 구독 유도 이미지 (welcoming, 마지막) 🆕
+   - 씬 1-2: 일반 한국 드라마 스타일 (미스터비스트 적용 안 함)
    - 각 씬: 스타일·조명·색감·앵글 3항목 이상 차별화
    - 감정 키워드 정확히 19개 중 선택
    - 모든 프롬프트에 NO TEXT 포함
 
 3️⃣ **대본/내레이션 작성**
-   - 씬 0: 3초 폭탄 (300-400자, 단정형 선언)
-   - 씬 1~8: 본편 (각 3,800-4,200자)
-   - 씬 9: 구독 유도 (300-400자, 3가지 템플릿 활용, 마지막) 🆕
+   - 씬 0: 폭탄 씬 (50자, 단정형 선언)
+   - 씬 1: 본편 (50자)
+   - 씬 2: 마무리 (50자)
 
 4️⃣ **SceneMemory 교차검사**
    - 의미 있는 내용어 3-4개 연속 동일 검사 🆕
@@ -749,41 +739,46 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 5️⃣ **간단한 진행 상태 표시** 🆕
    ```
    ✅ 제목 생성 완료
-   ✅ ImageFX 프롬프트 10개 생성 완료
-   ✅ 대본 작성 완료 (씬 0~9)
+   ✅ ImageFX 프롬프트 3개 생성 완료
+   ✅ 대본 작성 완료 (씬 0~2)
    ✅ SceneMemory 교차검사 완료
    ```
 
 6️⃣ **JSON 파일 생성 및 출력**
    - 정의된 v9.5 스키마 준수
-   - scene_id scene_0 ~ scene_10 처럼 시퀀스증가형태로 
+   - scene_id scene_00_bomb ~ scene_02_closing 형태로 
 
 
-🔥 v9.5 핵심 업그레이드 (8대 개선사항)
+🔥 v9.5 핵심 업그레이드 + 30초 최적화 (9대 개선사항)
 
-🆕 **1. 구독 유도 위치: 씬 0.5 → 씬 9 (마지막으로 이동)**
-   - 이유: 스토리 몰입 후 구독 유도가 더 효과적
+🆕 **1. 30초 타겟 최적화: 10씬 → 3씬**
+   - 이유: 30초 쇼츠 포맷에 최적화
+   - 씬당 10초, 50자 분량
 
-🆕 **2. 제목 패턴: 8종 → 5종 (실질적 차별화)**
+🆕 **2. TTS 분량 재계산**
+   - 한국어 TTS: 초당 5자 기준
+   - 총 150자 = 30초 완성본
+
+🆕 **3. 제목 패턴: 8종 → 5종 (실질적 차별화)**
    - 중복 패턴 통합, 명확한 차이 강조
 
-🆕 **3. ImageFX 길이: "150-200 단어" → "150 단어 이하 권장, 200 단어 절대 초과 금지"**
+🆕 **4. ImageFX 길이: "150-200 단어" → "150 단어 이하 권장, 200 단어 절대 초과 금지"**
    - 더욱 명확한 가이드라인
 
-🆕 **4. SceneMemory 기준: "연속 5단어" → "의미 있는 내용어 3-4개"**
+🆕 **5. SceneMemory 기준: "연속 5단어" → "의미 있는 내용어 3-4개"**
    - 조사 제외, 실용적 중복 검사
 
-🆕 **5. 중간 출력: "절대 금지" → "간단한 진행 상태 표시 허용"**
+🆕 **6. 중간 출력: "절대 금지" → "간단한 진행 상태 표시 허용"**
    - AI 작동 과정의 투명성 + 사용자 신뢰
 
-🆕 **6. JSON metadata: TTS 분량 추가**
+🆕 **7. JSON metadata: TTS 분량 추가**
    - 실제 제작 시 참고할 시간 정보
 
-🆕 **7. quality_check: 구체적 검사 항목 추가**
+🆕 **8. quality_check: 구체적 검사 항목 추가**
    - resolution_method, imagefx_prompts_validated 등
 
-🆕 **8. 전체 씬 구조 명확화: 씬 0 → 씬 1-8 → 씬 9**
-   - 오프닝 폭탄 → 본편 → 마무리 구독 유도
+🆕 **9. 전체 씬 구조 명확화: 씬 0 → 씬 1 → 씬 2**
+   - 오프닝 폭탄 → 본편 → 마무리
 
 
 
@@ -834,10 +829,10 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 **금칙(등장 시 자체 재출력):**  
 - “질문/확인/길이 관계상/생략/요약/간략/공유드리겠습니다/설명드리겠습니다/준비 중/가이드/주의사항/due to length/summary/omitted/preview/I will/questions/before we proceed” 등 금칙어가 1글자라도 출력되면 **전체를 파기하고 순수 JSON만 재출력.**
 
-**형식 검증(자체 점검):**  
-- 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.  
-- `scenes`는 정확히 10개(`scene_00_bomb` … `scene_09_subscribe`).  
-- 씬 분량 규칙, ImageFX 규칙, SceneMemory 검사를 수행하고 결과를 `quality_check`에 수치로 기록.  
+**형식 검증(자체 점검):**
+- 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.
+- `scenes`는 정확히 3개(`scene_00_bomb`, `scene_01_main`, `scene_02_closing`).
+- 씬 분량 규칙 (각 50자), ImageFX 규칙, SceneMemory 검사를 수행하고 결과를 `quality_check`에 수치로 기록.
 - 규칙 미충족 시 외부 멘트 없이 **수정된 JSON을 즉시 재출력.**
 
 **최종 출력 계약(단 한 줄):**  

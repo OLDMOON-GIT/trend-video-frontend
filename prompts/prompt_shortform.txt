@@ -25,24 +25,29 @@
 - **음악 싱크**: 배경 음악과 씬 전환 고려
 
 대본 작성 가이드:
-1. **총 5개 씬 구성** (각 씬당 10-15초)
-   - 씬 0 (훅): 1-3초, 25-35자 - 즉시 관심 끌기, 충격적/궁금한 시작
-   - 씬 1 (전개): 10-12초, 50-60자 - 상황 설명, 문제 제시
-   - 씬 2 (핵심): 10-12초, 50-60자 - 메인 메시지, 해결책
-   - 씬 3 (예시): 10-12초, 50-60자 - 구체적 예시, 추가 정보
-   - 씬 4 (마무리): 10-12초, 50-60자 - 여운, 행동 유도
+1. **총 3개 씬 구성** (각 씬당 10초)
+   - 씬 0 (훅): 10초, 50자 - **충격적 질문/반전/비밀 공개**
+     * 예: "이거 모르면 평생 손해 봅니다", "99%가 모르는 진실", "절대 믿을 수 없는 일이..."
+     * 금지: 평범한 시작, "오늘은", "여러분"
+   - 씬 1 (전개/핵심): 10초, 50자 - **공감 또는 충격 증폭 + 핵심 비밀/해결책 공개**
+     * 예: "실제로 이런 일이...", "진짜 이유는 바로 이겁니다", "답은 의외로 간단해요"
+   - 씬 2 (마무리): 10초, 50자 - **강렬한 여운/행동 촉구**
+     * 예: "이제 알았으니 절대 잊지 마세요", "당장 확인해보세요"
 
-2. **총 245-295자 분량** (약 50-60초)
+2. **총 150자 분량** (약 30초)
 
-3. **필수 요소:**
-   - 짧고 펀치있는 문장
-   - 구어체 (말하듯이)
-   - 숫자/데이터 활용
-   - 감정 유발 (놀라움, 공감, 호기심)
+3. **필수 후킹 요소:**
+   - **첫 문장 패턴**: "절대/진짜/사실/비밀/충격/반전/몰랐던/숨겨진/99%/실화"
+   - **감정 폭발 단어**: "소름", "경악", "충격", "반전", "대박", "미쳤다"
+   - **긴급성**: "지금 당장", "3초 안에", "놓치면 평생", "오늘부터"
+   - **호기심 자극**: "이유는?", "정체는?", "진실은?", "결과는?"
+   - **숫자 활용**: "3가지", "5초 만에", "100만원", "99%"
+   - **대비/반전**: "그런데", "하지만", "놀랍게도", "알고보니"
 
 4. **절대 금지:**
    - 구독/좋아요/알림설정/댓글 요구 금지
-   - 길고 복잡한 문장 금지
+   - 평범한 시작 ("안녕하세요", "오늘은")
+   - 약한 표현 ("좋은", "괜찮은", "나쁘지 않은")
    - 전문 용어 남발 금지
 
 📱 **이미지 프롬프트 작성 규칙 (9:16 세로 최적화):**
@@ -130,55 +135,39 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
     "target_audience": "10-40대 모바일 사용자",
     "emotional_arc": "훅 → 전개 → 행동유도",
     "key_themes": ["주제1", "주제2"],
-    "total_word_count": 270,
-    "estimated_duration_seconds": 55,
+    "total_word_count": 150,
+    "estimated_duration_seconds": 30,
     "aspect_ratio": "9:16 (portrait)"
   },
   "scenes": [
     {
       "scene_id": "scene_00_hook",
       "scene_name": "훅 - 1초 안에 잡기",
-      "duration_seconds": 3,
-      "word_count": 30,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, dynamic opening shot, [충격적 순간], centered subject, vibrant colors, high contrast, mobile-optimized, NO TEXT",
-      "narration": "즉시 관심을 끄는 충격적/궁금한 한 문장 (25-35자)..."
+      "duration_seconds": 10,
+      "word_count": 50,
+      "image_prompt": "Vertical 9:16 format, portrait orientation, shocking moment, extreme close-up of surprised face or dramatic reveal, centered subject, vibrant saturated colors, high contrast lighting, intense eye contact, mobile-optimized, NO TEXT",
+      "narration": "충격적 질문/반전/비밀로 시작! 예: '이거 모르면 평생 손해 봅니다', '99%가 모르는 진실', '절대 믿을 수 없는 일이...' (50자)"
     },
     {
-      "scene_id": "scene_01_intro",
-      "scene_name": "전개 - 상황 설명",
-      "duration_seconds": 12,
-      "word_count": 55,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, [상황 장면], subject filling vertical frame, relatable scenario, bright lighting, clean composition, NO TEXT",
-      "narration": "상황이나 문제 설명, 공감 유발 (50-60자)..."
+      "scene_id": "scene_01_main",
+      "scene_name": "전개/핵심 - 비밀 공개",
+      "duration_seconds": 10,
+      "word_count": 50,
+      "image_prompt": "Vertical 9:16 format, portrait orientation, revelation moment, clear visual demonstration of key point, arrows or highlights indicating important details, bright focused lighting, informative yet exciting composition, NO TEXT",
+      "narration": "핵심 비밀/해결책 공개! 예: '진짜 이유는 바로 이겁니다', '답은 의외로 간단해요', '이것만 기억하세요' (50자)"
     },
     {
-      "scene_id": "scene_02_main",
-      "scene_name": "핵심 - 메인 메시지",
-      "duration_seconds": 12,
-      "word_count": 55,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, [핵심 내용 시각화], clear focal point, informative visual, balanced composition, mobile-friendly, NO TEXT",
-      "narration": "핵심 메시지나 해결책 (50-60자)..."
-    },
-    {
-      "scene_id": "scene_03_support",
-      "scene_name": "예시 - 구체적 정보",
-      "duration_seconds": 12,
-      "word_count": 55,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, [구체적 예시], practical demonstration, natural setting, engaging composition, smartphone viewing optimized, NO TEXT",
-      "narration": "구체적 예시나 추가 팁 (50-60자)..."
-    },
-    {
-      "scene_id": "scene_04_closing",
-      "scene_name": "마무리 - 여운과 행동유도",
-      "duration_seconds": 12,
-      "word_count": 55,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, satisfying conclusion, [마무리 장면], centered composition, warm mood, memorable visual, mobile-optimized framing, NO TEXT",
-      "narration": "핵심 정리하고 여운 남기기, 행동 유도 (50-60자)..."
+      "scene_id": "scene_02_closing",
+      "scene_name": "마무리 - 강렬한 행동 촉구",
+      "duration_seconds": 10,
+      "word_count": 50,
+      "image_prompt": "Vertical 9:16 format, portrait orientation, powerful closing shot, person with confident determined expression or symbolic success image, warm inspiring lighting, memorable impactful visual, call-to-action energy, NO TEXT",
+      "narration": "강렬한 여운/행동 촉구! 예: '이제 알았으니 절대 잊지 마세요', '당장 확인해보세요', '놓치면 평생 후회합니다' (50자)"
     }
   ],
   "quality_check": {
     "word_count_pass": true,
-    "scene_count": 5,
+    "scene_count": 3,
     "hook_effectiveness": "strong",
     "vertical_format_optimized": true,
     "mobile_friendly": true,
@@ -205,9 +194,10 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
 
 **형식 검증(자체 점검):**
 - 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.
-- scenes는 정확히 5개 (scene_00_hook ~ scene_04_closing)
-- 씬 0은 25-35자, 씬 1-4는 각 50-60자
-- 총 word_count는 245-295 범위
+- scenes는 정확히 3개 (scene_00_hook, scene_01_main, scene_02_closing)
+- 모든 씬은 각 50자, 10초
+- 총 word_count는 150자
+- 총 estimated_duration_seconds는 30초
 - 모든 씬의 image_prompt에 "Vertical 9:16 format" 또는 "portrait orientation" 포함
 - 모든 씬의 narration 필드에 내용 포함
 - **구독/좋아요/알림설정/댓글 요구 절대 금지**
