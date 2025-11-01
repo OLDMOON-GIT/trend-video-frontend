@@ -71,8 +71,8 @@ export async function POST(request: NextRequest) {
       if (img) imageFiles.push(img);
     }
 
-    // 직접 업로드 모드일 때만 이미지 필수 체크
-    if (imageSource === 'none' && imageFiles.length === 0) {
+    // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
+    if (videoFormat !== 'sora2' && imageSource === 'none' && imageFiles.length === 0) {
       return NextResponse.json(
         { error: '최소 1개 이상의 이미지가 필요합니다.' },
         { status: 400 }
@@ -103,18 +103,18 @@ export async function POST(request: NextRequest) {
     // 크레딧 히스토리 기록
     await addCreditHistory(user.userId, 'use', -cost, '영상 생성');
 
-    // AutoShortsEditor 경로
-    const autoShortsPath = path.join(process.cwd(), '..', 'AutoShortsEditor');
+    // trend-video-backend 경로
+    const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
     const jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const projectName = `uploaded_${jobId}`;
-    const inputPath = path.join(autoShortsPath, 'input', projectName);
+    const inputPath = path.join(backendPath, 'input', projectName);
 
     // Job을 DB에 저장 (JSON의 title과 videoFormat 사용)
     await createJob(user.userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2');
 
     // 비동기로 영상 생성 시작
     generateVideoFromUpload(jobId, user.userId, cost, {
-      autoShortsPath,
+      backendPath,
       inputPath,
       projectName,
       jsonFile,
@@ -144,7 +144,7 @@ async function generateVideoFromUpload(
   userId: string,
   creditCost: number,
   config: {
-    autoShortsPath: string;
+    backendPath: string;
     inputPath: string;
     projectName: string;
     jsonFile: File;
@@ -223,32 +223,75 @@ async function generateVideoFromUpload(
     console.log(`\n${startLog}`);
     await addJobLog(jobId, startLog);
 
-    // 이미지 소스 옵션 추가
-    const imageSourceArg = config.imageSource && config.imageSource !== 'none'
-      ? ['--image-source', config.imageSource]
-      : [];
+    let pythonProcess: any;
+    let workingDir: string;
+    let soraOutputDirBefore: string[] = [];
 
-    // 관리자 플래그 추가
-    const isAdminArg = config.isAdmin ? ['--is-admin'] : [];
+    // SORA2는 trend-video-backend 사용, 나머지는 trend-video-backend 사용
+    if (config.videoFormat === 'sora2') {
+      // trend-video-backend 경로
+      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+      workingDir = backendPath;
 
-    // 비율 설정 (longform: 16:9, shortform/sora2: 9:16)
-    const aspectRatio = (config.videoFormat === 'shortform' || config.videoFormat === 'sora2') ? '9:16' : '16:9';
-    const aspectRatioArg = ['--aspect-ratio', aspectRatio];
-    console.log(`📐 비디오 비율: ${aspectRatio} (${config.videoFormat})`);
+      // JSON 파일에서 프롬프트 텍스트 추출
+      const promptText = jsonData.scenes?.map((s: any) => s.text || s.prompt).join(' ') || jsonData.prompt || '영상 생성';
 
-    // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
-    const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...isAdminArg];
-    console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
+      // 임시 프롬프트 파일 생성
+      const tempPromptPath = path.join(backendPath, 'prompts', `temp_${jobId}.txt`);
+      await fs.writeFile(tempPromptPath, promptText);
 
-    const pythonProcess = spawn('python', pythonArgs, {
-      cwd: config.autoShortsPath,
-      shell: true,
-      env: {
-        ...process.env,
-        PYTHONIOENCODING: 'utf-8',
-        PYTHONUNBUFFERED: '1'
+      // 실행 전 output 폴더 상태 기록
+      const outputPath = path.join(backendPath, 'output');
+      try {
+        soraOutputDirBefore = await fs.readdir(outputPath);
+      } catch (error) {
+        soraOutputDirBefore = [];
       }
-    });
+
+      const pythonArgs = ['-m', 'src.sora.main', '-f', `prompts/temp_${jobId}.txt`, '-d', '8', '-s', '720x1280'];
+      console.log(`🎬 trend-video-backend 명령어: python ${pythonArgs.join(' ')}`);
+      await addJobLog(jobId, `\n🎬 SORA2 모드: trend-video-backend 실행\n📝 프롬프트: ${promptText.substring(0, 100)}...\n`);
+
+      pythonProcess = spawn('python', pythonArgs, {
+        cwd: backendPath,
+        shell: true,
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUNBUFFERED: '1'
+        }
+      });
+    } else {
+      // trend-video-backend 사용 (기존 로직)
+      workingDir = config.backendPath;
+
+      // 이미지 소스 옵션 추가
+      const imageSourceArg = config.imageSource && config.imageSource !== 'none'
+        ? ['--image-source', config.imageSource]
+        : [];
+
+      // 관리자 플래그 추가
+      const isAdminArg = config.isAdmin ? ['--is-admin'] : [];
+
+      // 비율 설정 (longform: 16:9, shortform: 9:16)
+      const aspectRatio = config.videoFormat === 'shortform' ? '9:16' : '16:9';
+      const aspectRatioArg = ['--aspect-ratio', aspectRatio];
+      console.log(`📐 비디오 비율: ${aspectRatio} (${config.videoFormat})`);
+
+      // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
+      const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...isAdminArg];
+      console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
+
+      pythonProcess = spawn('python', pythonArgs, {
+        cwd: config.backendPath,
+        shell: true,
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUNBUFFERED: '1'
+        }
+      });
+    }
 
     // 프로세스를 맵에 저장
     runningProcesses.set(jobId, pythonProcess);
@@ -322,52 +365,109 @@ async function generateVideoFromUpload(
       step: '영상 파일 확인 중...'
     });
 
-    const generatedPath = path.join(config.inputPath, 'generated_videos');
-    const files = await fs.readdir(generatedPath);
-    const videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+    let videoPath: string;
+    let generatedPath: string;
 
-    if (!videoFile) {
-      throw new Error('생성된 영상 파일을 찾을 수 없습니다.');
+    if (config.videoFormat === 'sora2') {
+      // trend-video-backend output 폴더에서 찾기
+      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+      const outputPath = path.join(backendPath, 'output');
+
+      // 파일 시스템 동기화를 위해 잠시 대기
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 실행 후 output 폴더 상태 확인 - 새로 생긴 폴더만 찾기
+      const outputDirsAfter = await fs.readdir(outputPath);
+      const newDirs = outputDirsAfter.filter(d => !soraOutputDirBefore.includes(d) && d.startsWith('20'));
+
+      await addJobLog(jobId, `\n🔍 디버그: 이전 폴더 수=${soraOutputDirBefore.length}, 현재 폴더 수=${outputDirsAfter.length}`);
+      await addJobLog(jobId, `🔍 디버그: 이전 폴더들=${JSON.stringify(soraOutputDirBefore)}`);
+      await addJobLog(jobId, `🔍 디버그: 현재 폴더들=${JSON.stringify(outputDirsAfter)}`);
+      await addJobLog(jobId, `🔍 디버그: 새 폴더들=${JSON.stringify(newDirs)}`);
+
+      if (newDirs.length === 0) {
+        // Python 프로세스 출력 확인
+        await addJobLog(jobId, `\n❌ Python stdout:\n${stdoutBuffer}`);
+        await addJobLog(jobId, `\n❌ Python stderr:\n${stderrBuffer}`);
+        throw new Error('trend-video-backend에서 새로 생성된 폴더를 찾을 수 없습니다. 이전 폴더 수: ' + soraOutputDirBefore.length + ', 현재 폴더 수: ' + outputDirsAfter.length + '. Python 실행 로그를 확인하세요.');
+      }
+
+      // 새로 생긴 폴더 중 가장 최신 것 선택 (보통 하나만 있겠지만)
+      const sortedNewDirs = newDirs.sort().reverse();
+      const latestOutputDir = path.join(outputPath, sortedNewDirs[0]);
+      generatedPath = latestOutputDir;
+
+      await addJobLog(jobId, `\n📁 새 output 폴더 발견: ${sortedNewDirs[0]}`);
+
+      // 최종 영상 파일 찾기 (combined 또는 full)
+      const files = await fs.readdir(latestOutputDir);
+      const videoFile = files.find(f =>
+        f.endsWith('.mp4') && (f.includes('combined') || f.includes('full'))
+      );
+
+      if (!videoFile) {
+        throw new Error('trend-video-backend에서 생성된 최종 영상 파일을 찾을 수 없습니다.');
+      }
+
+      videoPath = path.join(latestOutputDir, videoFile);
+      await addJobLog(jobId, `\n✅ SORA2 영상 발견: ${videoFile}`);
+    } else {
+      // trend-video-backend generated_videos 폴더에서 찾기 (기존 로직)
+      generatedPath = path.join(config.inputPath, 'generated_videos');
+      const files = await fs.readdir(generatedPath);
+      const videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+
+      if (!videoFile) {
+        throw new Error('생성된 영상 파일을 찾을 수 없습니다.');
+      }
+
+      videoPath = path.join(generatedPath, videoFile);
     }
 
-    const videoPath = path.join(generatedPath, videoFile);
-
-    // 썸네일 찾기 (generated_videos 폴더 또는 상위 폴더에서)
+    // 썸네일 찾기
     let thumbnailPath: string | undefined;
 
     console.log('📸 썸네일 검색 시작...');
-    console.log('  generated_videos 폴더:', generatedPath);
-    console.log('  generated_videos 파일들:', files);
+    console.log('  영상 폴더:', generatedPath);
 
-    // 1. generated_videos 폴더에서 찾기
-    const generatedThumbnailFile = files.find(f =>
-      (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
-       f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
-    );
+    try {
+      const files = await fs.readdir(generatedPath);
+      console.log('  폴더 파일들:', files);
 
-    if (generatedThumbnailFile) {
-      thumbnailPath = path.join(generatedPath, generatedThumbnailFile);
-      console.log('✅ 썸네일 발견 (generated_videos):', thumbnailPath);
-    } else {
-      console.log('⚠️  generated_videos에서 썸네일 없음, 상위 폴더 확인...');
-      // 2. 상위 input 폴더에서 찾기
-      try {
-        const inputFiles = await fs.readdir(config.inputPath);
-        console.log('  input 폴더 파일들:', inputFiles);
-        const inputThumbnailFile = inputFiles.find(f =>
-          (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
-           f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
-        );
+      // 썸네일 파일 찾기
+      const thumbnailFile = files.find(f =>
+        (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
+         f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
+      );
 
-        if (inputThumbnailFile) {
-          thumbnailPath = path.join(config.inputPath, inputThumbnailFile);
-          console.log('✅ 썸네일 발견 (input):', thumbnailPath);
-        } else {
-          console.log('❌ 썸네일 파일을 찾을 수 없습니다.');
+      if (thumbnailFile) {
+        thumbnailPath = path.join(generatedPath, thumbnailFile);
+        console.log('✅ 썸네일 발견:', thumbnailPath);
+      } else if (config.videoFormat !== 'sora2') {
+        // SORA2가 아닐 때만 상위 input 폴더에서 찾기
+        console.log('⚠️  generated_videos에서 썸네일 없음, 상위 폴더 확인...');
+        try {
+          const inputFiles = await fs.readdir(config.inputPath);
+          console.log('  input 폴더 파일들:', inputFiles);
+          const inputThumbnailFile = inputFiles.find(f =>
+            (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
+             f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
+          );
+
+          if (inputThumbnailFile) {
+            thumbnailPath = path.join(config.inputPath, inputThumbnailFile);
+            console.log('✅ 썸네일 발견 (input):', thumbnailPath);
+          } else {
+            console.log('❌ 썸네일 파일을 찾을 수 없습니다.');
+          }
+        } catch (error) {
+          console.log('❌ 썸네일 검색 중 오류:', error);
         }
-      } catch (error) {
-        console.log('❌ 썸네일 검색 중 오류:', error);
+      } else {
+        console.log('⚠️ SORA2: 썸네일 파일 없음');
       }
+    } catch (error) {
+      console.log('❌ 썸네일 검색 중 오류:', error);
     }
 
     console.log('최종 썸네일 경로:', thumbnailPath || '없음');

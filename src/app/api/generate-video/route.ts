@@ -26,11 +26,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // AutoShortsEditor 경로
-    const autoShortsPath = path.join(process.cwd(), '..', 'AutoShortsEditor');
+    // trend-video-backend 경로
+    const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
     const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const projectName = `project_${jobId}`;
-    const inputPath = path.join(autoShortsPath, 'input', projectName);
+    const inputPath = path.join(backendPath, 'input', projectName);
 
     // Job 초기화
     jobs.set(jobId, {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // 비동기로 영상 생성 시작
     generateVideoAsync(jobId, {
-      autoShortsPath,
+      backendPath,
       inputPath,
       projectName,
       title,
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 async function generateVideoAsync(
   jobId: string,
   config: {
-    autoShortsPath: string;
+    backendPath: string;
     inputPath: string;
     projectName: string;
     title: string;
@@ -110,7 +110,7 @@ async function generateVideoAsync(
     job.progress = 40;
     job.step = '영상 생성 중... (몇 분 소요될 수 있습니다)';
 
-    const pythonCommand = `cd "${config.autoShortsPath}" && python run.py --from-folder "input/${config.projectName}"`;
+    const pythonCommand = `cd "${config.backendPath}" && python create_video_from_folder.py --folder "input/${config.projectName}"`;
 
     console.log(`Executing: ${pythonCommand}`);
     const { stdout, stderr } = await execAsync(pythonCommand, {

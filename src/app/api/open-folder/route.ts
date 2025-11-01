@@ -49,25 +49,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 프로젝트 폴더명 추출
-    let projectName: string;
+    // video-merge 작업인지 확인
+    const isMergeJob = jobId.startsWith('merge_');
 
-    if (job.videoPath) {
-      // videoPath에서 추출
-      const pathParts = job.videoPath.split('/');
-      const inputIndex = pathParts.findIndex(p => p === 'input');
-      if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
-        projectName = pathParts[inputIndex + 1];
+    let absoluteFolderPath: string;
+
+    if (isMergeJob && job.videoPath) {
+      // video-merge 작업은 videoPath에서 폴더 경로 추출
+      absoluteFolderPath = path.dirname(path.resolve(job.videoPath));
+    } else {
+      // 일반 비디오 작업은 trend-video-backend/input에서 찾기
+      let projectName: string;
+
+      if (job.videoPath) {
+        // videoPath에서 추출
+        const pathParts = job.videoPath.split('/');
+        const inputIndex = pathParts.findIndex(p => p === 'input');
+        if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
+          projectName = pathParts[inputIndex + 1];
+        } else {
+          projectName = `uploaded_${jobId}`;
+        }
       } else {
         projectName = `uploaded_${jobId}`;
       }
-    } else {
-      projectName = `uploaded_${jobId}`;
-    }
 
-    const autoShortsPath = path.join(process.cwd(), '..', 'AutoShortsEditor');
-    const folderPath = path.join(autoShortsPath, 'input', projectName);
-    const absoluteFolderPath = path.resolve(folderPath);
+      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+      const folderPath = path.join(backendPath, 'input', projectName);
+      absoluteFolderPath = path.resolve(folderPath);
+    }
 
     console.log(`📁 폴더 열기 요청: ${absoluteFolderPath}`);
 
@@ -75,7 +85,7 @@ export async function POST(request: NextRequest) {
     if (!fs.existsSync(absoluteFolderPath)) {
       console.error(`❌ 폴더가 존재하지 않습니다: ${absoluteFolderPath}`);
       return NextResponse.json(
-        { error: `폴더가 존재하지 않습니다: ${projectName}` },
+        { error: `폴더가 존재하지 않습니다: ${path.basename(absoluteFolderPath)}` },
         { status: 404 }
       );
     }

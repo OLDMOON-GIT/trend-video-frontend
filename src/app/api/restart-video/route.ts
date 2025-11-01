@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     if (job.videoPath) {
       // videoPath가 있으면 거기서 추출
-      // videoPath 예시: ../AutoShortsEditor/input/uploaded_upload_123.../generated_videos/final_video.mp4
+      // videoPath 예시: ../trend-video-backend/input/uploaded_upload_123.../generated_videos/final_video.mp4
       const pathParts = job.videoPath.split('/');
       const inputIndex = pathParts.findIndex(p => p === 'input');
       if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
@@ -138,9 +138,9 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
 
     await addJobLog(newJobId, `${'='.repeat(70)}\n🔄 영상 재생성 시작\n📂 기존 프로젝트: ${oldProjectName}\n📂 새 프로젝트: ${newProjectName}\n${'='.repeat(70)}`);
 
-    const autoShortsPath = path.join(process.cwd(), '..', 'AutoShortsEditor');
-    const oldFolderPath = path.join(autoShortsPath, 'input', oldProjectName);
-    const newFolderPath = path.join(autoShortsPath, 'input', newProjectName);
+    const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+    const oldFolderPath = path.join(backendPath, 'input', oldProjectName);
+    const newFolderPath = path.join(backendPath, 'input', newProjectName);
 
     // 기존 폴더 존재 확인
     try {
@@ -238,7 +238,7 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
     await addJobLog(newJobId, `\n🐍 명령어: python ${pythonArgs.join(' ')}`);
 
     const pythonProcess = spawn('python', pythonArgs, {
-      cwd: autoShortsPath,
+      cwd: backendPath,
       shell: true,
       env: {
         ...process.env,
@@ -313,7 +313,7 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
             status: 'completed',
             progress: 100,
             step: '완료',
-            videoPath: `../AutoShortsEditor/input/${newProjectName}/generated_videos/final_video.mp4`
+            videoPath: `../trend-video-backend/input/${newProjectName}/generated_videos/final_video.mp4`
           });
           await addJobLog(newJobId, '\n✅ 영상 생성 완료!');
         } else {
