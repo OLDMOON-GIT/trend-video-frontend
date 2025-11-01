@@ -205,6 +205,14 @@ export default function Home() {
   const [scriptPollingInterval, setScriptPollingInterval] = useState<NodeJS.Timeout | null>(null); // 폴링 인터벌
   const [scriptGenerationLogs, setScriptGenerationLogs] = useState<Array<{timestamp: string; message: string}>>([]); // 로그 배열
   const [showScriptLogs, setShowScriptLogs] = useState(false); // 로그 표시 여부
+  const [removeWatermark, setRemoveWatermark] = useState(() => {
+    // localStorage에서 저장된 값 불러오기 (기본값: OFF)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('removeWatermark');
+      return saved === 'true';
+    }
+    return false;
+  });
   const scriptContentRef = useRef<HTMLDivElement>(null);
   const videoLogsRef = useRef<HTMLDivElement>(null);
   const pipelineLogsRef = useRef<HTMLDivElement>(null);
@@ -2283,6 +2291,29 @@ export default function Home() {
             </div>
             )}
 
+            {/* 워터마크 제거 옵션 (VIDEO-MERGE 전용) */}
+            {productionMode === 'merge' && (
+            <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={removeWatermark}
+                  onChange={(e) => {
+                    const newValue = e.target.checked;
+                    setRemoveWatermark(newValue);
+                    localStorage.setItem('removeWatermark', String(newValue));
+                  }}
+                  className="w-5 h-5 rounded border-cyan-400 bg-slate-800 text-cyan-500 focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
+                />
+                <div>
+                  <span className="text-sm font-semibold text-cyan-200">🧹 워터마크 자동 제거</span>
+                  <p className="text-xs text-cyan-300/80 mt-1">
+                    OpenCV를 사용하여 움직이는 워터마크를 자동으로 감지하고 제거합니다. (SORA2 영상 권장)
+                  </p>
+                </div>
+              </label>
+            </div>
+            )}
 
             {/* 이미지 소스 선택 (SORA2, VIDEO-MERGE 제외) */}
             {videoFormat !== 'sora2' && productionMode !== 'merge' && (
@@ -2814,6 +2845,9 @@ export default function Home() {
 
                     // 자막 옵션 추가 (항상 true)
                     mergeFormData.append('addSubtitles', 'true');
+
+                    // 워터마크 제거 옵션 추가
+                    mergeFormData.append('removeWatermark', removeWatermark ? 'true' : 'false');
 
                     // API 호출
                     const response = await fetch('/api/video-merge', {
