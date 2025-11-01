@@ -6,6 +6,7 @@ import { promisify } from 'util';
 import { getCurrentUser } from '@/lib/session';
 import { promises as fs } from 'fs';
 import { createBackup } from '@/lib/backup';
+import { sendErrorEmail } from '@/lib/email';
 
 const execAsync = promisify(exec);
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
@@ -16,9 +17,9 @@ const runningProcesses = new Map<string, any>();
 // 숏폼 프롬프트를 파일에서 읽어오는 함수
 async function getShortFormPrompt(): Promise<string> {
   try {
-    // multi-ai-aggregator 경로에서 찾기
-    const multiAIPath = path.join(process.cwd(), '..', 'multi-ai-aggregator');
-    const files = await fs.readdir(multiAIPath);
+    // frontend/prompts 경로에서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
 
     // prompt_shortform.txt 또는 prompt.txt 검색
     let promptFile = files.find(file => file === 'prompt_shortform.txt');
@@ -27,7 +28,7 @@ async function getShortFormPrompt(): Promise<string> {
     }
 
     if (promptFile) {
-      const filePath = path.join(multiAIPath, promptFile);
+      const filePath = path.join(promptsPath, promptFile);
       const content = await fs.readFile(filePath, 'utf-8');
       console.log('✅ 숏폼 프롬프트 파일 읽기 완료:', promptFile);
       return content;
@@ -60,15 +61,15 @@ async function getShortFormPrompt(): Promise<string> {
 // 롱폼 프롬프트를 파일에서 읽어오는 함수
 async function getLongFormPrompt(): Promise<string> {
   try {
-    // multi-ai-aggregator 경로에서 찾기
-    const multiAIPath = path.join(process.cwd(), '..', 'multi-ai-aggregator');
-    const files = await fs.readdir(multiAIPath);
+    // frontend/prompts 경로에서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
 
     // prompt_longform.txt 우선 검색
     let promptFile = files.find(file => file === 'prompt_longform.txt');
 
     if (promptFile) {
-      const filePath = path.join(multiAIPath, promptFile);
+      const filePath = path.join(promptsPath, promptFile);
       const content = await fs.readFile(filePath, 'utf-8');
       console.log('✅ 롱폼 프롬프트 파일 읽기 완료:', promptFile);
       return content;
@@ -101,15 +102,15 @@ async function getLongFormPrompt(): Promise<string> {
 // SORA2 프롬프트를 파일에서 읽어오는 함수
 async function getSora2Prompt(): Promise<string> {
   try {
-    // multi-ai-aggregator 경로에서 찾기
-    const multiAIPath = path.join(process.cwd(), '..', 'multi-ai-aggregator');
-    const files = await fs.readdir(multiAIPath);
+    // frontend/prompts 경로에서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
 
     // prompt_sora2.txt 검색
     let promptFile = files.find(file => file === 'prompt_sora2.txt');
 
     if (promptFile) {
-      const filePath = path.join(multiAIPath, promptFile);
+      const filePath = path.join(promptsPath, promptFile);
       const content = await fs.readFile(filePath, 'utf-8');
       console.log('✅ SORA2 프롬프트 파일 읽기 완료:', promptFile);
       return content;
@@ -202,15 +203,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // videoFormat 또는 type으로 스크립트 타입 결정
-    let scriptType: 'short' | 'long' | 'sora2' = 'short';
-    if (videoFormat === 'sora2' || type === 'sora2') {
+    // type 또는 videoFormat에서 스크립트 타입 결정
+    // 입력: 'longform', 'shortform', 'sora2' (통일된 형식)
+    const inputType = type || videoFormat || 'longform';
+
+    // 내부 처리용 타입 (프롬프트 선택용)
+    let scriptType: 'longform' | 'shortform' | 'sora2' = 'longform';
+    if (inputType === 'sora2') {
       scriptType = 'sora2';
-    } else if (videoFormat === 'longform' || type === 'long') {
-      scriptType = 'long';
-    } else if (videoFormat === 'shortform' || type === 'short') {
-      scriptType = 'short';
+    } else if (inputType === 'shortform') {
+      scriptType = 'shortform';
+    } else if (inputType === 'longform') {
+      scriptType = 'longform';
     }
+
+    console.log(`📌 대본 타입: ${scriptType} (입력: ${inputType})`);
 
     const db = new Database(dbPath);
 
@@ -254,16 +261,15 @@ export async function POST(request: NextRequest) {
       VALUES (?, ?, ?, ?, ?, ?)
     `);
 
-    // scriptType을 저장용 포맷으로 변환 (short -> shortform, long -> longform, sora2 -> sora2)
-    const savedType = scriptType === 'short' ? 'shortform' : scriptType === 'long' ? 'longform' : 'sora2';
-    insert.run(taskId, title, 'PENDING', '대본 생성 대기 중...', createdAt, savedType);
+    // scriptType을 그대로 저장 (이미 'longform', 'shortform', 'sora2' 형식)
+    insert.run(taskId, title, 'PENDING', '대본 생성 대기 중...', createdAt, scriptType);
 
     db.close();
 
     // 백그라운드에서 대본 생성 실행
     // 타입에 따라 다른 프롬프트 사용
     let prompt: string;
-    if (scriptType === 'short') {
+    if (scriptType === 'shortform') {
       // 숏폼: 파일에서 읽어온 짧은 프롬프트 사용 (빠름)
       const shortFormPromptTemplate = await getShortFormPrompt();
       prompt = shortFormPromptTemplate.replace(/{title}/g, title);
@@ -280,12 +286,12 @@ export async function POST(request: NextRequest) {
       console.log('✅ 롱폼 프롬프트 사용');
     }
 
-    const multiAIPath = path.join(process.cwd(), '..', 'multi-ai-aggregator');
+    const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
 
     // 프롬프트 내용 확인 로그
     console.log('\n' + '='.repeat(80));
     console.log('📝 생성된 프롬프트 내용:');
-    console.log('  타입:', scriptType === 'short' ? '⚡ 숏폼' : scriptType === 'sora2' ? '🎥 SORA2' : '📝 롱폼');
+    console.log('  타입:', scriptType === 'shortform' ? '⚡ 숏폼' : scriptType === 'sora2' ? '🎥 SORA2' : '📝 롱폼');
     console.log('  제목:', title);
     console.log('  프롬프트 길이:', prompt.length, '자');
     console.log('  프롬프트 미리보기:', prompt.substring(0, 200) + '...');
@@ -303,7 +309,7 @@ export async function POST(request: NextRequest) {
         const db2 = new Database(dbPath);
 
         // 상태를 ING로 업데이트
-        const message = scriptType === 'short'
+        const message = scriptType === 'shortform'
           ? '⚡ Claude가 숏폼 대본을 생성하고 있습니다...'
           : scriptType === 'sora2'
           ? '🎥 Claude가 SORA2 프롬프트를 생성하고 있습니다...'
@@ -318,37 +324,38 @@ export async function POST(request: NextRequest) {
 
         // 프롬프트를 임시 파일로 저장 (명령줄 길이 제한 및 특수문자 문제 회피)
         const promptFileName = `prompt_${Date.now()}.txt`;
-        const promptFilePath = path.join(multiAIPath, promptFileName);
+        const promptFilePath = path.join(backendPath, promptFileName);
 
         const fsSync = require('fs');
         fsSync.writeFileSync(promptFilePath, prompt, 'utf-8');
         addLog(taskId, `프롬프트 파일 생성: ${promptFileName}`);
-        const typeEmoji = scriptType === 'short' ? '⚡' : scriptType === 'sora2' ? '🎥' : '📝';
-        const typeName = scriptType === 'short' ? '숏폼' : scriptType === 'sora2' ? 'SORA2' : '롱폼';
+        const typeEmoji = scriptType === 'shortform' ? '⚡' : scriptType === 'sora2' ? '🎥' : '📝';
+        const typeName = scriptType === 'shortform' ? '숏폼' : scriptType === 'sora2' ? 'SORA2' : '롱폼';
         addLog(taskId, `${typeEmoji} 타입: ${typeName}`);
         addLog(taskId, `📝 제목: "${title}"`);
         addLog(taskId, `📄 프롬프트 길이: ${prompt.length}자`);
         addLog(taskId, `✅ 프롬프트에 제목 포함: ${prompt.includes(title) ? 'Yes' : 'No'}`);
 
-        // 실행할 명령어 구성
-        const pythonArgs = ['main.py', '-f', promptFileName, '-a', 'claude', '--headless'];
+        // 실행할 명령어 구성 (backend의 ai_aggregator 모듈 사용)
+        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude'];
         const commandStr = `python ${pythonArgs.join(' ')}`;
 
         addLog(taskId, '📌 Python 스크립트 실행 시작');
         addLog(taskId, `💻 실행 명령어: ${commandStr}`);
-        addLog(taskId, `📂 작업 디렉토리: ${multiAIPath}`);
+        addLog(taskId, `📂 작업 디렉토리: ${backendPath}`);
         addLog(taskId, '🌐 브라우저 자동화로 Claude.ai 웹사이트 접속 중...');
+        addLog(taskId, '👁️ 브라우저가 표시됩니다 (디버깅 모드)');
         addLog(taskId, '⏱️ 1-2분 소요 예상');
 
         console.log(`\n${'='.repeat(80)}`);
         console.log(`[${taskId}] 실행 명령어:`);
-        console.log(`  작업 디렉토리: ${multiAIPath}`);
+        console.log(`  작업 디렉토리: ${backendPath}`);
         console.log(`  명령어: ${commandStr}`);
         console.log(`${'='.repeat(80)}\n`);
 
         // -f 옵션으로 파일 경로 전달
         const pythonProcess = spawn('python', pythonArgs, {
-          cwd: multiAIPath,
+          cwd: backendPath,
           env: {
             ...process.env,
             PYTHONIOENCODING: 'utf-8',
@@ -526,12 +533,11 @@ export async function POST(request: NextRequest) {
 
         // 대본을 scripts 테이블에 저장
         const scriptId = `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        // scriptType을 저장용 포맷으로 변환
-        const savedType = scriptType === 'short' ? 'shortform' : scriptType === 'long' ? 'longform' : 'sora2';
+        // scriptType을 그대로 저장 (이미 'longform', 'shortform', 'sora2' 형식)
         db3.prepare(`
           INSERT INTO scripts (id, user_id, title, content, status, progress, original_topic, type, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        `).run(scriptId, userId, title, scriptContent, 'completed', 100, title, savedType);
+        `).run(scriptId, userId, title, scriptContent, 'completed', 100, title, scriptType);
 
         db3.close();
 
@@ -556,7 +562,171 @@ export async function POST(request: NextRequest) {
       } catch (error: any) {
         console.error('Error generating script:', error);
 
-        addLog(taskId, `❌ 오류 발생: ${error.message}`);
+        const errorMsg = error.message || error.toString() || '';
+        const isLoginError = errorMsg.includes('login') ||
+                            errorMsg.includes('Login') ||
+                            errorMsg.includes('session expired') ||
+                            stdout.includes('Login page detected') ||
+                            stdout.includes('login required');
+
+        // 로그인 에러 감지 시 headful 모드로 재시도
+        if (isLoginError) {
+          addLog(taskId, '🔐 로그인 필요 감지! 브라우저 창을 열어 로그인할 수 있도록 재시도합니다...');
+          console.log(`\n${'='.repeat(80)}`);
+          console.log('🔐 로그인 에러 감지 - Headful 모드로 재실행');
+          console.log(`${'='.repeat(80)}\n`);
+
+          try {
+            // headful 모드로 재실행 (브라우저 창 표시)
+            const pythonArgsHeadful = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude'];
+            const commandStrHeadful = `python ${pythonArgsHeadful.join(' ')}`;
+
+            addLog(taskId, '🌐 브라우저 창을 열어 로그인하세요!');
+            addLog(taskId, `💻 재실행 명령어: ${commandStrHeadful}`);
+            addLog(taskId, '⏰ 로그인 후 자동으로 대본 생성이 계속됩니다...');
+
+            const pythonProcessRetry = spawn('python', pythonArgsHeadful, {
+              cwd: backendPath,
+              env: {
+                ...process.env,
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUNBUFFERED: '1'
+              }
+            });
+
+            let stdoutRetry = '';
+            let stderrRetry = '';
+            let stdoutBufferRetry = '';
+            let stderrBufferRetry = '';
+
+            pythonProcessRetry.stdout?.on('data', (data) => {
+              const output = data.toString();
+              stdoutRetry += output;
+              stdoutBufferRetry += output;
+
+              const lines = stdoutBufferRetry.split('\n');
+              stdoutBufferRetry = lines.pop() || '';
+
+              lines.forEach((line: string) => {
+                const trimmedLine = line.trim();
+                if (trimmedLine) {
+                  console.log('[Python Retry]', trimmedLine);
+                  addLog(taskId, trimmedLine);
+                }
+              });
+            });
+
+            pythonProcessRetry.stderr?.on('data', (data) => {
+              const error = data.toString();
+              stderrRetry += error;
+              stderrBufferRetry += error;
+
+              const lines = stderrBufferRetry.split('\n');
+              stderrBufferRetry = lines.pop() || '';
+
+              lines.forEach((line: string) => {
+                const trimmedLine = line.trim();
+                if (trimmedLine) {
+                  console.error('[Python Retry stderr]', trimmedLine);
+                  addLog(taskId, `⚠️ ${trimmedLine}`);
+                }
+              });
+            });
+
+            await new Promise<void>((resolve, reject) => {
+              pythonProcessRetry.on('close', (code) => {
+                if (stdoutBufferRetry.trim()) {
+                  addLog(taskId, stdoutBufferRetry.trim());
+                }
+                if (stderrBufferRetry.trim()) {
+                  addLog(taskId, `⚠️ ${stderrBufferRetry.trim()}`);
+                }
+
+                if (code === 0 || code === null) {
+                  resolve();
+                } else {
+                  reject(new Error(`Retry process exited with code ${code}`));
+                }
+              });
+
+              pythonProcessRetry.on('error', (error) => {
+                reject(error);
+              });
+            });
+
+            // 재시도 성공 - 응답 파일 읽기 (기존 로직 재사용)
+            const fs = require('fs');
+            const aiResponseFiles = fs.readdirSync(multiAIPath)
+              .filter((f: string) => f.startsWith('ai_responses_') && f.endsWith('.txt'))
+              .map((f: string) => ({
+                name: f,
+                path: path.join(multiAIPath, f),
+                time: fs.statSync(path.join(multiAIPath, f)).mtime.getTime()
+              }))
+              .sort((a: any, b: any) => b.time - a.time);
+
+            let scriptContent = '';
+            if (aiResponseFiles.length > 0) {
+              const fullContent = fs.readFileSync(aiResponseFiles[0].path, 'utf-8');
+              const claudeMatch = fullContent.match(/--- Claude ---\s+([\s\S]*?)(?=\n-{80}|\n--- |$)/);
+              if (claudeMatch && claudeMatch[1]) {
+                scriptContent = claudeMatch[1].trim();
+              } else {
+                scriptContent = fullContent;
+              }
+            }
+
+            // DB 저장 (기존 로직과 동일)
+            const db3 = new Database(dbPath);
+            const scriptId = `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            db3.prepare(`
+              INSERT INTO scripts (id, user_id, title, content, status, progress, original_topic, type, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).run(scriptId, userId, title, scriptContent, 'completed', 100, title, scriptType);
+            db3.close();
+
+            const db4 = new Database(dbPath);
+            db4.prepare(`
+              UPDATE scripts_temp SET status = ?, message = ?, scriptId = ? WHERE id = ?
+            `).run('DONE', '로그인 후 대본 생성 완료!', scriptId, taskId);
+            db4.close();
+
+            addLog(taskId, '✅ 로그인 재시도 성공! 대본 생성 완료!');
+            console.log('✅ Headful 재시도 성공');
+
+            // 프롬프트 파일 정리
+            try {
+              if (promptFilePath && fsSync.existsSync(promptFilePath)) {
+                fsSync.unlinkSync(promptFilePath);
+              }
+            } catch (e) {
+              console.error('프롬프트 파일 삭제 실패:', e);
+            }
+
+            return; // 성공 후 종료
+          } catch (retryError: any) {
+            console.error('Headful 재시도 실패:', retryError);
+            addLog(taskId, `❌ 재시도 실패: ${retryError.message}`);
+            // 재시도도 실패하면 아래 에러 처리 계속
+          }
+        }
+
+        addLog(taskId, `❌ 오류 발생: ${errorMsg}`);
+
+        // 에러 발생 시 이메일 전송
+        try {
+          await sendErrorEmail({
+            taskId,
+            title,
+            errorMessage: errorMsg,
+            stdout: stdout || '(출력 없음)',
+            stderr: stderr || '(출력 없음)',
+            timestamp: new Date().toISOString(),
+          });
+          console.log('✅ 에러 알림 이메일 전송 완료');
+        } catch (emailError) {
+          console.error('❌ 에러 이메일 전송 실패:', emailError);
+        }
 
         // 에러 발생 시에도 프롬프트 파일 정리
         try {
