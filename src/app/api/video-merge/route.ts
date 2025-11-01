@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
 
     // Python 프로세스 시작
     const pythonProcess = spawn('python', [videoMergeScript, configPath], {
-      cwd: soraExtendPath,
+      cwd: backendPath,
       shell: true,
       env: {
         ...process.env,
