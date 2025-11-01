@@ -2102,7 +2102,7 @@ export default function Home() {
             )}
 
             {/* SORA2 안내 메시지 */}
-            {videoFormat === 'sora2' && (
+            {productionMode !== 'merge' && videoFormat === 'sora2' && (
             <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-4">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">🎬</span>
@@ -2291,8 +2291,8 @@ export default function Home() {
             </div>
             )}
 
-            {/* 워터마크 제거 옵션 (VIDEO-MERGE 전용) */}
-            {productionMode === 'merge' && (
+            {/* 워터마크 제거 옵션 숨김 - 작동하지 않음 */}
+            {false && productionMode === 'merge' && (
             <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-4">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -2620,7 +2620,7 @@ export default function Home() {
             )}
 
             {/* JSON 파일만 업로드 (DALL-E, Google 검색, 또는 SORA2) */}
-            {videoFormat !== 'video-merge' && (videoFormat === 'sora2' || imageSource !== 'none') && (
+            {productionMode !== 'merge' && (videoFormat === 'sora2' || imageSource !== 'none') && (
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-sm font-medium text-slate-300">
