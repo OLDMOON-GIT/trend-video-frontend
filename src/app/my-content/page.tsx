@@ -1069,6 +1069,13 @@ export default function MyContentPage() {
                                         .replace(/\s*```\s*$/i, '')
                                         .trim();
 
+                                      // { 이전의 모든 텍스트 제거 (Claude가 추가한 설명 텍스트 제거)
+                                      const jsonStart = content.indexOf('{');
+                                      if (jsonStart > 0) {
+                                        console.log('⚠️ JSON 시작 전 텍스트 발견, 제거 중...');
+                                        content = content.substring(jsonStart);
+                                      }
+
                                       console.log('📄 원본 content 길이:', item.data.content.length);
                                       console.log('📄 정제된 content 길이:', content.length);
 
@@ -1473,6 +1480,13 @@ export default function MyContentPage() {
                                     .replace(/^```json\s*/i, '')
                                     .replace(/\s*```\s*$/i, '')
                                     .trim();
+
+                                  // { 이전의 모든 텍스트 제거 (Claude가 추가한 설명 텍스트 제거)
+                                  const jsonStart = content.indexOf('{');
+                                  if (jsonStart > 0) {
+                                    console.log('⚠️ JSON 시작 전 텍스트 발견, 제거 중...');
+                                    content = content.substring(jsonStart);
+                                  }
 
                                   console.log('📄 원본 content 길이:', script.content.length);
                                   console.log('📄 정제된 content 길이:', content.length);
