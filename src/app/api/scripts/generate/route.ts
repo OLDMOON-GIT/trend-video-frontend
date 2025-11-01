@@ -337,14 +337,15 @@ export async function POST(request: NextRequest) {
         addLog(taskId, `✅ 프롬프트에 제목 포함: ${prompt.includes(title) ? 'Yes' : 'No'}`);
 
         // 실행할 명령어 구성 (backend의 ai_aggregator 모듈 사용)
-        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close'];
+        // --headless: 브라우저를 숨김 모드로 실행 (백그라운드)
+        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close', '--headless'];
         const commandStr = `python ${pythonArgs.join(' ')}`;
 
         addLog(taskId, '📌 Python 스크립트 실행 시작');
         addLog(taskId, `💻 실행 명령어: ${commandStr}`);
         addLog(taskId, `📂 작업 디렉토리: ${backendPath}`);
         addLog(taskId, '🌐 브라우저 자동화로 Claude.ai 웹사이트 접속 중...');
-        addLog(taskId, '👁️ 브라우저가 표시됩니다 (디버깅 모드)');
+        addLog(taskId, '👁️ Headless 모드 (백그라운드 실행, 브라우저 숨김)');
         addLog(taskId, '⏱️ 1-2분 소요 예상');
 
         console.log(`\n${'='.repeat(80)}`);
@@ -354,6 +355,7 @@ export async function POST(request: NextRequest) {
         console.log(`${'='.repeat(80)}\n`);
 
         // -f 옵션으로 파일 경로 전달
+        // Headless 모드로 실행 (백그라운드, 브라우저 숨김)
         const pythonProcess = spawn('python', pythonArgs, {
           cwd: backendPath,
           env: {
@@ -581,129 +583,40 @@ export async function POST(request: NextRequest) {
             const pythonArgsHeadful = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close'];
             const commandStrHeadful = `python ${pythonArgsHeadful.join(' ')}`;
 
-            addLog(taskId, '🌐 브라우저 창을 열어 로그인하세요!');
+            addLog(taskId, '🌐 새 CMD 창이 열립니다 - 브라우저에서 로그인하세요!');
             addLog(taskId, `💻 재실행 명령어: ${commandStrHeadful}`);
             addLog(taskId, '⏰ 로그인 후 자동으로 대본 생성이 계속됩니다...');
+            addLog(taskId, '💡 로그인은 한 번만 하면 됩니다. 다음부터는 자동으로 로그인됩니다.');
 
-            const pythonProcessRetry = spawn('python', pythonArgsHeadful, {
-              cwd: backendPath,
+            // Windows: 새 CMD 창에서 실행 (로그인 UI 표시)
+            const startCmd = `start "Claude 대본 생성 - 로그인 필요" cmd /k "cd /d ${backendPath} && python ${pythonArgsHeadful.join(' ')}"`;
+            const pythonProcessRetry = spawn('cmd', ['/c', startCmd], {
+              detached: true,
+              stdio: 'ignore',
               env: {
                 ...process.env,
                 PYTHONIOENCODING: 'utf-8',
                 PYTHONUNBUFFERED: '1'
-              }
+              },
+              shell: true
             });
+            pythonProcessRetry.unref();
 
-            let stdoutRetry = '';
-            let stderrRetry = '';
-            let stdoutBufferRetry = '';
-            let stderrBufferRetry = '';
+            addLog(taskId, '✅ 새 CMD 창이 열렸습니다');
+            addLog(taskId, '👁️ 브라우저가 표시되며, 로그인이 필요하면 수동으로 진행해주세요');
+            addLog(taskId, '⏱️ 로그인 완료 후 자동으로 대본이 생성됩니다');
+            addLog(taskId, '📝 생성된 대본은 자동으로 저장됩니다');
 
-            pythonProcessRetry.stdout?.on('data', (data) => {
-              const output = data.toString();
-              stdoutRetry += output;
-              stdoutBufferRetry += output;
-
-              const lines = stdoutBufferRetry.split('\n');
-              stdoutBufferRetry = lines.pop() || '';
-
-              lines.forEach((line: string) => {
-                const trimmedLine = line.trim();
-                if (trimmedLine) {
-                  console.log('[Python Retry]', trimmedLine);
-                  addLog(taskId, trimmedLine);
-                }
-              });
-            });
-
-            pythonProcessRetry.stderr?.on('data', (data) => {
-              const error = data.toString();
-              stderrRetry += error;
-              stderrBufferRetry += error;
-
-              const lines = stderrBufferRetry.split('\n');
-              stderrBufferRetry = lines.pop() || '';
-
-              lines.forEach((line: string) => {
-                const trimmedLine = line.trim();
-                if (trimmedLine) {
-                  console.error('[Python Retry stderr]', trimmedLine);
-                  addLog(taskId, `⚠️ ${trimmedLine}`);
-                }
-              });
-            });
-
-            await new Promise<void>((resolve, reject) => {
-              pythonProcessRetry.on('close', (code) => {
-                if (stdoutBufferRetry.trim()) {
-                  addLog(taskId, stdoutBufferRetry.trim());
-                }
-                if (stderrBufferRetry.trim()) {
-                  addLog(taskId, `⚠️ ${stderrBufferRetry.trim()}`);
-                }
-
-                if (code === 0 || code === null) {
-                  resolve();
-                } else {
-                  reject(new Error(`Retry process exited with code ${code}`));
-                }
-              });
-
-              pythonProcessRetry.on('error', (error) => {
-                reject(error);
-              });
-            });
-
-            // 재시도 성공 - 응답 파일 읽기 (기존 로직 재사용)
-            const fs = require('fs');
-            const aiResponseFiles = fs.readdirSync(multiAIPath)
-              .filter((f: string) => f.startsWith('ai_responses_') && f.endsWith('.txt'))
-              .map((f: string) => ({
-                name: f,
-                path: path.join(multiAIPath, f),
-                time: fs.statSync(path.join(multiAIPath, f)).mtime.getTime()
-              }))
-              .sort((a: any, b: any) => b.time - a.time);
-
-            let scriptContent = '';
-            if (aiResponseFiles.length > 0) {
-              const fullContent = fs.readFileSync(aiResponseFiles[0].path, 'utf-8');
-              const claudeMatch = fullContent.match(/--- Claude ---\s+([\s\S]*?)(?=\n-{80}|\n--- |$)/);
-              if (claudeMatch && claudeMatch[1]) {
-                scriptContent = claudeMatch[1].trim();
-              } else {
-                scriptContent = fullContent;
-              }
-            }
-
-            // DB 저장 (기존 로직과 동일)
-            const db3 = new Database(dbPath);
-            const scriptId = `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            db3.prepare(`
-              INSERT INTO scripts (id, user_id, title, content, status, progress, original_topic, type, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-            `).run(scriptId, userId, title, scriptContent, 'completed', 100, title, scriptType);
-            db3.close();
-
+            // 프로세스 완료를 기다리지 않고 즉시 반환 (detached 모드)
+            // 사용자는 CMD 창에서 진행 상황을 확인할 수 있음
+            // 대본이 완성되면 자동으로 저장되고, 사용자는 "내 콘텐츠"에서 확인 가능
             const db4 = new Database(dbPath);
             db4.prepare(`
-              UPDATE scripts_temp SET status = ?, message = ?, scriptId = ? WHERE id = ?
-            `).run('DONE', '로그인 후 대본 생성 완료!', scriptId, taskId);
+              UPDATE scripts_temp SET status = ?, message = ? WHERE id = ?
+            `).run('WAITING_LOGIN', '로그인 필요 - 새 창에서 로그인 후 자동 진행됨', taskId);
             db4.close();
 
-            addLog(taskId, '✅ 로그인 재시도 성공! 대본 생성 완료!');
-            console.log('✅ Headful 재시도 성공');
-
-            // 프롬프트 파일 정리
-            try {
-              if (promptFilePath && fsSync.existsSync(promptFilePath)) {
-                fsSync.unlinkSync(promptFilePath);
-              }
-            } catch (e) {
-              console.error('프롬프트 파일 삭제 실패:', e);
-            }
-
-            return; // 성공 후 종료
+            return;
           } catch (retryError: any) {
             console.error('Headful 재시도 실패:', retryError);
             addLog(taskId, `❌ 재시도 실패: ${retryError.message}`);
