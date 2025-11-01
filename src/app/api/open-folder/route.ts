@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: '폴더를 열었습니다.',
-      path: folderPath
+      path: absoluteFolderPath
     });
 
   } catch (error: any) {
