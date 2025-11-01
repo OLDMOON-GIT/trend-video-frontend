@@ -178,7 +178,8 @@ export default function Home() {
     return false; // 기본값 false (접힌 상태)
   });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2' | 'video-merge'>('longform'); // 항상 기본값으로 시작
+  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2'>('longform'); // 항상 기본값으로 시작
+  const [productionMode, setProductionMode] = useState<'create' | 'merge'>('create'); // 영상제작 vs 영상병합
   const [sora2Script, setSora2Script] = useState<string>(''); // SORA2 대본
   const [showSora2Review, setShowSora2Review] = useState(false); // SORA2 대본 확인 모달
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
@@ -231,14 +232,13 @@ export default function Home() {
   };
 
   // 포맷 변경 핸들러 (대본이 로드된 경우 경고)
-  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2' | 'video-merge') => {
+  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2') => {
     // 대본이 로드되어 있고, 원본 포맷과 다른 경우 경고
     if (originalFormat && originalFormat !== newFormat && uploadedJson) {
       const formatNames = {
         longform: '롱폼 (16:9 가로)',
         shortform: '숏폼 (9:16 세로)',
-        sora2: 'Sora2 (AI 시네마틱)',
-        'video-merge': '영상 병합 (Concat)'
+        sora2: 'Sora2 (AI 시네마틱)'
       };
 
       if (confirm(`⚠️ 포맷 변경 경고\n\n현재 불러온 대본은 ${formatNames[originalFormat]} 형식입니다.\n${formatNames[newFormat]}(으)로 변경하시겠습니까?\n\n대본 내용이 형식에 맞지 않을 수 있습니다.`)) {
@@ -1092,10 +1092,10 @@ export default function Home() {
     let message = '';
     if (videoFormat === 'sora2') {
       message = '📤 JSON 대본을 업로드해주세요. (이미지 불필요)';
-    } else if (videoFormat === 'video-merge') {
+    } else if (productionMode === 'merge') {
       message = '📤 JSON 대본과 비디오 파일들을 업로드해주세요.';
     } else if (imageSource === 'none') {
-      message = '📤 JSON 대본과 이미지 8컷을 업로드해주세요.';
+      message = '이미지들을 업로드해주세요.';
     } else if (imageSource === 'dalle') {
       message = '📤 JSON 대본을 업로드해주세요. (DALL-E가 이미지 자동 생성)';
     } else if (imageSource === 'google') {
@@ -1408,7 +1408,7 @@ export default function Home() {
               </p>
             </div>
             {/* 롱폼/숏폼/SORA2 선택 */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-3">
               <button
                 onClick={() => handleFormatChange('longform')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
@@ -1439,10 +1439,24 @@ export default function Home() {
               >
                 🎥 SORA2
               </button>
+            </div>
+
+            {/* 제작 방식 선택 */}
+            <div className="flex gap-2">
               <button
-                onClick={() => handleFormatChange('video-merge')}
+                onClick={() => setProductionMode('create')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  videoFormat === 'video-merge'
+                  productionMode === 'create'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                🎬 영상제작
+              </button>
+              <button
+                onClick={() => setProductionMode('merge')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  productionMode === 'merge'
                     ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white'
                     : 'bg-white/10 text-slate-300 hover:bg-white/20'
                 }`}
@@ -2063,14 +2077,14 @@ export default function Home() {
           <p className="mb-4 text-sm text-slate-300">
             {videoFormat === 'sora2'
               ? 'JSON 대본을 업로드하여 AI 시네마틱 영상을 생성하세요. (이미지 불필요)'
-              : videoFormat === 'video-merge'
+              : productionMode === 'merge'
               ? '여러 개의 비디오 파일을 업로드하여 하나로 병합하세요. TTS 나레이션 추가 가능'
               : 'JSON 대본을 업로드하고, 이미지 소스를 선택하여 영상을 생성하세요.'}
           </p>
 
           <div className="space-y-4">
             {/* VIDEO-MERGE 안내 메시지 */}
-            {videoFormat === 'video-merge' && (
+            {productionMode === 'merge' && (
             <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-4">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">🎞️</span>
@@ -2104,7 +2118,7 @@ export default function Home() {
             )}
 
             {/* 통합 파일 업로드 (VIDEO-MERGE 전용) */}
-            {videoFormat === 'video-merge' && (
+            {productionMode === 'merge' && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-300">
                 📁 JSON/TXT 대본과 비디오 파일들을 한번에 드래그하세요
@@ -2286,7 +2300,7 @@ export default function Home() {
             )}
 
             {/* 자막 추가 옵션 (VIDEO-MERGE 전용) */}
-            {videoFormat === 'video-merge' && (
+            {productionMode === 'merge' && (
             <div className={`rounded-lg border border-orange-500/20 p-4 ${uploadedJson ? 'bg-orange-500/5' : 'bg-gray-500/5 opacity-50'}`}>
               <label className="flex items-center space-x-3 cursor-pointer">
                 <input
@@ -2309,7 +2323,7 @@ export default function Home() {
             )}
 
             {/* 이미지 소스 선택 (SORA2, VIDEO-MERGE 제외) */}
-            {videoFormat !== 'sora2' && videoFormat !== 'video-merge' && (
+            {videoFormat !== 'sora2' && productionMode !== 'merge' && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-300">
                 🎨 이미지 소스 선택
@@ -2809,7 +2823,7 @@ export default function Home() {
                 }
 
                 // VIDEO-MERGE 전용 검증 및 API 호출
-                if (videoFormat === 'video-merge') {
+                if (productionMode === 'merge') {
                   if (uploadedVideos.length === 0) {
                     showToast('최소 1개 이상의 비디오를 업로드해주세요.', 'error');
                     return;
@@ -2939,13 +2953,13 @@ export default function Home() {
               }}
               disabled={
                 isGeneratingVideo ||
-                (videoFormat === 'video-merge' ? uploadedVideos.length === 0 :
+                (productionMode === 'merge' ? uploadedVideos.length === 0 :
                   (!uploadedJson || (videoFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0)))
               }
               className="w-full rounded-xl bg-purple-600 px-6 py-3 font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isGeneratingVideo ? '영상 생성 중...' :
-                videoFormat === 'video-merge' ? `🎞️ 비디오 병합${settings ? ` (${settings.videoGenerationCost} 크레딧)` : ''}` :
+                productionMode === 'merge' ? `🎞️ 비디오 병합${settings ? ` (${settings.videoGenerationCost} 크레딧)` : ''}` :
                 `🎬 영상 제작${settings ? ` (${settings.videoGenerationCost} 크레딧)` : ''}`}
             </button>
           </div>
