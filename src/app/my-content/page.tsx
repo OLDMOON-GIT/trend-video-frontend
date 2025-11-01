@@ -929,6 +929,13 @@ export default function MyContentPage() {
                                   📁 폴더
                                 </button>
                                 <button
+                                  onClick={() => handleRestartVideo(item.data.id)}
+                                  className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer"
+                                  title="재시도"
+                                >
+                                  🔄 재시도
+                                </button>
+                                <button
                                   onClick={() => handleDeleteVideo(item.data.id, item.data.title || item.data.id)}
                                   className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
                                 >
@@ -1255,6 +1262,13 @@ export default function MyContentPage() {
                                   className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
                                 >
                                   📥 저장
+                                </button>
+                                <button
+                                  onClick={() => handleRestartScript(item.data.id, item.data.title)}
+                                  className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
+                                  title="재시도"
+                                >
+                                  🔄 재시도
                                 </button>
                                 <button
                                   onClick={(e) => {
@@ -1752,6 +1766,13 @@ export default function MyContentPage() {
                               📥 저장
                             </button>
                             <button
+                              onClick={() => handleRestartScript(script.id, script.title)}
+                              className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
+                              title="재시도"
+                            >
+                              🔄 재시도
+                            </button>
+                            <button
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -2015,6 +2036,13 @@ export default function MyContentPage() {
                               title="폴더 열기"
                             >
                               📁 폴더
+                            </button>
+                            <button
+                              onClick={() => handleRestartVideo(job.id)}
+                              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer"
+                              title="재시도"
+                            >
+                              🔄 재시도
                             </button>
                             <button
                               onClick={() => handleDeleteVideo(job.id, job.title || job.id)}
