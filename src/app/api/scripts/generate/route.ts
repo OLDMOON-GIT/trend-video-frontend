@@ -337,15 +337,16 @@ export async function POST(request: NextRequest) {
         addLog(taskId, `✅ 프롬프트에 제목 포함: ${prompt.includes(title) ? 'Yes' : 'No'}`);
 
         // 실행할 명령어 구성 (backend의 ai_aggregator 모듈 사용)
-        // --headless: 브라우저를 숨김 모드로 실행 (백그라운드)
-        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close', '--headless'];
+        // headless 제거: 로그인 필요 시 브라우저가 표시되어야 함
+        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close'];
         const commandStr = `python ${pythonArgs.join(' ')}`;
 
         addLog(taskId, '📌 Python 스크립트 실행 시작');
         addLog(taskId, `💻 실행 명령어: ${commandStr}`);
         addLog(taskId, `📂 작업 디렉토리: ${backendPath}`);
         addLog(taskId, '🌐 브라우저 자동화로 Claude.ai 웹사이트 접속 중...');
-        addLog(taskId, '👁️ Headless 모드 (백그라운드 실행, 브라우저 숨김)');
+        addLog(taskId, '👁️ 브라우저가 표시됩니다 (로그인 필요 시 수동 로그인 가능)');
+        addLog(taskId, '💡 이미 로그인되어 있으면 자동으로 진행됩니다');
         addLog(taskId, '⏱️ 1-2분 소요 예상');
 
         console.log(`\n${'='.repeat(80)}`);
@@ -573,11 +574,13 @@ export async function POST(request: NextRequest) {
                             stdout.includes('Login page detected') ||
                             stdout.includes('login required');
 
-        // 로그인 에러 감지 시 headful 모드로 재시도
+        // 로그인 에러 감지 시 안내 메시지
         if (isLoginError) {
-          addLog(taskId, '🔐 로그인 필요 감지! 브라우저 창을 열어 로그인할 수 있도록 재시도합니다...');
+          addLog(taskId, '🔐 로그인 필요 감지!');
+          addLog(taskId, '⚠️ 브라우저 창에서 Claude.ai에 로그인해주세요');
+          addLog(taskId, '💡 로그인 후에는 자동으로 처리됩니다');
           console.log(`\n${'='.repeat(80)}`);
-          console.log('🔐 로그인 에러 감지 - Headful 모드로 재실행');
+          console.log('🔐 로그인 필요 - 사용자가 브라우저에서 로그인해야 함');
           console.log(`${'='.repeat(80)}\n`);
 
           try {
