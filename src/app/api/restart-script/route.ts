@@ -40,15 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 실패한 대본만 재시작 가능
-    if (script.status !== 'failed') {
-      return NextResponse.json(
-        { error: '실패한 대본만 재시작할 수 있습니다.' },
-        { status: 400 }
-      );
-    }
-
-    console.log(`🔄 대본 재시작 요청: ${scriptId} by ${user.email}`);
+    console.log(`🔄 대본 재시작 요청: ${scriptId} (${script.status}) by ${user.email}`);
 
     // 크레딧 설정 가져오기
     const settings = await getSettings();

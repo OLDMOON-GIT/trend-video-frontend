@@ -46,15 +46,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 실패한 작업만 재시작 가능
-    if (job.status !== 'failed') {
-      return NextResponse.json(
-        { error: '실패한 작업만 재시작할 수 있습니다.' },
-        { status: 400 }
-      );
-    }
-
-    console.log(`🔄 작업 재시작 요청: ${jobId} by ${user.email}`);
+    console.log(`🔄 작업 재시작 요청: ${jobId} (${job.status}) by ${user.email}`);
 
     // 크레딧 설정 가져오기
     const settings = await getSettings();
