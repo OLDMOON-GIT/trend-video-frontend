@@ -83,7 +83,10 @@ export async function POST(request: NextRequest) {
     console.log('📷 정렬된 이미지 순서 (생성 시간 오래된 순):');
     imageFiles.forEach((f, i) => {
       const sceneNum = i === 0 ? '씬 0 (폭탄)' : i === imageFiles.length - 1 ? '씬 마지막 (구독)' : `씬 ${i}`;
-      console.log(`  ${sceneNum}: ${f.name} (생성: ${new Date(f.lastModified).toISOString()})`);
+      const timestamp = new Date(f.lastModified);
+      const ms = f.lastModified % 1000; // 밀리초 추출
+      console.log(`  ${sceneNum}: ${f.name}`);
+      console.log(`    └─ 생성: ${timestamp.toISOString()} (timestamp: ${f.lastModified}, ms: ${ms})`);
     });
 
     // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
@@ -222,7 +225,10 @@ async function generateVideoFromUpload(
         );
 
         const sceneLabel = i === 0 ? '씬 0 (폭탄)' : i === config.imageFiles.length - 1 ? '씬 마지막' : `씬 ${i}`;
+        const timestamp = new Date(imgFile.lastModified);
+        const ms = imgFile.lastModified % 1000;
         await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name}`);
+        await addJobLog(jobId, `    └─ 생성: ${timestamp.toISOString()} (timestamp: ${imgFile.lastModified}, ms: ${ms})`);
       }
     } else if (config.imageSource === 'google') {
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
