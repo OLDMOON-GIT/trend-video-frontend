@@ -2196,12 +2196,17 @@ export default function Home() {
                           • 숫자가 없으면 생성/수정 시간 순서대로 병합 (오래된 것부터)
                         </p>
                       </div>
-                      <label className="cursor-pointer rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-purple-500 hover:to-orange-500 inline-block">
+                      <label className={`rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition inline-block ${
+                        isGeneratingVideo
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'cursor-pointer hover:from-purple-500 hover:to-orange-500'
+                      }`}>
                         파일 선택
                         <input
                           type="file"
                           multiple
                           accept=".json,.txt,video/*"
+                          disabled={isGeneratingVideo}
                           onChange={(e) => {
                             const files = Array.from(e.target.files || []);
 
@@ -2511,12 +2516,17 @@ export default function Home() {
                     </div>
                   )}
 
-                  <label className="cursor-pointer rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500">
+                  <label className={`rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition ${
+                    isGeneratingVideo
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'cursor-pointer hover:bg-purple-500'
+                  }`}>
                     파일 선택
                     <input
                       type="file"
                       multiple
                       accept=".json,.txt,image/*"
+                      disabled={isGeneratingVideo}
                       onChange={(e) => {
                         const files = Array.from(e.target.files || []);
                         const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
@@ -2717,11 +2727,16 @@ export default function Home() {
                     <div className="text-4xl">📄</div>
                     <p className="text-sm text-slate-300">JSON 또는 TXT 파일을 드래그하거나 선택하세요</p>
                     <p className="text-xs text-purple-400">💡 JSON을 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능</p>
-                    <label className="cursor-pointer rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 inline-block">
+                    <label className={`rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition inline-block ${
+                      isGeneratingVideo
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'cursor-pointer hover:bg-purple-500'
+                    }`}>
                       파일 선택
                       <input
                         type="file"
                         accept=".json,.txt"
+                        disabled={isGeneratingVideo}
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt'))) {

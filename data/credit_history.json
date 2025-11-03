@@ -901,5 +901,14 @@
     "balance": 200128640,
     "description": "영상 생성",
     "createdAt": "2025-11-03T16:59:58.503Z"
+  },
+  {
+    "id": "01338b33-38e9-4f56-a454-c4fa1f353a4f",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200128490,
+    "description": "영상 생성",
+    "createdAt": "2025-11-03T18:58:49.882Z"
   }
 ]

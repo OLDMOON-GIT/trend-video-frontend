@@ -117,6 +117,13 @@ export default function MyContentPage() {
     confirmColor?: string;
   } | null>(null);
 
+  // 대본 변환 모달 상태
+  const [conversionModal, setConversionModal] = useState<{
+    scriptId: string;
+    title: string;
+    options: { value: string; label: string }[];
+  } | null>(null);
+
   // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
   const getAuthHeaders = (): HeadersInit => {
     return {}; // 빈 객체 반환 (쿠키가 자동으로 전송됨)
@@ -713,7 +720,7 @@ export default function MyContentPage() {
   };
 
   // 대본 변환 함수
-  const handleConvertScript = async (scriptId: string, currentType: string, title: string) => {
+  const handleConvertScript = (scriptId: string, currentType: string, title: string) => {
     console.log('🔄 대본 변환 버튼 클릭됨, scriptId:', scriptId, 'currentType:', currentType);
 
     // 변환 가능한 타입 결정
@@ -727,34 +734,26 @@ export default function MyContentPage() {
     } else if (currentType === 'shortform') {
       conversionOptions.push({ value: 'sora2', label: 'SORA2 (30초)' });
     } else {
-      alert('이 대본은 변환할 수 없습니다.');
+      toast.error('이 대본은 변환할 수 없습니다.');
       return;
     }
 
-    // 변환 타입 선택
-    const targetFormat = await new Promise<string | null>((resolve) => {
-      const message = `"${title}"을(를) 어떤 형식으로 변환하시겠습니까?\n\n` +
-        conversionOptions.map((opt, idx) => `${idx + 1}. ${opt.label}`).join('\n');
-
-      const choice = prompt(message + '\n\n번호를 입력하세요:');
-
-      if (!choice) {
-        resolve(null);
-        return;
-      }
-
-      const index = parseInt(choice) - 1;
-      if (index >= 0 && index < conversionOptions.length) {
-        resolve(conversionOptions[index].value);
-      } else {
-        alert('잘못된 선택입니다.');
-        resolve(null);
-      }
+    // 변환 모달 열기
+    setConversionModal({
+      scriptId,
+      title,
+      options: conversionOptions
     });
+  };
 
-    if (!targetFormat) {
-      return;
-    }
+  // 대본 변환 실행
+  const executeConversion = async (targetFormat: string) => {
+    if (!conversionModal) return;
+
+    const { scriptId } = conversionModal;
+
+    // 모달 닫기
+    setConversionModal(null);
 
     try {
       const response = await fetch('/api/convert-script', {
@@ -2719,6 +2718,46 @@ export default function MyContentPage() {
                   setModalConfig(null);
                 }}
                 className="flex-1 rounded-lg bg-slate-700 px-6 py-3 font-semibold text-white transition hover:bg-slate-600"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 대본 변환 모달 */}
+      {conversionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-slate-800 shadow-2xl">
+            <div className="border-b border-slate-700 p-6">
+              <h2 className="text-xl font-bold text-white">대본 변환</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                "{conversionModal.title}"을(를) 어떤 형식으로 변환하시겠습니까?
+              </p>
+            </div>
+
+            <div className="p-6 space-y-3">
+              {conversionModal.options.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => executeConversion(option.value)}
+                  className="w-full rounded-lg bg-purple-600 px-6 py-4 text-left font-semibold text-white transition hover:bg-purple-700"
+                >
+                  <div className="flex items-center justify-between">
+                    <span>{option.label}</span>
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-700 p-6">
+              <button
+                onClick={() => setConversionModal(null)}
+                className="w-full rounded-lg bg-slate-700 px-6 py-3 font-semibold text-white transition hover:bg-slate-600"
               >
                 취소
               </button>

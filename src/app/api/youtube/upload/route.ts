@@ -112,17 +112,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const python = spawn('python', args);
 
       let output = '';
+      let errorOutput = '';
+
       python.stdout.on('data', (data) => {
         output += data.toString();
       });
 
-      python.on('close', () => {
+      python.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+        console.error('🔴 Python stderr:', data.toString());
+      });
+
+      python.on('close', (code) => {
         // 메타데이터 파일 삭제
         try {
           if (fs.existsSync(metadataPath)) {
             fs.unlinkSync(metadataPath);
           }
         } catch {}
+
+        console.log('🐍 Python 종료 코드:', code);
+        console.log('📤 Python stdout:', output);
+        if (errorOutput) {
+          console.error('📤 Python stderr:', errorOutput);
+        }
 
         try {
           const result = JSON.parse(output.trim());
@@ -135,8 +148,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           } else {
             resolve(NextResponse.json({ error: result.error || '업로드 실패' }, { status: 500 }));
           }
-        } catch {
-          resolve(NextResponse.json({ error: '업로드 프로세스 오류' }, { status: 500 }));
+        } catch (parseError) {
+          console.error('❌ JSON 파싱 실패:', parseError);
+          console.error('❌ 원본 출력:', output);
+          resolve(NextResponse.json({
+            error: '업로드 프로세스 오류',
+            details: errorOutput || output || 'No output',
+            exitCode: code
+          }, { status: 500 }));
         }
       });
     });
