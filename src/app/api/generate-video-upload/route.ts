@@ -83,10 +83,9 @@ export async function POST(request: NextRequest) {
     console.log('📷 정렬된 이미지 순서 (생성 시간 오래된 순):');
     imageFiles.forEach((f, i) => {
       const sceneNum = i === 0 ? '씬 0 (폭탄)' : i === imageFiles.length - 1 ? '씬 마지막 (구독)' : `씬 ${i}`;
-      const timestamp = new Date(f.lastModified);
-      const ms = f.lastModified % 1000; // 밀리초 추출
-      console.log(`  ${sceneNum}: ${f.name}`);
-      console.log(`    └─ 생성: ${timestamp.toISOString()} (timestamp: ${f.lastModified}, ms: ${ms})`);
+      const date = new Date(f.lastModified);
+      const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${String(date.getMilliseconds()).padStart(3,'0')}`;
+      console.log(`  ${sceneNum}: ${f.name} → 생성: ${timeStr}`);
     });
 
     // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
@@ -225,10 +224,9 @@ async function generateVideoFromUpload(
         );
 
         const sceneLabel = i === 0 ? '씬 0 (폭탄)' : i === config.imageFiles.length - 1 ? '씬 마지막' : `씬 ${i}`;
-        const timestamp = new Date(imgFile.lastModified);
-        const ms = imgFile.lastModified % 1000;
-        await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name}`);
-        await addJobLog(jobId, `    └─ 생성: ${timestamp.toISOString()} (timestamp: ${imgFile.lastModified}, ms: ${ms})`);
+        const date = new Date(imgFile.lastModified);
+        const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${String(date.getMilliseconds()).padStart(3,'0')}`;
+        await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name} → 생성: ${timeStr}`);
       }
     } else if (config.imageSource === 'google') {
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
