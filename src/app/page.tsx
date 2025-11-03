@@ -4387,6 +4387,9 @@ export default function Home() {
         </div>
       )}
 
+        </div>
+      </div>
+
       {/* Toast 알림 */}
       {toast && (
         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-2">
@@ -4420,8 +4423,6 @@ export default function Home() {
           </div>
         </div>
       )}
-        </div>
-      </div>
     </>
   );
 }
