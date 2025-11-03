@@ -71,6 +71,21 @@ export async function POST(request: NextRequest) {
       if (img) imageFiles.push(img);
     }
 
+    // 이미지 파일 정렬: 생성 시간이 오래된 순서대로 (가장 오래된 것이 씬 0)
+    // ⚠️ 중요: 이 정렬 로직은 모든 이미지/영상 업로드 API에서 동일하게 적용되어야 함!
+    imageFiles.sort((a, b) => {
+      // lastModified 시간으로 정렬 (오래된 순 = 작은 값이 먼저)
+      // → 가장 먼저 다운로드된 이미지가 씬 0
+      // → 마지막에 다운로드된 이미지가 씬 마지막
+      return a.lastModified - b.lastModified;
+    });
+
+    console.log('📷 정렬된 이미지 순서 (생성 시간 오래된 순):');
+    imageFiles.forEach((f, i) => {
+      const sceneNum = i === 0 ? '씬 0 (폭탄)' : i === imageFiles.length - 1 ? '씬 마지막 (구독)' : `씬 ${i}`;
+      console.log(`  ${sceneNum}: ${f.name} (생성: ${new Date(f.lastModified).toISOString()})`);
+    });
+
     // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
     if (videoFormat !== 'sora2' && imageSource === 'none' && imageFiles.length === 0) {
       return NextResponse.json(
@@ -192,7 +207,8 @@ async function generateVideoFromUpload(
         step: '이미지 저장 중...'
       });
 
-      await addJobLog(jobId, `\n📷 이미지 ${config.imageFiles.length}개를 순서대로 저장 (씬 1부터)`);
+      await addJobLog(jobId, `\n📷 이미지 ${config.imageFiles.length}개를 생성 시간 순서대로 저장`);
+      await addJobLog(jobId, `⏰ 정렬 기준: 생성 시간이 가장 오래된 것 → 씬 0 (폭탄 씬)`);
 
       for (let i = 0; i < config.imageFiles.length; i++) {
         const imgFile = config.imageFiles[i];
@@ -205,7 +221,8 @@ async function generateVideoFromUpload(
           imgBuffer
         );
 
-        await addJobLog(jobId, `  씬 ${i + 1}: ${imgFile.name}`);
+        const sceneLabel = i === 0 ? '씬 0 (폭탄)' : i === config.imageFiles.length - 1 ? '씬 마지막' : `씬 ${i}`;
+        await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name}`);
       }
     } else if (config.imageSource === 'google') {
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
