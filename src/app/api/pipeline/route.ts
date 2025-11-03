@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   for (const video of videos) {
     const videoId = extractVideoId(video.videoUrl ?? "");
     const transcript = videoId ? await fetchTranscript(videoId) : null;
-    const generation = generateNarrative({ video, transcript, model });
+    const generation = generateNarrative({ video: video as any, transcript, model });
 
     results.push({
       id: video.id,
@@ -141,7 +141,7 @@ function generateNarrative({
   transcript,
   model,
 }: {
-  video: PipelineRequest["videos"] extends Array<infer V> ? V : never;
+  video: any;
   transcript: string | null;
   model: PipelineModel;
 }) {

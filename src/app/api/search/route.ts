@@ -146,7 +146,7 @@ export async function POST(request: Request) {
             : formatDuration(item.contentDetails?.duration);
 
         return {
-          id: item.id ?? snippet.title,
+          id: item.id ?? snippet.title ?? 'unknown',
           title: snippet.title ?? "Untitled video",
           thumbnailUrl:
             snippet.thumbnails?.medium?.url ||
@@ -204,6 +204,7 @@ type YoutubeSnippet = {
   publishedAt?: string;
   channelId?: string;
   channelTitle?: string;
+  categoryId?: string;
   liveBroadcastContent?: string;
   thumbnails?: {
     default?: { url?: string };

@@ -42,8 +42,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'videoPath와 title은 필수입니다' }, { status: 400 });
     }
 
-    const fullVideoPath = path.join(BACKEND_PATH, videoPath);
+    // 사용할 채널 결정
+    let selectedChannel;
+    if (channelId) {
+      // 특정 채널 ID가 제공된 경우
+      selectedChannel = await getYouTubeChannelById(channelId);
+      if (!selectedChannel || selectedChannel.userId !== user.userId) {
+        return NextResponse.json({ error: '유효하지 않은 채널입니다' }, { status: 403 });
+      }
+    } else {
+      // channelId가 없으면 기본 채널 사용
+      selectedChannel = await getDefaultYouTubeChannel(user.userId);
+      if (!selectedChannel) {
+        return NextResponse.json({ error: 'YouTube 채널이 연결되지 않았습니다' }, { status: 400 });
+      }
+    }
+
+    // videoPath가 절대 경로인지 확인
+    const fullVideoPath = path.isAbsolute(videoPath) ? videoPath : path.join(BACKEND_PATH, videoPath);
+
+    console.log('📹 비디오 경로 확인:', { videoPath, fullVideoPath, exists: fs.existsSync(fullVideoPath) });
+
     if (!fs.existsSync(fullVideoPath)) {
+      console.error('❌ 비디오 파일을 찾을 수 없음:', fullVideoPath);
       return NextResponse.json({ error: '비디오 파일을 찾을 수 없습니다' }, { status: 404 });
     }
 
@@ -59,12 +80,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const metadataPath = path.join(CREDENTIALS_DIR, `youtube_metadata_${Date.now()}.json`);
     fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
-    const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}.json`);
-
     // 업로드 실행
     return new Promise((resolve) => {
       const credentialsPath = COMMON_CREDENTIALS_PATH;
-    const tokenPath = getUserTokenPath(user.userId);
+      const tokenPath = path.join(CREDENTIALS_DIR, selectedChannel.tokenFile);
 
       const args = [
         YOUTUBE_CLI,
@@ -76,7 +95,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ];
 
       if (thumbnailPath) {
-        const fullThumbnailPath = path.join(BACKEND_PATH, thumbnailPath);
+        const fullThumbnailPath = path.isAbsolute(thumbnailPath) ? thumbnailPath : path.join(BACKEND_PATH, thumbnailPath);
+        console.log('🖼️ 썸네일 경로 확인:', { thumbnailPath, fullThumbnailPath, exists: fs.existsSync(fullThumbnailPath) });
         if (fs.existsSync(fullThumbnailPath)) {
           args.push('--thumbnail', fullThumbnailPath);
         }

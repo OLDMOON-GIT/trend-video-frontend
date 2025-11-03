@@ -215,7 +215,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     // 로그 플러시
-    await flushJobLogs(jobId);
+    await flushJobLogs();
 
     // 로그 추가
     await addJobLog(jobId, '\n\n🛑 사용자가 작업을 취소했습니다.');

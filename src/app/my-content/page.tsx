@@ -313,20 +313,16 @@ export default function MyContentPage() {
 
   // ===== 대본 관련 함수 =====
   const fetchScripts = async () => {
-    console.log('📥 대본 목록 가져오기 시작...');
     setIsLoadingScripts(true);
     try {
       const response = await fetch('/api/my-scripts', {
         headers: getAuthHeaders(),
         credentials: 'include'
       });
-      console.log('응답 상태:', response.status, response.statusText);
 
       const data = await response.json();
-      console.log('응답 데이터:', data);
 
       if (response.ok) {
-        console.log('✅ 대본 설정:', data.scripts.length, '개');
         setScripts(data.scripts);
       } else {
         console.error('❌ 대본 가져오기 실패:', data.error);
@@ -386,9 +382,7 @@ export default function MyContentPage() {
             credentials: 'include'
           });
 
-          console.log('📡 DELETE 응답:', response.status);
           const data = await response.json();
-          console.log('📦 응답 데이터:', data);
 
           if (response.ok) {
             toast.success('대본 생성이 취소되었습니다.');
@@ -594,7 +588,7 @@ export default function MyContentPage() {
               'Content-Type': 'application/json'
             },
             credentials: 'include',
-            body: JSON.stringify({ scriptId })
+            body: JSON.stringify({ scriptId, title })
           });
 
           const data = await response.json();
@@ -626,14 +620,36 @@ export default function MyContentPage() {
         toast.error('복사할 대본 내용이 없습니다.');
         return;
       }
-      await navigator.clipboard.writeText(content);
-      toast.success('대본이 클립보드에 복사되었습니다!');
+
+      // Clipboard API 사용 가능 여부 확인
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(content);
+        toast.success('대본이 클립보드에 복사되었습니다!');
+      } else {
+        // 폴백: document.execCommand 사용
+        const textarea = document.createElement('textarea');
+        textarea.value = content;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+
+        if (successful) {
+          toast.success('대본이 클립보드에 복사되었습니다!');
+        } else {
+          throw new Error('복사 실패');
+        }
+      }
     } catch (error) {
       console.error('Copy error:', error);
-      // 클립보드 권한이 없을 때 폴백
+      // 폴백도 실패한 경우
       try {
         const textarea = document.createElement('textarea');
         textarea.value = content;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
         document.body.appendChild(textarea);
         textarea.select();
         document.execCommand('copy');
@@ -1405,7 +1421,7 @@ export default function MyContentPage() {
                         // 대본 아이템 - 수평 레이아웃
                         <div className="flex flex-col md:flex-row gap-4 p-4">
                           {/* 아이콘 영역 - 왼쪽 */}
-                          <div className="relative w-full md:w-64 flex-shrink-0 aspect-video bg-slate-800/50 rounded-lg overflow-hidden flex items-center justify-center">
+                          <div className="relative w-full md:w-64 h-36 flex-shrink-0 bg-slate-800/50 rounded-lg overflow-hidden flex items-center justify-center">
                             <span className="text-6xl">📝</span>
                             {/* 타입 배지 */}
                             {item.data.type && (
@@ -1899,7 +1915,7 @@ export default function MyContentPage() {
                   >
                     <div className="flex flex-col md:flex-row gap-4 p-4">
                       {/* 아이콘 영역 - 왼쪽 */}
-                      <div className="relative w-full md:w-64 flex-shrink-0 aspect-video bg-slate-800/50 rounded-lg overflow-hidden flex items-center justify-center">
+                      <div className="relative w-full md:w-64 h-36 flex-shrink-0 bg-slate-800/50 rounded-lg overflow-hidden flex items-center justify-center">
                         <span className="text-6xl">📝</span>
                         {/* 타입 배지 */}
                         {script.type && (

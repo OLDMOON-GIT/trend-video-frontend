@@ -193,13 +193,12 @@ export async function POST(request: NextRequest) {
     console.log(`✅ Job 생성 완료: ${jobId}`);
 
     // 크레딧 히스토리 추가
-    await addCreditHistory({
-      userId: user.userId,
-      amount: -cost,
-      type: 'deduct',
-      description: `비디오 병합 생성 (${videoFiles.length}개 비디오)`,
-      relatedJobId: jobId
-    });
+    await addCreditHistory(
+      user.userId,
+      'use',
+      cost,
+      `비디오 병합 생성 (${videoFiles.length}개 비디오)`
+    );
 
     await addJobLog(jobId, `\n🎞️ 비디오 병합 시작\n📊 입력: ${videoFiles.length}개 비디오\n${narrationText ? '🎙️ TTS 나레이션: 있음\n' : ''}${addSubtitles && narrationText ? '📝 자막: 추가됨\n' : ''}${removeWatermark ? '🧹 워터마크 제거: 활성화\n' : ''}`);
 
@@ -271,7 +270,7 @@ export async function POST(request: NextRequest) {
       // 5초마다 로그 플러시
       const now = Date.now();
       if (now - lastLogFlush > 5000) {
-        await flushJobLogs(jobId);
+        await flushJobLogs();
         lastLogFlush = now;
       }
     });
@@ -284,7 +283,7 @@ export async function POST(request: NextRequest) {
 
     pythonProcess.on('close', async (code) => {
       runningProcesses.delete(jobId);
-      await flushJobLogs(jobId);
+      await flushJobLogs();
 
       console.log(`Python 프로세스 종료 (코드: ${code})`);
       console.log('stdout:', stdoutBuffer);
@@ -304,8 +303,7 @@ export async function POST(request: NextRequest) {
             await updateJob(jobId, {
               status: 'completed',
               progress: 100,
-              videoPath: videoPath,
-              completedAt: new Date()
+              videoPath: videoPath
             });
           } else {
             throw new Error('Python 스크립트 결과를 파싱할 수 없습니다.');
@@ -339,8 +337,7 @@ export async function POST(request: NextRequest) {
     // Job 시작으로 업데이트
     await updateJob(jobId, {
       status: 'processing',
-      progress: 10,
-      startedAt: new Date()
+      progress: 10
     });
 
     return NextResponse.json({

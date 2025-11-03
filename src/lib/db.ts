@@ -89,6 +89,7 @@ export interface Script {
   createdAt: string;
   updatedAt: string;
   type?: 'longform' | 'shortform' | 'sora2'; // 대본 타입
+  useClaudeLocal?: boolean; // 로컬 Claude 사용 여부 (true: 로컬, false/undefined: API)
 }
 
 // 비밀번호 해시
@@ -416,6 +417,7 @@ export async function flushJobLogs(): Promise<void> {
 export interface CreditSettings {
   aiScriptCost: number; // AI 대본 생성 비용
   videoGenerationCost: number; // 영상 생성 비용
+  scriptGenerationCost?: number; // 대본 재생성 비용 (선택적)
 }
 
 // 크레딧 히스토리 타입

@@ -11,6 +11,13 @@ interface YouTubeUploadButtonProps {
   jobId: string;
 }
 
+interface YouTubeChannel {
+  id: string;
+  channelId: string;
+  channelTitle: string;
+  isDefault: boolean;
+}
+
 export default function YouTubeUploadButton({
   videoPath,
   thumbnailPath,
@@ -24,18 +31,50 @@ export default function YouTubeUploadButton({
   const [tags, setTags] = useState('');
   const [privacy, setPrivacy] = useState<'public' | 'unlisted' | 'private'>('public');
   const [mounted, setMounted] = useState(false);
+  const [channels, setChannels] = useState<YouTubeChannel[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('');
+  const [loadingChannels, setLoadingChannels] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const handleUploadClick = () => {
+  const loadChannels = async () => {
+    try {
+      setLoadingChannels(true);
+      const res = await fetch('/api/youtube/channels');
+      if (res.ok) {
+        const data = await res.json();
+        setChannels(data.channels || []);
+
+        // 기본 채널 자동 선택
+        const defaultChannel = data.channels?.find((ch: YouTubeChannel) => ch.isDefault);
+        if (defaultChannel) {
+          setSelectedChannelId(defaultChannel.id);
+        } else if (data.channels?.length > 0) {
+          setSelectedChannelId(data.channels[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('채널 목록 로딩 실패:', error);
+    } finally {
+      setLoadingChannels(false);
+    }
+  };
+
+  const handleUploadClick = async () => {
     setShowModal(true);
+    await loadChannels();
   };
 
   const handleUpload = async () => {
     if (!title.trim()) {
       toast.error('제목을 입력해주세요');
+      return;
+    }
+
+    if (!selectedChannelId) {
+      toast.error('YouTube 채널을 선택해주세요');
       return;
     }
 
@@ -54,7 +93,8 @@ export default function YouTubeUploadButton({
           title,
           description,
           tags: tagList,
-          privacy
+          privacy,
+          channelId: selectedChannelId
         })
       });
 
@@ -96,6 +136,34 @@ export default function YouTubeUploadButton({
             </div>
 
             <div className="p-6 space-y-4">
+              {/* YouTube 채널 선택 */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  YouTube 채널 *
+                </label>
+                {loadingChannels ? (
+                  <div className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-slate-400">
+                    채널 목록 로딩 중...
+                  </div>
+                ) : channels.length === 0 ? (
+                  <div className="w-full px-4 py-2 bg-slate-900/50 border border-red-500/50 rounded-lg text-red-400">
+                    연결된 YouTube 채널이 없습니다. 설정에서 채널을 연결해주세요.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedChannelId}
+                    onChange={(e) => setSelectedChannelId(e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    {channels.map((channel) => (
+                      <option key={channel.id} value={channel.id}>
+                        {channel.channelTitle} {channel.isDefault ? '(기본)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   제목 *

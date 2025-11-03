@@ -22,7 +22,7 @@ async function getShortFormPrompt(): Promise<string> {
     const files = await fs.readdir(promptsPath);
 
     // prompt_shortform.txt 또는 prompt.txt 검색
-    let promptFile = files.find(file => file === 'prompt_shortform.txt');
+    let promptFile: string | undefined = files.find(file => file === 'prompt_shortform.txt');
     if (!promptFile) {
       promptFile = files.find(file => file === 'prompt.txt');
     }
@@ -319,6 +319,10 @@ export async function POST(request: NextRequest) {
 
     // 비동기로 실행
     setTimeout(async () => {
+      let stdout = '';
+      let stderr = '';
+      let promptFileName = '';
+      let promptFilePath = '';
       try {
         addLog(taskId, '작업 시작됨');
 
@@ -339,8 +343,8 @@ export async function POST(request: NextRequest) {
         db2.close();
 
         // 프롬프트를 임시 파일로 저장 (명령줄 길이 제한 및 특수문자 문제 회피)
-        const promptFileName = `prompt_${Date.now()}.txt`;
-        const promptFilePath = path.join(backendPath, promptFileName);
+        promptFileName = `prompt_${Date.now()}.txt`;
+        promptFilePath = path.join(backendPath, promptFileName);
 
         const fsSync = require('fs');
         fsSync.writeFileSync(promptFilePath, prompt, 'utf-8');
@@ -393,9 +397,6 @@ export async function POST(request: NextRequest) {
           addLog(taskId, `🔢 프로세스 PID: ${pythonProcess.pid}`);
           console.log(`✅ PID 저장됨: ${pythonProcess.pid} for task ${taskId}`);
         }
-
-        let stdout = '';
-        let stderr = '';
 
         // stdout 버퍼 (부분적인 줄 처리용)
         let stdoutBuffer = '';
@@ -701,6 +702,7 @@ export async function POST(request: NextRequest) {
 
         // 에러 발생 시에도 프롬프트 파일 정리
         try {
+          const fsSync = require('fs');
           if (promptFilePath && fsSync.existsSync(promptFilePath)) {
             fsSync.unlinkSync(promptFilePath);
             console.log('프롬프트 파일 정리 완료 (에러 후)');
