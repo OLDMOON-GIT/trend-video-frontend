@@ -7,21 +7,14 @@ import fs from 'fs';
 const BACKEND_PATH = path.join(process.cwd(), '..', 'trend-video-backend');
 const YOUTUBE_CLI = path.join(BACKEND_PATH, 'youtube_upload_cli.py');
 const CREDENTIALS_DIR = path.join(BACKEND_PATH, 'config');
-const CREDENTIALS_FILE = path.join(CREDENTIALS_DIR, 'youtube_client_secret.json');
+
+// 사용자별 credentials 파일 경로 생성
+function getUserCredentialsPath(userId: string): string {
+  return path.join(CREDENTIALS_DIR, `youtube_client_secret_${userId}.json`);
+}
 
 /**
  * POST /api/youtube/upload - 비디오 업로드
- *
- * Body:
- * {
- *   "videoPath": "path/to/video.mp4",
- *   "title": "제목",
- *   "description": "설명",
- *   "tags": ["태그1", "태그2"],
- *   "privacy": "unlisted" | "public" | "private",
- *   "thumbnailPath": "path/to/thumbnail.jpg" (optional),
- *   "captionsPath": "path/to/captions.srt" (optional)
- * }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -30,7 +23,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    // 요청 데이터 파싱
     const body = await request.json();
     const {
       videoPath,
@@ -44,19 +36,13 @@ export async function POST(request: NextRequest) {
       publishAt
     } = body;
 
-    // 필수 파라미터 검증
     if (!videoPath || !title) {
-      return NextResponse.json({
-        error: 'videoPath와 title은 필수입니다'
-      }, { status: 400 });
+      return NextResponse.json({ error: 'videoPath와 title은 필수입니다' }, { status: 400 });
     }
 
-    // 비디오 파일 존재 확인
     const fullVideoPath = path.join(BACKEND_PATH, videoPath);
     if (!fs.existsSync(fullVideoPath)) {
-      return NextResponse.json({
-        error: '비디오 파일을 찾을 수 없습니다'
-      }, { status: 404 });
+      return NextResponse.json({ error: '비디오 파일을 찾을 수 없습니다' }, { status: 404 });
     }
 
     // 메타데이터 JSON 생성
@@ -71,7 +57,6 @@ export async function POST(request: NextRequest) {
     const metadataPath = path.join(CREDENTIALS_DIR, `youtube_metadata_${Date.now()}.json`);
     fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
-    // 토큰 파일 경로
     const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}.json`);
 
     // 업로드 실행
@@ -79,7 +64,7 @@ export async function POST(request: NextRequest) {
       const args = [
         YOUTUBE_CLI,
         '--action', 'upload',
-        '--credentials', CREDENTIALS_FILE,
+        '--credentials', getUserCredentialsPath(user.userId),
         '--token', tokenPath,
         '--video', fullVideoPath,
         '--metadata', metadataPath
@@ -102,27 +87,17 @@ export async function POST(request: NextRequest) {
       const python = spawn('python', args);
 
       let output = '';
-      let errorOutput = '';
-
       python.stdout.on('data', (data) => {
         output += data.toString();
-        console.log('[YouTube Upload]', data.toString());
       });
 
-      python.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-        console.error('[YouTube Upload] stderr:', data.toString());
-      });
-
-      python.on('close', (code) => {
+      python.on('close', () => {
         // 메타데이터 파일 삭제
         try {
           if (fs.existsSync(metadataPath)) {
             fs.unlinkSync(metadataPath);
           }
-        } catch (e) {
-          console.error('[YouTube Upload] 메타데이터 파일 삭제 실패:', e);
-        }
+        } catch {}
 
         try {
           const result = JSON.parse(output.trim());
@@ -133,23 +108,15 @@ export async function POST(request: NextRequest) {
               videoUrl: result.video_url
             }));
           } else {
-            resolve(NextResponse.json({
-              error: result.error || '업로드 실패'
-            }, { status: 500 }));
+            resolve(NextResponse.json({ error: result.error || '업로드 실패' }, { status: 500 }));
           }
-        } catch (e) {
-          resolve(NextResponse.json({
-            error: '업로드 프로세스 오류: ' + errorOutput
-          }, { status: 500 }));
+        } catch {
+          resolve(NextResponse.json({ error: '업로드 프로세스 오류' }, { status: 500 }));
         }
       });
     });
 
   } catch (error: any) {
-    console.error('[YouTube Upload] Error:', error);
-    return NextResponse.json(
-      { error: 'YouTube 업로드 실패' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'YouTube 업로드 실패' }, { status: 500 });
   }
 }

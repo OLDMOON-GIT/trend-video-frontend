@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
+import YouTubeUploadButton from '@/components/YouTubeUploadButton';
 
 interface Script {
   id: string;
@@ -38,12 +39,36 @@ interface Job {
   logs?: string[];
 }
 
-type TabType = 'all' | 'videos' | 'scripts';
+type TabType = 'all' | 'videos' | 'scripts' | 'published' | 'settings';
+
+interface YouTubeChannel {
+  id: string;
+  title: string;
+  description: string;
+  customUrl?: string;
+  thumbnails: {
+    default: { url: string };
+    medium: { url: string };
+    high: { url: string };
+  };
+  subscriberCount: string;
+  videoCount: string;
+  viewCount: string;
+}
 
 export default function MyContentPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [user, setUser] = useState<{ id: string; email: string; isAdmin?: boolean } | null>(null);
+
+  // URL 파라미터에서 탭 읽기
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab') as TabType;
+    if (tab && ['all', 'videos', 'scripts', 'published', 'settings'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
 
   // Scripts state
   const [scripts, setScripts] = useState<Script[]>([]);
@@ -68,6 +93,11 @@ export default function MyContentPage() {
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
+
+  // YouTube state
+  const [youtubeAuthenticated, setYoutubeAuthenticated] = useState(false);
+  const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null);
+  const [isYoutubeLoading, setIsYoutubeLoading] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     title: string;
     message: string;
@@ -679,6 +709,167 @@ export default function MyContentPage() {
     );
   };
 
+  // YouTube 설정 컴포넌트
+  const YouTubeSettings = ({ authenticated, channel, isLoading, onAuthChange }: {
+    authenticated: boolean;
+    channel: YouTubeChannel | null;
+    isLoading: boolean;
+    onAuthChange: (auth: boolean, ch: YouTubeChannel | null) => void;
+  }) => {
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
+    const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+    useEffect(() => {
+      loadYouTubeAuthStatus();
+    }, []);
+
+    const loadYouTubeAuthStatus = async () => {
+      try {
+        const res = await fetch('/api/youtube/auth');
+        const data = await res.json();
+        onAuthChange(data.authenticated || false, data.channel || null);
+      } catch (error) {
+        console.error('YouTube 인증 상태 확인 실패:', error);
+      }
+    };
+
+    const handleConnect = async () => {
+      try {
+        setIsAuthenticating(true);
+        toast.loading('YouTube 연결 중...', { id: 'youtube-auth' });
+
+        const res = await fetch('/api/youtube/auth', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          toast.success('YouTube 채널 연결 성공!', { id: 'youtube-auth' });
+          await loadYouTubeAuthStatus();
+        } else {
+          throw new Error(data.error || '연결 실패');
+        }
+      } catch (error: any) {
+        toast.error(`연결 실패: ${error.message}`, { id: 'youtube-auth' });
+      } finally {
+        setIsAuthenticating(false);
+      }
+    };
+
+    const handleDisconnect = async () => {
+      if (!confirm('YouTube 채널 연결을 해제하시겠습니까?')) return;
+
+      try {
+        setIsDisconnecting(true);
+        toast.loading('연결 해제 중...', { id: 'youtube-disconnect' });
+
+        const res = await fetch('/api/youtube/auth', { method: 'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+          toast.success('연결 해제 완료', { id: 'youtube-disconnect' });
+          onAuthChange(false, null);
+        } else {
+          throw new Error(data.error || '연결 해제 실패');
+        }
+      } catch (error: any) {
+        toast.error(`연결 해제 실패: ${error.message}`, { id: 'youtube-disconnect' });
+      } finally {
+        setIsDisconnecting(false);
+      }
+    };
+
+    return (
+      <div className="p-8">
+        <h2 className="text-2xl font-bold text-white mb-6">YouTube 설정</h2>
+
+        {!authenticated ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-slate-900/50 rounded-lg">
+              <div className="w-3 h-3 bg-slate-500 rounded-full"></div>
+              <span className="text-slate-300">연결되지 않음</span>
+            </div>
+
+            <button
+              onClick={handleConnect}
+              disabled={isAuthenticating}
+              className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {isAuthenticating ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>연결 중...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                  <span>YouTube 채널 연결</span>
+                </>
+              )}
+            </button>
+
+            <p className="text-sm text-slate-400 text-center">
+              YouTube 채널을 연결하면 생성한 비디오를 바로 업로드할 수 있습니다.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-green-500/10 rounded-lg border border-green-500/30">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-green-400 font-semibold">연결됨</span>
+            </div>
+
+            {channel && (
+              <div className="p-6 bg-slate-900/50 rounded-lg border border-slate-700">
+                <div className="flex items-start gap-4">
+                  <img
+                    src={channel.thumbnails.medium.url}
+                    alt={channel.title}
+                    className="w-20 h-20 rounded-full"
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-white mb-1">{channel.title}</h3>
+                    {channel.customUrl && (
+                      <p className="text-sm text-slate-400 mb-3">@{channel.customUrl}</p>
+                    )}
+                    <div className="flex gap-6 text-sm flex-wrap">
+                      <div>
+                        <span className="text-slate-400">구독자</span>
+                        <span className="ml-2 text-white font-semibold">
+                          {parseInt(channel.subscriberCount).toLocaleString()}명
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">동영상</span>
+                        <span className="ml-2 text-white font-semibold">
+                          {parseInt(channel.videoCount).toLocaleString()}개
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">조회수</span>
+                        <span className="ml-2 text-white font-semibold">
+                          {parseInt(channel.viewCount).toLocaleString()}회
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleDisconnect}
+              disabled={isDisconnecting}
+              className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            >
+              {isDisconnecting ? '연결 해제 중...' : '연결 해제'}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', {
@@ -758,6 +949,26 @@ export default function MyContentPage() {
             }`}
           >
             📝 대본 {scripts.length > 0 && `(${scripts.length})`}
+          </button>
+          <button
+            onClick={() => setActiveTab('published')}
+            className={`rounded-lg px-6 py-3 text-sm font-semibold transition ${
+              activeTab === 'published'
+                ? 'bg-purple-600 text-white'
+                : 'bg-white/10 text-slate-300 hover:bg-white/20'
+            }`}
+          >
+            📺 퍼블리시
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`rounded-lg px-6 py-3 text-sm font-semibold transition ${
+              activeTab === 'settings'
+                ? 'bg-purple-600 text-white'
+                : 'bg-white/10 text-slate-300 hover:bg-white/20'
+            }`}
+          >
+            ⚙️ 설정
           </button>
         </div>
 
@@ -2039,14 +2250,14 @@ export default function MyContentPage() {
                             {job.logs && job.logs.length > 0 && (
                               <button
                                 onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
-                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
                               >
-                                {expandedLogJobId === job.id ? '📋 로그 닫기' : '📋 로그'}
+                                {expandedLogJobId === job.id ? '📋 닫기' : '📋 로그'}
                               </button>
                             )}
                             <button
                               onClick={() => handleCancelJob(job.id)}
-                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
                             >
                               🛑 중지
                             </button>
@@ -2054,39 +2265,45 @@ export default function MyContentPage() {
                         )}
                         {job.status === 'completed' && job.videoPath && (
                           <>
+                            <YouTubeUploadButton
+                              videoPath={job.videoPath}
+                              thumbnailPath={job.thumbnailPath}
+                              defaultTitle={job.title || ''}
+                              jobId={job.id}
+                            />
+                            <button
+                              onClick={() => handleOpenFolder(job.id)}
+                              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                              title="폴더 열기"
+                            >
+                              📁 폴더
+                            </button>
                             {job.logs && job.logs.length > 0 && (
                               <button
                                 onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
-                                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
+                                className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
                                 title="로그 보기"
                               >
-                                {expandedLogJobId === job.id ? '📋 로그 닫기' : '📋 로그 보기'} ({job.logs.length})
+                                {expandedLogJobId === job.id ? '📋 닫기' : `📋 로그 (${job.logs.length})`}
                               </button>
                             )}
                             <a
                               href={`/api/download-video?jobId=${job.id}`}
                               download
-                              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
+                              className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
                             >
-                              다운로드
+                              📥 저장
                             </a>
                             <button
-                              onClick={() => handleOpenFolder(job.id)}
-                              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
-                              title="폴더 열기"
-                            >
-                              📁 폴더
-                            </button>
-                            <button
                               onClick={() => handleRestartVideo(job.id)}
-                              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer"
+                              className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
                               title="재시도"
                             >
                               🔄 재시도
                             </button>
                             <button
                               onClick={() => handleDeleteVideo(job.id, job.title || job.id)}
-                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
                             >
                               🗑️
                             </button>
@@ -2097,24 +2314,24 @@ export default function MyContentPage() {
                             {job.logs && job.logs.length > 0 && (
                               <button
                                 onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
-                                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
+                                className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
                                 title="로그 보기"
                               >
-                                {expandedLogJobId === job.id ? '📋 로그 닫기' : '📋 로그 보기'} ({job.logs.length})
+                                {expandedLogJobId === job.id ? '📋 닫기' : `📋 로그 (${job.logs.length})`}
                               </button>
                             )}
                             <button
                               onClick={() => handleRestartVideo(job.id)}
-                              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
+                              className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
                               title="재시도"
                             >
                               🔄 재시도
                             </button>
                             <button
                               onClick={() => handleDeleteVideo(job.id, job.title || job.id)}
-                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
                             >
-                              🗑️ 삭제
+                              🗑️
                             </button>
                           </>
                         )}
@@ -2164,6 +2381,35 @@ export default function MyContentPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* 퍼블리시 탭 콘텐츠 */}
+        {activeTab === 'published' && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm">
+            <div className="text-center text-slate-400 py-12">
+              <svg className="w-16 h-16 mx-auto mb-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <p className="text-lg font-semibold mb-2">퍼블리시된 영상</p>
+              <p className="text-sm">YouTube에 업로드된 영상 목록이 여기에 표시됩니다.</p>
+              <p className="text-xs mt-2 text-slate-500">(준비 중)</p>
+            </div>
+          </div>
+        )}
+
+        {/* 설정 탭 콘텐츠 */}
+        {activeTab === 'settings' && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
+            <YouTubeSettings
+              authenticated={youtubeAuthenticated}
+              channel={youtubeChannel}
+              isLoading={isYoutubeLoading}
+              onAuthChange={(auth, ch) => {
+                setYoutubeAuthenticated(auth);
+                setYoutubeChannel(ch);
+              }}
+            />
+          </div>
         )}
       </div>
 
