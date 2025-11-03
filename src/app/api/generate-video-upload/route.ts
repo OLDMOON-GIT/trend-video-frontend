@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getCurrentUser } from '@/lib/session';
 import { createJob, updateJob, addJobLog, flushJobLogs, findJobById, getSettings, deductCredits, addCredits, addCreditHistory } from '@/lib/db';
+import { parseJsonSafely } from '@/lib/json-utils';
 
 // 실행 중인 프로세스 관리
 const runningProcesses = new Map<string, ChildProcess>();
@@ -37,23 +38,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // JSON 파일에서 제목 추출
+    // JSON 파일에서 제목 추출 (공통 파싱 함수 사용)
     let videoTitle = 'Untitled';
     try {
-      let jsonText = await jsonFile.text();
+      const jsonText = await jsonFile.text();
 
-      // 마크다운 코드 블록 제거 (```json ... ``` 형식)
-      jsonText = jsonText
-        .replace(/^```json\s*/i, '')  // 시작 부분 제거
-        .replace(/\s*```\s*$/i, '')   // 끝 부분 제거
-        .trim();
+      // parseJsonSafely로 안전하게 파싱 (AI 설명문, 코드 블록 등 자동 제거)
+      const parseResult = parseJsonSafely(jsonText, { logErrors: true });
 
-      const jsonData = JSON.parse(jsonText);
-      if (jsonData.title) {
-        videoTitle = jsonData.title;
+      if (parseResult.success && parseResult.data) {
+        if (parseResult.fixed) {
+          console.log('⚠️ JSON 자동 수정이 적용되었습니다 (제목 추출)');
+        }
+
+        const jsonData = parseResult.data;
+        if (jsonData.title) {
+          videoTitle = jsonData.title;
+          console.log('✅ JSON 제목 추출 성공:', videoTitle);
+        }
+      } else {
+        console.log('⚠️ JSON title 추출 실패, 기본 제목 사용:', parseResult.error);
       }
     } catch (error) {
-      console.log('JSON title 추출 실패, 기본 제목 사용');
+      console.log('❌ JSON title 추출 중 오류, 기본 제목 사용');
     }
 
     // 이미지 소스 확인
@@ -182,7 +189,21 @@ async function generateVideoFromUpload(
     });
 
     const jsonText = await config.jsonFile.text();
-    let jsonData = JSON.parse(jsonText.replace(/^```json\s*/i, '').replace(/\s*```\s*$/i, '').trim());
+
+    // parseJsonSafely로 안전하게 파싱 (AI 설명문, 코드 블록 등 자동 제거)
+    const parseResult = parseJsonSafely(jsonText, { logErrors: true });
+
+    if (!parseResult.success) {
+      throw new Error(`JSON 파싱 실패: ${parseResult.error}`);
+    }
+
+    let jsonData = parseResult.data;
+
+    if (parseResult.fixed) {
+      await addJobLog(jobId, '⚠️ JSON 자동 수정이 적용되었습니다\n');
+    } else {
+      await addJobLog(jobId, '✅ JSON 파싱 성공 (원본 그대로)\n');
+    }
 
     // Python 스크립트를 위해 scene_number 필드 추가
     if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
@@ -368,9 +389,21 @@ async function generateVideoFromUpload(
 
       // 타임아웃 (2시간) - 강제 종료
       setTimeout(() => {
-        if (runningProcesses.has(jobId)) {
-          console.log(`⏰ 타임아웃: 프로세스 강제 종료 ${jobId}`);
-          pythonProcess.kill('SIGKILL');
+        if (runningProcesses.has(jobId) && pythonProcess.pid) {
+          console.log(`⏰ 타임아웃: 프로세스 강제 종료 ${jobId}, PID: ${pythonProcess.pid}`);
+
+          try {
+            if (process.platform === 'win32') {
+              spawn('taskkill', ['/F', '/T', '/PID', String(pythonProcess.pid)]);
+              console.log(`✅ Windows taskkill 명령 실행 (타임아웃): PID ${pythonProcess.pid}`);
+            } else {
+              pythonProcess.kill('SIGKILL');
+              console.log(`✅ Unix SIGKILL 전송 (타임아웃): PID ${pythonProcess.pid}`);
+            }
+          } catch (killError) {
+            console.error(`❌ 타임아웃 프로세스 종료 실패: ${killError}`);
+          }
+
           runningProcesses.delete(jobId);
           reject(new Error('Python 실행 시간 초과 (2시간)'));
         }
@@ -667,11 +700,23 @@ export async function DELETE(request: NextRequest) {
     // 실행 중인 프로세스 찾기
     const process = runningProcesses.get(jobId);
 
-    if (process) {
-      console.log(`🛑 작업 취소 요청 (프로세스 강제 종료): ${jobId}`);
+    if (process && process.pid) {
+      console.log(`🛑 작업 취소 요청 (프로세스 강제 종료): ${jobId}, PID: ${process.pid}`);
 
-      // 프로세스 강제 종료 (SIGKILL - graceful 없이 즉시 종료)
-      process.kill('SIGKILL');
+      try {
+        // Windows: taskkill로 프로세스 트리 전체 강제 종료
+        // /F: 강제 종료, /T: 자식 프로세스 포함, /PID: 프로세스 ID
+        if (process.platform === 'win32') {
+          spawn('taskkill', ['/F', '/T', '/PID', String(process.pid)]);
+          console.log(`✅ Windows taskkill 명령 실행: PID ${process.pid}`);
+        } else {
+          // Unix: SIGKILL
+          process.kill('SIGKILL');
+          console.log(`✅ Unix SIGKILL 전송: PID ${process.pid}`);
+        }
+      } catch (killError) {
+        console.error(`❌ 프로세스 종료 실패: ${killError}`);
+      }
 
       // 맵에서 제거
       runningProcesses.delete(jobId);
