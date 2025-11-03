@@ -224,18 +224,10 @@ export default function Home() {
     return videoFormat === 'shortform' ? '/api/shortform-prompt' : '/api/prompt';
   };
 
-  // 제목 히스토리에 추가
+  // 제목 히스토리에 추가 (DB에서 자동으로 로드되므로 별도 저장 불필요)
   const addToTitleHistory = (title: string) => {
-    if (!title.trim()) return;
-
-    const newHistory = [title, ...titleHistory.filter(t => t !== title)].slice(0, 20); // 최대 20개, 중복 제거
-    setTitleHistory(newHistory);
-
-    try {
-      localStorage.setItem('title-history', JSON.stringify(newHistory));
-    } catch (e) {
-      console.error('Failed to save title history:', e);
-    }
+    // DB에 저장되는 순간 자동으로 히스토리에 추가됨
+    // 클라이언트 측에서는 아무것도 안 함
   };
 
   // 포맷 변경 핸들러 (대본이 로드된 경우 경고)
@@ -275,19 +267,7 @@ export default function Home() {
       if (stored.selectedModel) setSelectedModel(stored.selectedModel);
     }
 
-    // 제목 히스토리 로드
-    try {
-      const savedHistory = localStorage.getItem('title-history');
-      if (savedHistory) {
-        const history = JSON.parse(savedHistory);
-        if (Array.isArray(history)) {
-          setTitleHistory(history);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load title history:', e);
-    }
-
+    // 제목 히스토리는 checkAuth()에서 로드됨
     setIsMounted(true);
   }, []);
 
@@ -693,15 +673,17 @@ export default function Home() {
         setUser(data.user);
         console.log('✅ 사용자 인증됨:', data.user.email);
 
-        // 2. 크레딧과 설정 동시에 가져오기
-        const [creditsRes, settingsRes] = await Promise.all([
+        // 2. 크레딧, 설정, 최근 제목 동시에 가져오기
+        const [creditsRes, settingsRes, titlesRes] = await Promise.all([
           fetch('/api/credits', { headers: getAuthHeaders() }),
-          fetch('/api/settings')
+          fetch('/api/settings'),
+          fetch('/api/recent-titles', { headers: getAuthHeaders() })
         ]);
 
-        const [creditsData, settingsData] = await Promise.all([
+        const [creditsData, settingsData, titlesData] = await Promise.all([
           creditsRes.json(),
-          settingsRes.json()
+          settingsRes.json(),
+          titlesRes.json()
         ]);
 
         if (creditsData.credits !== undefined) {
@@ -710,6 +692,11 @@ export default function Home() {
 
         if (settingsData) {
           setSettings(settingsData);
+        }
+
+        if (titlesData.titles && Array.isArray(titlesData.titles)) {
+          setTitleHistory(titlesData.titles);
+          console.log('✅ 최근 제목 로드됨:', titlesData.titles.length, '개', titlesData.titles);
         }
       }
     } catch (error) {
@@ -1744,8 +1731,9 @@ export default function Home() {
                   } else {
                     // AI 대본 생성 (로컬 Claude 사용) - 확인 모달 표시
                     if (!user || !settings) {
+                      console.error('❌ 사용자 정보 또는 설정 없음:', { user, settings });
                       setToast({
-                        message: '사용자 정보를 불러오는 중입니다.',
+                        message: !user ? '로그인이 필요합니다.' : '설정을 불러오는 중입니다. 잠시 후 다시 시도해주세요.',
                         type: 'error'
                       });
                       setTimeout(() => setToast(null), 3000);
@@ -1958,12 +1946,12 @@ export default function Home() {
               </button>
             </div>
 
-            {/* 제목 히스토리 */}
-            {titleHistory.length > 0 && (
-              <div className="mt-4">
-                <label className="mb-2 block text-xs font-medium text-slate-400">
-                  📝 최근 사용한 제목 (클릭하여 재사용)
-                </label>
+            {/* 제목 히스토리 - 디버깅 */}
+            <div className="mt-4">
+              <label className="mb-2 block text-xs font-medium text-slate-400">
+                📝 최근 사용한 제목 (클릭하여 재사용) {titleHistory.length > 0 ? `(${titleHistory.length}개)` : '(로딩 중...)'}
+              </label>
+              {titleHistory.length > 0 ? (
                 <div className="max-h-24 overflow-y-auto rounded-lg border border-white/10 bg-white/5 p-2">
                   <div className="flex flex-wrap gap-2">
                     {titleHistory.map((title, index) => (
@@ -1982,8 +1970,12 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-center text-xs text-slate-500">
+                  최근 대본이 없습니다. 대본을 생성하면 여기에 표시됩니다.
+                </div>
+              )}
+            </div>
           </div>
         </section>
         )}
@@ -2252,6 +2244,13 @@ export default function Home() {
                     <div className="space-y-3">
                       <div className="text-4xl">📁</div>
                       <p className="text-sm text-slate-300 font-semibold">JSON/TXT 대본과 비디오 파일들을 한번에 드래그하세요</p>
+                      <div className="p-2 bg-blue-500/10 border border-blue-500/30 rounded">
+                        <p className="text-xs text-blue-300">
+                          📌 <strong>비디오 정렬 규칙:</strong><br/>
+                          • 파일명에 숫자가 있으면 숫자 순서대로 병합 (예: clip_01.mp4, clip_02.mp4)<br/>
+                          • 숫자가 없으면 생성/수정 시간 순서대로 병합 (오래된 것부터)
+                        </p>
+                      </div>
                       <label className="cursor-pointer rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-purple-500 hover:to-orange-500 inline-block">
                         파일 선택
                         <input
@@ -2458,6 +2457,13 @@ export default function Home() {
                     <p className="text-sm text-slate-300">JSON/TXT 파일과 이미지를 한번에 드래그하세요</p>
                     <p className="mt-1 text-xs text-slate-400">또는 파일을 선택하세요</p>
                     <p className="mt-1 text-xs text-purple-400">💡 이미지를 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능</p>
+                    <div className="mt-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded">
+                      <p className="text-xs text-blue-300">
+                        📌 <strong>이미지 정렬 규칙:</strong><br/>
+                        • 파일명에 숫자가 있으면 숫자 순서대로 정렬 (예: image_01.jpg, image_02.jpg)<br/>
+                        • 숫자가 없으면 생성/수정 시간 순서대로 정렬 (오래된 것부터 씬 0)
+                      </p>
+                    </div>
                   </div>
 
                   {/* 업로드된 파일 표시 */}
@@ -2833,8 +2839,28 @@ export default function Home() {
                     // FormData 생성
                     const mergeFormData = new FormData();
 
-                    // 비디오 파일들 추가
-                    uploadedVideos.forEach((video, index) => {
+                    // 비디오 정렬: 시퀀스 번호가 있으면 시퀀스 우선, 없으면 시간 순서
+                    const sortedVideos = [...uploadedVideos].sort((a, b) => {
+                      // 파일명에서 숫자 추출 (예: clip_01.mp4 → 1, scene_5.mp4 → 5)
+                      const extractNumber = (filename: string): number | null => {
+                        const match = filename.match(/(\d+)/);
+                        return match ? parseInt(match[1], 10) : null;
+                      };
+
+                      const numA = extractNumber(a.name);
+                      const numB = extractNumber(b.name);
+
+                      // 둘 다 시퀀스 번호가 있으면 시퀀스로 정렬
+                      if (numA !== null && numB !== null) {
+                        return numA - numB;
+                      }
+
+                      // 시퀀스 번호가 없으면 생성/수정 시간으로 정렬 (오래된 것부터)
+                      return a.lastModified - b.lastModified;
+                    });
+
+                    // 정렬된 비디오 파일들 추가
+                    sortedVideos.forEach((video, index) => {
                       mergeFormData.append(`video_${index}`, video);
                     });
 
@@ -3041,12 +3067,24 @@ export default function Home() {
 
                       // 직접 업로드 모드일 때만 이미지 추가
                       if (imageSource === 'none') {
-                        // 이미지를 파일명 순서로 정렬 (자연스러운 정렬)
+                        // 이미지 정렬: 시퀀스 번호가 있으면 시퀀스 우선, 없으면 시간 순서
                         const sortedImages = [...uploadedImages].sort((a, b) => {
-                          // 파일명에서 공백 제거하고 비교 (Image_fx (2).jpg와 Image_fx(2).jpg를 동일하게 취급)
-                          const nameA = a.name.replace(/\s+/g, '');
-                          const nameB = b.name.replace(/\s+/g, '');
-                          return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+                          // 파일명에서 숫자 추출 (예: image_01.jpg → 1, scene_5.png → 5, 3.jpg → 3)
+                          const extractNumber = (filename: string): number | null => {
+                            const match = filename.match(/(\d+)/);
+                            return match ? parseInt(match[1], 10) : null;
+                          };
+
+                          const numA = extractNumber(a.name);
+                          const numB = extractNumber(b.name);
+
+                          // 둘 다 시퀀스 번호가 있으면 시퀀스로 정렬
+                          if (numA !== null && numB !== null) {
+                            return numA - numB;
+                          }
+
+                          // 시퀀스 번호가 없으면 생성/수정 시간으로 정렬 (오래된 것부터)
+                          return a.lastModified - b.lastModified;
                         });
 
                         sortedImages.forEach((img, idx) => {
@@ -3332,7 +3370,7 @@ export default function Home() {
                         const response = await fetch('/api/scripts/generate', {
                           method: 'POST',
                           headers: getAuthHeaders(),
-                          body: JSON.stringify({ title: title, format: videoFormat })
+                          body: JSON.stringify({ title: title, type: videoFormat })
                         });
 
                         const data = await response.json();

@@ -278,8 +278,11 @@ async function generateVideoFromUpload(
       const aspectRatioArg = ['--aspect-ratio', aspectRatio];
       console.log(`📐 비디오 비율: ${aspectRatio} (${config.videoFormat})`);
 
+      // 자막 추가 (기본값이 True이지만 명시적으로 전달)
+      const subtitlesArg = ['--add-subtitles'];
+
       // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
-      const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...isAdminArg];
+      const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...isAdminArg];
       console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
 
       pythonProcess = spawn('python', pythonArgs, {
@@ -415,13 +418,41 @@ async function generateVideoFromUpload(
       // trend-video-backend generated_videos 폴더에서 찾기 (기존 로직)
       generatedPath = path.join(config.inputPath, 'generated_videos');
       const files = await fs.readdir(generatedPath);
-      const videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+
+      // story.json에서 제목 가져와서 파일명 생성
+      let expectedFileName: string | null = null;
+      try {
+        const storyJsonPath = path.join(config.inputPath, 'story.json');
+        const storyData = JSON.parse(await fs.readFile(storyJsonPath, 'utf-8'));
+        const title = storyData.title || storyData.metadata?.title || 'video';
+
+        // 안전한 파일명으로 변환 (Python과 동일한 로직)
+        const safeTitle = title.replace(/[^a-zA-Z0-9가-힣\s._-]/g, '').trim().replace(/\s+/g, '_');
+        expectedFileName = `${safeTitle}.mp4`;
+        await addJobLog(jobId, `\n📝 예상 파일명: ${expectedFileName}`);
+      } catch (error) {
+        await addJobLog(jobId, `\n⚠️ 제목 기반 파일명 생성 실패, 기본 탐색 진행`);
+      }
+
+      // 1순위: 제목 기반 파일명 찾기
+      let videoFile = expectedFileName ? files.find(f => f === expectedFileName) : null;
+
+      // 2순위: merged.mp4 찾기
+      if (!videoFile) {
+        videoFile = files.find(f => f === 'merged.mp4');
+      }
+
+      // 3순위: scene_를 포함하지 않는 다른 mp4 파일 찾기
+      if (!videoFile) {
+        videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+      }
 
       if (!videoFile) {
         throw new Error('생성된 영상 파일을 찾을 수 없습니다.');
       }
 
       videoPath = path.join(generatedPath, videoFile);
+      await addJobLog(jobId, `\n✅ 최종 영상 발견: ${videoFile}`);
     }
 
     // 썸네일 찾기

@@ -43,9 +43,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 비디오 파일 정렬: 파일명에서 시퀀스 번호 추출 또는 시간순
+    videoFiles.sort((a, b) => {
+      // 파일명에서 숫자 패턴 추출 (예: "1.mp4", "video_01.mp4", "scene-02.mp4")
+      const extractNumber = (filename: string): number | null => {
+        // 파일명에서 숫자만 추출
+        const match = filename.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : null;
+      };
+
+      const numA = extractNumber(a.name);
+      const numB = extractNumber(b.name);
+
+      // 둘 다 숫자가 있으면 숫자로 정렬
+      if (numA !== null && numB !== null) {
+        return numA - numB;
+      }
+
+      // 숫자가 없으면 lastModified 시간으로 정렬 (시간순)
+      return a.lastModified - b.lastModified;
+    });
+
+    console.log('📹 정렬된 비디오 순서:');
+    videoFiles.forEach((f, i) => {
+      console.log(`  ${i + 1}. ${f.name} (lastModified: ${new Date(f.lastModified).toISOString()})`);
+    });
+
     // 자막 옵션 확인
     const addSubtitles = formData.get('addSubtitles') === 'true';
     console.log('📝 자막 추가 옵션:', addSubtitles);
+
+    // 워터마크 제거 옵션 확인
+    const removeWatermark = formData.get('removeWatermark') === 'true';
+    console.log('🧹 워터마크 제거 옵션:', removeWatermark);
 
     // JSON 파일에서 나레이션 텍스트 추출 (선택사항)
     let narrationText = '';
@@ -171,7 +201,7 @@ export async function POST(request: NextRequest) {
       relatedJobId: jobId
     });
 
-    await addJobLog(jobId, `\n🎞️ 비디오 병합 시작\n📊 입력: ${videoFiles.length}개 비디오\n${narrationText ? '🎙️ TTS 나레이션: 있음\n' : ''}${addSubtitles && narrationText ? '📝 자막: 추가됨\n' : ''}`);
+    await addJobLog(jobId, `\n🎞️ 비디오 병합 시작\n📊 입력: ${videoFiles.length}개 비디오\n${narrationText ? '🎙️ TTS 나레이션: 있음\n' : ''}${addSubtitles && narrationText ? '📝 자막: 추가됨\n' : ''}${removeWatermark ? '🧹 워터마크 제거: 활성화\n' : ''}`);
 
     // trend-video-backend 경로
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
@@ -189,18 +219,24 @@ export async function POST(request: NextRequest) {
     const savedVideoPaths: string[] = [];
     for (let i = 0; i < videoFiles.length; i++) {
       const video = videoFiles[i];
-      const videoPath = path.join(videoDir, `video_${i}_${video.name}`);
+      // 0-패딩된 인덱스 사용 (00, 01, 02, ...)
+      const paddedIndex = String(i).padStart(3, '0');
+      const videoPath = path.join(videoDir, `${paddedIndex}_${video.name}`);
       const videoBuffer = Buffer.from(await video.arrayBuffer());
       await fs.writeFile(videoPath, videoBuffer);
       savedVideoPaths.push(videoPath);
-      await addJobLog(jobId, `📹 비디오 ${i + 1} 저장: ${video.name}`);
+      await addJobLog(jobId, `📹 비디오 ${i + 1} 저장: ${paddedIndex}_${video.name}`);
     }
+
+    // 저장된 경로를 다시 정렬 (파일명 기준)
+    savedVideoPaths.sort();
 
     // 설정 파일 생성
     const config = {
       video_files: savedVideoPaths,
       narration_text: narrationText,
       add_subtitles: addSubtitles,
+      remove_watermark: removeWatermark,
       output_dir: outputDir
     };
 
