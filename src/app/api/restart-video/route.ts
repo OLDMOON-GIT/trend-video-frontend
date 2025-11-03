@@ -401,10 +401,11 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
         reject(error);
       });
 
-      // 타임아웃 (2시간)
+      // 타임아웃 (2시간) - 강제 종료
       setTimeout(() => {
         if (runningProcesses.has(newJobId)) {
-          pythonProcess.kill();
+          console.log(`⏰ 타임아웃: 프로세스 강제 종료 ${newJobId}`);
+          pythonProcess.kill('SIGKILL');
           runningProcesses.delete(newJobId);
           reject(new Error('Python 실행 시간 초과 (2시간)'));
         }

@@ -71,21 +71,16 @@ export async function POST(request: NextRequest) {
       if (img) imageFiles.push(img);
     }
 
-    // 이미지 파일 정렬: 생성 시간이 오래된 순서대로 (가장 오래된 것이 씬 0)
-    // ⚠️ 중요: 이 정렬 로직은 모든 이미지/영상 업로드 API에서 동일하게 적용되어야 함!
-    imageFiles.sort((a, b) => {
-      // lastModified 시간으로 정렬 (오래된 순 = 작은 값이 먼저)
-      // → 가장 먼저 다운로드된 이미지가 씬 0
-      // → 마지막에 다운로드된 이미지가 씬 마지막
-      return a.lastModified - b.lastModified;
-    });
+    // ⚠️ 중요: FormData에서 받은 순서(image_0, image_1, image_2...)가 사용자가 선택한 순서입니다.
+    // lastModified로 재정렬하면 드래그앤드롭 시 타임스탬프가 거의 동일해서 순서가 엉킵니다.
+    // 따라서 **정렬하지 않고** FormData 순서를 그대로 유지합니다!
 
-    console.log('📷 정렬된 이미지 순서 (생성 시간 오래된 순):');
+    console.log('📷 업로드된 이미지 순서 (사용자 선택 순서 유지):');
     imageFiles.forEach((f, i) => {
       const sceneNum = i === 0 ? '씬 0 (폭탄)' : i === imageFiles.length - 1 ? '씬 마지막 (구독)' : `씬 ${i}`;
       const date = new Date(f.lastModified);
       const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${String(date.getMilliseconds()).padStart(3,'0')}`;
-      console.log(`  ${sceneNum}: ${f.name} → 생성: ${timeStr}`);
+      console.log(`  ${sceneNum}: ${f.name} (lastModified: ${timeStr})`);
     });
 
     // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
@@ -371,10 +366,11 @@ async function generateVideoFromUpload(
         reject(error);
       });
 
-      // 타임아웃 (2시간)
+      // 타임아웃 (2시간) - 강제 종료
       setTimeout(() => {
         if (runningProcesses.has(jobId)) {
-          pythonProcess.kill();
+          console.log(`⏰ 타임아웃: 프로세스 강제 종료 ${jobId}`);
+          pythonProcess.kill('SIGKILL');
           runningProcesses.delete(jobId);
           reject(new Error('Python 실행 시간 초과 (2시간)'));
         }
@@ -672,13 +668,15 @@ export async function DELETE(request: NextRequest) {
     const process = runningProcesses.get(jobId);
 
     if (process) {
-      console.log(`🛑 작업 취소 요청 (프로세스 종료): ${jobId}`);
+      console.log(`🛑 작업 취소 요청 (프로세스 강제 종료): ${jobId}`);
 
-      // 프로세스 종료
-      process.kill('SIGTERM');
+      // 프로세스 강제 종료 (SIGKILL - graceful 없이 즉시 종료)
+      process.kill('SIGKILL');
 
       // 맵에서 제거
       runningProcesses.delete(jobId);
+
+      console.log(`✅ 프로세스 강제 종료 완료: ${jobId}`);
     } else {
       console.log(`🛑 작업 취소 요청 (프로세스 없음, 상태만 변경): ${jobId}`);
     }
