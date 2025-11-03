@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import type { DateFilter, SortOption, VideoItem, VideoType } from "@/types/video";
+import { parseJsonSafely } from "@/lib/json-utils";
 
 const fallbackVideos: VideoItem[] = [];
 
@@ -3035,8 +3036,15 @@ export default function Home() {
                           return a.lastModified - b.lastModified;
                         });
 
+                        // 정렬된 이미지를 image_00.ext, image_01.ext 형식으로 파일명 변경하여 전송
                         sortedImages.forEach((img, idx) => {
-                          formData.append(`image_${idx}`, img);
+                          const ext = img.name.split('.').pop() || 'jpg';
+                          const newFileName = `image_${String(idx).padStart(2, '0')}.${ext}`;
+
+                          // 새로운 File 객체 생성 (파일명 변경)
+                          const renamedFile = new File([img], newFileName, { type: img.type });
+
+                          formData.append(`image_${idx}`, renamedFile);
                         });
                       }
 
@@ -3215,14 +3223,18 @@ export default function Home() {
 
                               // SORA2 형식인 경우 JSON 검증 및 설정
                               if (videoFormat === 'sora2') {
-                                try {
-                                  // JSON 파싱 시도
-                                  const parsed = JSON.parse(scriptContent);
+                                // JSON 파싱 (유틸리티 함수 사용)
+                                const parseResult = parseJsonSafely(scriptContent);
+
+                                if (parseResult.success) {
                                   setSora2Script(scriptContent);
                                   setShowSora2Review(true);
-                                  setToast({ message: 'SORA2 대본이 생성되었습니다! JSON 형식이 확인되었습니다.', type: 'success' });
-                                } catch (jsonError) {
-                                  console.error('SORA2 JSON 파싱 오류:', jsonError);
+                                  const message = parseResult.fixed
+                                    ? 'SORA2 대본이 생성되었습니다! (자동 수정 적용됨)'
+                                    : 'SORA2 대본이 생성되었습니다! JSON 형식이 확인되었습니다.';
+                                  setToast({ message, type: 'success' });
+                                } else {
+                                  console.error('SORA2 JSON 파싱 오류:', parseResult.error);
                                   setToast({ message: '대본이 생성되었지만 JSON 형식이 아닙니다. 프롬프트를 확인해주세요.', type: 'error' });
                                 }
                               } else {
@@ -3333,7 +3345,11 @@ export default function Home() {
                         const response = await fetch('/api/scripts/generate', {
                           method: 'POST',
                           headers: getAuthHeaders(),
-                          body: JSON.stringify({ title: title, type: videoFormat })
+                          body: JSON.stringify({
+                            title: title,
+                            format: videoFormat,
+                            useClaudeLocal: true
+                          })
                         });
 
                         const data = await response.json();

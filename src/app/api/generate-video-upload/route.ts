@@ -209,45 +209,22 @@ async function generateVideoFromUpload(
         step: '이미지 저장 중...'
       });
 
-      await addJobLog(jobId, `\n📷 이미지 ${config.imageFiles.length}개를 생성 시간 순서대로 저장`);
-      await addJobLog(jobId, `⏰ 정렬 기준: 생성 시간이 가장 오래된 것 → 씬 0 (폭탄 씬)`);
+      await addJobLog(jobId, `\n📷 이미지 ${config.imageFiles.length}개를 저장`);
+      await addJobLog(jobId, `⏰ Frontend에서 이미 정렬된 순서대로 저장 (image_00 → 씬 0)`);
 
-      // 임시로 원본 파일명으로 먼저 저장하고 원본 타임스탬프 설정
-      const tempFiles: { name: string; ext: string; path: string; originalTime: number }[] = [];
+      // Frontend에서 이미 image_00, image_01... 형식으로 정렬되어 전송됨
+      // 파일명을 image_01, image_02... 형식으로 변경하여 저장 (Python 코드와 호환)
       for (let i = 0; i < config.imageFiles.length; i++) {
         const imgFile = config.imageFiles[i];
         const imgBuffer = Buffer.from(await imgFile.arrayBuffer());
         const ext = imgFile.name.split('.').pop() || 'jpg';
-        const tempPath = path.join(config.inputPath, `temp_${i}_${imgFile.name}`);
 
-        // 파일 저장
-        await fs.writeFile(tempPath, imgBuffer);
+        // image_01.jpg, image_02.png 형식으로 저장 (1부터 시작)
+        const finalPath = path.join(config.inputPath, `image_${String(i + 1).padStart(2, '0')}.${ext}`);
+        await fs.writeFile(finalPath, imgBuffer);
 
-        // 원본 파일의 lastModified 시간으로 파일 시스템 타임스탬프 설정
-        const originalTime = new Date(imgFile.lastModified);
-        await fs.utimes(tempPath, originalTime, originalTime);
-
-        tempFiles.push({
-          name: imgFile.name,
-          ext,
-          path: tempPath,
-          originalTime: imgFile.lastModified
-        });
-      }
-
-      // 원본 생성 시간 순으로 정렬 (오래된 것부터)
-      tempFiles.sort((a, b) => a.originalTime - b.originalTime);
-
-      // 정렬된 순서대로 image_01, image_02... 형식으로 이름 변경
-      for (let i = 0; i < tempFiles.length; i++) {
-        const fileInfo = tempFiles[i];
-        const newPath = path.join(config.inputPath, `image_${String(i + 1).padStart(2, '0')}.${fileInfo.ext}`);
-        await fs.rename(fileInfo.path, newPath);
-
-        const sceneLabel = i === 0 ? '씬 0 (폭탄)' : i === tempFiles.length - 1 ? '씬 마지막' : `씬 ${i}`;
-        const date = new Date(fileInfo.originalTime);
-        const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${String(date.getMilliseconds()).padStart(3,'0')}`;
-        await addJobLog(jobId, `  ${sceneLabel}: ${fileInfo.name} → 원본 파일 생성: ${timeStr}`);
+        const sceneLabel = i === 0 ? '씬 0 (폭탄)' : i === config.imageFiles.length - 1 ? '씬 마지막' : `씬 ${i}`;
+        await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name} → image_${String(i + 1).padStart(2, '0')}.${ext}`);
       }
     } else if (config.imageSource === 'google') {
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
