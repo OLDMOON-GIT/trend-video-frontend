@@ -1324,12 +1324,21 @@ export default function MyContentPage() {
                             <div className="flex flex-wrap gap-2 mt-4">
                             {(item.data.status === 'pending' || item.data.status === 'processing') && (
                               <>
+                                {user?.isAdmin && (
+                                  <button
+                                    onClick={() => handleOpenFolder(item.data.id)}
+                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                    title="폴더 열기"
+                                  >
+                                    📁 폴더
+                                  </button>
+                                )}
                                 {item.data.logs && item.data.logs.length > 0 && (
                                   <button
                                     onClick={() => setExpandedLogJobId(expandedLogJobId === item.data.id ? null : item.data.id)}
-                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                    className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
                                   >
-                                    {expandedLogJobId === item.data.id ? '📋 로그 닫기' : '📋 로그'}
+                                    {expandedLogJobId === item.data.id ? '📋 닫기' : '📋 로그'}
                                   </button>
                                 )}
                                 <button
@@ -1348,13 +1357,15 @@ export default function MyContentPage() {
                                   defaultTitle={item.data.title || ''}
                                   jobId={item.data.id}
                                 />
-                                <button
-                                  onClick={() => handleOpenFolder(item.data.id)}
-                                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
-                                  title="폴더 열기"
-                                >
-                                  📁 폴더
-                                </button>
+                                {user?.isAdmin && (
+                                  <button
+                                    onClick={() => handleOpenFolder(item.data.id)}
+                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                    title="폴더 열기"
+                                  >
+                                    📁 폴더
+                                  </button>
+                                )}
                                 {item.data.logs && item.data.logs.length > 0 && (
                                   <button
                                     onClick={() => setExpandedLogJobId(expandedLogJobId === item.data.id ? null : item.data.id)}
@@ -1417,35 +1428,30 @@ export default function MyContentPage() {
                           </div>
                         </div>
                       ) : (
-                        // 대본 아이템 - 수평 레이아웃
-                        <div className="flex flex-col md:flex-row gap-4 p-4">
-                          {/* 아이콘 영역 - 왼쪽 */}
-                          <div className="relative w-full md:w-64 h-36 flex-shrink-0 bg-slate-800/50 rounded-lg overflow-hidden flex items-center justify-center">
-                            <span className="text-6xl">📝</span>
-                            {/* 타입 배지 */}
-                            {item.data.type && (
-                              <div className="absolute top-2 left-2">
-                                <span className={`px-2 py-1 rounded text-xs font-bold shadow-lg ${
-                                  item.data.type === 'shortform' ? 'bg-blue-500 text-white' :
-                                  item.data.type === 'longform' ? 'bg-green-500 text-white' :
-                                  'bg-purple-500 text-white'
-                                }`}>
-                                  {item.data.type === 'shortform' ? '⚡ 숏폼' : item.data.type === 'longform' ? '📝 롱폼' : '🎬 Sora2'}
-                                </span>
-                              </div>
-                            )}
-                            {/* 상태 배지 */}
-                            <div className="absolute top-2 right-2">
-                              {getStatusBadge(item.data.status)}
-                            </div>
-                          </div>
-
-                          {/* 메타데이터 영역 - 중앙 */}
+                        // 대본 아이템 - 풀 레이아웃
+                        <div className="p-4">
                           <div className="flex-1 min-w-0 flex flex-col justify-between">
                             <div>
-                              <h3 className="text-lg font-semibold text-white mb-2 break-words line-clamp-2">
-                                {item.data.title}
-                              </h3>
+                              <div className="flex items-start gap-2 mb-2">
+                                <span className="text-2xl flex-shrink-0">📝</span>
+                                <h3 className="text-lg font-semibold text-white break-words line-clamp-2 flex-1">
+                                  {item.data.title}
+                                </h3>
+                                {/* 타입 배지 */}
+                                {item.data.type && (
+                                  <span className={`px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 ${
+                                    item.data.type === 'shortform' ? 'bg-blue-500 text-white' :
+                                    item.data.type === 'longform' ? 'bg-green-500 text-white' :
+                                    'bg-purple-500 text-white'
+                                  }`}>
+                                    {item.data.type === 'shortform' ? '⚡ 숏폼' : item.data.type === 'longform' ? '📝 롱폼' : '🎬 Sora2'}
+                                  </span>
+                                )}
+                                {/* 상태 배지 */}
+                                <div className="flex-shrink-0">
+                                  {getStatusBadge(item.data.status)}
+                                </div>
+                              </div>
                               <div className="space-y-1 text-sm text-slate-400">
                                 <p className="flex items-center gap-2">
                                   <span className="text-slate-500">•</span>
@@ -1912,34 +1918,29 @@ export default function MyContentPage() {
                     key={script.id}
                     className="group rounded-xl border border-white/10 bg-white/5 backdrop-blur transition hover:bg-white/10 hover:border-purple-500/50 overflow-hidden"
                   >
-                    <div className="flex flex-col md:flex-row gap-4 p-4">
-                      {/* 아이콘 영역 - 왼쪽 */}
-                      <div className="relative w-full md:w-64 h-36 flex-shrink-0 bg-slate-800/50 rounded-lg overflow-hidden flex items-center justify-center">
-                        <span className="text-6xl">📝</span>
-                        {/* 타입 배지 */}
-                        {script.type && (
-                          <div className="absolute top-2 left-2">
-                            <span className={`px-2 py-1 rounded text-xs font-bold shadow-lg ${
-                              script.type === 'shortform' ? 'bg-blue-500 text-white' :
-                              script.type === 'longform' ? 'bg-green-500 text-white' :
-                              'bg-purple-500 text-white'
-                            }`}>
-                              {script.type === 'shortform' ? '⚡ 숏폼' : script.type === 'longform' ? '📝 롱폼' : '🎬 Sora2'}
-                            </span>
-                          </div>
-                        )}
-                        {/* 상태 배지 */}
-                        <div className="absolute top-2 right-2">
-                          {getStatusBadge(script.status)}
-                        </div>
-                      </div>
-
-                      {/* 메타데이터 영역 - 중앙 */}
+                    <div className="p-4">
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div>
-                          <h3 className="text-lg font-semibold text-white mb-2 break-words line-clamp-2">
-                            {script.title}
-                          </h3>
+                          <div className="flex items-start gap-2 mb-2">
+                            <span className="text-2xl flex-shrink-0">📝</span>
+                            <h3 className="text-lg font-semibold text-white break-words line-clamp-2 flex-1">
+                              {script.title}
+                            </h3>
+                            {/* 타입 배지 */}
+                            {script.type && (
+                              <span className={`px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 ${
+                                script.type === 'shortform' ? 'bg-blue-500 text-white' :
+                                script.type === 'longform' ? 'bg-green-500 text-white' :
+                                'bg-purple-500 text-white'
+                              }`}>
+                                {script.type === 'shortform' ? '⚡ 숏폼' : script.type === 'longform' ? '📝 롱폼' : '🎬 Sora2'}
+                              </span>
+                            )}
+                            {/* 상태 배지 */}
+                            <div className="flex-shrink-0">
+                              {getStatusBadge(script.status)}
+                            </div>
+                          </div>
                           <div className="space-y-1 text-sm text-slate-400">
                             <p className="flex items-center gap-2">
                               <span className="text-slate-500">•</span>
@@ -2524,10 +2525,19 @@ export default function MyContentPage() {
                         <div className="flex flex-wrap gap-2 mt-4">
                         {(job.status === 'pending' || job.status === 'processing') && (
                           <>
+                            {user?.isAdmin && (
+                              <button
+                                onClick={() => handleOpenFolder(job.id)}
+                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                                title="폴더 열기"
+                              >
+                                📁 폴더
+                              </button>
+                            )}
                             {job.logs && job.logs.length > 0 && (
                               <button
                                 onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
-                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                                className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
                               >
                                 {expandedLogJobId === job.id ? '📋 닫기' : '📋 로그'}
                               </button>
@@ -2548,13 +2558,15 @@ export default function MyContentPage() {
                               defaultTitle={job.title || ''}
                               jobId={job.id}
                             />
-                            <button
-                              onClick={() => handleOpenFolder(job.id)}
-                              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
-                              title="폴더 열기"
-                            >
-                              📁 폴더
-                            </button>
+                            {user?.isAdmin && (
+                              <button
+                                onClick={() => handleOpenFolder(job.id)}
+                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                                title="폴더 열기"
+                              >
+                                📁 폴더
+                              </button>
+                            )}
                             {job.logs && job.logs.length > 0 && (
                               <button
                                 onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}

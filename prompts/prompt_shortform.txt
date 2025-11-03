@@ -102,14 +102,14 @@ YOUR ENTIRE RESPONSE = ONE JSON OBJECT
      * 예: "이거 모르면 평생 손해 봅니다", "99%가 모르는 진실", "절대 믿을 수 없는 일이..."
      * 금지: 평범한 시작, "오늘은", "여러분"
    - 씬 1 (전개/핵심): 10초, 50자 - **공감 또는 충격 증폭 + 핵심 비밀/해결책 공개**
-     * 예: "실제로 이런 일이...", "진짜 이유는 바로 이겁니다", "답은 의외로 간단해요"
+     * 예: "이런 일이...", "이유는 바로 이겁니다", "답은 의외로 간단해요"
    - 씬 2 (마무리): 10초, 50자 - **강렬한 여운/행동 촉구**
      * 예: "이제 알았으니 절대 잊지 마세요", "당장 확인해보세요"
 
 2. **총 150자 분량** (약 30초)
 
 3. **필수 후킹 요소:**
-   - **첫 문장 패턴**: "절대/진짜/사실/비밀/충격/반전/몰랐던/숨겨진/99%/실화"
+   - **첫 문장 패턴**: "절대/비밀/충격/반전/몰랐던/숨겨진/99%/놀라운"
    - **감정 폭발 단어**: "소름", "경악", "충격", "반전", "대박", "미쳤다"
    - **긴급성**: "지금 당장", "3초 안에", "놓치면 평생", "오늘부터"
    - **호기심 자극**: "이유는?", "정체는?", "진실은?", "결과는?"
@@ -226,7 +226,7 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
       "duration_seconds": 10,
       "word_count": 50,
       "image_prompt": "Vertical 9:16 format, portrait orientation, revelation moment, clear visual demonstration of key point, arrows or highlights indicating important details, bright focused lighting, informative yet exciting composition, NO TEXT",
-      "narration": "핵심 비밀/해결책 공개! 예: '진짜 이유는 바로 이겁니다', '답은 의외로 간단해요', '이것만 기억하세요' (50자)"
+      "narration": "핵심 비밀/해결책 공개! 예: '이유는 바로 이겁니다', '답은 의외로 간단해요', '이것만 기억하세요' (50자)"
     },
     {
       "scene_id": "scene_02_closing",

@@ -109,7 +109,7 @@ SORA2로 변환된 JSON을 출력하세요:`,
 SORA2로 변환된 JSON을 출력하세요:`
 };
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await getCurrentUser(request);
 
@@ -269,7 +269,8 @@ async function convertScript(
     await updateScript(newScriptId, {
       content: JSON.stringify(scriptData, null, 2),
       status: 'completed',
-      progress: 100
+      progress: 100,
+      type: targetFormat as 'shortform' | 'sora2' | 'longform'
     });
 
     await addScriptLog(newScriptId, '🎉 대본 변환 완료!');
