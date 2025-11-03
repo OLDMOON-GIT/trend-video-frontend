@@ -3473,7 +3473,7 @@ export default function Home() {
                           headers: getAuthHeaders(),
                           body: JSON.stringify({
                             title: title,
-                            format: videoFormat,
+                            type: videoFormat, // format -> type으로 수정
                             useClaudeLocal: true
                           })
                         });
