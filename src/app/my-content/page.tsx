@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
 import YouTubeUploadButton from '@/components/YouTubeUploadButton';
+import { parseJsonSafely } from '@/lib/json-utils';
 
 interface Script {
   id: string;
@@ -15,6 +16,7 @@ interface Script {
   progress: number;
   error?: string;
   type?: 'longform' | 'shortform' | 'sora2';
+  useClaudeLocal?: boolean; // 로컬 Claude 사용 여부 (true) vs API Claude (false)
   logs?: string[];
   tokenUsage?: {
     input_tokens: number;
@@ -718,6 +720,7 @@ export default function MyContentPage() {
   }) => {
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [isDisconnecting, setIsDisconnecting] = useState(false);
+    const [hasCredentials, setHasCredentials] = useState(false);
 
     useEffect(() => {
       loadYouTubeAuthStatus();
@@ -728,12 +731,18 @@ export default function MyContentPage() {
         const res = await fetch('/api/youtube/auth');
         const data = await res.json();
         onAuthChange(data.authenticated || false, data.channel || null);
+        setHasCredentials(data.hasCredentials || false);
       } catch (error) {
         console.error('YouTube 인증 상태 확인 실패:', error);
       }
     };
 
     const handleConnect = async () => {
+      if (!hasCredentials) {
+        toast.error('관리자가 YouTube API Credentials를 설정하지 않았습니다. 관리자에게 문의하세요.');
+        return;
+      }
+
       try {
         setIsAuthenticating(true);
         toast.loading('YouTube 연결 중...', { id: 'youtube-auth' });
@@ -781,7 +790,75 @@ export default function MyContentPage() {
       <div className="p-8">
         <h2 className="text-2xl font-bold text-white mb-6">YouTube 설정</h2>
 
-        {!authenticated ? (
+        {!hasCredentials ? (
+          <div className="space-y-6">
+            <div className="p-6 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <h3 className="text-lg font-semibold text-blue-400 mb-2">1️⃣ Google Cloud Credentials 설정</h3>
+              <p className="text-sm text-slate-300 mb-4">
+                YouTube API를 사용하려면 먼저 Google Cloud Console에서 OAuth 2.0 클라이언트 ID를 생성하고 JSON 파일을 다운로드해야 합니다.
+              </p>
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 underline"
+              >
+                Google Cloud Console로 이동
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+
+            <div className="p-6 bg-slate-900/50 border border-slate-700 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-4">2️⃣ Credentials 파일 업로드</h3>
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleCredentialsUpload}
+                disabled={isUploading}
+                className="hidden"
+                id="credentials-upload"
+              />
+              <label
+                htmlFor="credentials-upload"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition ${
+                  isUploading
+                    ? 'border-slate-600 bg-slate-800 cursor-not-allowed'
+                    : isDragging
+                    ? 'border-purple-500 bg-purple-500/10 scale-[1.02]'
+                    : 'border-slate-600 bg-slate-900/50 hover:border-purple-500 hover:bg-slate-800'
+                }`}
+              >
+                {isUploading ? (
+                  <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mb-2"></div>
+                    <p className="text-sm text-slate-400">업로드 중...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center pointer-events-none">
+                    <svg className="w-10 h-10 text-slate-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className={`text-sm font-semibold transition ${isDragging ? 'text-purple-400' : 'text-white'}`}>
+                      {isDragging ? '파일을 여기에 놓으세요' : 'JSON 파일을 선택하거나 드래그하세요'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">Google Cloud에서 다운로드한 credentials 파일</p>
+                  </div>
+                )}
+              </label>
+            </div>
+
+            <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <p className="text-sm text-yellow-400">
+                💡 각 사용자는 자신의 credentials 파일을 업로드하여 자신의 YouTube 채널에 업로드할 수 있습니다.
+              </p>
+            </div>
+          </div>
+        ) : !authenticated ? (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-4 bg-slate-900/50 rounded-lg">
               <div className="w-3 h-3 bg-slate-500 rounded-full"></div>
@@ -870,20 +947,6 @@ export default function MyContentPage() {
     );
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        credentials: 'include'
-      });
-      localStorage.removeItem('sessionId');
-      router.push('/auth');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('ko-KR');
   };
@@ -892,30 +955,21 @@ export default function MyContentPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-6xl">
         {/* 헤더 */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">
-              내 콘텐츠
-              {activeTab === 'all' && (scripts.length > 0 || jobs.length > 0) && (
-                <span className="ml-3 text-lg text-slate-400">
-                  영상 {jobs.length}개 · 대본 {scripts.length}개
-                </span>
-              )}
-              {activeTab === 'videos' && jobs.length > 0 && (
-                <span className="ml-3 text-lg text-slate-400">영상 {jobs.length}개</span>
-              )}
-              {activeTab === 'scripts' && scripts.length > 0 && (
-                <span className="ml-3 text-lg text-slate-400">대본 {scripts.length}개</span>
-              )}
-            </h1>
-            {user && <p className="mt-1 text-sm text-slate-400">{user.email}</p>}
-          </div>
-          <button
-            onClick={handleLogout}
-            className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-          >
-            로그아웃
-          </button>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-white">
+            내 콘텐츠
+            {activeTab === 'all' && (scripts.length > 0 || jobs.length > 0) && (
+              <span className="ml-3 text-lg text-slate-400">
+                영상 {jobs.length}개 · 대본 {scripts.length}개
+              </span>
+            )}
+            {activeTab === 'videos' && jobs.length > 0 && (
+              <span className="ml-3 text-lg text-slate-400">영상 {jobs.length}개</span>
+            )}
+            {activeTab === 'scripts' && scripts.length > 0 && (
+              <span className="ml-3 text-lg text-slate-400">대본 {scripts.length}개</span>
+            )}
+          </h1>
         </div>
 
         {/* 탭 */}
@@ -968,7 +1022,7 @@ export default function MyContentPage() {
                 : 'bg-white/10 text-slate-300 hover:bg-white/20'
             }`}
           >
-            ⚙️ 설정
+            🎥 YouTube 설정
           </button>
         </div>
 
@@ -1356,86 +1410,17 @@ export default function MyContentPage() {
                                       console.log('📄 원본 content 길이:', item.data.content.length);
                                       console.log('📄 정제된 content 길이:', content.length);
 
-                                      let scriptJson;
-                                      try {
-                                        scriptJson = JSON.parse(content);
-                                        console.log('✅ JSON 파싱 성공 (첫 시도)');
-                                      } catch (firstError) {
-                                        console.warn('⚠️ JSON 파싱 실패, 자동 수정 시도 중...', firstError);
+                                      // JSON 파싱 (유틸리티 함수 사용)
+                                      const parseResult = parseJsonSafely(content);
 
-                                        try {
-                                          // 0. 코드 블록 마커와 { 이전의 모든 텍스트 제거
-                                          let fixed = content;
+                                      if (!parseResult.success) {
+                                        throw new Error(parseResult.error || 'JSON 파싱 실패');
+                                      }
 
-                                          // ```json 또는 json 같은 코드 블록 마커 제거
-                                          fixed = fixed.replace(/^[\s\S]*?```json\s*/i, '');
-                                          fixed = fixed.replace(/^[\s\S]*?```\s*/i, '');
+                                      const scriptJson = parseResult.data;
 
-                                          // {"title" 패턴을 찾아서 그 이전의 모든 텍스트 제거 (가장 정확한 방법)
-                                          // \s*는 공백, 탭, 줄바꿈(\n, \r) 모두 포함
-                                          const titleMatch = fixed.match(/\{\s*"title"/s);
-                                          if (titleMatch && titleMatch.index !== undefined && titleMatch.index > 0) {
-                                            fixed = fixed.substring(titleMatch.index);
-                                            console.log('✅ {"title" 패턴으로 JSON 시작점 발견 (위치:', titleMatch.index, ')');
-                                          } else {
-                                            // fallback: { 이전의 모든 텍스트 제거 (설명, "json", "I'll generate" 등)
-                                            const firstBrace = fixed.indexOf('{');
-                                            if (firstBrace > 0) {
-                                              fixed = fixed.substring(firstBrace);
-                                              console.log('⚠️ fallback: { 로 JSON 시작 (위치:', firstBrace, ')');
-                                            }
-                                          }
-
-                                          // 마지막 } 이후의 모든 텍스트 제거 (``` 등)
-                                          const lastBrace = fixed.lastIndexOf('}');
-                                          if (lastBrace > 0 && lastBrace < fixed.length - 1) {
-                                            fixed = fixed.substring(0, lastBrace + 1);
-                                          }
-
-                                          // 1. 이미 이스케이프된 따옴표를 임시 토큰으로 보호
-                                          fixed = fixed.replace(/\\"/g, '__ESC_QUOTE__');
-
-                                          // 2. title 필드의 값 내부에 있는 이스케이프 안 된 따옴표 수정
-                                          fixed = fixed.replace(
-                                            /"title"\s*:\s*"([^]*?)"\s*,/g,
-                                            (match, value) => {
-                                              const fixedValue = value.replace(/"/g, '\\"');
-                                              return `"title": "${fixedValue}",`;
-                                            }
-                                          );
-
-                                          // 3. narration 필드의 값 내부에 있는 이스케이프 안 된 따옴표 수정
-                                          fixed = fixed.replace(
-                                            /"narration"\s*:\s*"([^]*?)"\s*([,}\]])/g,
-                                            (match, value, ending) => {
-                                              const fixedValue = value.replace(/"/g, '\\"');
-                                              return `"narration": "${fixedValue}"${ending}`;
-                                            }
-                                          );
-
-                                          // 4. image_prompt 필드도 수정
-                                          fixed = fixed.replace(
-                                            /"image_prompt"\s*:\s*"([^]*?)"\s*,/g,
-                                            (match, value) => {
-                                              const fixedValue = value.replace(/"/g, '\\"');
-                                              return `"image_prompt": "${fixedValue}",`;
-                                            }
-                                          );
-
-                                          // 5. 보호한 임시 토큰을 다시 이스케이프된 따옴표로 복원
-                                          fixed = fixed.replace(/__ESC_QUOTE__/g, '\\"');
-
-                                          // 6. Trailing comma 제거 (객체/배열 마지막 요소 뒤의 쉼표)
-                                          // 객체: ,}를 }로
-                                          fixed = fixed.replace(/,(\s*})/g, '$1');
-                                          // 배열: ,]를 ]로
-                                          fixed = fixed.replace(/,(\s*\])/g, '$1');
-
-                                          scriptJson = JSON.parse(fixed);
-                                          console.log('✅ JSON 자동 수정 후 파싱 성공');
-                                        } catch (secondError) {
-                                          throw new Error(`JSON 자동 수정 실패: ${secondError}`);
-                                        }
+                                      if (parseResult.fixed) {
+                                        console.log('⚠️ JSON 자동 수정이 적용되었습니다');
                                       }
 
                                       console.log('📦 파싱된 JSON:', {
