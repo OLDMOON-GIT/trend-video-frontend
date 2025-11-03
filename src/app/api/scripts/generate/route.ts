@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, videoFormat } = body;
+    const { title, type, videoFormat, useClaudeLocal } = body;
 
     if (!title || typeof title !== 'string') {
       return NextResponse.json(
@@ -206,6 +206,8 @@ export async function POST(request: NextRequest) {
     // type 또는 videoFormat에서 스크립트 타입 결정
     // 입력: 'longform', 'shortform', 'sora2' (통일된 형식)
     const inputType = type || videoFormat || 'longform';
+
+    console.log(`📌 useClaudeLocal: ${useClaudeLocal} (타입: ${typeof useClaudeLocal})`);
 
     // 내부 처리용 타입 (프롬프트 선택용)
     let scriptType: 'longform' | 'shortform' | 'sora2' = 'longform';
@@ -251,18 +253,32 @@ export async function POST(request: NextRequest) {
         console.error('scripts_temp pid 컬럼 추가 실패:', e);
       }
     }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN useClaudeLocal INTEGER DEFAULT 1`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp useClaudeLocal 컬럼 추가 실패:', e);
+      }
+    }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN originalTitle TEXT`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp originalTitle 컬럼 추가 실패:', e);
+      }
+    }
 
     // 새 스크립트 작업 생성
     const taskId = `task_${Date.now()}`;
     const createdAt = new Date().toISOString();
 
     const insert = db.prepare(`
-      INSERT INTO scripts_temp (id, title, status, message, createdAt, type)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO scripts_temp (id, title, originalTitle, status, message, createdAt, type, useClaudeLocal)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     // scriptType을 그대로 저장 (이미 'longform', 'shortform', 'sora2' 형식)
-    insert.run(taskId, title, 'PENDING', '대본 생성 대기 중...', createdAt, scriptType);
+    insert.run(taskId, title, title, 'PENDING', '대본 생성 대기 중...', createdAt, scriptType, useClaudeLocal ? 1 : 0);
 
     db.close();
 
@@ -499,6 +515,43 @@ export async function POST(request: NextRequest) {
           }
         } else {
           addLog(taskId, '⚠️ 경고: 응답 파일을 찾을 수 없음');
+        }
+
+        // SORA2 형식인 경우 JSON 정리
+        if (scriptType === 'sora2' && scriptContent) {
+          addLog(taskId, '🔧 SORA2 JSON 정리 중...');
+          console.log('🔧 SORA2 JSON 정리 시작 - 원본 길이:', scriptContent.length);
+
+          // 1. 코드펜스 제거 (```json 또는 ```)
+          let cleanedContent = scriptContent.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+          // 2. 첫 번째 { 찾기 및 마지막 } 찾기
+          const jsonStart = cleanedContent.indexOf('{');
+          const jsonEnd = cleanedContent.lastIndexOf('}');
+
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            // { 이전과 } 이후의 텍스트 제거
+            cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
+            addLog(taskId, `✅ JSON 추출 완료 (${cleanedContent.length}자)`);
+            console.log('✅ JSON 추출 완료:', cleanedContent.substring(0, 200) + '...');
+
+            // 3. JSON 유효성 검증
+            try {
+              const parsed = JSON.parse(cleanedContent);
+              addLog(taskId, '✅ JSON 파싱 성공');
+              console.log('✅ JSON 파싱 성공 - 객체 키:', Object.keys(parsed).join(', '));
+              scriptContent = cleanedContent;
+            } catch (jsonError: any) {
+              addLog(taskId, `⚠️ JSON 파싱 실패: ${jsonError.message}`);
+              console.error('❌ JSON 파싱 실패:', jsonError);
+              console.log('파싱 시도한 내용 (처음 500자):', cleanedContent.substring(0, 500));
+              // 파싱 실패해도 정리된 내용 사용
+              scriptContent = cleanedContent;
+            }
+          } else {
+            addLog(taskId, '⚠️ JSON 구조를 찾을 수 없음 (원본 사용)');
+            console.warn('⚠️ JSON 구조를 찾을 수 없음');
+          }
         }
 
         addLog(taskId, '💾 데이터베이스에 저장 중...');

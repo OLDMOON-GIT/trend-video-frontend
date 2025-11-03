@@ -80,14 +80,35 @@ export async function GET(request: NextRequest) {
 
           // 로그 기반으로 진행률 추정
           const logText = logs.join(' ');
-          if (logText.includes('Python 스크립트 실행 완료') || logText.includes('데이터베이스 저장 중')) {
+
+          // "Generating... X chars" 패턴 찾기 (실시간 진행률)
+          const generatingMatch = logText.match(/Generating\.\.\.\s+(\d+)\s+chars/);
+          if (generatingMatch) {
+            const currentChars = parseInt(generatingMatch[1], 10);
+            // 타입에 따라 예상 길이 다르게 설정
+            const type = tempScript.type || 'longform';
+            const estimatedLengths: Record<string, number> = {
+              'longform': 33000,  // 롱폼: 약 33,000자
+              'shortform': 3000,  // 숏폼: 약 3,000자
+              'sora2': 500        // SORA2: 약 500자 (영어)
+            };
+            const estimatedTotal = estimatedLengths[type] || 33000;
+
+            // 진행률 계산 (10% ~ 90% 범위로 제한)
+            const rawProgress = (currentChars / estimatedTotal) * 100;
+            calculatedProgress = Math.min(Math.max(Math.floor(rawProgress), 10), 90);
+
+            console.log(`📊 실시간 진행률: ${currentChars}/${estimatedTotal}자 = ${calculatedProgress}%`);
+          } else if (logText.includes('Python 스크립트 실행 완료') || logText.includes('데이터베이스 저장 중')) {
             calculatedProgress = 90;
           } else if (logText.includes('Claude 응답 파일 검색') || logText.includes('프롬프트 파일 저장')) {
             calculatedProgress = 70;
           } else if (logText.includes('작업 시작됨') || logText.includes('프로세스 PID')) {
             calculatedProgress = 30;
+          } else if (logText.includes('Waiting for response') || logText.includes('Sending question')) {
+            calculatedProgress = 20;
           } else if (logs.length > 0) {
-            calculatedProgress = 40;
+            calculatedProgress = 15;
           }
         } catch (e) {
           logs = [];

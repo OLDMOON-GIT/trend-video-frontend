@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       status: job.status,
       progress: job.progress || 0,
       logs: job.logs || '',
-      outputPath: job.videoPath || job.outputPath,
+      outputPath: job.videoPath,
       error: job.error
     });
 

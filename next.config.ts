@@ -7,10 +7,10 @@ const nextConfig: NextConfig = {
       fullUrl: false,
     },
   },
-  // Cross-Origin 개발 서버 설정
-  experimental: {
-    allowedDevOrigins: ['oldmoon.iptime.org'],
-  },
+  // // Cross-Origin 개발 서버 설정
+  // experimental: {
+  // allowedDevOrigins: ['oldmoon.iptime.org'],
+  // },
   images: {
     remotePatterns: [
       {

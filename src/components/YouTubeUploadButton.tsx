@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 
 interface YouTubeUploadButtonProps {
@@ -21,7 +22,12 @@ export default function YouTubeUploadButton({
   const [title, setTitle] = useState(defaultTitle);
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
-  const [privacy, setPrivacy] = useState<'public' | 'unlisted' | 'private'>('unlisted');
+  const [privacy, setPrivacy] = useState<'public' | 'unlisted' | 'private'>('public');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleUploadClick = () => {
     setShowModal(true);
@@ -81,21 +87,9 @@ export default function YouTubeUploadButton({
     }
   };
 
-  return (
-    <>
-      <button
-        onClick={handleUploadClick}
-        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
-      >
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-        </svg>
-        <span>YouTube 업로드</span>
-      </button>
-
-      {/* 업로드 모달 */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+  const modalContent = showModal && mounted ? (
+    createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-[99999] p-4 pt-16 overflow-y-auto">
           <div className="bg-slate-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-700">
               <h2 className="text-2xl font-bold text-white">YouTube 업로드</h2>
@@ -196,8 +190,24 @@ export default function YouTubeUploadButton({
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body
+    )
+  ) : null;
+
+  return (
+    <>
+      <button
+        onClick={handleUploadClick}
+        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+      >
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+        </svg>
+        <span>YouTube 업로드</span>
+      </button>
+
+      {modalContent}
     </>
   );
 }

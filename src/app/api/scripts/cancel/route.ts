@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { getCurrentUser } from '@/lib/session';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import fs from 'fs/promises';
 
-const execAsync = promisify(exec);
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
 export async function POST(request: NextRequest) {
@@ -31,56 +29,47 @@ export async function POST(request: NextRequest) {
 
     console.log(`🛑 작업 중지 요청: ${taskId}`);
 
-    // DB에서 PID 가져오기
     const db = new Database(dbPath);
-    const row: any = db.prepare('SELECT pid FROM scripts_temp WHERE id = ?').get(taskId);
 
-    if (!row || !row.pid) {
-      console.log(`⚠️ PID를 찾을 수 없음: ${taskId}`);
-      // PID가 없어도 상태는 업데이트
-      db.prepare(`
-        UPDATE scripts_temp
-        SET status = 'ERROR', message = '사용자에 의해 중지됨', pid = NULL
-        WHERE id = ?
-      `).run(taskId);
-      db.close();
-
-      return NextResponse.json({
-        success: true,
-        message: '작업 상태가 중지로 변경되었습니다. (프로세스 PID 없음)',
-        processKilled: false
-      });
-    }
-
-    const pid = row.pid;
-    console.log(`📍 찾은 PID: ${pid}`);
-
-    let killed = false;
+    // STOP 신호 파일 생성 (Backend가 이 파일을 감지하면 자체 종료)
     try {
-      // Windows와 Unix 계열에 따라 다른 명령 사용
-      const isWindows = process.platform === 'win32';
+      // 작업 디렉토리 찾기
+      const backendOutputDir = path.join(process.cwd(), '..', 'trend-video-backend', 'output');
 
-      if (isWindows) {
-        // Windows: taskkill로 프로세스 트리 전체 종료
-        await execAsync(`taskkill /F /T /PID ${pid}`);
-        console.log(`✅ Windows 프로세스 종료 완료: PID ${pid}`);
-      } else {
-        // Unix: kill 명령 사용
-        await execAsync(`kill -9 ${pid}`);
-        console.log(`✅ Unix 프로세스 종료 완료: PID ${pid}`);
+      // taskId에 해당하는 폴더 찾기 (여러 패턴 시도)
+      const possiblePaths = [
+        path.join(backendOutputDir, taskId),
+        path.join(process.cwd(), 'output', taskId),
+        path.join(backendOutputDir, `script_${taskId}`),
+        path.join(process.cwd(), 'output', `script_${taskId}`)
+      ];
+
+      let stopFilePath: string | null = null;
+      for (const dirPath of possiblePaths) {
+        try {
+          await fs.access(dirPath);
+          stopFilePath = path.join(dirPath, 'STOP');
+          await fs.writeFile(stopFilePath, `STOP\nTimestamp: ${new Date().toISOString()}\nTaskId: ${taskId}`);
+          console.log(`✅ STOP 신호 파일 생성: ${stopFilePath}`);
+          break;
+        } catch {
+          // 디렉토리가 없으면 다음 시도
+          continue;
+        }
       }
-      killed = true;
+
+      if (!stopFilePath) {
+        console.log(`⚠️ 작업 디렉토리를 찾을 수 없음. DB 상태만 업데이트합니다.`);
+      }
     } catch (error: any) {
-      // 프로세스가 이미 종료되었거나 존재하지 않는 경우
-      console.log(`⚠️ 프로세스 종료 실패 또는 이미 종료됨: ${error.message}`);
-      killed = false;
+      console.error(`⚠️ STOP 파일 생성 실패:`, error.message);
     }
 
     // DB 상태 업데이트
     try {
       db.prepare(`
         UPDATE scripts_temp
-        SET status = 'ERROR', message = '사용자에 의해 중지됨', pid = NULL
+        SET status = 'STOPPING', message = '중지 신호 전송됨 (Backend에서 처리 중)', pid = NULL
         WHERE id = ?
       `).run(taskId);
 
@@ -89,11 +78,11 @@ export async function POST(request: NextRequest) {
       const logs = logsRow?.logs ? JSON.parse(logsRow.logs) : [];
       logs.push({
         timestamp: new Date().toISOString(),
-        message: '🛑 사용자에 의해 작업이 중지되었습니다.'
+        message: '🛑 중지 신호 전송됨. Backend가 자체 종료합니다.'
       });
       db.prepare('UPDATE scripts_temp SET logs = ? WHERE id = ?').run(JSON.stringify(logs), taskId);
 
-      console.log(`✅ DB 상태 업데이트 완료: ${taskId}`);
+      console.log(`✅ DB 상태 업데이트 완료: ${taskId} (STOPPING)`);
     } catch (dbError) {
       console.error('DB 업데이트 실패:', dbError);
     } finally {
@@ -102,9 +91,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: '작업이 중지되었습니다.',
-      processKilled: killed,
-      pid: pid
+      message: '중지 신호가 전송되었습니다. Backend에서 프로세스를 정리합니다.',
+      method: 'signal_file'
     });
 
   } catch (error: any) {

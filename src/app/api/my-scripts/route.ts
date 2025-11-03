@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
           id: script.id,
           userId: '', // scripts_temp에는 userId가 없음 (전역 공유)
           title: script.title,
-          originalTitle: script.title,
+          originalTitle: script.originalTitle || script.title,
           content: content, // scripts 테이블에서 가져온 실제 내용
           status: script.status === 'DONE' ? 'completed' :
                   script.status === 'ERROR' ? 'failed' :
@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
           error: script.message?.includes('오류') ? script.message : undefined,
           logs: script.logs ? JSON.parse(script.logs) : [],
           type: script.type as 'longform' | 'shortform' | 'sora2' | undefined,
+          useClaudeLocal: script.useClaudeLocal === 1, // 로컬 Claude 사용 여부
           createdAt: script.createdAt,
           updatedAt: script.createdAt
         };

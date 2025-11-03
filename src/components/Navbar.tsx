@@ -121,7 +121,7 @@ export default function Navbar() {
                   href="/my-content?tab=settings"
                   className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
                 >
-                  ⚙️ 설정
+                  🎥 YouTube 설정
                 </a>
 
                 <button
@@ -207,7 +207,7 @@ export default function Navbar() {
                   className="rounded-lg bg-slate-700 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-slate-600"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  ⚙️ 설정
+                  🎥 YouTube 설정
                 </a>
 
                 <button

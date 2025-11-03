@@ -12,6 +12,7 @@ const CHARGE_REQUESTS_FILE = path.join(DATA_DIR, 'charge_requests.json');
 const USER_ACTIVITY_LOGS_FILE = path.join(DATA_DIR, 'user_activity_logs.json');
 const USER_SESSIONS_FILE = path.join(DATA_DIR, 'user_sessions.json');
 const SCRIPTS_FILE = path.join(DATA_DIR, 'scripts.json');
+const YOUTUBE_CHANNELS_FILE = path.join(DATA_DIR, 'youtube_channels.json');
 
 // Write queue to prevent concurrent writes
 let writeQueue: Promise<void> = Promise.resolve();
@@ -203,7 +204,7 @@ export async function deleteUserById(userId: string): Promise<void> {
 // ==================== SQLite Job 함수들 ====================
 
 // 작업 생성
-export function createJob(userId: string, jobId: string, title?: string): Job {
+export function createJob(userId: string, jobId: string, title?: string, type?: 'longform' | 'shortform' | 'sora2'): Job {
   const now = new Date().toISOString();
 
   const stmt = db.prepare(`
@@ -1082,9 +1083,9 @@ export async function findScriptById(scriptId: string): Promise<Script | null> {
 export async function findScriptTempById(scriptId: string): Promise<any | null> {
   const stmt = db.prepare(`
     SELECT
-      id, user_id as userId, title, original_topic as originalTitle,
-      use_claude_local as useClaudeLocal, type,
-      created_at as createdAt
+      id, title, originalTitle,
+      useClaudeLocal, type,
+      createdAt, scriptId
     FROM scripts_temp
     WHERE id = ? OR scriptId = ?
   `);
@@ -1094,9 +1095,9 @@ export async function findScriptTempById(scriptId: string): Promise<any | null> 
 
   return {
     id: row.id,
-    userId: row.userId,
+    userId: '', // scripts_temp에는 userId 없음
     title: row.title,
-    originalTitle: row.originalTitle,
+    originalTitle: row.originalTitle || row.title,
     useClaudeLocal: row.useClaudeLocal === 1,
     type: row.type,
     createdAt: row.createdAt
@@ -1271,9 +1272,153 @@ export function addTaskLog(taskId: string, logMessage: string): void {
   stmt.run(taskId, logMessage);
 }
 
+export function addScriptLog(scriptId: string, logMessage: string): void {
+  const script = SCRIPTS.find(s => s.id === scriptId);
+  if (script) {
+    if (!script.logs) {
+      script.logs = [];
+    }
+    const timestamp = new Date().toISOString();
+    script.logs.push(`[${timestamp}] ${logMessage}`);
+  }
+}
+
 // Task 삭제
 export function deleteTask(taskId: string): boolean {
   const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
   const result = stmt.run(taskId);
   return result.changes > 0;
+}
+
+// ============================================
+// YouTube 채널 관리
+// ============================================
+
+// YouTube 채널 목록 읽기
+export async function getYouTubeChannels(): Promise<YouTubeChannel[]> {
+  await ensureDataDir();
+  await ensureFile(YOUTUBE_CHANNELS_FILE, '[]');
+  const data = await fs.readFile(YOUTUBE_CHANNELS_FILE, 'utf-8');
+  return JSON.parse(data);
+}
+
+// 사용자의 YouTube 채널 목록 가져오기
+export async function getUserYouTubeChannels(userId: string): Promise<YouTubeChannel[]> {
+  const channels = await getYouTubeChannels();
+  return channels.filter(ch => ch.userId === userId);
+}
+
+// YouTube 채널 추가
+export async function addYouTubeChannel(channel: Omit<YouTubeChannel, 'id' | 'createdAt' | 'updatedAt'>): Promise<YouTubeChannel> {
+  const channels = await getYouTubeChannels();
+
+  // 같은 사용자의 같은 채널이 이미 있는지 확인
+  const existing = channels.find(ch => ch.userId === channel.userId && ch.channelId === channel.channelId);
+  if (existing) {
+    throw new Error('이미 연결된 채널입니다.');
+  }
+
+  const newChannel: YouTubeChannel = {
+    ...channel,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  // 첫 번째 채널이면 자동으로 기본 채널로 설정
+  if (channels.filter(ch => ch.userId === channel.userId).length === 0) {
+    newChannel.isDefault = true;
+  }
+
+  channels.push(newChannel);
+  await writeQueue.then(async () => {
+    await fs.writeFile(YOUTUBE_CHANNELS_FILE, JSON.stringify(channels, null, 2), 'utf-8');
+  });
+
+  return newChannel;
+}
+
+// YouTube 채널 업데이트
+export async function updateYouTubeChannel(channelId: string, updates: Partial<YouTubeChannel>): Promise<YouTubeChannel | null> {
+  const channels = await getYouTubeChannels();
+  const index = channels.findIndex(ch => ch.id === channelId);
+
+  if (index === -1) return null;
+
+  channels[index] = {
+    ...channels[index],
+    ...updates,
+    updatedAt: new Date().toISOString()
+  };
+
+  await writeQueue.then(async () => {
+    await fs.writeFile(YOUTUBE_CHANNELS_FILE, JSON.stringify(channels, null, 2), 'utf-8');
+  });
+
+  return channels[index];
+}
+
+// YouTube 채널 삭제
+export async function deleteYouTubeChannel(channelId: string): Promise<boolean> {
+  const channels = await getYouTubeChannels();
+  const index = channels.findIndex(ch => ch.id === channelId);
+
+  if (index === -1) return false;
+
+  const deletedChannel = channels[index];
+  channels.splice(index, 1);
+
+  // 삭제된 채널이 기본 채널이었다면, 같은 사용자의 첫 번째 채널을 기본으로 설정
+  if (deletedChannel.isDefault) {
+    const userChannels = channels.filter(ch => ch.userId === deletedChannel.userId);
+    if (userChannels.length > 0) {
+      const firstChannel = channels.find(ch => ch.id === userChannels[0].id);
+      if (firstChannel) {
+        firstChannel.isDefault = true;
+      }
+    }
+  }
+
+  await writeQueue.then(async () => {
+    await fs.writeFile(YOUTUBE_CHANNELS_FILE, JSON.stringify(channels, null, 2), 'utf-8');
+  });
+
+  return true;
+}
+
+// 기본 채널 설정
+export async function setDefaultYouTubeChannel(userId: string, channelId: string): Promise<boolean> {
+  const channels = await getYouTubeChannels();
+
+  // 해당 사용자의 모든 채널의 isDefault를 false로
+  channels.forEach(ch => {
+    if (ch.userId === userId) {
+      ch.isDefault = false;
+    }
+  });
+
+  // 선택한 채널만 isDefault = true
+  const targetChannel = channels.find(ch => ch.id === channelId && ch.userId === userId);
+  if (!targetChannel) return false;
+
+  targetChannel.isDefault = true;
+  targetChannel.updatedAt = new Date().toISOString();
+
+  await writeQueue.then(async () => {
+    await fs.writeFile(YOUTUBE_CHANNELS_FILE, JSON.stringify(channels, null, 2), 'utf-8');
+  });
+
+  return true;
+}
+
+// 사용자의 기본 YouTube 채널 가져오기
+export async function getDefaultYouTubeChannel(userId: string): Promise<YouTubeChannel | null> {
+  const channels = await getUserYouTubeChannels(userId);
+  return channels.find(ch => ch.isDefault) || channels[0] || null;
+}
+
+// ID로 YouTube 채널 찾기
+export async function getYouTubeChannelById(channelId: string): Promise<YouTubeChannel | null> {
+  const channels = await getYouTubeChannels();
+  return channels.find(ch => ch.id === channelId) || null;
 }

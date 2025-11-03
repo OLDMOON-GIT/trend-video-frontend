@@ -3,8 +3,9 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import { getCurrentUser } from '@/lib/session';
-import { findJobById, updateJob, addJobLog, getSettings, deductCredits, addCredits, addCreditHistory, createJob } from '@/lib/db';
+import { findJobById, updateJob, addJobLog, getSettings, deductCredits, addCredits, addCreditHistory, createJob, flushJobLogs } from '@/lib/db';
 import kill from 'tree-kill';
+import { sendProcessKillFailureEmail, sendProcessKillTimeoutEmail } from '@/utils/email';
 
 // 실행 중인 프로세스 맵
 const runningProcesses = new Map<string, any>();
@@ -115,6 +116,127 @@ export async function POST(request: NextRequest) {
     console.error('Error restarting video:', error);
     return NextResponse.json(
       { error: error?.message || '작업 재시작 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: 재시작 작업 중지
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getCurrentUser(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const jobId = searchParams.get('jobId');
+
+    if (!jobId) {
+      return NextResponse.json(
+        { error: 'jobId가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // Job 확인
+    const job = await findJobById(jobId);
+
+    if (!job) {
+      return NextResponse.json(
+        { error: '작업을 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
+    // 본인 작업인지 확인
+    if (job.userId !== user.userId) {
+      return NextResponse.json(
+        { error: '권한이 없습니다.' },
+        { status: 403 }
+      );
+    }
+
+    // 이미 완료되거나 실패한 작업은 취소 불가
+    if (job.status === 'completed' || job.status === 'failed') {
+      return NextResponse.json(
+        { error: '이미 완료되거나 실패한 작업입니다.' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`🛑 재시작 작업 취소 요청: ${jobId} by ${user.email}`);
+
+    // 실행 중인 프로세스 확인 및 종료
+    const process = runningProcesses.get(jobId);
+
+    if (process && process.pid) {
+      console.log(`🛑 작업 취소 요청 (프로세스 트리 강제 종료): ${jobId}, PID: ${process.pid}`);
+
+      const pid = process.pid;
+      let killSucceeded = false;
+
+      // tree-kill로 프로세스 트리 전체 강제 종료
+      kill(pid, 'SIGKILL', async (err) => {
+        if (err) {
+          console.error(`❌ tree-kill 실패: ${err}`);
+          await sendProcessKillFailureEmail(jobId, pid, user.userId, `tree-kill 실패: ${err.message || String(err)}`);
+        } else {
+          console.log(`✅ tree-kill 성공: PID ${pid}`);
+          killSucceeded = true;
+        }
+      });
+
+      // 프로세스 종료 타임아웃 체크 (5초 후)
+      setTimeout(async () => {
+        if (!killSucceeded) {
+          console.warn(`⏱️ 프로세스 종료 타임아웃: PID ${pid}`);
+          await sendProcessKillTimeoutEmail(jobId, pid, user.userId, 5);
+        }
+      }, 5000);
+
+      runningProcesses.delete(jobId);
+    } else {
+      console.log(`⚠️  실행 중인 프로세스가 없습니다: ${jobId}`);
+    }
+
+    // 크레딧 설정 가져오기
+    const settings = await getSettings();
+    const cost = settings.videoGenerationCost;
+
+    // Job 상태 업데이트
+    await updateJob(jobId, {
+      status: 'cancelled',
+      error: '사용자가 취소함'
+    });
+
+    // 로그 플러시
+    await flushJobLogs(jobId);
+
+    // 로그 추가
+    await addJobLog(jobId, '\n\n🛑 사용자가 작업을 취소했습니다.');
+
+    // 크레딧 환불
+    await addCredits(user.userId, cost);
+    await addCreditHistory(user.userId, 'refund', cost, '재시작 작업 취소 환불');
+    await addJobLog(jobId, `💰 ${cost} 크레딧이 환불되었습니다.`);
+
+    console.log(`✅ 재시작 작업 취소 완료: ${jobId}, ${cost} 크레딧 환불`);
+
+    return NextResponse.json({
+      success: true,
+      message: '작업이 취소되었습니다.',
+      refundedCredits: cost
+    });
+
+  } catch (error: any) {
+    console.error('Error cancelling restart job:', error);
+    return NextResponse.json(
+      { error: error?.message || '작업 취소 중 오류가 발생했습니다.' },
       { status: 500 }
     );
   }
@@ -232,12 +354,14 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
 
     const pythonProcess = spawn('python', pythonArgs, {
       cwd: backendPath,
-      shell: true,
+      shell: false,  // shell을 사용하지 않음 (프로세스 트리 단순화)
+      detached: false,  // 부모와 함께 종료
       env: {
         ...process.env,
         PYTHONIOENCODING: 'utf-8',
         PYTHONUNBUFFERED: '1'
-      }
+      },
+      windowsHide: true  // Windows 콘솔 창 숨김
     });
 
     runningProcesses.set(newJobId, pythonProcess);

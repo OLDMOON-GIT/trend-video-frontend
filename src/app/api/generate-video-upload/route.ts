@@ -291,12 +291,14 @@ async function generateVideoFromUpload(
 
       pythonProcess = spawn('python', pythonArgs, {
         cwd: backendPath,
-        shell: true,
+        shell: false,  // shell을 사용하지 않음 (프로세스 트리 단순화)
+        detached: false,  // 부모와 함께 종료
         env: {
           ...process.env,
           PYTHONIOENCODING: 'utf-8',
           PYTHONUNBUFFERED: '1'
-        }
+        },
+        windowsHide: true  // Windows 콘솔 창 숨김
       });
     } else {
       // trend-video-backend 사용 (기존 로직)
@@ -324,12 +326,14 @@ async function generateVideoFromUpload(
 
       pythonProcess = spawn('python', pythonArgs, {
         cwd: config.backendPath,
-        shell: true,
+        shell: false,  // shell을 사용하지 않음 (프로세스 트리 단순화)
+        detached: false,  // 부모와 함께 종료
         env: {
           ...process.env,
           PYTHONIOENCODING: 'utf-8',
           PYTHONUNBUFFERED: '1'
-        }
+        },
+        windowsHide: true  // Windows 콘솔 창 숨김
       });
     }
 
@@ -342,7 +346,7 @@ async function generateVideoFromUpload(
     let isCancelled = false;
 
     // stdout 실시간 처리
-    pythonProcess.stdout.on('data', async (data) => {
+    pythonProcess.stdout.on('data', async (data: Buffer) => {
       const text = data.toString('utf-8');
       stdoutBuffer += text;
       console.log(text);
@@ -362,7 +366,7 @@ async function generateVideoFromUpload(
     });
 
     // stderr 실시간 처리
-    pythonProcess.stderr.on('data', async (data) => {
+    pythonProcess.stderr.on('data', async (data: Buffer) => {
       const text = data.toString('utf-8');
       stderrBuffer += text;
       console.error(text);
@@ -371,7 +375,7 @@ async function generateVideoFromUpload(
 
     // 프로세스 완료 대기
     await new Promise<void>((resolve, reject) => {
-      pythonProcess.on('close', (code) => {
+      pythonProcess.on('close', (code: number | null) => {
         // 맵에서 프로세스 제거
         runningProcesses.delete(jobId);
 
@@ -384,7 +388,7 @@ async function generateVideoFromUpload(
         }
       });
 
-      pythonProcess.on('error', (error) => {
+      pythonProcess.on('error', (error: Error) => {
         runningProcesses.delete(jobId);
         reject(error);
       });

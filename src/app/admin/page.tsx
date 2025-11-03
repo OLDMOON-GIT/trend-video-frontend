@@ -41,20 +41,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        credentials: 'include'
-      });
-      localStorage.removeItem('sessionId');
-      router.push('/auth');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
@@ -67,31 +53,9 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-5xl">
 {/* 헤더 */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-white">⚙️ 관리자 대시보드</h1>
-            {user && <p className="mt-2 text-sm text-slate-400">{user.email}</p>}
-          </div>
-          <div className="flex gap-3">
-            <Link
-              href="/"
-              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-            >
-              메인으로
-            </Link>
-            <Link
-              href="/my-videos"
-              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-            >
-              내 영상
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-            >
-              로그아웃
-            </button>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white">⚙️ 관리자 대시보드</h1>
+          {user && <p className="mt-2 text-sm text-slate-400">{user.email}</p>}
         </div>
 
         {/* 메뉴 카드 */}
@@ -215,6 +179,21 @@ export default function AdminPage() {
               관리하기 →
             </div>
           </Link>
+
+          {/* YouTube Credentials */}
+          <Link
+            href="/admin/youtube-credentials"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-red-500/20 to-pink-500/20 p-8 backdrop-blur transition hover:border-red-500/50 hover:shadow-2xl hover:shadow-red-500/20"
+          >
+            <div className="mb-4 text-5xl">🎥</div>
+            <h2 className="mb-2 text-2xl font-bold text-white">YouTube Credentials</h2>
+            <p className="text-sm text-slate-300">
+              공통 YouTube API Credentials 설정 (모든 사용자 공용)
+            </p>
+            <div className="mt-4 flex items-center text-sm font-semibold text-red-300 transition group-hover:translate-x-2">
+              설정하기 →
+            </div>
+          </Link>
         </div>
 
         {/* 안내 */}
@@ -226,6 +205,7 @@ export default function AdminPage() {
             <p>• <strong>크레딧 설정:</strong> AI 대본 생성 및 영상 생성 시 차감되는 크레딧 금액 설정</p>
             <p>• <strong>사용자 활동 로그:</strong> 로그인/로그아웃 기록, 활동 시간, 활성 세션 모니터링</p>
             <p>• <strong>DB 백업 관리:</strong> 데이터베이스 자동/수동 백업, 복원, 무결성 체크</p>
+            <p>• <strong>YouTube Credentials:</strong> 모든 사용자가 공용으로 사용하는 YouTube API 인증 정보 설정</p>
             <p>• <strong>권한:</strong> 이 페이지는 관리자만 접근할 수 있습니다.</p>
           </div>
         </div>

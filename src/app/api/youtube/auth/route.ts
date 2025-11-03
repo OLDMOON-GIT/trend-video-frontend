@@ -7,47 +7,44 @@ import fs from 'fs';
 const BACKEND_PATH = path.join(process.cwd(), '..', 'trend-video-backend');
 const YOUTUBE_CLI = path.join(BACKEND_PATH, 'youtube_upload_cli.py');
 const CREDENTIALS_DIR = path.join(BACKEND_PATH, 'config');
+const COMMON_CREDENTIALS_PATH = path.join(CREDENTIALS_DIR, 'youtube_client_secret.json');
 
-// 사용자별 credentials 파일 경로 생성
-function getUserCredentialsPath(userId: string): string {
-  return path.join(CREDENTIALS_DIR, `youtube_client_secret_${userId}.json`);
+function getUserTokenPath(userId: string): string {
+  return path.join(CREDENTIALS_DIR, `youtube_token_${userId}.json`);
 }
 
 /**
  * GET /api/youtube/auth - YouTube 인증 상태 확인
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const credentialsPath = getUserCredentialsPath(user.userId);
-    const hasCredentials = fs.existsSync(credentialsPath);
-    const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}.json`);
+    const hasCredentials = fs.existsSync(COMMON_CREDENTIALS_PATH);
+    console.log("[YouTube Auth API] Credentials check:", { path: COMMON_CREDENTIALS_PATH, exists: hasCredentials });
+    const tokenPath = getUserTokenPath(user.userId);
     const hasToken = fs.existsSync(tokenPath);
 
+    console.log('[YouTube Auth GET] 상태 체크:', {
+      userId: user.userId,
+      credentialsPath: COMMON_CREDENTIALS_PATH,
+      hasCredentials,
+      tokenPath,
+      hasToken
+    });
+
     if (!hasToken) {
-      return NextResponse.json({
-        authenticated: false,
-        hasCredentials
-      });
+      return NextResponse.json({ authenticated: false, hasCredentials });
     }
 
-    if (!hasCredentials) {
-      return NextResponse.json({
-        authenticated: false,
-        hasCredentials: false
-      });
-    }
-
-    // 채널 정보 조회로 토큰 유효성 검증
     return new Promise((resolve) => {
       const python = spawn('python', [
         YOUTUBE_CLI,
         '--action', 'channel-info',
-        '--credentials', credentialsPath,
+        '--credentials', COMMON_CREDENTIALS_PATH,
         '--token', tokenPath
       ]);
 
@@ -62,20 +59,14 @@ export async function GET(request: NextRequest) {
           if (result.success && result.channel) {
             resolve(NextResponse.json({
               authenticated: true,
-              hasCredentials: true,
-              channel: result.channel
+              channel: result.channel,
+              hasCredentials
             }));
           } else {
-            resolve(NextResponse.json({
-              authenticated: false,
-              hasCredentials: true
-            }));
+            resolve(NextResponse.json({ authenticated: false, hasCredentials }));
           }
         } catch {
-          resolve(NextResponse.json({
-            authenticated: false,
-            hasCredentials: true
-          }));
+          resolve(NextResponse.json({ authenticated: false, hasCredentials }));
         }
       });
     });
@@ -88,30 +79,28 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/youtube/auth - YouTube 인증 시작
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const credentialsPath = getUserCredentialsPath(user.userId);
-
-    if (!fs.existsSync(credentialsPath)) {
+    if (!fs.existsSync(COMMON_CREDENTIALS_PATH)) {
       return NextResponse.json({
-        error: 'YouTube API credentials 파일이 없습니다',
-        details: '설정 방법: 1) Google Cloud Console에서 OAuth 2.0 클라이언트 ID 생성 → 2) JSON 다운로드 → 3) 이 페이지에서 파일 업로드',
-        setupGuide: '../trend-video-backend/YOUTUBE_SETUP.md 참조'
+        error: 'YouTube API credentials가 설정되지 않았습니다',
+        details: '관리자에게 문의하여 공통 Credentials를 설정해야 합니다.',
+        setupGuide: '관리자 페이지 → YouTube Credentials 메뉴'
       }, { status: 500 });
     }
 
-    const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}.json`);
+    const tokenPath = getUserTokenPath(user.userId);
 
     return new Promise((resolve) => {
       const python = spawn('python', [
         YOUTUBE_CLI,
         '--action', 'auth',
-        '--credentials', credentialsPath,
+        '--credentials', COMMON_CREDENTIALS_PATH,
         '--token', tokenPath
       ]);
 
@@ -142,14 +131,14 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/youtube/auth - YouTube 연결 해제
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}.json`);
+    const tokenPath = getUserTokenPath(user.userId);
     if (fs.existsSync(tokenPath)) {
       fs.unlinkSync(tokenPath);
     }

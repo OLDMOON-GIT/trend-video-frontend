@@ -70,11 +70,19 @@ export async function POST(request: NextRequest) {
     const tempScript = await findScriptTempById(scriptId);
 
     if (!tempScript) {
+      console.log(`❌ scripts_temp에서 대본을 찾을 수 없습니다: ${scriptId}`);
       return NextResponse.json(
         { error: '원본 요청 정보를 찾을 수 없습니다.' },
         { status: 404 }
       );
     }
+
+    console.log(`✅ 대본 정보 확인:`, {
+      title: tempScript.title,
+      originalTitle: tempScript.originalTitle,
+      type: tempScript.type,
+      useClaudeLocal: tempScript.useClaudeLocal
+    });
 
     // 새로운 대본 생성 API 호출
     const generateResponse = await fetch(`${request.nextUrl.origin}/api/scripts/generate`, {
@@ -86,7 +94,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         title: `${tempScript.originalTitle || tempScript.title} (재생성)`,
         format: tempScript.type || 'longform',
-        useClaudeLocal: tempScript.useClaudeLocal || false
+        useClaudeLocal: tempScript.useClaudeLocal === 1 || tempScript.useClaudeLocal === true
       })
     });
 

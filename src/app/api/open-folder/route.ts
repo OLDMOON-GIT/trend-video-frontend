@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 권한 확인: 관리자이거나 자신의 작업인 경우만 허용
-    if (!user.isAdmin && job.userId !== user.id) {
+    if (!user.isAdmin && job.userId !== user.userId) {
       return NextResponse.json(
         { error: '이 작업의 폴더를 열 권한이 없습니다.' },
         { status: 403 }

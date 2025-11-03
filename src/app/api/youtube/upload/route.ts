@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
+import { getYouTubeChannelById, getDefaultYouTubeChannel } from '@/lib/db';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -8,15 +9,15 @@ const BACKEND_PATH = path.join(process.cwd(), '..', 'trend-video-backend');
 const YOUTUBE_CLI = path.join(BACKEND_PATH, 'youtube_upload_cli.py');
 const CREDENTIALS_DIR = path.join(BACKEND_PATH, 'config');
 
-// 사용자별 credentials 파일 경로 생성
-function getUserCredentialsPath(userId: string): string {
-  return path.join(CREDENTIALS_DIR, `youtube_client_secret_${userId}.json`);
+const COMMON_CREDENTIALS_PATH = path.join(CREDENTIALS_DIR, 'youtube_client_secret.json');
+function getUserTokenPath(userId: string): string {
+  return path.join(CREDENTIALS_DIR, `youtube_token_${userId}.json`);
 }
 
 /**
  * POST /api/youtube/upload - 비디오 업로드
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
@@ -33,7 +34,8 @@ export async function POST(request: NextRequest) {
       categoryId = '27',
       thumbnailPath,
       captionsPath,
-      publishAt
+      publishAt,
+      channelId // 업로드할 YouTube 채널 ID (선택사항, 없으면 기본 채널 사용)
     } = body;
 
     if (!videoPath || !title) {
@@ -61,10 +63,13 @@ export async function POST(request: NextRequest) {
 
     // 업로드 실행
     return new Promise((resolve) => {
+      const credentialsPath = COMMON_CREDENTIALS_PATH;
+    const tokenPath = getUserTokenPath(user.userId);
+
       const args = [
         YOUTUBE_CLI,
         '--action', 'upload',
-        '--credentials', getUserCredentialsPath(user.userId),
+        '--credentials', credentialsPath,
         '--token', tokenPath,
         '--video', fullVideoPath,
         '--metadata', metadataPath
