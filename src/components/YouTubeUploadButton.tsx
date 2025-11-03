@@ -37,6 +37,11 @@ export default function YouTubeUploadButton({
 
   useEffect(() => {
     setMounted(true);
+    // localStorage에서 저장된 공개 설정 불러오기
+    const savedPrivacy = localStorage.getItem('youtube_privacy_setting');
+    if (savedPrivacy && ['public', 'unlisted', 'private'].includes(savedPrivacy)) {
+      setPrivacy(savedPrivacy as 'public' | 'unlisted' | 'private');
+    }
   }, []);
 
   const loadChannels = async () => {
@@ -101,6 +106,9 @@ export default function YouTubeUploadButton({
       const data = await res.json();
 
       if (data.success) {
+        // 성공 시 공개 설정 저장
+        localStorage.setItem('youtube_privacy_setting', privacy);
+
         toast.success(
           <div>
             <div>YouTube 업로드 성공!</div>

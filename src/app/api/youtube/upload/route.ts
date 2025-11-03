@@ -109,18 +109,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
 
+      console.log('🐍 Python 실행 명령:', 'python', args.join(' '));
+
       const python = spawn('python', args);
 
       let output = '';
       let errorOutput = '';
 
       python.stdout.on('data', (data) => {
-        output += data.toString();
+        const text = data.toString();
+        console.log('📤 Python stdout:', text);
+        output += text;
       });
 
       python.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-        console.error('🔴 Python stderr:', data.toString());
+        const text = data.toString();
+        console.error('🔴 Python stderr:', text);
+        errorOutput += text;
       });
 
       python.on('close', (code) => {

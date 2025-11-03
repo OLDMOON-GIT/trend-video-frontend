@@ -148,5 +148,15 @@
     "ipAddress": "::ffff:192.168.0.1",
     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
     "createdAt": "2025-11-03T17:44:02.894Z"
+  },
+  {
+    "id": "d88adaa5-dce1-4501-ba76-d7cfe8f89f86",
+    "userId": "0f4fe157-2d83-4745-94cc-f43a8696a747",
+    "userEmail": "oldmoon.com@gmail.com",
+    "action": "login",
+    "details": "로그인 성공 (RememberMe: Yes)",
+    "ipAddress": "::ffff:192.168.0.1",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
+    "createdAt": "2025-11-03T20:08:57.318Z"
   }
 ]

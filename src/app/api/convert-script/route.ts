@@ -122,6 +122,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { scriptId, targetFormat } = await request.json();
 
+    console.log('📥 변환 요청 받음:', { scriptId, targetFormat });
+
     if (!scriptId || !targetFormat) {
       return NextResponse.json(
         { error: 'scriptId와 targetFormat이 필요합니다.' },
@@ -130,7 +132,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // 원본 대본 가져오기
+    console.log('🔍 대본 조회 중:', scriptId);
     const originalScript = await findScriptById(scriptId);
+    console.log('📄 대본 조회 결과:', originalScript ? '찾음' : '없음');
 
     if (!originalScript) {
       return NextResponse.json(

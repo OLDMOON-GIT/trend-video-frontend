@@ -1047,7 +1047,7 @@ export async function findScriptById(scriptId: string): Promise<Script | null> {
   const stmt = db.prepare(`
     SELECT
       id, user_id as userId, title, original_topic as originalTitle,
-      content, status, progress, error,
+      content, status, progress, error, type,
       input_tokens, output_tokens,
       created_at as createdAt, updated_at as updatedAt
     FROM scripts
@@ -1071,6 +1071,7 @@ export async function findScriptById(scriptId: string): Promise<Script | null> {
     status: row.status || 'completed',
     progress: row.progress ?? 100,
     error: row.error,
+    type: row.type,
     logs: logs.length > 0 ? logs : undefined,
     tokenUsage: row.input_tokens || row.output_tokens ? {
       input_tokens: row.input_tokens || 0,
