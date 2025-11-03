@@ -120,26 +120,32 @@ export default function MyContentPage() {
     });
   }, [scripts]);
 
-  // 진행 중인 영상 로그 자동 스크롤
+  // 진행 중인 영상 로그 자동 스크롤 (DOM 업데이트 후 실행)
   useEffect(() => {
     jobs.forEach(job => {
       if ((job.status === 'processing' || job.status === 'pending') && job.logs && expandedLogJobId === job.id) {
-        const ref = jobLogRefs.current.get(job.id);
-        if (ref) {
-          ref.scrollTop = ref.scrollHeight;
-        }
+        // DOM 업데이트를 기다린 후 스크롤
+        setTimeout(() => {
+          const ref = jobLogRefs.current.get(job.id);
+          if (ref) {
+            ref.scrollTop = ref.scrollHeight;
+          }
+        }, 50);
       }
     });
   }, [jobs, expandedLogJobId]);
 
-  // 진행 중인 대본 로그 자동 스크롤 (영상 로그와 동일한 방식)
+  // 진행 중인 대본 로그 자동 스크롤 (DOM 업데이트 후 실행)
   useEffect(() => {
     scripts.forEach(script => {
       if ((script.status === 'processing' || script.status === 'pending') && script.logs && expandedScriptLogId === script.id) {
-        const ref = scriptLogRefs.current.get(script.id);
-        if (ref) {
-          ref.scrollTop = ref.scrollHeight;
-        }
+        // DOM 업데이트를 기다린 후 스크롤
+        setTimeout(() => {
+          const ref = scriptLogRefs.current.get(script.id);
+          if (ref) {
+            ref.scrollTop = ref.scrollHeight;
+          }
+        }, 50);
       }
     });
   }, [scripts, expandedScriptLogId]);
