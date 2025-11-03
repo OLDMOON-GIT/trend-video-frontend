@@ -1,15 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import Breadcrumb from '@/components/Breadcrumb';
 
 export default function PromptsAdminPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-5xl px-4 py-8">
-        <Breadcrumb />
-
-        <div className="mb-8">
+<div className="mb-8">
           <h1 className="text-3xl font-bold">📝 프롬프트 관리</h1>
           <p className="mt-2 text-slate-400">
             Sora2, 롱폼, 숏폼 영상 생성을 위한 프롬프트를 관리합니다.

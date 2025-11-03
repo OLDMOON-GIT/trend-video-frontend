@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Breadcrumb from '@/components/Breadcrumb';
+import YouTubeUploadButton from '@/components/YouTubeUploadButton';
 
 interface Job {
   id: string;
@@ -46,21 +47,9 @@ export default function MyVideosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, searchQuery]);
 
-  // localStorage에서 세션 ID 가져오기
-  const getSessionId = () => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sessionId');
-    }
-    return null;
-  };
-
-  // Authorization 헤더 생성
+  // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
   const getAuthHeaders = (): HeadersInit => {
-    const sessionId = getSessionId();
-    if (!sessionId) return {};
-    return {
-      'Authorization': `Bearer ${sessionId}`
-    };
+    return {}; // 빈 객체 반환 (쿠키가 자동으로 전송됨)
   };
 
   const checkAuth = async () => {
@@ -235,9 +224,7 @@ export default function MyVideosPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-6xl">
-        <Breadcrumb />
-
-        {/* 헤더 */}
+{/* 헤더 */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">
@@ -379,6 +366,12 @@ export default function MyVideosPage() {
                     )}
                     {job.status === 'completed' && job.videoPath && (
                       <>
+                        <YouTubeUploadButton
+                          videoPath={job.videoPath}
+                          thumbnailPath={job.thumbnailPath}
+                          defaultTitle={job.title || ''}
+                          jobId={job.id}
+                        />
                         <button
                           onClick={() => handleOpenFolder(job.id)}
                           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"

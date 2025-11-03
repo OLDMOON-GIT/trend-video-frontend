@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Breadcrumb from '@/components/Breadcrumb';
 
 interface Script {
   id: string;
@@ -30,21 +29,9 @@ export default function MyScriptsPage() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // localStorage에서 세션 ID 가져오기
-  const getSessionId = () => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sessionId');
-    }
-    return null;
-  };
-
-  // Authorization 헤더 생성
+  // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
   const getAuthHeaders = (): HeadersInit => {
-    const sessionId = getSessionId();
-    if (!sessionId) return {};
-    return {
-      'Authorization': `Bearer ${sessionId}`
-    };
+    return {}; // 빈 객체 반환 (쿠키가 자동으로 전송됨)
   };
 
   useEffect(() => {
@@ -192,9 +179,7 @@ export default function MyScriptsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-6xl">
-        <Breadcrumb />
-
-        {/* 헤더 */}
+{/* 헤더 */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">

@@ -176,7 +176,13 @@ async function startWatching() {
     .on('change', (filePath) => handleFileChange(filePath, PROMPTS_DIR, false))
     .on('error', (error) => log(`❌ Watcher 오류 (prompts): ${error}`, colors.red));
 
-  // multi-ai-aggregator 폴더 감시
+  // multi-ai-aggregator 폴더 감시 (비활성화 - 무한 루프 방지)
+  // 단방향 동기화만 사용: trend-video-frontend/prompts → multi-ai-aggregator
+  log('⚠️ multi-ai-aggregator 역방향 동기화 비활성화 (무한 루프 방지)', colors.yellow);
+  log('   prompts 폴더만 감시하여 단방향 동기화합니다', colors.cyan);
+
+  // 주석 처리: 양방향 동기화는 무한 루프를 발생시킴
+  /*
   try {
     await fs.access(MULTI_AI_DIR);
     const multiAiWatcher = chokidar.watch(MULTI_AI_DIR, {
@@ -194,6 +200,7 @@ async function startWatching() {
   } catch (error) {
     log('⚠️ multi-ai-aggregator 폴더를 감시할 수 없습니다', colors.yellow);
   }
+  */
 
   log('✅ 파일 감시 활성화됨', colors.green);
   log('   프롬프트 파일을 수정하면 자동으로 동기화됩니다', colors.cyan);

@@ -33,6 +33,13 @@
 - Uses the built-in `fetch` polyfill provided by Next.js in both client and server environments.
 - Default YouTube query is `korea trending`; adjust the constant in `/api/search/route.ts` for different markets.
 
+## Coupang Partners Integration
+- **Full affiliate marketing suite** integrated at `/coupang` route
+- **Product search** via Coupang OpenAPI
+- **Deep link generation** for affiliate commission tracking
+- **Link management** and statistics dashboard
+- See [COUPANG_QUICKSTART.md](./COUPANG_QUICKSTART.md) for setup and [COUPANG_PARTNERS_GUIDE.md](./COUPANG_PARTNERS_GUIDE.md) for detailed documentation
+
 ## Project Layout
 ```
 trend-video-frontend/

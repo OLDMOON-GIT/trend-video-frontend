@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import Breadcrumb from "@/components/Breadcrumb";
 
 import type { DateFilter, SortOption, VideoItem, VideoType } from "@/types/video";
 
@@ -127,7 +126,6 @@ const renderCount = (value: number) => numberFormatter.format(value);
 
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [viewRange, setViewRange] = useState(defaultViewRange);
   const [subRange, setSubRange] = useState(defaultSubRange);
   const [videoType, setVideoType] = useState<VideoType | "all">("all");
@@ -270,6 +268,19 @@ export default function Home() {
 
     // 제목 히스토리는 checkAuth()에서 로드됨
     setIsMounted(true);
+  }, []);
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const dropdown = document.getElementById('settings-dropdown');
+      const button = event.target as HTMLElement;
+      if (dropdown && !dropdown.contains(button) && !button.closest('[data-settings-button]')) {
+        dropdown.classList.add('hidden');
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   // 대본 생성 중 자동 스크롤
@@ -1324,165 +1335,91 @@ export default function Home() {
 
   return (
     <>
-      {/* 고정 헤더 - PC/모바일 반응형 */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-white/10">
-        <div className="mx-auto max-w-6xl px-3 sm:px-6">
-          <div className="flex items-center justify-between h-16">
-            {/* 로고 및 사용자 정보 */}
-            <div className="flex items-center gap-3">
-              <a
-                href="/"
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-md shadow-purple-500/20 transition hover:shadow-lg hover:shadow-purple-500/30"
-                title="홈으로"
-              >
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-              </a>
-              {user && (
-                <span className="hidden md:block text-sm text-slate-300">👤 {user.email}</span>
-              )}
-            </div>
-
-            {/* PC 네비게이션 */}
-            <nav className="hidden md:flex items-center gap-2">
-              {user ? (
-                <>
-                  <a
-                    href="/credits"
-                    className="rounded-lg bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 px-4 py-2 transition hover:from-yellow-500/30 hover:to-orange-500/30 cursor-pointer"
-                  >
-                    <span className="text-sm font-semibold text-yellow-300">💰 {user.credits?.toLocaleString() || 0}</span>
-                  </a>
-
-                  {user.isAdmin && (
-                    <a
-                      href="/admin"
-                      className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                    >
-                      ⚙️ 관리자
-                    </a>
-                  )}
-
-                  <a
-                    href="/my-content"
-                    className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-                  >
-                    📂 내 콘텐츠
-                  </a>
-
-                  <a
-                    href="/coupang"
-                    className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500"
-                  >
-                    🛒 쿠팡 파트너스
-                  </a>
-
-                  <button
-                    onClick={handleLogout}
-                    className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-                  >
-                    로그아웃
-                  </button>
-                </>
-              ) : (
-                <a
-                  href="/auth"
-                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-                >
-                  로그인 / 회원가입
-                </a>
-              )}
-            </nav>
-
-            {/* 모바일 햄버거 버튼 */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden rounded-lg p-2 text-slate-300 hover:bg-white/10 transition"
-              aria-label="메뉴"
-            >
-              {isMobileMenuOpen ? (
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              )}
-            </button>
-          </div>
-
-          {/* 모바일 드롭다운 메뉴 */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden border-t border-white/10 py-4">
-              {user ? (
-                <div className="flex flex-col gap-2">
-                  <div className="px-4 py-2 text-sm text-slate-300">
-                    👤 {user.email}
-                  </div>
-
-                  <a
-                    href="/credits"
-                    className="rounded-lg bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 px-4 py-2 mx-2 transition hover:from-yellow-500/30 hover:to-orange-500/30"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <span className="text-sm font-semibold text-yellow-300">💰 {user.credits?.toLocaleString() || 0}</span>
-                  </a>
-
-                  {user.isAdmin && (
-                    <a
-                      href="/admin"
-                      className="rounded-lg bg-red-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      ⚙️ 관리자
-                    </a>
-                  )}
-
-                  <a
-                    href="/my-content"
-                    className="rounded-lg bg-purple-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    📂 내 콘텐츠
-                  </a>
-
-                  <a
-                    href="/coupang"
-                    className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    🛒 쿠팡 파트너스
-                  </a>
-
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="rounded-lg bg-slate-700 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-                  >
-                    로그아웃
-                  </button>
-                </div>
-              ) : (
-                <a
-                  href="/auth"
-                  className="block rounded-lg bg-purple-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-purple-500 text-center"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  로그인 / 회원가입
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* 메인 컨텐츠 - 헤더 높이만큼 padding 추가 */}
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 pt-24 pb-8 sm:pb-16 text-slate-100">
+      {/* 메인 컨텐츠 */}
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 pb-8 sm:pb-16 text-slate-100">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-3 sm:gap-10 sm:px-6">
+
+        {/* 헤더 */}
+        <div className="flex items-center justify-between pt-6">
+          <div>
+            <h1 className="text-3xl font-bold text-white">🎬 Trend Video</h1>
+            {user && (
+              <p className="mt-1 text-sm text-slate-400">
+                {user.email} | 크레딧: {user.credits !== undefined ? user.credits : '?'}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {/* 내 영상 버튼 */}
+            <a
+              href="/my-videos"
+              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+            >
+              📹 내 영상
+            </a>
+
+            {/* 내 대본 버튼 */}
+            <a
+              href="/my-scripts"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+            >
+              📝 내 대본
+            </a>
+
+            {/* 설정 드롭다운 */}
+            <div className="relative">
+              <button
+                data-settings-button
+                onClick={() => {
+                  const dropdown = document.getElementById('settings-dropdown');
+                  if (dropdown) {
+                    dropdown.classList.toggle('hidden');
+                  }
+                }}
+                className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600 flex items-center gap-2"
+              >
+                ⚙️ 설정
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div
+                id="settings-dropdown"
+                className="hidden absolute right-0 mt-2 w-48 rounded-lg bg-slate-800 border border-slate-700 shadow-xl z-50"
+              >
+                <a
+                  href="/settings/youtube"
+                  className="block px-4 py-3 text-sm text-white hover:bg-slate-700 transition flex items-center gap-2 rounded-t-lg"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                  YouTube 설정
+                </a>
+                <a
+                  href="/settings"
+                  className="block px-4 py-3 text-sm text-white hover:bg-slate-700 transition flex items-center gap-2"
+                >
+                  ⚙️ 일반 설정
+                </a>
+                {user?.isAdmin && (
+                  <a
+                    href="/admin"
+                    className="block px-4 py-3 text-sm text-white hover:bg-slate-700 transition flex items-center gap-2"
+                  >
+                    🔧 관리자
+                  </a>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-slate-700 transition flex items-center gap-2 rounded-b-lg"
+                >
+                  🚪 로그아웃
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* AI 콘텐츠 생성 Flow */}
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
@@ -3357,8 +3294,23 @@ export default function Home() {
                                 scriptId: scriptId
                               });
 
+                              // SORA2 형식인 경우 JSON 검증 및 설정
+                              if (videoFormat === 'sora2') {
+                                try {
+                                  // JSON 파싱 시도
+                                  const parsed = JSON.parse(scriptContent);
+                                  setSora2Script(scriptContent);
+                                  setShowSora2Review(true);
+                                  setToast({ message: 'SORA2 대본이 생성되었습니다! JSON 형식이 확인되었습니다.', type: 'success' });
+                                } catch (jsonError) {
+                                  console.error('SORA2 JSON 파싱 오류:', jsonError);
+                                  setToast({ message: '대본이 생성되었지만 JSON 형식이 아닙니다. 프롬프트를 확인해주세요.', type: 'error' });
+                                }
+                              } else {
+                                setToast({ message: 'API로 대본이 생성되었습니다!', type: 'success' });
+                              }
+
                               fetchCreditsAndSettings();
-                              setToast({ message: 'API로 대본이 생성되었습니다!', type: 'success' });
                               setTimeout(() => setToast(null), 3000);
                               setManualTitle('');
                               setIsGeneratingScript(false);
@@ -4386,7 +4338,6 @@ export default function Home() {
           </div>
         </div>
       )}
-        </div>
       </div>
 
       {/* Toast 알림 */}

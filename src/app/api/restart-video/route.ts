@@ -301,13 +301,84 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
 
         if (code === 0) {
           console.log(`✅ 작업 재시작 성공: ${newJobId}`);
-          await updateJob(newJobId, {
-            status: 'completed',
-            progress: 100,
-            step: '완료',
-            videoPath: `../trend-video-backend/input/${newProjectName}/generated_videos/final_video.mp4`
-          });
-          await addJobLog(newJobId, '\n✅ 영상 생성 완료!');
+
+          // 실제 생성된 영상 파일 찾기
+          try {
+            const generatedPath = path.join(newFolderPath, 'generated_videos');
+            const files = await fs.readdir(generatedPath);
+
+            // story.json에서 제목 가져와서 파일명 생성
+            let expectedFileName: string | null = null;
+            try {
+              const storyJsonPath = path.join(newFolderPath, 'story.json');
+              const storyData = JSON.parse(await fs.readFile(storyJsonPath, 'utf-8'));
+              const title = storyData.title || storyData.metadata?.title || 'video';
+
+              // 안전한 파일명으로 변환 (Python과 동일한 로직)
+              const safeTitle = title.replace(/[^a-zA-Z0-9가-힣\s._-]/g, '').trim().replace(/\s+/g, '_');
+              expectedFileName = `${safeTitle}.mp4`;
+              await addJobLog(newJobId, `\n📝 예상 파일명: ${expectedFileName}`);
+            } catch (error) {
+              await addJobLog(newJobId, `\n⚠️ 제목 기반 파일명 생성 실패, 기본 탐색 진행`);
+            }
+
+            // 1순위: 제목 기반 파일명 찾기
+            let videoFile = expectedFileName ? files.find(f => f === expectedFileName) : null;
+
+            // 2순위: merged.mp4 찾기
+            if (!videoFile) {
+              videoFile = files.find(f => f === 'merged.mp4');
+            }
+
+            // 3순위: scene_를 포함하지 않는 다른 mp4 파일 찾기
+            if (!videoFile) {
+              videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+            }
+
+            if (videoFile) {
+              const videoPath = path.join(generatedPath, videoFile);
+              await addJobLog(newJobId, `\n✅ 최종 영상 발견: ${videoFile}`);
+
+              // 썸네일 찾기
+              let thumbnailPath: string | undefined;
+              const thumbnailFile = files.find(f =>
+                (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
+                 f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
+              );
+
+              if (thumbnailFile) {
+                thumbnailPath = path.join(generatedPath, thumbnailFile);
+              } else {
+                // generated_videos에 없으면 상위 폴더에서 찾기
+                const inputFiles = await fs.readdir(newFolderPath);
+                const inputThumbnailFile = inputFiles.find(f =>
+                  (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
+                   f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
+                );
+                if (inputThumbnailFile) {
+                  thumbnailPath = path.join(newFolderPath, inputThumbnailFile);
+                }
+              }
+
+              await updateJob(newJobId, {
+                status: 'completed',
+                progress: 100,
+                step: '완료',
+                videoPath,
+                thumbnailPath
+              });
+              await addJobLog(newJobId, '\n✅ 영상 생성 완료!');
+            } else {
+              throw new Error('생성된 영상 파일을 찾을 수 없습니다.');
+            }
+          } catch (error: any) {
+            console.error(`❌ 영상 파일 확인 실패: ${newJobId}`, error);
+            await updateJob(newJobId, {
+              status: 'failed',
+              error: `영상 파일을 찾을 수 없습니다: ${error.message}`
+            });
+            await addJobLog(newJobId, `\n❌ 영상 파일 확인 실패: ${error.message}`);
+          }
         } else {
           console.error(`❌ 작업 재시작 실패: ${newJobId}, 종료 코드: ${code}`);
           await updateJob(newJobId, {

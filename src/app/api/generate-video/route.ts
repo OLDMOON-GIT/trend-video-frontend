@@ -12,6 +12,7 @@ const jobs = new Map<string, {
   progress: number;
   step: string;
   videoPath?: string;
+  thumbnailPath?: string;
   error?: string;
 }>();
 
@@ -106,15 +107,15 @@ async function generateVideoAsync(
       'utf-8'
     );
 
-    // 3. Python 스크립트 실행 (영상 생성)
+    // 3. Python 스크립트 실행 (영상 생성 + 자막 추가)
     job.progress = 40;
     job.step = '영상 생성 중... (몇 분 소요될 수 있습니다)';
 
-    const pythonCommand = `cd "${config.backendPath}" && python create_video_from_folder.py --folder "input/${config.projectName}"`;
+    const pythonCommand = `cd "${config.backendPath}" && python create_video_from_folder.py --folder "input/${config.projectName}" --aspect-ratio "16:9" --add-subtitles`;
 
     console.log(`Executing: ${pythonCommand}`);
     const { stdout, stderr } = await execAsync(pythonCommand, {
-      timeout: 600000 // 10분 타임아웃
+      timeout: 3600000 // 60분 타임아웃 (롱폼은 시간이 오래 걸림)
     });
 
     console.log('Python stdout:', stdout);
@@ -126,19 +127,61 @@ async function generateVideoAsync(
 
     const generatedPath = path.join(config.inputPath, 'generated_videos');
     const files = await fs.readdir(generatedPath);
-    const videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+
+    // story.json에서 제목 가져와서 파일명 생성
+    let expectedFileName: string | null = null;
+    try {
+      const storyJsonPath = path.join(config.inputPath, 'story.json');
+      const storyData = JSON.parse(await fs.readFile(storyJsonPath, 'utf-8'));
+      const title = storyData.title || storyData.metadata?.title || 'video';
+
+      // 안전한 파일명으로 변환 (Python과 동일한 로직)
+      const safeTitle = title.replace(/[^a-zA-Z0-9가-힣\s._-]/g, '').trim().replace(/\s+/g, '_');
+      expectedFileName = `${safeTitle}.mp4`;
+      console.log('📝 예상 파일명:', expectedFileName);
+    } catch (error) {
+      console.log('⚠️ 제목 기반 파일명 생성 실패, 기본 탐색 진행');
+    }
+
+    // 1순위: 제목 기반 파일명 찾기
+    let videoFile = expectedFileName ? files.find(f => f === expectedFileName) : null;
+
+    // 2순위: merged.mp4 찾기
+    if (!videoFile) {
+      videoFile = files.find(f => f === 'merged.mp4');
+    }
+
+    // 3순위: scene_를 포함하지 않는 다른 mp4 파일 찾기
+    if (!videoFile) {
+      videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+    }
 
     if (!videoFile) {
       throw new Error('생성된 영상 파일을 찾을 수 없습니다.');
     }
 
     const videoPath = path.join(generatedPath, videoFile);
+    console.log('✅ 최종 영상 발견:', videoFile);
+
+    // 썸네일 찾기 (youtube_thumbnail.jpg)
+    let thumbnailPath: string | undefined;
+    try {
+      const thumbnailFile = path.join(config.inputPath, 'youtube_thumbnail.jpg');
+      const thumbnailExists = await fs.access(thumbnailFile).then(() => true).catch(() => false);
+      if (thumbnailExists) {
+        thumbnailPath = thumbnailFile;
+        console.log('Thumbnail found:', thumbnailPath);
+      }
+    } catch (err) {
+      console.warn('Thumbnail not found, skipping...');
+    }
 
     // 5. 완료
     job.progress = 100;
     job.step = '완료!';
     job.status = 'completed';
     job.videoPath = videoPath;
+    job.thumbnailPath = thumbnailPath;
 
   } catch (error: any) {
     console.error(`Job ${jobId} failed:`, error);
@@ -174,9 +217,13 @@ export async function GET(request: NextRequest) {
 
     // 완료된 경우 영상 파일 URL 생성
     let videoUrl = null;
+    let thumbnailUrl = null;
     if (job.status === 'completed' && job.videoPath) {
       // 파일 경로를 상대 URL로 변환 (프로덕션에서는 별도 저장소 필요)
       videoUrl = `/api/download-video?jobId=${jobId}`;
+    }
+    if (job.status === 'completed' && job.thumbnailPath) {
+      thumbnailUrl = `/api/download-thumbnail?jobId=${jobId}`;
     }
 
     return NextResponse.json({
@@ -184,6 +231,7 @@ export async function GET(request: NextRequest) {
       progress: job.progress,
       step: job.step,
       videoUrl,
+      thumbnailUrl,
       error: job.error || null
     });
 

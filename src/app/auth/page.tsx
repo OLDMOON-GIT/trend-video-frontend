@@ -82,11 +82,9 @@ export default function AuthPage() {
         return;
       }
 
-      // 세션 ID를 localStorage에 저장
-      if (data.sessionId) {
-        localStorage.setItem('sessionId', data.sessionId);
-        console.log('✅ 세션 ID 저장됨:', data.sessionId);
-      }
+      // 쿠키 기반 인증 사용 - localStorage에 저장하지 않음
+      // 세션 쿠키는 서버에서 자동으로 설정됨
+      console.log('✅ 로그인 성공 - 세션 쿠키 설정됨');
 
       // 성공 - 메인 페이지로 이동
       router.push('/');

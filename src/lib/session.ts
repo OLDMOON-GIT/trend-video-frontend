@@ -53,15 +53,16 @@ export async function createSession(userId: string, email: string, isAdmin: bool
 
 // 세션 검증
 export async function getSession(sessionId: string): Promise<{ userId: string; email: string; isAdmin: boolean } | null> {
-  console.log('🔍 세션 조회 요청:', sessionId);
+  // 폴링 시 로그 스팸 방지를 위해 주석 처리
+  // console.log('🔍 세션 조회 요청:', sessionId);
 
   const sessions = await readSessions();
-  console.log('📋 현재 저장된 세션 목록:', Array.from(sessions.keys()));
+  // console.log('📋 현재 저장된 세션 목록:', Array.from(sessions.keys()));
 
   const session = sessions.get(sessionId);
 
   if (!session) {
-    console.log('❌ 세션을 찾을 수 없음');
+    // console.log('❌ 세션을 찾을 수 없음');
     return null;
   }
 
@@ -72,7 +73,8 @@ export async function getSession(sessionId: string): Promise<{ userId: string; e
     return null;
   }
 
-  console.log('✅ 세션 유효:', session.email);
+  // 폴링 시 로그 스팸 방지
+  // console.log('✅ 세션 유효:', session.email);
   return { userId: session.userId, email: session.email, isAdmin: session.isAdmin || false };
 }
 
@@ -98,9 +100,9 @@ export function getSessionIdFromRequest(request: NextRequest): string | null {
 // 요청에서 현재 사용자 가져오기
 export async function getCurrentUser(request: NextRequest): Promise<{ userId: string; email: string; isAdmin: boolean } | null> {
   const sessionId = getSessionIdFromRequest(request);
-  console.log('🔑 요청에서 추출한 세션 ID:', sessionId);
+  // console.log('🔑 요청에서 추출한 세션 ID:', sessionId);
   if (!sessionId) {
-    console.log('❌ 세션 ID 없음');
+    // console.log('❌ 세션 ID 없음');
     return null;
   }
   return await getSession(sessionId);

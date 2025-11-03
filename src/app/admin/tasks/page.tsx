@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Breadcrumb from '@/components/Breadcrumb';
 
 interface Task {
   id: string;
@@ -25,22 +24,11 @@ export default function TasksPage() {
   const [newTaskPriority, setNewTaskPriority] = useState(0);
   const logRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  // localStorage에서 세션 ID 가져오기
-  const getSessionId = () => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sessionId');
-    }
-    return null;
-  };
-
-  // Authorization 헤더 생성
+  // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
   const getAuthHeaders = (): HeadersInit => {
-    const sessionId = getSessionId();
-    if (!sessionId) return {};
     return {
-      'Authorization': `Bearer ${sessionId}`,
       'Content-Type': 'application/json'
-    };
+    }; // Authorization 헤더 제거, 쿠키 자동 전송
   };
 
   // 초기 로드
@@ -49,14 +37,7 @@ export default function TasksPage() {
     fetchTasks();
   }, []);
 
-  // 폴링 (tasks가 변경되어도 interval 재생성 안함)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchTasks();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []); // 빈 dependency로 한 번만 실행
+  // 폴링 제거 - task 추가/수정/삭제 시에만 갱신
 
   // 로그가 업데이트될 때 자동 스크롤
   useEffect(() => {
@@ -212,9 +193,7 @@ export default function TasksPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-6xl">
-        <Breadcrumb />
-
-        {/* 헤더 */}
+{/* 헤더 */}
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-4xl font-bold text-white">📋 작업 관리</h1>
           <div className="flex gap-3">

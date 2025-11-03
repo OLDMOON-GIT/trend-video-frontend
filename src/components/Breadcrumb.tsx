@@ -8,7 +8,7 @@ export default function Breadcrumb() {
 
   // 경로에 따른 breadcrumb 매핑
   const getBreadcrumbs = () => {
-    const crumbs = [{ label: 'HOME', href: '/' }];
+    const crumbs: { label: string; href: string }[] = [];
 
     if (pathname === '/') {
       return crumbs;
@@ -20,6 +20,8 @@ export default function Breadcrumb() {
       crumbs.push({ label: '내 대본', href: '/my-scripts' });
     } else if (pathname.startsWith('/my-content')) {
       crumbs.push({ label: '내 콘텐츠', href: '/my-content' });
+    } else if (pathname.startsWith('/coupang')) {
+      crumbs.push({ label: '쿠팡 파트너스', href: '/coupang' });
     } else if (pathname.startsWith('/credits/charge')) {
       crumbs.push({ label: '크레딧', href: '/credits' });
       crumbs.push({ label: '충전', href: '/credits/charge' });
@@ -51,6 +53,11 @@ export default function Breadcrumb() {
 
   const breadcrumbs = getBreadcrumbs();
 
+  // breadcrumb이 없으면 아무것도 표시하지 않음
+  if (breadcrumbs.length === 0) {
+    return null;
+  }
+
   return (
     <nav className="flex items-center gap-2 text-sm font-bold">
       {breadcrumbs.map((crumb, index) => (
@@ -65,7 +72,6 @@ export default function Breadcrumb() {
               href={crumb.href}
               className="text-purple-400 hover:text-purple-300 transition"
             >
-              {index === 0 && '🏠 '}
               {crumb.label}
             </Link>
           )}

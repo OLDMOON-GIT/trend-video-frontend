@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Breadcrumb from '@/components/Breadcrumb';
 import toast, { Toaster } from 'react-hot-toast';
 
 interface Script {
@@ -53,6 +52,7 @@ export default function MyContentPage() {
   const [expandedScriptLogId, setExpandedScriptLogId] = useState<string | null>(null);
   const scriptContentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scriptLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const scriptLastLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Videos state
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -135,17 +135,17 @@ export default function MyContentPage() {
     });
   }, [jobs, expandedLogJobId]);
 
-  // 진행 중인 대본 로그 자동 스크롤 (DOM 업데이트 후 실행)
+  // 진행 중인 대본 로그 자동 스크롤 - 마지막 항목으로 스크롤
   useEffect(() => {
     scripts.forEach(script => {
-      if ((script.status === 'processing' || script.status === 'pending') && script.logs && expandedScriptLogId === script.id) {
-        // DOM 업데이트를 기다린 후 스크롤
+      if ((script.status === 'processing' || script.status === 'pending') && script.logs && script.logs.length > 0 && expandedScriptLogId === script.id) {
+        // DOM 업데이트를 기다린 후 마지막 로그 항목으로 스크롤
         setTimeout(() => {
-          const ref = scriptLogRefs.current.get(script.id);
-          if (ref) {
-            ref.scrollTop = ref.scrollHeight;
+          const lastLogRef = scriptLastLogRefs.current.get(script.id);
+          if (lastLogRef) {
+            lastLogRef.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }
-        }, 50);
+        }, 100);
       }
     });
   }, [scripts, expandedScriptLogId]);
@@ -700,8 +700,6 @@ export default function MyContentPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-6xl">
-        <Breadcrumb />
-
         {/* 헤더 */}
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -1050,7 +1048,16 @@ export default function MyContentPage() {
                                                             logMessage.includes('🖥️');
 
                                         return (
-                                          <div key={idx} className="text-sm text-slate-300 font-mono">
+                                          <div
+                                            key={idx}
+                                            className="text-sm text-slate-300 font-mono"
+                                            ref={(el) => {
+                                              // 마지막 로그 항목에만 ref 추가
+                                              if (idx === item.data.logs!.length - 1 && el) {
+                                                scriptLastLogRefs.current.set(item.data.id, el);
+                                              }
+                                            }}
+                                          >
                                             <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
                                             {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
                                             {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
@@ -1352,7 +1359,16 @@ export default function MyContentPage() {
                             className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
                           >
                             {item.data.logs.map((log, idx) => (
-                              <div key={idx} className="text-emerald-400 whitespace-pre-wrap break-all mb-1">
+                              <div
+                                key={idx}
+                                className="text-emerald-400 whitespace-pre-wrap break-all mb-1"
+                                ref={(el) => {
+                                  // 마지막 로그 항목에만 ref 추가
+                                  if (idx === item.data.logs!.length - 1 && el) {
+                                    scriptLastLogRefs.current.set(item.data.id, el);
+                                  }
+                                }}
+                              >
                                 {typeof log === 'string' ? log : log.message || JSON.stringify(log)}
                               </div>
                             ))}
@@ -1552,7 +1568,16 @@ export default function MyContentPage() {
                                                         logMessage.includes('🖥️');
 
                                     return (
-                                      <div key={idx} className="text-sm text-slate-300 font-mono">
+                                      <div
+                                        key={idx}
+                                        className="text-sm text-slate-300 font-mono"
+                                        ref={(el) => {
+                                          // 마지막 로그 항목에만 ref 추가
+                                          if (idx === script.logs!.length - 1 && el) {
+                                            scriptLastLogRefs.current.set(script.id, el);
+                                          }
+                                        }}
+                                      >
                                         <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
                                         {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
                                         {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
@@ -1852,7 +1877,16 @@ export default function MyContentPage() {
                           className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
                         >
                           {script.logs.map((log, idx) => (
-                            <div key={idx} className="text-emerald-400 whitespace-pre-wrap break-all mb-1">
+                            <div
+                              key={idx}
+                              className="text-emerald-400 whitespace-pre-wrap break-all mb-1"
+                              ref={(el) => {
+                                // 마지막 로그 항목에만 ref 추가
+                                if (idx === script.logs!.length - 1 && el) {
+                                  scriptLastLogRefs.current.set(script.id, el);
+                                }
+                              }}
+                            >
                               {typeof log === 'string' ? log : log.message || JSON.stringify(log)}
                             </div>
                           ))}

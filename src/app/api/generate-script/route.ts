@@ -15,12 +15,13 @@ export async function POST(request: NextRequest) {
 
 
   try {
-    const { prompt, topic, suggestTitles } = await request.json();
+    const { prompt, topic, suggestTitles, format } = await request.json();
 
     console.log('📝 대본 생성 요청:', {
       hasPrompt: !!prompt,
       hasTopic: !!topic,
-      suggestTitles
+      suggestTitles,
+      format
     });
 
     if (!prompt) {
@@ -158,6 +159,14 @@ export async function POST(request: NextRequest) {
         let lastUpdateTime = Date.now();
         const updateInterval = 500; // 500ms마다 업데이트
 
+        // 비디오 타입별 예상 대본 길이 (프롬프트 기준)
+        const estimatedLengths: Record<string, number> = {
+          'longform': 33000,  // 씨당 3,800~4,200자 × 8개 + 폭탄/구독 씬 700자 = 약 31,000~34,000자
+          'shortform': 3000,  // 숏폼은 훨씬 짧음 (200~300자 × 10씬 정도)
+          'sora2': 500        // SORA2는 영어 프롬프트로 매우 짧음
+        };
+        const estimatedTotalChars = estimatedLengths[format || 'longform'] || 33000;
+
         const stream = await anthropic.messages.stream({
           model: 'claude-sonnet-4-5-20250929',
           max_tokens: 64000, // Claude Sonnet 4.5 최대 출력 토큰
@@ -183,9 +192,10 @@ export async function POST(request: NextRequest) {
             // 일정 간격마다 DB 업데이트 (너무 자주 업데이트하면 DB 부하)
             const now = Date.now();
             if (now - lastUpdateTime >= updateInterval) {
-              // 40,000자 기준으로 진행률 계산 (최대 95%까지)
-              const estimatedTotalChars = 40000;
-              const progress = Math.min(Math.floor((scriptContent.length / estimatedTotalChars) * 100), 95);
+              // 예상 길이 기준으로 진행률 계산 (최대 90%까지)
+              // 실제 길이가 예상보다 길어질 수 있으므로 최대치를 90%로 제한
+              const rawProgress = (scriptContent.length / estimatedTotalChars) * 100;
+              const progress = Math.min(Math.floor(rawProgress), 90);
 
               await updateScript(script.id, {
                 progress,
@@ -222,11 +232,40 @@ export async function POST(request: NextRequest) {
 
         console.log('📝 생성된 대본:', scriptContent.substring(0, 500) + '...');
 
+        // SORA2 형식인 경우 JSON 정리
+        let finalContent = scriptContent;
+        if (format === 'sora2') {
+          console.log('🔧 SORA2 JSON 정리 중...');
+
+          // 코드펜스 제거
+          finalContent = finalContent.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+          // 앞뒤 설명문 제거 (JSON이 시작되기 전과 끝난 후의 텍스트)
+          const jsonStart = finalContent.indexOf('{');
+          const jsonEnd = finalContent.lastIndexOf('}');
+
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            finalContent = finalContent.substring(jsonStart, jsonEnd + 1);
+            console.log('✅ JSON 추출 완료');
+
+            // JSON 유효성 검증
+            try {
+              JSON.parse(finalContent);
+              console.log('✅ JSON 파싱 성공');
+            } catch (jsonError) {
+              console.error('❌ JSON 파싱 실패:', jsonError);
+              console.log('원본 내용:', finalContent.substring(0, 500));
+            }
+          } else {
+            console.warn('⚠️ JSON 구조를 찾을 수 없음');
+          }
+        }
+
         // 완료 상태로 업데이트
         await updateScript(script.id, {
           status: 'completed',
           progress: 100,
-          content: scriptContent,
+          content: finalContent,
           logs: [
             '✅ 대본 생성 완료!',
             `📊 입력: ${message.usage.input_tokens} 토큰`,

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Breadcrumb from '@/components/Breadcrumb';
 
 interface ScriptTask {
   id: string;
@@ -29,22 +28,17 @@ export default function TitlesPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set()); // 펼쳐진 로그 ID들
 
-  // localStorage에서 세션 ID 가져오기
-  const getSessionId = () => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sessionId');
-    }
-    return null;
-  };
+  // 대본 생성 진행 상태 (메인 페이지와 동일)
+  const [currentScriptId, setCurrentScriptId] = useState<string | null>(null);
+  const [scriptPollingInterval, setScriptPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [scriptGenerationLogs, setScriptGenerationLogs] = useState<Array<{timestamp: string; message: string}>>([]);
+  const [showScriptLogs, setShowScriptLogs] = useState(false);
 
-  // Authorization 헤더 생성
+  // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
   const getAuthHeaders = (): HeadersInit => {
-    const sessionId = getSessionId();
-    if (!sessionId) return {};
     return {
-      'Authorization': `Bearer ${sessionId}`,
       'Content-Type': 'application/json'
-    };
+    }; // Authorization 헤더 제거, 쿠키 자동 전송
   };
 
   useEffect(() => {
@@ -127,6 +121,11 @@ export default function TitlesPage() {
     }
 
     setIsGenerating(true);
+    setShowScriptLogs(true); // 로그창 처음부터 열기
+    setScriptGenerationLogs([{
+      timestamp: new Date().toISOString(),
+      message: '🖥️ 로컬 Claude를 사용하여 대본 생성 시작...'
+    }]);
 
     try {
       const response = await fetch('/api/scripts/generate', {
@@ -144,14 +143,82 @@ export default function TitlesPage() {
 
       const data = await response.json();
 
+      if (!data.taskId) {
+        console.error('API 응답에 taskId가 없습니다:', data);
+        throw new Error('스크립트 ID를 받지 못했습니다.');
+      }
+
+      const scriptId = data.taskId;
+      setCurrentScriptId(scriptId);
+
+      setScriptGenerationLogs(prev => [...prev, {
+        timestamp: new Date().toISOString(),
+        message: `📝 대본 생성 작업 시작 (ID: ${scriptId.substring(0, 8)}...)`
+      }]);
+
       setNewTitle('');
       setShowNewModal(false);
-      alert('대본 생성이 시작되었습니다! 잠시 후 목록에서 확인하세요.');
-      fetchScripts();
+
+      // 2초마다 상태 확인하는 폴링 시작
+      const interval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`/api/scripts?id=${scriptId}`, {
+            headers: getAuthHeaders()
+          });
+          const statusData = await statusResponse.json();
+
+          if (statusData.script?.status === 'DONE') {
+            clearInterval(interval);
+            setScriptPollingInterval(null);
+            setScriptGenerationLogs(prev => [...prev, {
+              timestamp: new Date().toISOString(),
+              message: '✅ 대본 생성 완료!'
+            }]);
+            setIsGenerating(false);
+            setCurrentScriptId(null);
+            setShowScriptLogs(false);
+            fetchScripts();
+          } else if (statusData.script?.status === 'ERROR') {
+            clearInterval(interval);
+            setScriptPollingInterval(null);
+            setIsGenerating(false);
+
+            if (statusData.script.logs) {
+              const formattedLogs = statusData.script.logs.map((log: any) => ({
+                timestamp: typeof log === 'object' ? log.timestamp : new Date().toISOString(),
+                message: typeof log === 'object' ? log.message : log
+              }));
+              setScriptGenerationLogs(formattedLogs);
+            }
+            setScriptGenerationLogs(prev => [...prev, {
+              timestamp: new Date().toISOString(),
+              message: `❌ 오류: ${statusData.script?.message || '알 수 없는 오류'}`
+            }]);
+            setCurrentScriptId(null);
+            fetchScripts();
+          } else {
+            // 처리 중 - 로그 업데이트
+            if (statusData.script?.logs) {
+              const formattedLogs = statusData.script.logs.map((log: any) => ({
+                timestamp: typeof log === 'object' ? log.timestamp : new Date().toISOString(),
+                message: typeof log === 'object' ? log.message : log
+              }));
+              setScriptGenerationLogs(formattedLogs);
+            }
+          }
+        } catch (error: any) {
+          console.error('폴링 오류:', error);
+        }
+      }, 2000);
+
+      setScriptPollingInterval(interval);
     } catch (error) {
       console.error('Error generating script:', error);
+      setScriptGenerationLogs(prev => [...prev, {
+        timestamp: new Date().toISOString(),
+        message: `❌ 오류: ${error instanceof Error ? error.message : '알 수 없는 오류'}`
+      }]);
       alert('대본 생성에 실패했습니다.');
-    } finally {
       setIsGenerating(false);
     }
   };
@@ -208,9 +275,7 @@ export default function TitlesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-6xl">
-        <Breadcrumb />
-
-        {/* 헤더 */}
+{/* 헤더 */}
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-4xl font-bold text-white">📝 대본 제목 등록</h1>
           <div className="flex gap-3">
@@ -426,6 +491,25 @@ export default function TitlesPage() {
                 </p>
               </div>
             </div>
+
+            {/* 대본 생성 로그 */}
+            {showScriptLogs && scriptGenerationLogs.length > 0 && (
+              <div className="mt-4 rounded-lg border border-slate-600 bg-slate-900/80 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400">📋 생성 로그</span>
+                  <span className="text-xs text-slate-500">{scriptGenerationLogs.length}개 항목</span>
+                </div>
+                <div className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed">
+                  {scriptGenerationLogs.map((log, idx) => (
+                    <div key={idx} className="text-emerald-400 whitespace-pre-wrap break-all mb-1">
+                      <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                      <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>
+                      {log.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 mt-6">
               <button

@@ -1,19 +1,26 @@
+
+
 🎬 시니어 실화극·사연드라마 제작 프롬프트 (v9.5 – 최종 개선판)
-🔥 "1초에 손가락이 움직이는 제목 + 3초에 시선을 훔치는 폭탄 오프닝!" 🔥
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 **제작 주제/제목:**
 {title}
-위 주제를 바탕으로 아래 규칙에 따라 완전한 대본을 작성하세요.
+
+⚠️ **중요: 제목은 위에 제공된 {title}을 정확히 그대로 사용하세요. 절대 수정하거나 재생성하지 마세요!**
+⚠️ **전체 스토리는 위 제목의 주제와 유기적으로 연결되어야 합니다. 제목에서 벗어난 내용 금지!**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 🧑‍💼 ROLE — 다층 서사 건축가 + 콘텐츠 후킹 전문가
+
 너는 해리포터, 파친코, 작은 아씨들을 쓴 작가 수준의 서사 설계자이자,
 유튜브 쇼츠/릴스 알고리즘을 정복한 바이럴 콘텐츠 크리에이터다.
 
-목표: 
-1) 첫 3초 안에 시청자를 물리적으로 멈춰서게
-2) 입체적이고 예측 불가능한 서사 전개
-3) "이 이야기가 내 이야기다"라는 공감 + "이런 전개는 예상 못했다"는 반전
-4) 마지막에 자연스럽게 구독/좋아요 유도
+목표:
+1) 제공된 제목 "{title}"의 주제를 충실히 반영
+2) 첫 3초 안에 시청자를 물리적으로 멈춰서게
+3) 입체적이고 예측 불가능한 서사 전개
+4) "이 이야기가 내 이야기다"라는 공감 + "이런 전개는 예상 못했다"는 반전
+5) 마지막에 자연스럽게 구독/좋아요 유도
 
 문체: 리얼리즘 + 시적 은유. 감정은 사물·공간·신체 감각으로만 전달.
 
@@ -21,86 +28,34 @@
 ⚙️ 제작 명세
 
 【필수 구조】
-- 씬 0: **3초 폭탄 씬** (독립 제작, 50자)
-- 씬 1: 본 서사 (50자)
-- 씬 2: 본 서사 (50자)
+- 씬 0: **3초 폭탄 씬** (독립 제작, 300~400자)
+- 씬 1~8: 본 서사 (씬당 2,500자 정확히) 🆕 출력 제한 최적화
+- 씬 9: **구독 유도 씬** (마지막, 300~400자) 🆕 위치 변경
 
-총 씬 수: 3개 (30초 타겟, 씬당 10초)
+총 씬 수: 10개 (폭탄 + 본편 8개 + 구독 유도)
+총 글자수: 약 23,000자 타겟 (Claude 출력 제한 대응)
 
 🔥 **제작 순서 (v9.5 필수):**
-1️⃣ **유튜브 킬러 제목 생성** (1초 클릭 유도형)
-2️⃣ **ImageFX 프롬프트 3개 전체 생성** (씬 0~2 모두)
-3️⃣ **대본/내레이션 작성** (씬 0~2, 각 50자)
+1️⃣ **제공된 제목 확인** - {title}을 그대로 사용 (변경 절대 금지)
+2️⃣ **ImageFX 프롬프트 10개 전체 생성** (씬 0~9 모두) - 제목 주제와 연결
+3️⃣ **대본/내레이션 작성** (씬 0~9) - 제목 주제를 충실히 반영
 4️⃣ SceneMemory 교차검사
 5️⃣ 간단한 진행 상태 표시 후 JSON 출력 🆕 수정
 
 출력: 간결한 진행 상태 + JSON 1개 + 다운로드 링크 1줄
 SceneMemory 교차검사 활성화 (의미 있는 내용어 3-4개 연속 기준) 🆕 수정
 
-📺 유튜브 킬러 제목 제작 규칙 (v9.5 – 패턴 단순화)
-🎯 **목표: 1초 안에 클릭 충동 유발**
 
-🆕 **v9.5 핵심 변화:**
-- 질문형(?) 최소화 → 단정형(.) 극대화
-- "~했을까요?" ❌ → "~했습니다" ✅
-- "당신은 알고 있나요?" ❌ → "당신은 모릅니다" ✅
-- 궁금증 유발 → 충격 선언으로 전환
-
-✅ 구체적 숫자 사용 (연령+기간/횟수)
-✅ 폭력적 동사 (찢다/부수다/던지다/불태우다/찍다/박다)
-✅ [충격] [경고] [19금주의] [눈물주의] [반전] 태그 중 1개 선택
-
-【v9.5 제목 템플릿 5종 – 명확한 차별화】 🆕 8종→5종 단순화
-💀 **패턴 1: 신체 충격 + 즉시 결과형** (최강 추천)
-"시어머니가 며느리 손가락을 꺾은 이유. 32년 후 밝혀졌습니다 [충격]"
-"82세 할머니, 며느리 뺨을 3번 때린 날 밤 일어난 일 [경고]"
-"며느리가 시어머니 머리채를 잡았습니다. 52명이 봤습니다 [충격경고]"
-"찻잔 던진 시어머니. 며느리가 그 자리에서 한 행동 [충격]"
-
-🔥 **패턴 2: 숫자 극대화 + 물리적 증거형**
-"시어머니가 32년간 숨긴 13개의 상처. 며느리가 발견했습니다 [충격]"
-"1,247개의 문자. 82세 시어머니가 며느리에게 보낸 것들 [충격경고]"
-"시어머니 손톱 밑에서 나온 것. 32년 된 증거입니다 [충격경고]"
-"깨진 찻잔 7개. 시어머니가 정확히 기억하는 이유 [충격]"
-
-⚡ **패턴 3: 시간 압박 + 타이밍형**
-"32년 0개월 7일. 시어머니가 며느리 손을 잡지 않은 시간 [충격]"
-"새벽 3시 47분. 며느리가 시어머니 방문을 연 이유 [경고]"
-"시어머니가 쓰러진 날. 며느리가 처음으로 운 날입니다 [눈물주의]"
-"시어머니 장례식 끝나고 10분 후. 며느리가 연 편지 [눈물경고]"
-
-🎭 **패턴 4: 역전 충격형**
-"착한 며느리가 시어머니를 고발했습니다. 32명이 증언했습니다 [반전충격]"
-"효부상 받은 며느리의 진짜 얼굴. 시어머니만 봤습니다 [경고]"
-"웃던 시어머니, 며느리 앞에서만 울었습니다. 32년간 [충격]"
-
-🌡 **패턴 5: 감각 폭발형**
-"시어머니 뺨이 얼음처럼 차가웠습니다. 며느리 손이 닿은 후 [충격]"
-"며느리 손에서 피가 났습니다. 시어머니가 건넨 찻잔 때문에 [경고]"
-"82세 할머니의 비명. 며느리만 32년간 들었습니다 [충격경고]"
-
-【절대 금지 제목 (즉시 탈락)】
-❌ 질문형 과다: "~했을까요?", "~일까요?"
-❌ 추상적: "복잡한 사연", "어느 가족의 이야기"
-❌ 약한 동사: "~했어요", "~네요", "~하더라고요"
-❌ 감정 설명: "슬픈 이야기", "감동적인"
-❌ 35자 미만 또는 55자 초과
-❌ 숫자 1개 이하
-❌ 태그 없음
-
-【클릭률 테스트 (v9.5 기준)】
-⭐⭐⭐⭐⭐ - 1초 안에 클릭 (바이럴 확정)
-⭐⭐⭐⭐ - 2초 안에 클릭 (우수)
-⭐⭐⭐ - 3초 내 관심 (평균)
-⭐⭐ - 5초 후 고려 (약함, 전면 수정)
-⭐ - 클릭 안 함 (즉시 폐기)
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 【씬 0】 3초 폭탄 씬 제작 규칙 (v9.5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ **중요: 씬 0는 제목 "{title}"의 핵심 내용을 직접 다뤄야 합니다!**
 
 🔥 목표: 1초 안에 멈추게, 3초 안에 중독시키기
 
 ⚠️ **중요: 씬 0 전용 미스터비스트 스타일**
-- 인물을 스크린 오른쪽에 배치 미스터비스트 카메라 직접 응시 기법은 **씬 0에만** 적용
+- 미스터비스트 카메라 직접 응시 기법은 **씬 0에만** 적용
 - 씬 1~8은 일반 한국 드라마 시네마토그래피 유지
 
 🆕 **v9.5 핵심 변화:**
@@ -121,17 +76,17 @@ SceneMemory 교차검사 활성화 (의미 있는 내용어 3-4개 연속 기준
 【v9.5 작성 공식】
 1. 충격 행동 단정 선언 (1-2문장) – 질문 금지
    ❌ "왜 이 할머니는 며느리의 손을 30년 동안 쳐다보지 못했을까요?"
-   ✅ "이 할머니는 며느리 손을 XX년간(예시:32년간) 단 한 번도 잡지 않았습니다."
-   ✅ "XX세(예시:82세) 시어머니가 며느리 뺨을 3번 때렸습니다. 하객 52명이 봤습니다."
+   ✅ "이 할머니는 며느리 손을 [N년]간 단 한 번도 잡지 않았습니다."
+   ✅ "82세 시어머니가 며느리 뺨을 3번 때렸습니다. 하객 52명이 봤습니다."
    ✅ "며느리가 시어머니에게 끓는 물을 쏟았습니다. 고의였습니다."
    
 2. 구체적 증거/감각 (1-2문장)
-   ✅ "시어머니 손등에 X개(예시:3개)의 상처가 있습니다."
+   ✅ "시어머니 손등에 13개의 상처가 있습니다."
    ✅ "깨진 찻잔 조각에 아직 피가 묻어 있습니다."
    ✅ "며느리 손가락이 부러진 소리를 3대가 들었습니다."
    
 3. 시간 압박 클로징 (1문장)
-   ✅ "이것은 XX분(예시:32분) 전에 일어난 일입니다."
+   ✅ "이것은 [N분/N시간] 전에 일어난 일입니다."
    ✅ "이 이야기는 지금, 이 순간도 계속되고 있습니다."
    ✅ "실화입니다. 당신 옆집에서도 일어나고 있습니다."
 
@@ -141,7 +96,7 @@ SceneMemory 교차검사 활성화 (의미 있는 내용어 3-4개 연속 기준
 "82세 시어머니가 며느리 손등을 찻잔으로 내리쳤습니다.
 피가 세 방울 떨어졌습니다.
 그 자리에 있던 13명은 아무도 막지 않았습니다.
-이것은 32년 전 오늘, 실제로 일어난 일입니다."
+이것은 [N년] 전 오늘, 실제로 일어난 일입니다."
 (123자 – 3초 분량)
 
 ✅ **더 강력한 버전 (v9.5 최강):**
@@ -162,45 +117,53 @@ SceneMemory 교차검사 활성화 (의미 있는 내용어 3-4개 연속 기준
 【허용/권장 사항 (v9.5)】
 ✅ 폭력적 동사 (때리다/던지다/깨다/찢다/밀다/긋다)
 ✅ 신체 부위 명시 (손등/뺨/머리채/손가락/목)
-✅ 정확한 숫자 (3번/52명/13개/32년/7초)
+✅ 정확한 숫자 - **상황에 맞게 다양하게 변경** 🆕
+   - 기간: 3년/7년/15년/23년/41년 등 (32년 고정 금지)
+   - 횟수: 2번/5번/8번/13번 등 (패턴 다양화)
+   - 인원: 6명/17명/28명/45명 등 (자연스러운 변화)
+   - 시간: 3분/11분/27분/58분 전 등 (32분 고정 금지)
 ✅ 물리적 증거 (피/상처/멍/소리/흔적)
-✅ 시간 명시 (오늘/방금/32분 전/지금)
+✅ 시간 명시 (오늘/방금/[구체적 분/시간] 전/지금)
 ✅ 확정 선언 ("~입니다", "~했습니다", "~있습니다")
 ✅ 300~400자 엄수
 
 【ImageFX 프롬프트 - 씬 0 전용 (v9.5 + 미스터비스트)】
 
-🎯 **미스터비스트 썸네일 핵심 기법 (씬 0 전용):**
-- 주인공이 카메라를 똑바로 응시 (Direct Eye Contact)
-- 과장된 감정 표현 (Exaggerated Expression)
-- 얼굴이 프레임의 40% 차지 (Face Dominance)
-- 시청자와 즉각적 시선 잠금 (Immediate Connection)
+🎯 **미스터비스트 썸네일 핵심 기법 (씨 0 전용):**
+- 주인공이 정면을 응시 (forward gaze, eye contact)
+- 감정을 담은 표정 (emotional expression)
+- **오른쪽 배치: 인물을 오른쪽에 배치** (subject positioned right side)
+- **왼쪽에 공간 확보** (negative space on left side for text overlay)
+- **비대칭 레이아웃** (asymmetric layout, off-center composition)
+- 얼굴 중심 클로즈업 (facial close-up)
 
-🆕 **v9.5 최적화 템플릿 (150 단어 이하 권장, 200 단어 절대 초과 금지):** 🆕 명확화
+🆕 **v9.5 압축 템플릿 (50-70 단어, 출력 최적화):** 🆕 간결화
 
-Korean drama, violent frozen moment, [인물] DIRECTLY STARING INTO CAMERA with exaggerated [감정] expression making piercing eye contact, [극단적 행동 묘사], face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND [폭력 상황], harsh lighting, desaturated grey except hyper-saturated crimson [증거물], freeze frame maintaining unbreakable eye contact with viewer, raw brutality visualized, NO TEXT
+Korean drama, [인물] [감정] expression looking forward, right frame position, [행동], facial close-up, left space for text, asymmetric composition, dramatic tension, sharp focus, strong contrast lighting, desaturated + red accents, freeze frame, NO TEXT
 
-🔥 **v9.5 압축 예시 (검증됨):**
+🔥 **v9.5 압축 예시 (ImageFX 안전 필터 + 출력 최적화):**
 
 ```
-Korean drama, violent frozen moment, elderly Korean woman in late 60s DIRECTLY STARING INTO CAMERA with exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
+Korean drama, elderly woman 60s shocked expression forward gaze, right frame, gripping wrist tension, facial close-up, left space text, asymmetric composition, dramatic tension, sharp focus face hands, fluorescent strong contrast, desaturated grey + red accents, freeze frame, NO TEXT
 ```
-(87 단어 – 최적 범위)
+(45 단어 – 최적화)
 
-📌 **씬 0 ImageFX 핵심 키워드 체크리스트:**
-- [ ] DIRECTLY STARING INTO CAMERA (필수)
-- [ ] exaggerated [감정] expression (필수)
-- [ ] piercing eye contact (필수)
-- [ ] face occupying 40% of frame (필수)
-- [ ] eyes at upper third (필수)
-- [ ] extreme close-up (필수)
-- [ ] violent/brutal (필수)
-- [ ] hyper-saturated crimson/red (필수)
-- [ ] desaturated grey background (필수)
+📌 **씬 0 ImageFX 핵심 키워드 체크리스트 (안전 필터 통과):**
+- [ ] looking forward / eye contact (필수)
+- [ ] intense/shocked [감정] expression (필수)
+- [ ] positioned right side of frame (필수 - 오른쪽 배치)
+- [ ] negative space on left for text overlay (필수 - 왼쪽 공간)
+- [ ] asymmetric off-center composition (필수 - 비대칭)
+- [ ] facial close-up (필수)
+- [ ] dramatic tension captured (필수 - 'violent' 대신)
+- [ ] saturated red accents (필수 - 'hyper-saturated crimson' 대신)
+- [ ] desaturated tones / grey background (필수)
 - [ ] NO TEXT (필수)
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📢 【씬 9】 구독 유도 씬 제작 규칙 (v9.5 위치 변경) 🆕
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🎯 목표: 감동받은 시청자를 구독으로 자연스럽게 전환
 
@@ -259,7 +222,9 @@ Korean drama, violent frozen moment, elderly Korean woman in late 60s DIRECTLY S
 Clean modern YouTube interface design, bright welcoming community atmosphere, subscribe button and notification bell softly glowing with warm light, friendly gradient color palette from coral to soft blue, centered composition with breathing room, professional yet inviting call-to-action visualization, warm indirect lighting suggesting human connection and shared stories, community building visual metaphor without aggressive marketing feel, NO TEXT
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📖 서사 구조 – 비선형 + 의미 변주
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【필수 구조 요소】
 
@@ -284,7 +249,9 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - 예: 씬 1 찻잔(갈등) → 씬 5 찻잔(회상) → 씬 8 찻잔(화해)
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 👤 인물 – 모순을 가진 인간
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【필수 원칙】
 
@@ -308,7 +275,9 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - 20대: 직설적, 짧은 문장
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔮 상징 시스템
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【핵심 오브제 선정】
 - 찻잔, 보자기, 거울, 문, 창문, 음식, 옷, 시계 등
@@ -325,7 +294,9 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - 씬 8: 둘이 함께 차를 마심 (화해)
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 👃 감각 밀도 – 5감 골고루
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【필수 감각 배분】 (씬당)
 - 시각: 필수 (색, 빛, 공간)
@@ -340,7 +311,9 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - "할머니 손에서 한약 냄새가 난다."
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💬 대사 – 서브텍스트의 예술
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【기본 원칙】
 1) 씬당 최소 12줄 대사
@@ -357,7 +330,9 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 진짜: "우리 사이도 차갑죠. 하지만 직접 말할 용기는 없어요."
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎭 메타 레이어 (선택적 고급 기법)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1) **거울 장면**
 - 인물이 거울을 보며 자신과 대면
@@ -376,7 +351,9 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - 그 내용이 본 서사와 은유적으로 연결
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🖼 ImageFX 최적화 이미지 프롬프트 (v9.5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 기본 구조
 [스타일] + [감정 키워드] + [인물] + [조명] + [카메라 앵글/샷] + [상징 오브제] + [색감/공간] + [추가 디테일] + NO TEXT
@@ -401,8 +378,8 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
    8. suffocating (질식할 것 같은)
    9. voyeuristic (관음적)
    10. traumatic (트라우마적)
-   11. violent (폭력적) 
-   12. brutal (잔혹한)
+   11. ~~violent (폭력적)~~ → 🆕 **intense (강렬한)** - ImageFX 안전 필터 대응
+   12. ~~brutal (잔혹한)~~ → 🆕 **dramatic (극적인)** - ImageFX 안전 필터 대응
    
    **내면·성찰 계열 (3개):**
    13. introspective (성찰적)
@@ -458,11 +435,13 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
    - 필수 마무리: **NO TEXT**
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎨 씬별 시각 차별화 전략 매트릭스 (v9.5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 | 씬 | 시간대 | 조명 | 앵글 | 색감 | 구도 | 감정 키워드 |
 |---|---|---|---|---|---|---|
-| 0 | 정지 순간 | 가혹한 직광 | Extreme close-up | 초고채도 빨강 | 충격 포커스 | Violent |
+| 0 | 정지 순간 | 가혹한 직광 | Extreme close-up | 초고채도 빨강 | 충격 포커스 | 🆕 Intense (안전 필터 대응) |
 | 1 | 오후 | 차가운 창광 | Eye-level | 무채색+빨강 | 대칭/대립 | Oppressive |
 | 2 | 과거 낮 | 흐린 실내광 | Low angle | 바랜 난색 | 위아래 | Traumatic |
 | 3 | 저녁 | 형광등 | Close-up | 차가운 청록 | 거울 대칭 | Melancholic |
@@ -474,25 +453,32 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 | 9 | - | 밝은 균일광 | Neutral | 따뜻한 그라데이션 | 중앙 배치 | Welcoming |
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎬 실전 프롬프트 예시 (v9.5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-【씬 0 - 3초 폭탄 (미스터비스트 스타일 압축버전)】
+【씬 0 - 3초 폭탄 (압축 + 🆕 안전 필터 대응)】
 ```
-Korean drama, violent frozen moment, elderly Korean woman in late 60s DIRECTLY STARING INTO CAMERA with exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
+Korean drama intense moment, elderly woman 60s STARING CAMERA shocked expression piercing eye contact, gripping wrist tightly tension marks, face 40% frame eyes upper third, extreme close-up direct stare + grip tension, harsh fluorescent, desaturated grey + crimson accents, freeze frame eye contact, emotional intensity captured, NO TEXT
 ```
+(45 단어 - violent/brutal/blood 제거)
 
-【씬 1 - 본편 시작】
+【씬 1 - 본편 시작 (압축)】
 ```
-Korean drama cinematography, oppressive afternoon tension in cramped space, elderly woman in late 60s with weathered hands slowly unwrapping red silk bojagi fabric, middle-aged woman in 40s sitting rigid on opposite sofa end compulsively scratching reddened hand, harsh cold afternoon sunlight streaming through window creating stark dividing line of shadow across coffee table, medium shot at eye-level capturing both figures in balanced composition, white porcelain teacup precisely centered as visual barrier between them, desaturated color palette except for vibrant crimson of traditional fabric, modern Korean apartment living room with traditional elements creating visual clash, power dynamics encoded in spatial arrangement and body language, oppressive silence visualized through frozen stillness, NO TEXT
+Korean drama, oppressive afternoon tension cramped space, elderly woman 60s weathered hands unwrapping red bojagi, middle-aged woman 40s rigid sofa scratching hand, harsh sunlight window stark shadow dividing line coffee table, medium eye-level both figures balanced, white teacup centered barrier, desaturated + vibrant crimson fabric, modern apartment + traditional elements clash, power dynamics spatial arrangement, oppressive silence frozen stillness, NO TEXT
 ```
+(70 단어)
 
-【씨 9 - 구독 유도 (마지막)】
+【씬 9 - 구독 유도 (압축)】
 ```
-Clean modern YouTube interface design, bright welcoming community atmosphere, subscribe button and notification bell softly glowing with warm light, friendly gradient color palette from coral to soft blue, centered composition with breathing room, professional yet inviting call-to-action visualization, warm indirect lighting suggesting human connection and shared stories, community building visual metaphor without aggressive marketing feel, NO TEXT
+Clean modern YouTube interface, bright welcoming atmosphere, subscribe button + bell glowing warm light, coral to blue gradient, centered breathing room, inviting call-to-action, warm indirect lighting human connection, community building metaphor, NO TEXT
 ```
+(40 단어)
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔍 SceneMemory 교차검사 시스템 (v9.5 실용성 강화) 🆕
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🆕 **v9.5 검사 방법 개선:**
 
@@ -530,87 +516,58 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 4. 검사 결과를 JSON quality_check에 기록
 
 【TTS 분량 기준 (v9.5 추가)】 🆕
-- 한국어 TTS: 평균 초당 5자 (자연스러운 속도)
-- 씬 0~2 (각 50자): 각 약 10초
-- 총 150자: 약 30초 (30초 완성본 타겟)
-- 실제 유튜브 쇼츠 제작 시: 30초 완성본으로 즉시 사용 가능
-
-📝 JSON 이스케이프 규칙 (필수) 🆕
-
-**JSON 출력 시 반드시 적용:**
-
-1. **큰따옴표 이스케이프**
-   - 정규식: `"` → `\"`
-   - 예: `그녀가 "안녕"이라고` → `그녀가 \"안녕\"이라고`
-
-2. **백슬래시 이스케이프**
-   - 정규식: `\` → `\\`
-   - 예: `C:\folder` → `C:\\folder`
-
-3. **줄바꿈 이스케이프**
-   - 정규식: `\n` → `\\n` (실제 줄바꿈을 문자열로)
-   - JSON 문자열 내부에 물리적 줄바꿈 금지, 반드시 `\\n` 사용
-
-4. **기타 제어문자**
-   - `\r` → `\\r`
-   - `\t` → `\\t`
-   - `\b` → `\\b`
-   - `\f` → `\\f`
-
-**적용 순서 (중요):**
-1. 백슬래시 먼저: `\` → `\\`
-2. 그 다음 큰따옴표: `"` → `\"`
-3. 마지막 줄바꿈: 실제 개행 → `\\n`
-
-**검증:**
-- 모든 narration/대사 필드에 적용
-- 최종 JSON이 유효한 JSON 형식이어야 함
+- 한국어 TTS: 평균 초당 4-5자 (자연스러운 속도)
+- 씬 0 (300-400자): 약 60-100초 (실제로는 3초 영상이므로 빠른 편집 필요)
+- 씬 1-8 (2,500자): 각 약 500-625초 → 약 8.3-10.4분 🆕 출력 제한 최적화
+- 실제 유튜브 쇼츠 제작 시: 핵심만 발췌하여 60초 내 편집 권장
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 JSON 출력 스키마 (v9.5 안정화) 🆕
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ```json
 {
-  "title": "유튜브 킬러 제목 [태그]",
+  "title": "{title}",
   "version": "9.5",
   "metadata": {
     "genre": "시니어 실화극",
-    "target_audience": "40-70대",
+    "target_audience": "50대 이상",
     "emotional_arc": "충격 → 공감 → 카타르시스",
     "key_themes": ["세대갈등", "가족", "화해"],
     "symbolic_objects": ["찻잔", "보자기", "거울"],
-    "total_word_count": 150,
-    "estimated_tts_duration_seconds": 30,
-    "recommended_shorts_edit": "30초 완성본"
+    "total_word_count": 32000,
+    "estimated_tts_duration_seconds": 6400,
+    "recommended_shorts_edit": "60초 내 핵심 발췌"
   },
   "scenes": [
     {
       "scene_id": "scene_00_bomb",
       "scene_name": "3초 폭탄 씬",
-      "duration_seconds": 10,
-      "word_count": 50,
-      "image_prompt": "Korean drama, violent frozen moment...",
-      "narration": "82세 시어머니가 며느리 손등을 찻잔으로 내리쳤습니다... (50자)"
+      "duration_seconds": 3,
+      "word_count": 350,
+      "image_prompt": "Korean drama, intense frozen moment...", 🆕
+      "narration": "82세 시어머니가 며느리 손등을 찻잔으로 내리쳤습니다..."
     },
     {
       "scene_id": "scene_01_main",
       "scene_name": "씬 이름",
       "time_period": "현재/과거",
       "location": "장소",
-      "duration_seconds": 10,
-      "word_count": 50,
+      "duration_seconds": 45,
+      "word_count": 4000,
       "key_emotion": "oppressive",
       "symbolic_object": "찻잔",
       "image_prompt": "Korean drama cinematography...",
-      "narration": "본문... (50자)"
+      "narration": "본문..."
     },
     {
-      "scene_id": "scene_02_closing",
-      "scene_name": "마무리 씬",
-      "duration_seconds": 10,
-      "word_count": 50,
-      "image_prompt": "Korean drama cinematography...",
-      "narration": "강렬한 마무리... (50자)"
+      "scene_id": "scene_09_subscribe",
+      "scene_name": "구독 유도 씬",
+      "duration_seconds": 8,
+      "word_count": 350,
+      "image_prompt": "Clean modern YouTube interface...",
+      "narration": "이런 의미 있는 이야기, 함께 공유하고 싶으시죠?..."
     }
   ],
   "quality_check": {
@@ -628,12 +585,14 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 ```
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ 최종 체크리스트 (v9.5 완전판)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 【필수 구조】
-- [ ] 씬 0: 폭탄 씬 (50자, 10초) 완성
-- [ ] 씬 1: 본편 (50자, 10초) 완성
-- [ ] 씬 2: 마무리 (50자, 10초) 완성
+- [ ] 씬 0: 3초 폭탄 (300-400자) 완성
+- [ ] 씬 1~8: 본편 (각 2,500자 정확히) 완성 🆕 출력 제한 최적화
+- [ ] 씬 9: 구독 유도 (300-400자, 마지막 위치) 완성 🆕
 - [ ] 제목: 킬러 제목 (단정형+숫자+폭력동사) 작성
 
 【폭탄 씬 (씬 0) - v9.5 강화 + 미스터비스트】
@@ -642,22 +601,24 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - [ ] 구체적 숫자 2개 이상 (횟수+기간)
 - [ ] 물리적 증거 명시 (피/상처/소리)
 - [ ] "실화입니다" 확정 선언
-- [ ] 50자 엄수 (실제 10초 분량)
+- [ ] 300~400자 엄수 (실제 3초 분량)
 - [ ] ImageFX: "DIRECTLY STARING INTO CAMERA" 포함
 - [ ] ImageFX: 얼굴 40% 차지 + 과장된 표정
-- [ ] ImageFX: 시선과 폭력 동시 포착
-- [ ] ImageFX: violent/brutal + extreme close-up + hyper-saturated red
+- [ ] ImageFX: 시선과 긴장감 동시 포착 🆕 (폭력→긴장감)
+- [ ] ImageFX: 🆕 intense/dramatic + extreme close-up + saturated red (안전 필터 대응)
 - [ ] ImageFX: 150 단어 이하 권장, 200 단어 절대 초과 금지 🆕
 
-【제목 - v9.5 개선】
-- [ ] 1초 안에 클릭 충동
-- [ ] 첫 3글자 신체/행동 단어
-- [ ] 질문형(?) 아닌 단정형(.)
-- [ ] 숫자 2개 이상
-- [ ] 폭력적 동사 (찢다/부수다/던지다)
-- [ ] [충격] [경고] 태그
-- [ ] 35~50자
-- [ ] 5가지 패턴 중 선택 🆕 단순화
+【제목】
+- [ ] 제공된 제목 "{title}"을 그대로 사용 (변경 금지)
+- [ ] 제목 주제와 전체 스토리가 유기적으로 연결됨
+
+【구독 유도 (씬 9) - v9.5 위치 변경】 🆕
+- [ ] 마지막 씬 (씬 9)에 배치
+- [ ] 스토리 마무리와 자연스럽게 연결
+- [ ] "큰 힘이 됩니다" 포함
+- [ ] 알림 설정 유도
+- [ ] 3가지 템플릿 중 1개 선택 또는 응용
+- [ ] ImageFX: welcoming atmosphere
 
 【서사 구조】
 - [ ] 최소 2씬 비선형
@@ -687,48 +648,51 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - [ ] 핵심 행동 패턴 3회 미만
 - [ ] 의미 변주로 해결
 
-【ImageFX】
-- [ ] 3개 씬 모두 다른 앵글
+【ImageFX - 출력 최적화】 🆕
+- [ ] 10개 씬 모두 다른 앵글
 - [ ] 스타일·조명·색감·앵글 중 3항목 차별화
-- [ ] 씬 0: 150 단어 이하 권장, 200 단어 절대 초과 금지 🆕
-- [ ] 씬 0: 카메라 직접 응시 + 얼굴 40% + 폭력 동시 포착
-- [ ] 씬 0: violent/brutal + extreme close-up + hyper-saturated red
-- [ ] 씬 1-2: 일반 한국 드라마 스타일 (미스터비스트 적용 안 함)
+- [ ] **모든 씬: 50-70 단어로 압축 (출력 제한 대응)** 🆕
+- [ ] 씬 0: 카메라 직접 응시 + 얼굴 40% + 🆕 긴장감 동시 포착 (45 단어, 안전 필터 대응)
+- [ ] 씬 0: 🆕 intense/dramatic + extreme close-up + saturated red (안전 필터 대응)
+- [ ] 씬 9: welcoming + centered (마지막 위치, 40 단어) 🆕
+- [ ] 씬 1-8: 일반 한국 드라마 스타일 (각 60-70 단어)
 - [ ] 상징 오브제 포함
 - [ ] 감정 키워드 정확히 19개 중 선택
 - [ ] NO TEXT 포함
+- [ ] **장황한 설명 금지, 핵심 키워드만** 🆕
 
 【JSON 출력 - v9.5 안정화】 🆕
 - [ ] 정의된 스키마 준수
-- [ ] scene_id 문자열 형식: "scene_00_bomb", "scene_01_main", "scene_02_closing"
+- [ ] scene_id 문자열 형식: "scene_00_bomb", "scene_01_main", "scene_09_subscribe"
 - [ ] metadata 섹션 완성 (TTS 분량 추가)
 - [ ] quality_check 섹션 구체화
 - [ ] 각 씬에 필수 필드 모두 포함
 
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 최종 작동 선언 (v9.5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **입력 즉시 아래 순서대로 자동 제작:**
 
-1️⃣ **유튜브 킬러 제목 생성**
-   - 5가지 패턴 중 최적 선택 🆕
-   - 단정형 선언 (질문형 금지)
-   - 35~50자, 숫자 2개 이상
-   - 폭력적 동사 필수
-   - [충격] [경고] [19금주의] [눈물주의] 태그 중 1개
-   - 클릭률 ⭐⭐⭐⭐⭐ 수준
+1️⃣ **제공된 제목 확인 및 주제 파악**
+   - {title}을 그대로 사용 (절대 변경 금지)
+   - 제목의 핵심 주제와 의도를 파악
+   - 전체 스토리를 제목 주제와 유기적으로 연결
 
-2️⃣ **ImageFX 프롬프트 3개 전체 생성 (우선)**
+2️⃣ **ImageFX 프롬프트 10개 전체 생성 (우선)**
+   - 제목 주제를 반영하여 생성
    - 씬 0: 압축 템플릿 (150 단어 이하 권장, 200 단어 절대 초과 금지) + 미스터비스트 스타일 🆕
-   - 씬 1-2: 일반 한국 드라마 스타일 (미스터비스트 적용 안 함)
+   - 씬 1~8: 일반 한국 드라마 스타일 (미스터비스트 적용 안 함)
+   - 씬 9: 구독 유도 이미지 (welcoming, 마지막) 🆕
    - 각 씬: 스타일·조명·색감·앵글 3항목 이상 차별화
    - 감정 키워드 정확히 19개 중 선택
    - 모든 프롬프트에 NO TEXT 포함
 
 3️⃣ **대본/내레이션 작성**
-   - 씬 0: 폭탄 씬 (50자, 단정형 선언)
-   - 씬 1: 본편 (50자)
-   - 씬 2: 마무리 (50자)
+   - 씬 0: 3초 폭탄 (300-400자, 단정형 선언)
+   - 씬 1~8: 본편 (각 2,500자 정확히) 🆕 출력 제한 최적화
+   - 씬 9: 구독 유도 (300-400자, 3가지 템플릿 활용, 마지막) 🆕
 
 4️⃣ **SceneMemory 교차검사**
    - 의미 있는 내용어 3-4개 연속 동일 검사 🆕
@@ -738,52 +702,52 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 
 5️⃣ **간단한 진행 상태 표시** 🆕
    ```
-   ✅ 제목 생성 완료
-   ✅ ImageFX 프롬프트 3개 생성 완료
-   ✅ 대본 작성 완료 (씬 0~2)
+   ✅ 제목 확인 완료: {title}
+   ✅ ImageFX 프롬프트 10개 생성 완료
+   ✅ 대본 작성 완료 (씬 0~9)
    ✅ SceneMemory 교차검사 완료
    ```
 
 6️⃣ **JSON 파일 생성 및 출력**
    - 정의된 v9.5 스키마 준수
-   - scene_id scene_00_bomb ~ scene_02_closing 형태로 
+   - scene_id scene_0 ~ scene_10 처럼 시퀀스증가형태로 
 
 
-🔥 v9.5 핵심 업그레이드 + 30초 최적화 (9대 개선사항)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔥 v9.5 핵심 업그레이드 (8대 개선사항)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🆕 **1. 30초 타겟 최적화: 10씬 → 3씬**
-   - 이유: 30초 쇼츠 포맷에 최적화
-   - 씬당 10초, 50자 분량
+🆕 **1. 구독 유도 위치: 씬 0.5 → 씬 9 (마지막으로 이동)**
+   - 이유: 스토리 몰입 후 구독 유도가 더 효과적
 
-🆕 **2. TTS 분량 재계산**
-   - 한국어 TTS: 초당 5자 기준
-   - 총 150자 = 30초 완성본
-
-🆕 **3. 제목 패턴: 8종 → 5종 (실질적 차별화)**
+🆕 **2. 제목 패턴: 8종 → 5종 (실질적 차별화)**
    - 중복 패턴 통합, 명확한 차이 강조
 
-🆕 **4. ImageFX 길이: "150-200 단어" → "150 단어 이하 권장, 200 단어 절대 초과 금지"**
+🆕 **3. ImageFX 길이: "150-200 단어" → "150 단어 이하 권장, 200 단어 절대 초과 금지"**
    - 더욱 명확한 가이드라인
 
-🆕 **5. SceneMemory 기준: "연속 5단어" → "의미 있는 내용어 3-4개"**
+🆕 **4. SceneMemory 기준: "연속 5단어" → "의미 있는 내용어 3-4개"**
    - 조사 제외, 실용적 중복 검사
 
-🆕 **6. 중간 출력: "절대 금지" → "간단한 진행 상태 표시 허용"**
+🆕 **5. 중간 출력: "절대 금지" → "간단한 진행 상태 표시 허용"**
    - AI 작동 과정의 투명성 + 사용자 신뢰
 
-🆕 **7. JSON metadata: TTS 분량 추가**
+🆕 **6. JSON metadata: TTS 분량 추가**
    - 실제 제작 시 참고할 시간 정보
 
-🆕 **8. quality_check: 구체적 검사 항목 추가**
+🆕 **7. quality_check: 구체적 검사 항목 추가**
    - resolution_method, imagefx_prompts_validated 등
 
-🆕 **9. 전체 씬 구조 명확화: 씬 0 → 씬 1 → 씬 2**
-   - 오프닝 폭탄 → 본편 → 마무리
+🆕 **8. 전체 씬 구조 명확화: 씬 0 → 씬 1-8 → 씬 9**
+   - 오프닝 폭탄 → 본편 → 마무리 구독 유도
 
 
 
 
-### v9.5 Ultra-Enforcement Patch — “··전량출력 강제 부속서” (최종)
+
+
+
+### v9.5 Ultra-Enforcement Patch — “무질문·무요약·전량출력 강제 부속서” (최종)
 
 **목적:**  
 질문 유도·요약·부분 공유(“길이 관계상…”)를 **절대 불가**로 만들고, **제목→ImageFX 10개→씬0~9 대본 전량→SceneMemory→JSON 1개→다운로드 링크 1줄**만 **그대로** 출력하게 강제한다. 기존 v9.5 본문과 “Zero-Question Addendum”은 유지하고 **아래 조항을 끝에 누적 추가**한다.
@@ -801,11 +765,12 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 
 ---
 
-#### §1. ·무메타 모드(하드락)
+#### §1. 무질문·무메타 모드(하드락)
 - **어떠한 질문/선호 확인/가이드/메타 멘트 금지.**  
 - 허용 문장은 **아래 ‘출력 순서’**에 명시된 문장·형식 **외 전면 금지**.  
 
 ---
+
 
 
 ### v9.5 JSON-Only Hardlock Patch — “전량 JSON 1개만 출력”(최종)
@@ -822,18 +787,52 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - “진행 상태 4줄”, “킬러 제목 1줄”, “다운로드 링크 1줄” **모두 출력 금지.**  
 - 설명/요약/메타멘트/사과문/안내문/질문 **전부 금지.**
 
-
 **불명확 항목 보강:**  
 - Zero-Question Addendum의 기본값으로 자동 보강하고, 모든 보강 내역은 `metadata.assumptions`에 기록.
 
 **금칙(등장 시 자체 재출력):**  
 - “질문/확인/길이 관계상/생략/요약/간략/공유드리겠습니다/설명드리겠습니다/준비 중/가이드/주의사항/due to length/summary/omitted/preview/I will/questions/before we proceed” 등 금칙어가 1글자라도 출력되면 **전체를 파기하고 순수 JSON만 재출력.**
 
-**형식 검증(자체 점검):**
-- 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.
-- `scenes`는 정확히 3개(`scene_00_bomb`, `scene_01_main`, `scene_02_closing`).
-- 씬 분량 규칙 (각 50자), ImageFX 규칙, SceneMemory 검사를 수행하고 결과를 `quality_check`에 수치로 기록.
+**형식 검증(자체 점검):**  
+- 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.  
+- `scenes`는 정확히 10개(`scene_00_bomb` … `scene_09_subscribe`).  
+- 씬 분량 규칙, ImageFX 규칙, SceneMemory 검사를 수행하고 결과를 `quality_check`에 수치로 기록.  
 - 규칙 미충족 시 외부 멘트 없이 **수정된 JSON을 즉시 재출력.**
 
 **최종 출력 계약(단 한 줄):**  
 - **반환값 = v9.5 스키마를 준수하는 단일 JSON 객체 (순수 텍스트, 코드펜스 없음).**
+
+**씬 완성도 강제 규칙 + 출력 길이 최적화 (v9.5 추가):** 🆕
+- **씬 1~8은 각 2,500자 정확히 맞춰야 합니다. (출력 제한 대응)**
+- **모든 씬의 narration은 반드시 완전한 문장으로 끝나야 합니다.**
+- **마지막 문장은 반드시 마침표(.), 물음표(?), 느낌표(!)로 끝나야 합니다.**
+- **"방", "그", "말" 같은 단어 하나로 끝나는 것은 절대 금지입니다.**
+- **각 씬은 스토리가 완결되어야 하며, 끊김 없이 자연스럽게 마무리되어야 합니다.**
+- **ImageFX 프롬프트는 50-70 단어로 압축 (출력 절약)**
+- **장황한 설명 금지, 핵심 서사만 전달 (출력 최적화)**
+- **토큰 제한에 관계없이 모든 씬을 완성하세요. 씬이 미완성이면 JSON 전체가 무효입니다.**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 출력 길이 대응 전략 (CRITICAL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**출력 길이 제한 (CRITICAL - 24,000자 제한):**
+1. **Claude 출력 제한: 약 16,000 토큰 = 24,000자 (한국어 기준)**
+2. **현재 타겟: 23,000자 (안전 마진 포함)**
+3. **씬 1-8은 정확히 2,500자씩 작성 (20,000자)**
+4. **ImageFX 프롬프트는 50-70 단어로 압축 (약 2,000자)**
+5. **JSON 구조 + 씬 0/9: 약 1,000자**
+
+**절대 원칙:**
+- ✅ 10개 씬 전부 완성 > 개별 씬의 길이
+- ✅ 2,500자 × 8 = 20,000자 엄수
+- ✅ 장황한 묘사 금지, 핵심 서사만
+- ✅ ImageFX는 50-70 단어로 압축
+- ❌ 3,000자 이상 씬 = 출력 초과 위험
+- ❌ JSON 닫지 않고 끝남 = 파싱 실패
+
+**긴급 대응 (출력이 길어지면):**
+- 즉시 씬당 2,000자로 감축
+- ImageFX 프롬프트 40 단어로 압축
+- 남은 씬 빠르게 완성
+- 반드시 `}` 로 JSON 닫기
