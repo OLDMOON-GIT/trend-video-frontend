@@ -178,17 +178,20 @@ SceneMemory 교차검사 활성화 (의미 있는 내용어 3-4개 연속 기준
 
 🆕 **v9.5 최적화 템플릿 (150 단어 이하 권장, 200 단어 절대 초과 금지):** 🆕 명확화
 
-Korean dramatic scene, violent frozen moment, [인물] DIRECTLY STARING INTO CAMERA with exaggerated [감정] expression making piercing eye contact, [극단적 행동 묘사], face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND [폭력 상황], harsh lighting, desaturated grey except hyper-saturated crimson [증거물], freeze frame maintaining unbreakable eye contact with viewer, raw brutality visualized, NO TEXT
+Korean dramatic scene, violent frozen moment, [인물] direct frontal eye contact looking directly at camera, positioned right frame, exaggerated [감정] expression making piercing eye contact, [극단적 행동 묘사], face occupying 40% of frame with eyes at upper third facing forward, extreme close-up capturing both direct stare AND [폭력 상황], harsh lighting, desaturated grey except hyper-saturated crimson [증거물], freeze frame maintaining unbreakable eye contact with viewer, raw brutality visualized, NO TEXT
 
 🔥 **v9.5 압축 예시 (검증됨):**
 
 ```
-Korean dramatic scene, violent frozen moment, elderly Korean woman in late 60s DIRECTLY STARING INTO CAMERA with exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
+Korean dramatic scene, violent frozen moment, elderly Korean woman in late 60s direct frontal eye contact looking directly at camera, positioned right frame, exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third facing forward, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
 ```
-(87 단어 – 최적 범위)
+(95 단어 – 최적 범위)
 
 📌 **씬 0 ImageFX 핵심 키워드 체크리스트:**
-- [ ] DIRECTLY STARING INTO CAMERA (필수)
+- [ ] direct frontal eye contact (필수 - 정면 눈동자)
+- [ ] looking directly at camera (필수 - 카메라 직접 응시)
+- [ ] eyes facing forward (필수 - 눈 정면)
+- [ ] positioned right frame (필수 - 오른쪽 배치)
 - [ ] exaggerated [감정] expression (필수)
 - [ ] piercing eye contact (필수)
 - [ ] face occupying 40% of frame (필수)
@@ -480,7 +483,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 
 【씬 0 - 3초 폭탄 (미스터비스트 스타일 압축버전)】
 ```
-Korean dramatic scene, violent frozen moment, elderly Korean woman in late 60s DIRECTLY STARING INTO CAMERA with exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
+Korean dramatic scene, violent frozen moment, elderly Korean woman in late 60s direct frontal eye contact looking directly at camera, positioned right frame, exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third facing forward, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
 ```
 
 【씬 1 - 본편 시작】
