@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/session';
 import { createJob, updateJob, addJobLog, flushJobLogs, findJobById, getSettings, deductCredits, addCredits, addCreditHistory } from '@/lib/db';
 import { parseJsonSafely } from '@/lib/json-utils';
 import kill from 'tree-kill';
+import { sendProcessKillFailureEmail, sendProcessKillTimeoutEmail } from '@/utils/email';
 
 // 실행 중인 프로세스 관리
 const runningProcesses = new Map<string, ChildProcess>();
@@ -701,14 +702,41 @@ export async function DELETE(request: NextRequest) {
     if (process && process.pid) {
       console.log(`🛑 작업 취소 요청 (프로세스 트리 강제 종료): ${jobId}, PID: ${process.pid}`);
 
+      const pid = process.pid;
+      let killSucceeded = false;
+
       // tree-kill로 프로세스 트리 전체 강제 종료
-      kill(process.pid, 'SIGKILL', (err) => {
+      kill(pid, 'SIGKILL', async (err) => {
         if (err) {
           console.error(`❌ tree-kill 실패: ${err}`);
+
+          // 프로세스 종료 실패 시 관리자에게 메일 발송
+          await sendProcessKillFailureEmail(
+            jobId,
+            pid,
+            user.userId,
+            `tree-kill 실패: ${err.message || String(err)}`
+          );
         } else {
-          console.log(`✅ tree-kill 성공: PID ${process.pid}`);
+          console.log(`✅ tree-kill 성공: PID ${pid}`);
+          killSucceeded = true;
         }
       });
+
+      // 프로세스 종료 타임아웃 체크 (5초 후)
+      setTimeout(async () => {
+        if (!killSucceeded) {
+          console.warn(`⏱️ 프로세스 종료 타임아웃: PID ${pid}`);
+
+          // 타임아웃 알림 메일 발송
+          await sendProcessKillTimeoutEmail(
+            jobId,
+            pid,
+            user.userId,
+            5
+          );
+        }
+      }, 5000);
 
       // 맵에서 즉시 제거
       runningProcesses.delete(jobId);

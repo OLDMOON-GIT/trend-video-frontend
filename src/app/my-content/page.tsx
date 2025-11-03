@@ -721,6 +721,8 @@ export default function MyContentPage() {
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [isDisconnecting, setIsDisconnecting] = useState(false);
     const [hasCredentials, setHasCredentials] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
 
     useEffect(() => {
       loadYouTubeAuthStatus();
@@ -728,10 +730,14 @@ export default function MyContentPage() {
 
     const loadYouTubeAuthStatus = async () => {
       try {
+        console.log('[YouTubeSettings] API 호출 시작...');
         const res = await fetch('/api/youtube/auth');
         const data = await res.json();
+        console.log('[YouTubeSettings] API 응답:', data);
+        console.log('[YouTubeSettings] hasCredentials:', data.hasCredentials);
         onAuthChange(data.authenticated || false, data.channel || null);
         setHasCredentials(data.hasCredentials || false);
+        console.log('[YouTubeSettings] State 업데이트 완료');
       } catch (error) {
         console.error('YouTube 인증 상태 확인 실패:', error);
       }
@@ -786,76 +792,85 @@ export default function MyContentPage() {
       }
     };
 
+    const handleCredentialsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      await uploadCredentialsFile(file);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+
+      const file = e.dataTransfer.files?.[0];
+      if (!file) return;
+
+      if (!file.name.endsWith('.json')) {
+        toast.error('JSON 파일만 업로드할 수 있습니다.');
+        return;
+      }
+
+      await uploadCredentialsFile(file);
+    };
+
+    const uploadCredentialsFile = async (file: File) => {
+      try {
+        setIsUploading(true);
+        toast.loading('Credentials 업로드 중...', { id: 'credentials-upload' });
+
+        const formData = new FormData();
+        formData.append('credentials', file);
+
+        const res = await fetch('/api/youtube/credentials', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          toast.success('Credentials 업로드 완료! 이제 YouTube 채널을 연결하세요.', { id: 'credentials-upload' });
+          setHasCredentials(true);
+        } else {
+          throw new Error(data.error || '업로드 실패');
+        }
+      } catch (error: any) {
+        toast.error(`업로드 실패: ${error.message}`, { id: 'credentials-upload' });
+      } finally {
+        setIsUploading(false);
+      }
+    };
+
     return (
       <div className="p-8">
         <h2 className="text-2xl font-bold text-white mb-6">YouTube 설정</h2>
 
         {!hasCredentials ? (
-          <div className="space-y-6">
-            <div className="p-6 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-              <h3 className="text-lg font-semibold text-blue-400 mb-2">1️⃣ Google Cloud Credentials 설정</h3>
-              <p className="text-sm text-slate-300 mb-4">
-                YouTube API를 사용하려면 먼저 Google Cloud Console에서 OAuth 2.0 클라이언트 ID를 생성하고 JSON 파일을 다운로드해야 합니다.
-              </p>
-              <a
-                href="https://console.cloud.google.com/apis/credentials"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 underline"
-              >
-                Google Cloud Console로 이동
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            </div>
-
-            <div className="p-6 bg-slate-900/50 border border-slate-700 rounded-lg">
-              <h3 className="text-lg font-semibold text-white mb-4">2️⃣ Credentials 파일 업로드</h3>
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleCredentialsUpload}
-                disabled={isUploading}
-                className="hidden"
-                id="credentials-upload"
-              />
-              <label
-                htmlFor="credentials-upload"
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition ${
-                  isUploading
-                    ? 'border-slate-600 bg-slate-800 cursor-not-allowed'
-                    : isDragging
-                    ? 'border-purple-500 bg-purple-500/10 scale-[1.02]'
-                    : 'border-slate-600 bg-slate-900/50 hover:border-purple-500 hover:bg-slate-800'
-                }`}
-              >
-                {isUploading ? (
-                  <div className="flex flex-col items-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mb-2"></div>
-                    <p className="text-sm text-slate-400">업로드 중...</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center pointer-events-none">
-                    <svg className="w-10 h-10 text-slate-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <p className={`text-sm font-semibold transition ${isDragging ? 'text-purple-400' : 'text-white'}`}>
-                      {isDragging ? '파일을 여기에 놓으세요' : 'JSON 파일을 선택하거나 드래그하세요'}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">Google Cloud에서 다운로드한 credentials 파일</p>
-                  </div>
-                )}
-              </label>
-            </div>
-
-            <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <p className="text-sm text-yellow-400">
-                💡 각 사용자는 자신의 credentials 파일을 업로드하여 자신의 YouTube 채널에 업로드할 수 있습니다.
-              </p>
+          <div className="p-6 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="flex items-start gap-3">
+              <svg className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <h3 className="text-lg font-bold text-yellow-400 mb-2">관리자 설정 필요</h3>
+                <p className="text-yellow-300/90 text-sm mb-3">
+                  YouTube API Credentials가 설정되지 않았습니다.<br />
+                  관리자에게 문의하여 공통 Credentials를 설정해야 YouTube 채널 연결이 가능합니다.
+                </p>
+                <p className="text-xs text-yellow-300/70">
+                  💡 관리자는 관리자 대시보드 → YouTube Credentials 메뉴에서 설정할 수 있습니다.
+                </p>
+              </div>
             </div>
           </div>
         ) : !authenticated ? (
@@ -945,6 +960,20 @@ export default function MyContentPage() {
         )}
       </div>
     );
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+      localStorage.removeItem('sessionId');
+      router.push('/auth');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -1394,26 +1423,13 @@ export default function MyContentPage() {
 
                                     // JSON 파싱 후 메인 페이지로 이동하며 파이프라인 시작
                                     try {
-                                      // 마크다운 코드 블록 제거
-                                      let content = item.data.content
-                                        .replace(/^```json\s*/i, '')
-                                        .replace(/\s*```\s*$/i, '')
-                                        .trim();
-
-                                      // { 이전의 모든 텍스트 제거 (Claude가 추가한 설명 텍스트 제거)
-                                      const jsonStart = content.indexOf('{');
-                                      if (jsonStart > 0) {
-                                        console.log('⚠️ JSON 시작 전 텍스트 발견, 제거 중...');
-                                        content = content.substring(jsonStart);
-                                      }
-
                                       console.log('📄 원본 content 길이:', item.data.content.length);
-                                      console.log('📄 정제된 content 길이:', content.length);
 
-                                      // JSON 파싱 (유틸리티 함수 사용)
-                                      const parseResult = parseJsonSafely(content);
+                                      // JSON 파싱 (공통 함수 사용 - 자동 정리 및 수정 포함)
+                                      const parseResult = parseJsonSafely(item.data.content);
 
                                       if (!parseResult.success) {
+                                        console.error('JSON 파싱 실패:', parseResult.error);
                                         throw new Error(parseResult.error || 'JSON 파싱 실패');
                                       }
 
@@ -1421,6 +1437,8 @@ export default function MyContentPage() {
 
                                       if (parseResult.fixed) {
                                         console.log('⚠️ JSON 자동 수정이 적용되었습니다');
+                                      } else {
+                                        console.log('✅ JSON 파싱 성공 (원본 그대로)');
                                       }
 
                                       console.log('📦 파싱된 JSON:', {

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import type { DateFilter, SortOption, VideoItem, VideoType } from "@/types/video";
-import { parseJsonSafely } from "@/lib/json-utils";
+import { parseJsonSafely, extractPureJson, parseJsonFile } from "@/lib/json-utils";
 
 const fallbackVideos: VideoItem[] = [];
 
@@ -80,14 +80,10 @@ type RunPipelinePayload = {
 
 const FILTER_STORAGE_KEY = 'trend-video-filters';
 
-// 마크다운 코드 블록 제거 헬퍼 함수
+// 마크다운 코드 블록 제거 헬퍼 함수 (하위 호환성 유지, 실제로는 parseJsonSafely 사용 권장)
 function stripMarkdownCodeBlock(text: string): string {
-  // ```json, ```JSON, ``` 로 시작하고 ``` 로 끝나는 패턴 제거
-  return text
-    .trim()
-    .replace(/^```(?:json|JSON)?\s*\n?/g, '')  // 시작 부분의 ```json 또는 ``` 제거
-    .replace(/\n?```\s*$/g, '')                 // 끝 부분의 ``` 제거
-    .trim();
+  // extractPureJson 사용하여 더 강력한 정리 수행
+  return extractPureJson(text);
 }
 
 let cachedFilters: StoredFilters | null | undefined = undefined;
@@ -2361,7 +2357,26 @@ export default function Home() {
                   const imageFiles = files.filter(f => f.type.startsWith('image/'));
 
                   if (jsonFile) setUploadedJson(jsonFile);
-                  if (imageFiles.length > 0) setUploadedImages(imageFiles.slice(0, 50)); // 최대 50개
+                  if (imageFiles.length > 0) {
+                    console.log('\n' + '='.repeat(70));
+                    console.log('🎯 드래그앤드롭으로 이미지 업로드됨 (' + imageFiles.length + '개)');
+                    console.log('='.repeat(70));
+                    imageFiles.slice(0, 50).forEach((file, i) => {
+                      const date = new Date(file.lastModified);
+                      const timeStr = date.toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        fractionalSecondDigits: 3
+                      });
+                      console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
+                    });
+                    console.log('='.repeat(70) + '\n');
+                    setUploadedImages(imageFiles.slice(0, 50)); // 최대 50개
+                  }
 
                   if (!jsonFile && imageFiles.length === 0) {
                     showToast('JSON 또는 이미지 파일을 업로드해주세요.', 'error');
@@ -2390,6 +2405,23 @@ export default function Home() {
                   }
 
                   if (imageFiles.length > 0) {
+                    console.log('\n' + '='.repeat(70));
+                    console.log('📋 클립보드로 이미지 붙여넣기됨 (' + imageFiles.length + '개)');
+                    console.log('='.repeat(70));
+                    imageFiles.forEach((file, i) => {
+                      const date = new Date(file.lastModified);
+                      const timeStr = date.toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        fractionalSecondDigits: 3
+                      });
+                      console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
+                    });
+                    console.log('='.repeat(70) + '\n');
                     setUploadedImages(prev => [...prev, ...imageFiles].slice(0, 50));
                     showToast(`✅ ${imageFiles.length}개 이미지를 클립보드에서 가져왔습니다!`, 'success');
                   }
@@ -2491,7 +2523,26 @@ export default function Home() {
                         const imageFiles = files.filter(f => f.type.startsWith('image/'));
 
                         if (jsonFile) setUploadedJson(jsonFile);
-                        if (imageFiles.length > 0) setUploadedImages(imageFiles.slice(0, 8));
+                        if (imageFiles.length > 0) {
+                          console.log('\n' + '='.repeat(70));
+                          console.log('📁 파일 선택으로 이미지 업로드됨 (' + imageFiles.length + '개)');
+                          console.log('='.repeat(70));
+                          imageFiles.slice(0, 8).forEach((file, i) => {
+                            const date = new Date(file.lastModified);
+                            const timeStr = date.toLocaleString('ko-KR', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              fractionalSecondDigits: 3
+                            });
+                            console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
+                          });
+                          console.log('='.repeat(70) + '\n');
+                          setUploadedImages(imageFiles.slice(0, 8));
+                        }
                       }}
                       className="hidden"
                     />
@@ -3000,11 +3051,21 @@ export default function Home() {
                     setVideoLogs([]);
 
                     try {
-                      // JSON 파일 읽기
-                      const rawJsonText = await uploadedJson!.text();
-                      // 마크다운 코드 블록 제거
-                      const jsonText = stripMarkdownCodeBlock(rawJsonText);
-                      const storyData = JSON.parse(jsonText);
+                      // JSON 파일 읽기 및 파싱 (공통 함수 사용)
+                      const parseResult = await parseJsonFile(uploadedJson!);
+
+                      if (!parseResult.success) {
+                        console.error('JSON 파싱 실패:', parseResult.error);
+                        throw new Error(`JSON 파싱 실패: ${parseResult.error}`);
+                      }
+
+                      const storyData = parseResult.data;
+
+                      if (parseResult.fixed) {
+                        console.log('⚠️ JSON이 자동으로 수정되어 파싱되었습니다.');
+                      } else {
+                        console.log('✅ JSON 파싱 성공 (원본 그대로)');
+                      }
 
                       setVideoProgress({ step: '이미지 업로드 중...', progress: 10 });
 
@@ -3016,26 +3077,86 @@ export default function Home() {
 
                       // 직접 업로드 모드일 때만 이미지 추가
                       if (imageSource === 'none') {
-                        // 이미지 정렬: 시퀀스 번호가 있으면 시퀀스 우선, 없으면 시간 순서
+                        console.log('\n' + '='.repeat(70));
+                        console.log('📷 이미지 정렬 시작 (총 ' + uploadedImages.length + '개)');
+                        console.log('='.repeat(70));
+                        console.log('\n🔵 원본 순서 (사용자가 선택한 순서):');
+                        uploadedImages.forEach((img, i) => {
+                          const date = new Date(img.lastModified);
+                          const timeStr = date.toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            fractionalSecondDigits: 3
+                          });
+                          console.log(`  [${i}] ${img.name.padEnd(30)} | ${timeStr} | ${(img.size / 1024).toFixed(1)}KB`);
+                        });
+
+                        // 이미지 정렬: 명확한 시퀀스 패턴이 있으면 시퀀스 우선, 없으면 시간 순서
                         const sortedImages = [...uploadedImages].sort((a, b) => {
-                          // 파일명에서 숫자 추출 (예: image_01.jpg → 1, scene_5.png → 5, 3.jpg → 3)
-                          const extractNumber = (filename: string): number | null => {
-                            const match = filename.match(/(\d+)/);
-                            return match ? parseInt(match[1], 10) : null;
+                          // 명확한 시퀀스 번호만 추출:
+                          // - image_01, scene_1, img_5 등
+                          // - image(1), scene(2) 등
+                          // - (1), (2) 등
+                          // - 파일명 전체가 숫자 (1.jpg, 2.png)
+                          const extractSequence = (filename: string): number | null => {
+                            const name = filename.replace(/\.\w+$/, ''); // 확장자 제거
+
+                            // image_01, scene_1, img_5 패턴
+                            let match = name.match(/^(image|scene|img)[-_](\d+)$/i);
+                            if (match) return parseInt(match[2], 10);
+
+                            // image(1), scene(2) 패턴
+                            match = name.match(/^(image|scene|img)\((\d+)\)$/i);
+                            if (match) return parseInt(match[2], 10);
+
+                            // (1), (2) 패턴
+                            match = name.match(/^\((\d+)\)$/);
+                            if (match) return parseInt(match[1], 10);
+
+                            // 파일명 전체가 숫자 (1, 2, 3)
+                            match = name.match(/^(\d+)$/);
+                            if (match) return parseInt(match[1], 10);
+
+                            return null;
                           };
 
-                          const numA = extractNumber(a.name);
-                          const numB = extractNumber(b.name);
+                          const numA = extractSequence(a.name);
+                          const numB = extractSequence(b.name);
 
-                          // 둘 다 시퀀스 번호가 있으면 시퀀스로 정렬
+                          // 둘 다 명확한 시퀀스 번호가 있으면 시퀀스로 정렬
                           if (numA !== null && numB !== null) {
+                            console.log(`  정렬 (시퀀스): ${a.name} (seq:${numA}) vs ${b.name} (seq:${numB}) → ${numA - numB > 0 ? 'B가 앞' : 'A가 앞'}`);
                             return numA - numB;
                           }
 
                           // 시퀀스 번호가 없으면 생성/수정 시간으로 정렬 (오래된 것부터)
-                          return a.lastModified - b.lastModified;
+                          const timeDiff = a.lastModified - b.lastModified;
+                          console.log(`  정렬 (시간): ${a.name} (${new Date(a.lastModified).toLocaleTimeString('ko-KR')}) vs ${b.name} (${new Date(b.lastModified).toLocaleTimeString('ko-KR')}) → ${timeDiff > 0 ? 'B가 앞' : 'A가 앞'}`);
+                          return timeDiff;
                         });
 
+                        console.log('\n🟢 정렬 후 순서 (오래된 파일부터 image_00):');
+                        console.log('   ※ 첫 번째 파일(image_00)이 씬 0 또는 첫 씬이 됩니다!');
+                        sortedImages.forEach((img, i) => {
+                          const date = new Date(img.lastModified);
+                          const timeStr = date.toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            fractionalSecondDigits: 3
+                          });
+                          const newName = `image_${String(i).padStart(2, '0')}.${img.name.split('.').pop()}`;
+                          console.log(`  [${i}] ${img.name.padEnd(30)} → ${newName.padEnd(15)} | ${timeStr}`);
+                        });
+
+                        console.log('\n📤 FormData에 추가되는 순서:');
                         // 정렬된 이미지를 image_00.ext, image_01.ext 형식으로 파일명 변경하여 전송
                         sortedImages.forEach((img, idx) => {
                           const ext = img.name.split('.').pop() || 'jpg';
@@ -3045,7 +3166,12 @@ export default function Home() {
                           const renamedFile = new File([img], newFileName, { type: img.type });
 
                           formData.append(`image_${idx}`, renamedFile);
+                          console.log(`  FormData.append('image_${idx}', ${newFileName}) - 원본: ${img.name}`);
                         });
+
+                        console.log('\n' + '='.repeat(70));
+                        console.log('✅ 이미지 정렬 및 FormData 추가 완료');
+                        console.log('='.repeat(70) + '\n');
                       }
 
                       const response = await fetch('/api/generate-video-upload', {
