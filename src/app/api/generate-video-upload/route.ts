@@ -5,6 +5,7 @@ import path from 'path';
 import { getCurrentUser } from '@/lib/session';
 import { createJob, updateJob, addJobLog, flushJobLogs, findJobById, getSettings, deductCredits, addCredits, addCreditHistory } from '@/lib/db';
 import { parseJsonSafely } from '@/lib/json-utils';
+import kill from 'tree-kill';
 
 // 실행 중인 프로세스 관리
 const runningProcesses = new Map<string, ChildProcess>();
@@ -390,19 +391,16 @@ async function generateVideoFromUpload(
       // 타임아웃 (2시간) - 강제 종료
       setTimeout(() => {
         if (runningProcesses.has(jobId) && pythonProcess.pid) {
-          console.log(`⏰ 타임아웃: 프로세스 강제 종료 ${jobId}, PID: ${pythonProcess.pid}`);
+          console.log(`⏰ 타임아웃: 프로세스 트리 강제 종료 ${jobId}, PID: ${pythonProcess.pid}`);
 
-          try {
-            if (process.platform === 'win32') {
-              spawn('taskkill', ['/F', '/T', '/PID', String(pythonProcess.pid)]);
-              console.log(`✅ Windows taskkill 명령 실행 (타임아웃): PID ${pythonProcess.pid}`);
+          // tree-kill로 프로세스 트리 전체 강제 종료
+          kill(pythonProcess.pid, 'SIGKILL', (err) => {
+            if (err) {
+              console.error(`❌ tree-kill 실패 (타임아웃): ${err}`);
             } else {
-              pythonProcess.kill('SIGKILL');
-              console.log(`✅ Unix SIGKILL 전송 (타임아웃): PID ${pythonProcess.pid}`);
+              console.log(`✅ tree-kill 성공 (타임아웃): PID ${pythonProcess.pid}`);
             }
-          } catch (killError) {
-            console.error(`❌ 타임아웃 프로세스 종료 실패: ${killError}`);
-          }
+          });
 
           runningProcesses.delete(jobId);
           reject(new Error('Python 실행 시간 초과 (2시간)'));
@@ -701,27 +699,21 @@ export async function DELETE(request: NextRequest) {
     const process = runningProcesses.get(jobId);
 
     if (process && process.pid) {
-      console.log(`🛑 작업 취소 요청 (프로세스 강제 종료): ${jobId}, PID: ${process.pid}`);
+      console.log(`🛑 작업 취소 요청 (프로세스 트리 강제 종료): ${jobId}, PID: ${process.pid}`);
 
-      try {
-        // Windows: taskkill로 프로세스 트리 전체 강제 종료
-        // /F: 강제 종료, /T: 자식 프로세스 포함, /PID: 프로세스 ID
-        if (process.platform === 'win32') {
-          spawn('taskkill', ['/F', '/T', '/PID', String(process.pid)]);
-          console.log(`✅ Windows taskkill 명령 실행: PID ${process.pid}`);
+      // tree-kill로 프로세스 트리 전체 강제 종료
+      kill(process.pid, 'SIGKILL', (err) => {
+        if (err) {
+          console.error(`❌ tree-kill 실패: ${err}`);
         } else {
-          // Unix: SIGKILL
-          process.kill('SIGKILL');
-          console.log(`✅ Unix SIGKILL 전송: PID ${process.pid}`);
+          console.log(`✅ tree-kill 성공: PID ${process.pid}`);
         }
-      } catch (killError) {
-        console.error(`❌ 프로세스 종료 실패: ${killError}`);
-      }
+      });
 
-      // 맵에서 제거
+      // 맵에서 즉시 제거
       runningProcesses.delete(jobId);
 
-      console.log(`✅ 프로세스 강제 종료 완료: ${jobId}`);
+      console.log(`✅ 프로세스 강제 종료 명령 완료: ${jobId}`);
     } else {
       console.log(`🛑 작업 취소 요청 (프로세스 없음, 상태만 변경): ${jobId}`);
     }

@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { getCurrentUser } from '@/lib/session';
 import { findJobById, updateJob, addJobLog, getSettings, deductCredits, addCredits, addCreditHistory, createJob } from '@/lib/db';
+import kill from 'tree-kill';
 
 // 실행 중인 프로세스 맵
 const runningProcesses = new Map<string, any>();
@@ -404,20 +405,16 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       // 타임아웃 (2시간) - 강제 종료
       setTimeout(() => {
         if (runningProcesses.has(newJobId) && pythonProcess.pid) {
-          console.log(`⏰ 타임아웃: 프로세스 강제 종료 ${newJobId}, PID: ${pythonProcess.pid}`);
+          console.log(`⏰ 타임아웃: 프로세스 트리 강제 종료 ${newJobId}, PID: ${pythonProcess.pid}`);
 
-          try {
-            if (process.platform === 'win32') {
-              const { spawn } = require('child_process');
-              spawn('taskkill', ['/F', '/T', '/PID', String(pythonProcess.pid)]);
-              console.log(`✅ Windows taskkill 명령 실행 (타임아웃): PID ${pythonProcess.pid}`);
+          // tree-kill로 프로세스 트리 전체 강제 종료
+          kill(pythonProcess.pid, 'SIGKILL', (err) => {
+            if (err) {
+              console.error(`❌ tree-kill 실패 (타임아웃): ${err}`);
             } else {
-              pythonProcess.kill('SIGKILL');
-              console.log(`✅ Unix SIGKILL 전송 (타임아웃): PID ${pythonProcess.pid}`);
+              console.log(`✅ tree-kill 성공 (타임아웃): PID ${pythonProcess.pid}`);
             }
-          } catch (killError) {
-            console.error(`❌ 타임아웃 프로세스 종료 실패: ${killError}`);
-          }
+          });
 
           runningProcesses.delete(newJobId);
           reject(new Error('Python 실행 시간 초과 (2시간)'));
