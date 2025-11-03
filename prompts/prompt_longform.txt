@@ -139,12 +139,12 @@ SceneMemory 교차검사 활성화 (의미 있는 내용어 3-4개 연속 기준
 
 🆕 **v9.5 압축 템플릿 (50-70 단어, 출력 최적화):** 🆕 간결화
 
-dramatic scene, [인물] [감정] expression looking forward, right frame position, [행동], facial close-up, left space for text, asymmetric composition, dramatic tension, sharp focus, strong contrast lighting, desaturated + red accents, freeze frame, NO TEXT
+Korean dramatic scene, [인물] [감정] expression looking forward, right frame position, [행동], facial close-up, left space for text, asymmetric composition, dramatic tension, sharp focus, strong contrast lighting, desaturated + red accents, freeze frame, NO TEXT
 
 🔥 **v9.5 압축 예시 (ImageFX 안전 필터 + 출력 최적화):**
 
 ```
-dramatic scene, elderly woman 60s shocked expression forward gaze, right frame, gripping wrist tension, facial close-up, left space text, asymmetric composition, dramatic tension, sharp focus face hands, fluorescent strong contrast, desaturated grey + red accents, freeze frame, NO TEXT
+Korean dramatic scene, elderly woman 60s shocked expression forward gaze, right frame, gripping wrist tension, facial close-up, left space text, asymmetric composition, dramatic tension, sharp focus face hands, fluorescent strong contrast, desaturated grey + red accents, freeze frame, NO TEXT
 ```
 (45 단어 – 최적화)
 
@@ -361,7 +361,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 【필수 포함 요소】
 
 1. **스타일 지정 (첫 단어)**
-   - dramatic scene cinematography (영화적)
+   - Korean dramatic scene cinematography (영화적)
    - Photorealistic Korean family scene (사실적)
    - Cinematic Korean family drama (시네마틱)
 
@@ -397,6 +397,8 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
    - 자세/행동: kneeling, sitting rigidly, hovering hand, gripping wrist
    - 표정: weathered face, tears welling up, frozen in shock
    - 신체 특징: gnarled hands, reddened skin, visible bruises
+   - **필수**: looking at camera / staring forward (화면 응시)
+   - **필수**: positioned on right side of frame (오른쪽 배치)
 
 4. **조명 설명 (구체적)**
    - 광원: window light, fluorescent, desk lamp, pre-dawn glow, harsh overhead
@@ -459,15 +461,15 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 
 【씬 0 - 3초 폭탄 (압축 + 🆕 안전 필터 대응)】
 ```
-dramatic scene intense moment, elderly woman 60s STARING CAMERA shocked expression piercing eye contact, gripping wrist tightly tension marks, face 40% frame eyes upper third, extreme close-up direct stare + grip tension, harsh fluorescent, desaturated grey + crimson accents, freeze frame eye contact, emotional intensity captured, NO TEXT
+Korean dramatic scene intense moment, elderly woman 60s STARING CAMERA shocked expression piercing eye contact, gripping wrist tightly tension marks, face 40% frame eyes upper third, extreme close-up direct stare + grip tension, harsh fluorescent, desaturated grey + crimson accents, freeze frame eye contact, emotional intensity captured, NO TEXT
 ```
 (45 단어 - violent/brutal/blood 제거)
 
 【씬 1 - 본편 시작 (압축)】
 ```
-dramatic scene, oppressive afternoon tension cramped space, elderly woman 60s weathered hands unwrapping red bojagi, middle-aged woman 40s rigid sofa scratching hand, harsh sunlight window stark shadow dividing line coffee table, medium eye-level both figures balanced, white teacup centered barrier, desaturated + vibrant crimson fabric, modern apartment + traditional elements clash, power dynamics spatial arrangement, oppressive silence frozen stillness, NO TEXT
+Korean dramatic scene, oppressive afternoon tension cramped space, elderly woman 60s looking at camera positioned right side weathered hands unwrapping red bojagi, middle-aged woman 40s rigid sofa scratching hand, harsh sunlight window stark shadow dividing line coffee table, medium eye-level both figures balanced, white teacup centered barrier, desaturated + vibrant crimson fabric, modern apartment + traditional elements clash, power dynamics spatial arrangement, oppressive silence frozen stillness, NO TEXT
 ```
-(70 단어)
+(80 단어)
 
 【씬 9 - 구독 유도 (압축)】
 ```
@@ -546,7 +548,7 @@ Clean modern YouTube interface, bright welcoming atmosphere, subscribe button + 
       "scene_name": "3초 폭탄 씬",
       "duration_seconds": 3,
       "word_count": 350,
-      "image_prompt": "dramatic scene, intense frozen moment...", 🆕
+      "image_prompt": "Korean dramatic scene, intense frozen moment...", 🆕
       "narration": "82세 시어머니가 며느리 손등을 찻잔으로 내리쳤습니다..."
     },
     {
@@ -558,7 +560,7 @@ Clean modern YouTube interface, bright welcoming atmosphere, subscribe button + 
       "word_count": 4000,
       "key_emotion": "oppressive",
       "symbolic_object": "찻잔",
-      "image_prompt": "dramatic scene cinematography...",
+      "image_prompt": "Korean dramatic scene cinematography...",
       "narration": "본문..."
     },
     {

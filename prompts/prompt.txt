@@ -178,12 +178,12 @@ SceneMemory 교차검사 활성화 (의미 있는 내용어 3-4개 연속 기준
 
 🆕 **v9.5 최적화 템플릿 (150 단어 이하 권장, 200 단어 절대 초과 금지):** 🆕 명확화
 
-dramatic scene, violent frozen moment, [인물] DIRECTLY STARING INTO CAMERA with exaggerated [감정] expression making piercing eye contact, [극단적 행동 묘사], face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND [폭력 상황], harsh lighting, desaturated grey except hyper-saturated crimson [증거물], freeze frame maintaining unbreakable eye contact with viewer, raw brutality visualized, NO TEXT
+Korean dramatic scene, violent frozen moment, [인물] DIRECTLY STARING INTO CAMERA with exaggerated [감정] expression making piercing eye contact, [극단적 행동 묘사], face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND [폭력 상황], harsh lighting, desaturated grey except hyper-saturated crimson [증거물], freeze frame maintaining unbreakable eye contact with viewer, raw brutality visualized, NO TEXT
 
 🔥 **v9.5 압축 예시 (검증됨):**
 
 ```
-dramatic scene, violent frozen moment, elderly Korean woman in late 60s DIRECTLY STARING INTO CAMERA with exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
+Korean dramatic scene, violent frozen moment, elderly Korean woman in late 60s DIRECTLY STARING INTO CAMERA with exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
 ```
 (87 단어 – 최적 범위)
 
@@ -384,7 +384,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 【필수 포함 요소】
 
 1. **스타일 지정 (첫 단어)**
-   - dramatic scene cinematography (영화적)
+   - Korean dramatic scene cinematography (영화적)
    - Photorealistic Korean family scene (사실적)
    - Cinematic Korean family drama (시네마틱)
 
@@ -420,6 +420,8 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
    - 자세/행동: kneeling, sitting rigidly, hovering hand, gripping wrist
    - 표정: weathered face, tears welling up, frozen in shock
    - 신체 특징: gnarled hands, reddened skin, visible bruises
+   - **필수**: looking at camera / staring forward (화면 응시)
+   - **필수**: positioned on right side of frame (오른쪽 배치)
 
 4. **조명 설명 (구체적)**
    - 광원: window light, fluorescent, desk lamp, pre-dawn glow, harsh overhead
@@ -478,12 +480,12 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 
 【씬 0 - 3초 폭탄 (미스터비스트 스타일 압축버전)】
 ```
-dramatic scene, violent frozen moment, elderly Korean woman in late 60s DIRECTLY STARING INTO CAMERA with exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
+Korean dramatic scene, violent frozen moment, elderly Korean woman in late 60s DIRECTLY STARING INTO CAMERA with exaggerated shocked expression making piercing eye contact, gripping middle-aged woman's wrist with crushing force showing bone-deep finger marks, face occupying 40% of frame with eyes at upper third, extreme close-up capturing both direct stare AND violent grip on reddened flesh, harsh fluorescent lighting, desaturated grey except hyper-saturated crimson blood drops, freeze frame maintaining unbreakable eye contact with viewer, raw domestic brutality visualized, NO TEXT
 ```
 
 【씬 1 - 본편 시작】
 ```
-dramatic scene cinematography, oppressive afternoon tension in cramped space, elderly woman in late 60s with weathered hands slowly unwrapping red silk bojagi fabric, middle-aged woman in 40s sitting rigid on opposite sofa end compulsively scratching reddened hand, harsh cold afternoon sunlight streaming through window creating stark dividing line of shadow across coffee table, medium shot at eye-level capturing both figures in balanced composition, white porcelain teacup precisely centered as visual barrier between them, desaturated color palette except for vibrant crimson of traditional fabric, modern Korean apartment living room with traditional elements creating visual clash, power dynamics encoded in spatial arrangement and body language, oppressive silence visualized through frozen stillness, NO TEXT
+Korean dramatic scene cinematography, oppressive afternoon tension in cramped space, elderly woman in late 60s looking at camera positioned right side with weathered hands slowly unwrapping red silk bojagi fabric, middle-aged woman in 40s sitting rigid on opposite sofa end compulsively scratching reddened hand, harsh cold afternoon sunlight streaming through window creating stark dividing line of shadow across coffee table, medium shot at eye-level capturing both figures in balanced composition, white porcelain teacup precisely centered as visual barrier between them, desaturated color palette except for vibrant crimson of traditional fabric, modern Korean apartment living room with traditional elements creating visual clash, power dynamics encoded in spatial arrangement and body language, oppressive silence visualized through frozen stillness, NO TEXT
 ```
 
 【씨 9 - 구독 유도 (마지막)】
@@ -589,7 +591,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
       "scene_name": "3초 폭탄 씬",
       "duration_seconds": 10,
       "word_count": 50,
-      "image_prompt": "dramatic scene, violent frozen moment...",
+      "image_prompt": "Korean dramatic scene, violent frozen moment...",
       "narration": "82세 시어머니가 며느리 손등을 찻잔으로 내리쳤습니다... (50자)"
     },
     {
@@ -601,7 +603,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
       "word_count": 50,
       "key_emotion": "oppressive",
       "symbolic_object": "찻잔",
-      "image_prompt": "dramatic scene cinematography...",
+      "image_prompt": "Korean dramatic scene cinematography...",
       "narration": "본문... (50자)"
     },
     {
@@ -609,7 +611,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
       "scene_name": "마무리 씬",
       "duration_seconds": 10,
       "word_count": 50,
-      "image_prompt": "dramatic scene cinematography...",
+      "image_prompt": "Korean dramatic scene cinematography...",
       "narration": "강렬한 마무리... (50자)"
     }
   ],
