@@ -33,9 +33,23 @@ function initializeSchema() {
   }
 }
 
+// 마이그레이션 실행
+function runMigrations() {
+  // jobs 테이블에 type 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN type TEXT`);
+    console.log('✅ jobs.type 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ jobs.type 컬럼 추가 실패:', e.message);
+    }
+  }
+}
+
 // 초기화 실행
 try {
   initializeSchema();
+  runMigrations();
 } catch (error: any) {
   console.error('❌ SQLite 초기화 오류:', error.message);
 }

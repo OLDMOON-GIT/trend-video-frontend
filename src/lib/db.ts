@@ -87,6 +87,7 @@ export interface Script {
   };
   createdAt: string;
   updatedAt: string;
+  type?: 'longform' | 'shortform' | 'sora2'; // 대본 타입
 }
 
 // 비밀번호 해시
