@@ -201,6 +201,14 @@ export default function Home() {
   const [scriptPollingInterval, setScriptPollingInterval] = useState<NodeJS.Timeout | null>(null); // 폴링 인터벌
   const [scriptGenerationLogs, setScriptGenerationLogs] = useState<Array<{timestamp: string; message: string}>>([]); // 로그 배열
   const [showScriptLogs, setShowScriptLogs] = useState(false); // 로그 표시 여부
+  // 중국영상변환 관련 state
+  const [showChineseConverter, setShowChineseConverter] = useState(false);
+  const [chineseVideoFile, setChineseVideoFile] = useState<File | null>(null);
+  const [isConvertingChinese, setIsConvertingChinese] = useState(false);
+  const [chineseConvertLogs, setChineseConvertLogs] = useState<Array<{timestamp: string; message: string}>>([]);
+  const [chineseJobId, setChineseJobId] = useState<string | null>(null);
+  const chineseLogRef = useRef<HTMLDivElement>(null);
+
   const [removeWatermark, setRemoveWatermark] = useState(() => {
     // localStorage에서 저장된 값 불러오기 (기본값: OFF)
     if (typeof window !== 'undefined') {
@@ -1496,12 +1504,17 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = '/chinese-converter';
+                  setShowChineseConverter(!showChineseConverter);
+                  if (!showChineseConverter) {
+                    // 섹션이 열릴 때 다른 섹션들 닫기
+                    setShowTitleInput(false);
+                    setShowUploadSection(false);
+                  }
                 }}
-                disabled={isPipelineProcessing}
+                disabled={isPipelineProcessing || isConvertingChinese}
                 className="w-full rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-4 py-3 text-base font-semibold text-white transition hover:from-red-500 hover:to-orange-500 disabled:cursor-wait disabled:opacity-70"
               >
-                🇨🇳 중국영상변환
+                {isConvertingChinese ? '⏳ 변환 중...' : '🇨🇳 중국영상변환'}
               </button>
             </div>
           </div>
@@ -3012,6 +3025,217 @@ export default function Home() {
                 `🎬 영상 제작${settings ? ` (${settings.videoGenerationCost} 크레딧)` : ''}`}
             </button>
           </div>
+        </section>
+        )}
+
+        {/* 중국영상변환 */}
+        {showChineseConverter && (
+        <section className="rounded-3xl border border-red-500/20 bg-red-950/20 p-6 backdrop-blur">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-red-400">🇨🇳 중국영상변환</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setShowChineseConverter(false);
+                setChineseVideoFile(null);
+                setChineseConvertLogs([]);
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+              aria-label="닫기"
+            >
+              ✕
+            </button>
+          </div>
+
+          <p className="mb-4 text-sm text-slate-300">
+            중국어 자막이 포함된 영상을 업로드하면 한국어 자막과 음성으로 변환합니다.
+          </p>
+
+          {/* 파일 업로드 */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              📹 중국어 영상 파일
+            </label>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingFiles(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDraggingFiles(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingFiles(false);
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('video/')) {
+                  setChineseVideoFile(file);
+                } else {
+                  alert('비디오 파일만 업로드할 수 있습니다.');
+                }
+              }}
+              className={`relative rounded-lg border-2 border-dashed p-6 text-center transition ${
+                isDraggingFiles
+                  ? 'border-red-400 bg-red-500/10'
+                  : 'border-slate-600 bg-slate-800/50'
+              }`}
+            >
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setChineseVideoFile(file);
+                  }
+                }}
+                className="absolute inset-0 cursor-pointer opacity-0"
+              />
+              {chineseVideoFile ? (
+                <div>
+                  <div className="mb-2 text-3xl">📹</div>
+                  <p className="font-semibold text-white">{chineseVideoFile.name}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {(chineseVideoFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-2 text-4xl">🎬</div>
+                  <p className="text-sm text-slate-400">
+                    클릭하거나 드래그하여 비디오 파일 업로드
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 변환 프로세스 설명 */}
+          <div className="mb-4 rounded-lg bg-red-900/20 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-white">🔄 변환 프로세스</h3>
+            <ol className="space-y-1 text-xs text-slate-300">
+              <li>1️⃣ 중국어 자막 추출</li>
+              <li>2️⃣ 중국어 → 한국어 번역</li>
+              <li>3️⃣ 한국어 TTS 음성 생성</li>
+              <li>4️⃣ 원본 영상과 합성</li>
+              <li>5️⃣ 완료 후 내 콘텐츠에서 확인</li>
+            </ol>
+          </div>
+
+          {/* 로그 */}
+          {chineseConvertLogs.length > 0 && (
+            <div ref={chineseLogRef} className="mb-4 max-h-48 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+              <div className="space-y-1">
+                {chineseConvertLogs.map((log, idx) => (
+                  <div key={idx} className="text-sm text-slate-300 font-mono">
+                    <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                    {log.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 변환 시작 버튼 */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (!chineseVideoFile) {
+                alert('비디오 파일을 선택해주세요.');
+                return;
+              }
+
+              setIsConvertingChinese(true);
+              setChineseConvertLogs([{
+                timestamp: new Date().toISOString(),
+                message: '🚀 중국영상변환 시작...'
+              }]);
+
+              try {
+                // FormData 생성
+                const formData = new FormData();
+                formData.append('video', chineseVideoFile);
+
+                const response = await fetch('/api/chinese-converter/convert', {
+                  method: 'POST',
+                  body: formData,
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                  throw new Error(data.error || '변환 실패');
+                }
+
+                setChineseJobId(data.jobId);
+                setChineseConvertLogs(prev => [...prev, {
+                  timestamp: new Date().toISOString(),
+                  message: `✅ 작업 시작됨 (Job ID: ${data.jobId})`
+                }]);
+
+                // 상태 폴링 시작
+                const pollInterval = setInterval(async () => {
+                  try {
+                    const statusRes = await fetch(`/api/chinese-converter/status?jobId=${data.jobId}`);
+                    const statusData = await statusRes.json();
+
+                    if (statusData.status === 'completed') {
+                      clearInterval(pollInterval);
+                      setChineseConvertLogs(prev => [...prev, {
+                        timestamp: new Date().toISOString(),
+                        message: '✅ 변환 완료!'
+                      }]);
+                      setIsConvertingChinese(false);
+                      setTimeout(() => {
+                        window.location.href = '/my-content';
+                      }, 2000);
+                    } else if (statusData.status === 'failed') {
+                      clearInterval(pollInterval);
+                      setChineseConvertLogs(prev => [...prev, {
+                        timestamp: new Date().toISOString(),
+                        message: `❌ 변환 실패: ${statusData.error}`
+                      }]);
+                      setIsConvertingChinese(false);
+                    } else {
+                      // processing
+                      if (statusData.message) {
+                        setChineseConvertLogs(prev => {
+                          const lastLog = prev[prev.length - 1];
+                          if (lastLog?.message !== statusData.message) {
+                            return [...prev, {
+                              timestamp: new Date().toISOString(),
+                              message: statusData.message
+                            }];
+                          }
+                          return prev;
+                        });
+                      }
+                    }
+                  } catch (error) {
+                    console.error('상태 조회 오류:', error);
+                  }
+                }, 3000);
+
+                // 10분 후 자동 중지
+                setTimeout(() => {
+                  clearInterval(pollInterval);
+                }, 10 * 60 * 1000);
+
+              } catch (error: any) {
+                console.error('변환 오류:', error);
+                setChineseConvertLogs(prev => [...prev, {
+                  timestamp: new Date().toISOString(),
+                  message: `❌ 오류: ${error.message}`
+                }]);
+                setIsConvertingChinese(false);
+              }
+            }}
+            disabled={!chineseVideoFile || isConvertingChinese}
+            className="w-full rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-6 py-3 font-semibold text-white transition hover:from-red-500 hover:to-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isConvertingChinese ? '⏳ 변환 중...' : '🚀 변환 시작'}
+          </button>
         </section>
         )}
 
