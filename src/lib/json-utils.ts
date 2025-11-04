@@ -258,56 +258,6 @@ function fixJsonStringUltra(jsonString: string, log: boolean = false): string {
     console.log('🔧 강력 수정 모드 시작...');
   }
 
-  // 추가 수정 0: Unterminated string 강력 복구
-  // 문자열 값 내부의 따옴표를 더 적극적으로 이스케이프
-  try {
-    // 긴 텍스트 필드들의 값을 찾아서 내부 따옴표 이스케이프
-    const longFields = ['narration', 'image_prompt', 'description', 'text', 'visual_description', 'prompt', 'audio_description', 'sora_prompt'];
-
-    for (const field of longFields) {
-      // 필드명: " 부터 다음 필드명 또는 } 전까지를 찾아서 처리
-      const fieldRegex = new RegExp(`"${field}"\\s*:\\s*"([\\s\\S]*?)(?:"\\s*(?:,|\\n|\\})|$)`, 'g');
-
-      fixed = fixed.replace(fieldRegex, (match, value) => {
-        // 값 내부의 이스케이프되지 않은 따옴표를 모두 이스케이프
-        let escaped = '';
-        let i = 0;
-        while (i < value.length) {
-          // 이미 이스케이프된 경우
-          if (value[i] === '\\' && i + 1 < value.length) {
-            escaped += value[i] + value[i + 1];
-            i += 2;
-          }
-          // 이스케이프되지 않은 따옴표
-          else if (value[i] === '"') {
-            escaped += '\\"';
-            i++;
-          }
-          // 일반 문자
-          else {
-            escaped += value[i];
-            i++;
-          }
-        }
-
-        // 마지막 따옴표와 구분자 복원
-        const endMatch = match.match(/"(\s*(?:,|\n|\}))\s*$/);
-        if (endMatch) {
-          return `"${field}": "${escaped}"${endMatch[1]}`;
-        }
-        return `"${field}": "${escaped}"`;
-      });
-    }
-
-    if (log) {
-      console.log('  ✓ Unterminated string 강력 복구');
-    }
-  } catch (e) {
-    if (log) {
-      console.warn('  ⚠️ Unterminated string 복구 실패:', e);
-    }
-  }
-
   // 추가 수정 1: 속성 이름 뒤에 콜론이 없는 경우 (이스케이프 문자 고려)
   // "key" <whitespace> "value" → "key": "value"
   // "key" <whitespace> { → "key": {

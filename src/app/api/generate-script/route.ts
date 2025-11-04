@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { getCurrentUser } from '@/lib/session';
 import { createScript, updateScript } from '@/lib/db';
+import { parseJsonSafely } from '@/lib/json-utils';
 
 export async function POST(request: NextRequest) {
   // 사용자 인증
@@ -275,16 +276,19 @@ START YOUR RESPONSE WITH { NOW.`
           finalContent = finalContent.substring(jsonStart, jsonEnd + 1);
           console.log('✅ JSON 추출 완료');
 
-          // JSON 유효성 검증 및 포맷팅
-          try {
-            const parsed = JSON.parse(finalContent);
+          // JSON 유효성 검증 및 포맷팅 (유도리있는 파서 사용)
+          const parseResult = parseJsonSafely(finalContent, { logErrors: true });
+          if (parseResult.success) {
             console.log('✅ JSON 파싱 성공');
+            if (parseResult.fixed) {
+              console.log('🔧 JSON 자동 수정 적용됨');
+            }
 
             // JSON 포맷팅 (예쁘게 정리)
-            finalContent = JSON.stringify(parsed, null, 2);
+            finalContent = JSON.stringify(parseResult.data, null, 2);
             console.log('✨ JSON 포맷팅 완료');
-          } catch (jsonError) {
-            console.error('❌ JSON 파싱 실패:', jsonError);
+          } else {
+            console.error('❌ JSON 파싱 실패:', parseResult.error);
             console.log('원본 내용:', finalContent.substring(0, 500));
           }
         } else if (format === 'sora2') {
@@ -307,16 +311,19 @@ START YOUR RESPONSE WITH { NOW.`
             finalContent = finalContent.substring(jsonStart, jsonEnd + 1);
             console.log('✅ JSON 추출 완료');
 
-            // JSON 유효성 검증 및 포맷팅
-            try {
-              const parsed = JSON.parse(finalContent);
+            // JSON 유효성 검증 및 포맷팅 (유도리있는 파서 사용)
+            const legacyParseResult = parseJsonSafely(finalContent, { logErrors: true });
+            if (legacyParseResult.success) {
               console.log('✅ JSON 파싱 성공');
+              if (legacyParseResult.fixed) {
+                console.log('🔧 JSON 자동 수정 적용됨');
+              }
 
               // JSON 포맷팅 (예쁘게 정리)
-              finalContent = JSON.stringify(parsed, null, 2);
+              finalContent = JSON.stringify(legacyParseResult.data, null, 2);
               console.log('✨ JSON 포맷팅 완료');
-            } catch (jsonError) {
-              console.error('❌ JSON 파싱 실패:', jsonError);
+            } else {
+              console.error('❌ JSON 파싱 실패:', legacyParseResult.error);
               console.log('원본 내용:', finalContent.substring(0, 500));
             }
           } else {

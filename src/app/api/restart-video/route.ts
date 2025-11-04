@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/session';
 import { findJobById, updateJob, addJobLog, getSettings, deductCredits, addCredits, addCreditHistory, createJob, flushJobLogs } from '@/lib/db';
 import kill from 'tree-kill';
 import { sendProcessKillFailureEmail, sendProcessKillTimeoutEmail } from '@/utils/email';
+import { parseJsonSafely } from '@/lib/json-utils';
 
 // 실행 중인 프로세스 맵
 const runningProcesses = new Map<string, any>();
@@ -288,10 +289,19 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
     const storyJsonFile = storyFiles.find(f => f.includes('story') && f.endsWith('.json'));
 
     if (storyJsonFile) {
-      // JSON 파일 읽고 scene_number 추가
+      // JSON 파일 읽고 scene_number 추가 (유도리있는 파서 사용)
       const storyJsonPath = path.join(oldFolderPath, storyJsonFile);
       const jsonText = await fs.readFile(storyJsonPath, 'utf-8');
-      let jsonData = JSON.parse(jsonText);
+      const parseResult = parseJsonSafely(jsonText, { logErrors: true });
+
+      if (!parseResult.success) {
+        throw new Error('story.json 파싱 실패: ' + parseResult.error);
+      }
+
+      let jsonData = parseResult.data;
+      if (parseResult.fixed) {
+        console.log('🔧 story.json 자동 수정 적용됨');
+      }
 
       // Python 스크립트를 위해 scene_number 필드 추가
       if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
@@ -432,11 +442,23 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
             const generatedPath = path.join(newFolderPath, 'generated_videos');
             const files = await fs.readdir(generatedPath);
 
-            // story.json에서 제목 가져와서 파일명 생성
+            // story.json에서 제목 가져와서 파일명 생성 (유도리있는 파서 사용)
             let expectedFileName: string | null = null;
             try {
               const storyJsonPath = path.join(newFolderPath, 'story.json');
-              const storyData = JSON.parse(await fs.readFile(storyJsonPath, 'utf-8'));
+              const storyJsonContent = await fs.readFile(storyJsonPath, 'utf-8');
+              const parseResult = parseJsonSafely(storyJsonContent, { logErrors: true });
+
+              if (!parseResult.success) {
+                throw new Error('story.json 파싱 실패: ' + parseResult.error);
+              }
+
+              const storyData = parseResult.data;
+              if (parseResult.fixed) {
+                console.log('🔧 story.json 자동 수정 적용됨');
+                await addJobLog(newJobId, `\n🔧 story.json 자동 수정 적용됨`);
+              }
+
               const title = storyData.title || storyData.metadata?.title || 'video';
 
               // 안전한 파일명으로 변환 (Python과 동일한 로직)

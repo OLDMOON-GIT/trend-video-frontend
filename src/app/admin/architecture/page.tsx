@@ -5,10 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import mermaid from 'mermaid';
 
-// 동적 렌더링 강제 (SSR 비활성화)
-export const dynamic = 'force-dynamic';
-
 type TabType = 'architecture' | 'erd';
+
+export const dynamic = 'force-dynamic';
 
 function ArchitectureContent() {
   const router = useRouter();
@@ -1770,7 +1769,11 @@ function ArchitectureContent() {
 
 export default function ArchitecturePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center"><div className="text-white">로딩 중...</div></div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white">로딩 중...</div>
+      </div>
+    }>
       <ArchitectureContent />
     </Suspense>
   );

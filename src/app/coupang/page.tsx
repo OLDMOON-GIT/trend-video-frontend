@@ -30,10 +30,24 @@ interface ShortLink {
   createdAt: string;
 }
 
+interface ShoppingShortsTask {
+  taskId: string;
+  status: 'running' | 'completed' | 'failed';
+  progress: string;
+  startTime: string;
+  endTime?: string;
+  results?: any[];
+  error?: string;
+  logs: string[];
+}
+
+type TabType = 'partners' | 'automation';
+
 export default function CoupangPartnersPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('partners');
 
   // Settings
   const [settings, setSettings] = useState<CoupangSettings>({
@@ -64,6 +78,14 @@ export default function CoupangPartnersPage() {
   });
 
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error' | 'info'} | null>(null);
+
+  // Shopping Shorts Automation
+  const [videoLimit, setVideoLimit] = useState(5);
+  const [category, setCategory] = useState('electronics');
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [currentTask, setCurrentTask] = useState<ShoppingShortsTask | null>(null);
+  const [isRunningPipeline, setIsRunningPipeline] = useState(false);
+  const [taskPollingInterval, setTaskPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ message, type });
@@ -283,6 +305,130 @@ export default function CoupangPartnersPage() {
     showToast('클립보드에 복사되었습니다!', 'success');
   };
 
+  // Shopping Shorts Automation Functions
+  const startShoppingShortsPipeline = async () => {
+    if (!openaiApiKey.trim()) {
+      showToast('OpenAI API 키를 입력하세요.', 'error');
+      return;
+    }
+
+    if (!settings.isConnected) {
+      showToast('먼저 쿠팡 API 키를 연결하세요.', 'error');
+      return;
+    }
+
+    setIsRunningPipeline(true);
+    try {
+      const response = await fetch('/api/coupang/shopping-shorts/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({
+          videoLimit,
+          category,
+          openaiApiKey
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        showToast('쇼핑 쇼츠 파이프라인이 시작되었습니다!', 'success');
+
+        // 작업 상태 폴링 시작
+        const interval = setInterval(() => {
+          pollTaskStatus(data.taskId);
+        }, 2000);
+        setTaskPollingInterval(interval);
+
+        // 초기 작업 상태 설정
+        setCurrentTask({
+          taskId: data.taskId,
+          status: 'running',
+          progress: '파이프라인 시작 중...',
+          startTime: new Date().toISOString(),
+          logs: []
+        });
+      } else {
+        throw new Error(data.error || '파이프라인 시작 실패');
+      }
+    } catch (error: any) {
+      showToast('파이프라인 시작 실패: ' + error.message, 'error');
+      setIsRunningPipeline(false);
+    }
+  };
+
+  const pollTaskStatus = async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/coupang/shopping-shorts/start?taskId=${taskId}`, {
+        headers: getAuthHeaders()
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setCurrentTask(data.status);
+
+        if (data.status.status === 'completed' || data.status.status === 'failed') {
+          // 폴링 중지
+          if (taskPollingInterval) {
+            clearInterval(taskPollingInterval);
+            setTaskPollingInterval(null);
+          }
+          setIsRunningPipeline(false);
+
+          if (data.status.status === 'completed') {
+            showToast(`파이프라인 완료! ${data.status.results?.length || 0}개 영상 처리됨`, 'success');
+          } else {
+            showToast('파이프라인 실패: ' + data.status.error, 'error');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('작업 상태 조회 실패:', error);
+    }
+  };
+
+  const stopShoppingShortsPipeline = async () => {
+    if (!currentTask) return;
+
+    try {
+      const response = await fetch(`/api/coupang/shopping-shorts/start?taskId=${currentTask.taskId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        showToast('파이프라인이 중지되었습니다.', 'info');
+
+        if (taskPollingInterval) {
+          clearInterval(taskPollingInterval);
+          setTaskPollingInterval(null);
+        }
+
+        setIsRunningPipeline(false);
+        setCurrentTask(null);
+      } else {
+        throw new Error(data.error || '중지 실패');
+      }
+    } catch (error: any) {
+      showToast('중지 실패: ' + error.message, 'error');
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (taskPollingInterval) {
+        clearInterval(taskPollingInterval);
+      }
+    };
+  }, [taskPollingInterval]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
@@ -317,8 +463,34 @@ export default function CoupangPartnersPage() {
             🏠 홈으로
           </button>
         </div>
+
+        {/* Tabs */}
+        <div className="mt-6 flex gap-2">
+          <button
+            onClick={() => setActiveTab('partners')}
+            className={`rounded-lg px-6 py-2 font-semibold transition ${
+              activeTab === 'partners'
+                ? 'bg-purple-600 text-white'
+                : 'bg-white/5 text-slate-300 hover:bg-white/10'
+            }`}
+          >
+            🔗 파트너스 링크 생성
+          </button>
+          <button
+            onClick={() => setActiveTab('automation')}
+            className={`rounded-lg px-6 py-2 font-semibold transition ${
+              activeTab === 'automation'
+                ? 'bg-purple-600 text-white'
+                : 'bg-white/5 text-slate-300 hover:bg-white/10'
+            }`}
+          >
+            🤖 쇼핑 쇼츠 자동화
+          </button>
+        </div>
       </div>
 
+      {/* Partners Tab */}
+      {activeTab === 'partners' && (
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column - Settings & Search */}
         <div className="space-y-6 lg:col-span-2">
@@ -541,6 +713,268 @@ export default function CoupangPartnersPage() {
           </section>
         </div>
       </div>
+      )}
+
+      {/* Automation Tab */}
+      {activeTab === 'automation' && (
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Left Column - Pipeline Configuration */}
+        <div className="space-y-6 lg:col-span-2">
+          {/* Pipeline Info */}
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <h2 className="mb-4 text-xl font-bold text-white">🎬 쇼핑 쇼츠 자동화 파이프라인</h2>
+            <div className="rounded-lg bg-blue-500/20 p-4">
+              <p className="text-sm font-semibold text-blue-300">자동화 프로세스:</p>
+              <ol className="mt-2 space-y-1 text-sm text-blue-200">
+                <li>1. 더우인(Douyin) 트렌딩 쇼핑 영상 크롤링</li>
+                <li>2. 영상 다운로드 (워터마크 없는 영상 선택)</li>
+                <li>3. AI로 제품 정보 추출 및 한국어 번역</li>
+                <li>4. 쿠팡에서 유사 제품 검색 및 affiliate 링크 생성</li>
+                <li>5. 한국어 쇼츠 대본 자동 생성 (GPT-4)</li>
+                <li>6. TTS 음성 생성 (예정)</li>
+                <li>7. 자막 합성 (예정)</li>
+                <li>8. YouTube/Instagram/TikTok 업로드 (예정)</li>
+              </ol>
+            </div>
+          </section>
+
+          {/* Configuration Form */}
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <h2 className="mb-4 text-xl font-bold text-white">⚙️ 파이프라인 설정</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                  OpenAI API 키
+                </label>
+                <input
+                  type="password"
+                  value={openaiApiKey}
+                  onChange={(e) => setOpenaiApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  제품 분석 및 대본 생성에 사용됩니다 (GPT-4)
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                  영상 개수 (Video Limit)
+                </label>
+                <input
+                  type="number"
+                  value={videoLimit}
+                  onChange={(e) => setVideoLimit(parseInt(e.target.value) || 5)}
+                  min="1"
+                  max="20"
+                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  크롤링할 영상 개수 (1-20)
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                  카테고리 (Category)
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
+                >
+                  <option value="electronics">전자제품</option>
+                  <option value="fashion">패션</option>
+                  <option value="beauty">뷰티</option>
+                  <option value="home">홈데코</option>
+                  <option value="kitchen">주방용품</option>
+                  <option value="toys">장난감</option>
+                  <option value="sports">스포츠</option>
+                </select>
+              </div>
+
+              {!settings.isConnected && (
+                <div className="rounded-lg bg-amber-500/20 p-3 text-sm text-amber-300">
+                  ⚠️ 먼저 "파트너스 링크 생성" 탭에서 쿠팡 API 키를 연결하세요.
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={startShoppingShortsPipeline}
+                  disabled={isRunningPipeline || !settings.isConnected || !openaiApiKey}
+                  className="flex-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 font-bold text-white transition hover:from-purple-500 hover:to-pink-500 disabled:opacity-50"
+                >
+                  {isRunningPipeline ? '⏳ 실행 중...' : '🚀 파이프라인 시작'}
+                </button>
+                {isRunningPipeline && (
+                  <button
+                    onClick={stopShoppingShortsPipeline}
+                    className="rounded-lg bg-red-600 px-6 py-3 font-bold text-white transition hover:bg-red-500"
+                  >
+                    ⏹️ 중지
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Task Progress */}
+          {currentTask && (
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">📊 실행 상태</h2>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  currentTask.status === 'running' ? 'bg-blue-500/20 text-blue-400' :
+                  currentTask.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
+                  {currentTask.status === 'running' ? '⏳ 실행 중' :
+                   currentTask.status === 'completed' ? '✅ 완료' : '❌ 실패'}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-slate-400">진행 상황</p>
+                  <p className="mt-1 font-semibold text-white">{currentTask.progress}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-slate-400">시작 시간</p>
+                  <p className="mt-1 text-sm text-slate-300">
+                    {new Date(currentTask.startTime).toLocaleString('ko-KR')}
+                  </p>
+                </div>
+
+                {currentTask.endTime && (
+                  <div>
+                    <p className="text-sm text-slate-400">종료 시간</p>
+                    <p className="mt-1 text-sm text-slate-300">
+                      {new Date(currentTask.endTime).toLocaleString('ko-KR')}
+                    </p>
+                  </div>
+                )}
+
+                {currentTask.error && (
+                  <div className="rounded-lg bg-red-500/20 p-3">
+                    <p className="text-sm font-semibold text-red-300">오류:</p>
+                    <p className="mt-1 text-sm text-red-200">{currentTask.error}</p>
+                  </div>
+                )}
+
+                {/* Logs */}
+                {currentTask.logs.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-sm font-semibold text-slate-400">실행 로그 (최근 10개)</p>
+                    <div className="max-h-40 overflow-y-auto rounded-lg bg-black/30 p-3 font-mono text-xs text-slate-300">
+                      {currentTask.logs.slice(-10).map((log, idx) => (
+                        <div key={idx} className="mb-1">{log}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Results */}
+          {currentTask?.results && currentTask.results.length > 0 && (
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+              <h2 className="mb-4 text-xl font-bold text-white">✅ 처리 결과 ({currentTask.results.length}개)</h2>
+
+              <div className="space-y-3">
+                {currentTask.results.map((result: any, idx: number) => (
+                  <div key={idx} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-white">
+                          {result.product_info?.product_name_ko || result.douyin_video?.title?.substring(0, 50)}
+                        </h3>
+                        {result.coupang_product && (
+                          <div className="mt-2 text-sm">
+                            <p className="text-slate-300">
+                              쿠팡 제품: {result.coupang_product.product_name?.substring(0, 50)}...
+                            </p>
+                            <p className="text-emerald-400">
+                              가격: {result.coupang_product.product_price?.toLocaleString()}원
+                            </p>
+                            {result.coupang_product.affiliate_link && (
+                              <button
+                                onClick={() => copyToClipboard(result.coupang_product.affiliate_link)}
+                                className="mt-2 rounded bg-purple-600 px-3 py-1 text-xs font-semibold text-white hover:bg-purple-500"
+                              >
+                                링크 복사
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <span className={`ml-2 rounded-full px-2 py-1 text-xs font-semibold ${
+                        result.success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {result.success ? '✓' : '✗'}
+                      </span>
+                    </div>
+
+                    {result.error && (
+                      <p className="mt-2 text-xs text-red-400">{result.error}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* Right Column - Quick Stats */}
+        <div className="space-y-6">
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <h2 className="mb-4 text-xl font-bold text-white">📈 통계</h2>
+
+            <div className="space-y-3">
+              <div className="rounded-lg bg-white/5 p-4">
+                <p className="text-sm text-slate-400">현재 상태</p>
+                <p className="mt-1 text-lg font-bold text-white">
+                  {isRunningPipeline ? '⏳ 실행 중' : '⏸️ 대기'}
+                </p>
+              </div>
+
+              {currentTask?.results && (
+                <>
+                  <div className="rounded-lg bg-white/5 p-4">
+                    <p className="text-sm text-slate-400">처리된 영상</p>
+                    <p className="mt-1 text-2xl font-bold text-purple-400">
+                      {currentTask.results.length}개
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-white/5 p-4">
+                    <p className="text-sm text-slate-400">성공률</p>
+                    <p className="mt-1 text-2xl font-bold text-emerald-400">
+                      {Math.round((currentTask.results.filter((r: any) => r.success).length / currentTask.results.length) * 100)}%
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <h2 className="mb-4 text-xl font-bold text-white">💡 팁</h2>
+
+            <div className="space-y-2 text-sm text-slate-300">
+              <p>• 파이프라인은 백그라운드에서 실행됩니다</p>
+              <p>• 처리 시간은 영상 개수에 따라 다릅니다</p>
+              <p>• 결과는 자동으로 저장됩니다</p>
+              <p>• OpenAI API 사용량에 유의하세요</p>
+            </div>
+          </section>
+        </div>
+      </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import { parseJsonSafely } from '@/lib/json-utils';
 
 const execAsync = promisify(exec);
 
@@ -128,11 +129,22 @@ async function generateVideoAsync(
     const generatedPath = path.join(config.inputPath, 'generated_videos');
     const files = await fs.readdir(generatedPath);
 
-    // story.json에서 제목 가져와서 파일명 생성
+    // story.json에서 제목 가져와서 파일명 생성 (유도리있는 파서 사용)
     let expectedFileName: string | null = null;
     try {
       const storyJsonPath = path.join(config.inputPath, 'story.json');
-      const storyData = JSON.parse(await fs.readFile(storyJsonPath, 'utf-8'));
+      const storyJsonContent = await fs.readFile(storyJsonPath, 'utf-8');
+      const parseResult = parseJsonSafely(storyJsonContent, { logErrors: true });
+
+      if (!parseResult.success) {
+        throw new Error('story.json 파싱 실패: ' + parseResult.error);
+      }
+
+      const storyData = parseResult.data;
+      if (parseResult.fixed) {
+        console.log('🔧 story.json 자동 수정 적용됨');
+      }
+
       const title = storyData.title || storyData.metadata?.title || 'video';
 
       // 안전한 파일명으로 변환 (Python과 동일한 로직)

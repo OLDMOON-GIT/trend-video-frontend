@@ -215,15 +215,15 @@ export async function DELETE(request: NextRequest) {
     try {
       db = new Database(dbPath);
 
-      // 1. contents 테이블에서 삭제 시도 (소유자 확인 포함)
+      // contents 테이블에서 삭제 (소유자 확인 포함)
       const deleteQuery = 'DELETE FROM contents WHERE id = ? AND user_id = ?';
-      console.log('🔍 실행할 쿼리 (contents):', deleteQuery);
+      console.log('🔍 실행할 쿼리:', deleteQuery);
       console.log('🔍 파라미터:', { id: scriptId, user_id: user.userId });
 
       const stmt = db.prepare(deleteQuery);
       const result = stmt.run(scriptId, user.userId);
 
-      console.log('📊 contents 삭제 결과:', { changes: result.changes });
+      console.log('📊 삭제 결과:', { changes: result.changes });
 
       if (result.changes > 0) {
         console.log('✅ contents 테이블에서 삭제 성공');
@@ -231,42 +231,21 @@ export async function DELETE(request: NextRequest) {
           success: true,
           message: '대본이 삭제되었습니다.'
         });
+      } else {
+        console.log('❌ 삭제 실패: 데이터를 찾을 수 없거나 권한 없음');
+
+        // 디버깅: 해당 ID가 존재하는지 확인
+        const checkQuery = 'SELECT id, user_id, type, title FROM contents WHERE id = ?';
+        console.log('🔍 존재 확인 쿼리:', checkQuery);
+        const checkStmt = db.prepare(checkQuery);
+        const existing = checkStmt.get(scriptId);
+        console.log('📊 존재 확인 결과:', existing);
+
+        return NextResponse.json(
+          { error: '컨텐츠를 찾을 수 없거나 권한이 없습니다.' },
+          { status: 404 }
+        );
       }
-
-      // 2. contents에서 못 찾았으면 scripts_temp 테이블 확인
-      console.log('🔍 scripts_temp 테이블 확인 중...');
-      const tempDeleteQuery = 'DELETE FROM scripts_temp WHERE id = ?';
-      const tempStmt = db.prepare(tempDeleteQuery);
-      const tempResult = tempStmt.run(scriptId);
-
-      console.log('📊 scripts_temp 삭제 결과:', { changes: tempResult.changes });
-
-      if (tempResult.changes > 0) {
-        console.log('✅ scripts_temp 테이블에서 삭제 성공 (진행 중/실패한 작업)');
-        return NextResponse.json({
-          success: true,
-          message: '작업이 삭제되었습니다.'
-        });
-      }
-
-      // 3. 둘 다 없으면 에러
-      console.log('❌ 삭제 실패: 데이터를 찾을 수 없음');
-
-      // 디버깅: 해당 ID가 어디에 있는지 확인
-      const checkQuery = 'SELECT id, user_id, type, title FROM contents WHERE id = ?';
-      const checkStmt = db.prepare(checkQuery);
-      const existing = checkStmt.get(scriptId);
-      console.log('📊 contents 존재 확인 결과:', existing);
-
-      const checkTempQuery = 'SELECT id, status, title FROM scripts_temp WHERE id = ?';
-      const checkTempStmt = db.prepare(checkTempQuery);
-      const existingTemp = checkTempStmt.get(scriptId);
-      console.log('📊 scripts_temp 존재 확인 결과:', existingTemp);
-
-      return NextResponse.json(
-        { error: '컨텐츠를 찾을 수 없습니다.' },
-        { status: 404 }
-      );
 
     } finally {
       if (db) {
