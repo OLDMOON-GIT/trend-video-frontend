@@ -207,6 +207,7 @@ export default function Home() {
   const [isConvertingChinese, setIsConvertingChinese] = useState(false);
   const [chineseConvertLogs, setChineseConvertLogs] = useState<Array<{timestamp: string; message: string}>>([]);
   const [chineseJobId, setChineseJobId] = useState<string | null>(null);
+  const [chineseProgress, setChineseProgress] = useState<{step: string; progress: number} | null>(null);
   const chineseLogRef = useRef<HTMLDivElement>(null);
 
   const [removeWatermark, setRemoveWatermark] = useState(() => {
@@ -1404,7 +1405,7 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {user?.isAdmin && (
                   <button
                     onClick={async () => {
@@ -1414,7 +1415,7 @@ export default function Home() {
                       setSuggestedTitles([]);
                       setSelectedSuggestedTitle(null);
                     }}
-                    className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
+                    className={`w-full rounded-xl px-5 py-3.5 text-base font-semibold text-white transition ${
                       titleInputMode === 'copy' && showTitleInput
                         ? 'bg-slate-600 ring-2 ring-slate-400'
                         : 'bg-slate-700 hover:bg-slate-600'
@@ -1432,7 +1433,7 @@ export default function Home() {
                       setSuggestedTitles([]);
                       setSelectedSuggestedTitle(null);
                     }}
-                    className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
+                    className={`w-full rounded-xl px-5 py-3.5 text-base font-semibold text-white transition ${
                       titleInputMode === 'generate-api' && showTitleInput
                         ? 'bg-red-500 ring-2 ring-red-300'
                         : 'bg-red-600 hover:bg-red-500'
@@ -1449,7 +1450,7 @@ export default function Home() {
                     setSuggestedTitles([]);
                     setSelectedSuggestedTitle(null);
                   }}
-                  className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
+                  className={`w-full rounded-xl px-5 py-3.5 text-base font-semibold text-white transition ${
                     titleInputMode === 'generate' && showTitleInput
                       ? 'bg-emerald-500 ring-2 ring-emerald-300'
                       : 'bg-emerald-600 hover:bg-emerald-500'
@@ -1474,48 +1475,50 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* 큰 버튼: 영상제작 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setProductionMode('create');
-                  handleRunAutomation();
-                }}
-                disabled={isPipelineProcessing}
-                className="mb-3 w-full rounded-xl bg-purple-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-purple-500 disabled:cursor-wait disabled:opacity-70"
-              >
-                {isPipelineProcessing && productionMode === 'create' ? '⏳ 제작 중...' : '🎬 영상 제작'}
-              </button>
+              <div className="flex flex-col gap-3">
+                {/* 큰 버튼: 영상제작 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductionMode('create');
+                    handleRunAutomation();
+                  }}
+                  disabled={isPipelineProcessing}
+                  className="w-full rounded-xl bg-purple-600 px-5 py-3.5 text-base font-semibold text-white transition hover:bg-purple-500 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isPipelineProcessing && productionMode === 'create' ? '⏳ 제작 중...' : '🎬 영상 제작'}
+                </button>
 
-              {/* 큰 버튼: 영상병합 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setProductionMode('merge');
-                  handleRunAutomation();
-                }}
-                disabled={isPipelineProcessing}
-                className="mb-3 w-full rounded-xl bg-teal-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-teal-500 disabled:cursor-wait disabled:opacity-70"
-              >
-                {isPipelineProcessing && productionMode === 'merge' ? '⏳ 병합 중...' : '🎞️ 영상 병합'}
-              </button>
+                {/* 큰 버튼: 영상병합 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductionMode('merge');
+                    handleRunAutomation();
+                  }}
+                  disabled={isPipelineProcessing}
+                  className="w-full rounded-xl bg-teal-600 px-5 py-3.5 text-base font-semibold text-white transition hover:bg-teal-500 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isPipelineProcessing && productionMode === 'merge' ? '⏳ 병합 중...' : '🎞️ 영상 병합'}
+                </button>
 
-              {/* 큰 버튼: 중국영상변환 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowChineseConverter(!showChineseConverter);
-                  if (!showChineseConverter) {
-                    // 섹션이 열릴 때 다른 섹션들 닫기
-                    setShowTitleInput(false);
-                    setShowUploadSection(false);
-                  }
-                }}
-                disabled={isPipelineProcessing || isConvertingChinese}
-                className="w-full rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-4 py-3 text-base font-semibold text-white transition hover:from-red-500 hover:to-orange-500 disabled:cursor-wait disabled:opacity-70"
-              >
-                {isConvertingChinese ? '⏳ 변환 중...' : '🇨🇳 중국영상변환'}
-              </button>
+                {/* 큰 버튼: 중국영상변환 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChineseConverter(!showChineseConverter);
+                    if (!showChineseConverter) {
+                      // 섹션이 열릴 때 다른 섹션들 닫기
+                      setShowTitleInput(false);
+                      setShowUploadSection(false);
+                    }
+                  }}
+                  disabled={isPipelineProcessing || isConvertingChinese}
+                  className="w-full rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-5 py-3.5 text-base font-semibold text-white transition hover:from-red-500 hover:to-orange-500 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isConvertingChinese ? '⏳ 변환 중...' : '🇨🇳 중국영상변환'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3039,6 +3042,7 @@ export default function Home() {
                 setShowChineseConverter(false);
                 setChineseVideoFile(null);
                 setChineseConvertLogs([]);
+                setChineseProgress(null);
               }}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
               aria-label="닫기"
@@ -3123,6 +3127,25 @@ export default function Home() {
             </ol>
           </div>
 
+          {/* 프로그레스 바 */}
+          {isConvertingChinese && chineseProgress && (
+            <div className="mb-4 space-y-3 rounded-lg border border-red-500/30 bg-red-900/20 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-300">{chineseProgress.step}</span>
+                <span className="text-sm font-bold text-red-400">{chineseProgress.progress}%</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-700">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-400 transition-all duration-500"
+                  style={{ width: `${chineseProgress.progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-400">
+                ⏳ 영상을 변환하는 중입니다. 잠시만 기다려주세요...
+              </p>
+            </div>
+          )}
+
           {/* 로그 */}
           {chineseConvertLogs.length > 0 && (
             <div ref={chineseLogRef} className="mb-4 max-h-48 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
@@ -3147,6 +3170,7 @@ export default function Home() {
               }
 
               setIsConvertingChinese(true);
+              setChineseProgress({ step: '🚀 중국영상변환 시작...', progress: 0 });
               setChineseConvertLogs([{
                 timestamp: new Date().toISOString(),
                 message: '🚀 중국영상변환 시작...'
@@ -3180,37 +3204,33 @@ export default function Home() {
                     const statusRes = await fetch(`/api/chinese-converter/status?jobId=${data.jobId}`);
                     const statusData = await statusRes.json();
 
+                    // 진행률 업데이트
+                    if (statusData.progress !== undefined) {
+                      const currentStep = statusData.logs && statusData.logs.length > 0
+                        ? statusData.logs[statusData.logs.length - 1].message
+                        : '변환 중...';
+                      setChineseProgress({
+                        step: currentStep,
+                        progress: statusData.progress
+                      });
+                    }
+
+                    // 로그 업데이트 (전체 로그 배열로 교체)
+                    if (statusData.logs && Array.isArray(statusData.logs)) {
+                      setChineseConvertLogs(statusData.logs);
+                    }
+
                     if (statusData.status === 'completed') {
                       clearInterval(pollInterval);
-                      setChineseConvertLogs(prev => [...prev, {
-                        timestamp: new Date().toISOString(),
-                        message: '✅ 변환 완료!'
-                      }]);
+                      setChineseProgress(null);
                       setIsConvertingChinese(false);
                       setTimeout(() => {
                         window.location.href = '/my-content';
                       }, 2000);
                     } else if (statusData.status === 'failed') {
                       clearInterval(pollInterval);
-                      setChineseConvertLogs(prev => [...prev, {
-                        timestamp: new Date().toISOString(),
-                        message: `❌ 변환 실패: ${statusData.error}`
-                      }]);
+                      setChineseProgress(null);
                       setIsConvertingChinese(false);
-                    } else {
-                      // processing
-                      if (statusData.message) {
-                        setChineseConvertLogs(prev => {
-                          const lastLog = prev[prev.length - 1];
-                          if (lastLog?.message !== statusData.message) {
-                            return [...prev, {
-                              timestamp: new Date().toISOString(),
-                              message: statusData.message
-                            }];
-                          }
-                          return prev;
-                        });
-                      }
                     }
                   } catch (error) {
                     console.error('상태 조회 오류:', error);
@@ -3228,6 +3248,7 @@ export default function Home() {
                   timestamp: new Date().toISOString(),
                   message: `❌ 오류: ${error.message}`
                 }]);
+                setChineseProgress(null);
                 setIsConvertingChinese(false);
               }
             }}
