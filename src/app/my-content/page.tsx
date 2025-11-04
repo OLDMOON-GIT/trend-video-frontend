@@ -475,7 +475,18 @@ export default function MyContentPage() {
         if (reset) {
           setScripts(data.scripts);
         } else {
-          setScripts(prev => [...prev, ...data.scripts]);
+          // 중복 제거: 이미 있는 ID는 추가하지 않음
+          setScripts(prev => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const newScripts = data.scripts.filter(s => !existingIds.has(s.id));
+            console.log('[fetchScripts] 중복 제거:', {
+              기존개수: prev.length,
+              받은개수: data.scripts.length,
+              중복제거후: newScripts.length,
+              중복된ID들: data.scripts.filter(s => existingIds.has(s.id)).map(s => s.id)
+            });
+            return [...prev, ...newScripts];
+          });
         }
         setScriptsTotal(data.total);
         setScriptsHasMore(data.hasMore);
@@ -638,7 +649,18 @@ export default function MyContentPage() {
         if (reset) {
           setJobs(data.jobs);
         } else {
-          setJobs(prev => [...prev, ...data.jobs]);
+          // 중복 제거: 이미 있는 ID는 추가하지 않음
+          setJobs(prev => {
+            const existingIds = new Set(prev.map(j => j.id));
+            const newJobs = data.jobs.filter(j => !existingIds.has(j.id));
+            console.log('[fetchJobs] 중복 제거:', {
+              기존개수: prev.length,
+              받은개수: data.jobs.length,
+              중복제거후: newJobs.length,
+              중복된ID들: data.jobs.filter(j => existingIds.has(j.id)).map(j => j.id)
+            });
+            return [...prev, ...newJobs];
+          });
         }
         setTotal(data.total);
         setHasMore(data.hasMore);
@@ -683,7 +705,18 @@ export default function MyContentPage() {
         if (reset) {
           setYoutubeUploads(data.uploads || []);
         } else {
-          setYoutubeUploads(prev => [...prev, ...(data.uploads || [])]);
+          // 중복 제거: 이미 있는 ID는 추가하지 않음
+          setYoutubeUploads(prev => {
+            const existingIds = new Set(prev.map(u => u.id));
+            const newUploads = (data.uploads || []).filter(u => !existingIds.has(u.id));
+            console.log('[fetchYouTubeUploads] 중복 제거:', {
+              기존개수: prev.length,
+              받은개수: data.uploads?.length || 0,
+              중복제거후: newUploads.length,
+              중복된ID들: (data.uploads || []).filter(u => existingIds.has(u.id)).map(u => u.id)
+            });
+            return [...prev, ...newUploads];
+          });
         }
         setPublishedTotal(data.total || 0);
         setPublishedHasMore(data.hasMore || false);
