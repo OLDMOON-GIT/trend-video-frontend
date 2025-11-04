@@ -2438,21 +2438,25 @@ export default function MyContentPage() {
                           console.log('[더보기 클릭] 전체 탭', {
                             이전limit: allTabLimit,
                             새limit: allTabLimit + 10,
+                            hasMoreItems,
                             hasMore,
                             scriptsHasMore,
+                            allItemsLength: allItems.length,
                             jobsLength: jobs.length,
                             scriptsLength: scripts.length
                           });
 
-                          // limit 증가
-                          setAllTabLimit(prev => prev + 10);
+                          // limit 증가 (이미 로드된 데이터를 더 보여줌)
+                          const newLimit = allTabLimit + 10;
+                          setAllTabLimit(newLimit);
 
-                          // 서버에서 더 많은 데이터 가져오기
-                          if (hasMore && !isLoadingMore) {
+                          // 서버에 더 많은 데이터가 있고, 표시할 데이터가 부족해지면 가져오기
+                          // 여유분 10개 남기고 미리 가져오기
+                          if (hasMore && !isLoadingMore && allItems.length < newLimit + 10) {
                             console.log('[전체 탭] 영상 더 가져오기');
                             fetchJobs(false);
                           }
-                          if (scriptsHasMore && !isLoadingMoreScripts) {
+                          if (scriptsHasMore && !isLoadingMoreScripts && allItems.length < newLimit + 10) {
                             console.log('[전체 탭] 대본 더 가져오기');
                             fetchScripts(false);
                           }
@@ -2460,7 +2464,7 @@ export default function MyContentPage() {
                         disabled={isLoadingMore || isLoadingMoreScripts}
                         className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isLoadingMore || isLoadingMoreScripts ? '로딩 중...' : `더보기 (${remainingItems > 0 ? remainingItems : '더 많이'}개)`}
+                        {isLoadingMore || isLoadingMoreScripts ? '로딩 중...' : `더보기 (${remainingItems}개 더)`}
                       </button>
                     </div>
                   )}
