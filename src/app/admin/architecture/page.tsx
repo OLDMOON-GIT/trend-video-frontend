@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import mermaid from 'mermaid';
 
+// 동적 렌더링 강제 (SSR 비활성화)
+export const dynamic = 'force-dynamic';
+
 type TabType = 'architecture' | 'erd';
 
-export default function ArchitecturePage() {
+function ArchitectureContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<{ id: string; email: string; isAdmin: boolean } | null>(null);
@@ -125,7 +128,7 @@ export default function ArchitecturePage() {
     const renderMermaid = () => {
       setTimeout(() => {
         // .language-mermaid와 .mermaid 둘 다 렌더링
-        const mermaidNodes = document.querySelectorAll('.language-mermaid, .mermaid');
+        const mermaidNodes = Array.from(document.querySelectorAll('.language-mermaid, .mermaid')) as HTMLElement[];
         mermaid.run({
           nodes: mermaidNodes,
         });
@@ -166,7 +169,7 @@ export default function ArchitecturePage() {
         // 다시 렌더링
         if (allMermaidNodes.length > 0) {
           mermaid.run({
-            nodes: Array.from(allMermaidNodes),
+            nodes: Array.from(allMermaidNodes) as HTMLElement[],
           });
         }
 
@@ -1762,5 +1765,13 @@ export default function ArchitecturePage() {
       </button>
       </div>
     </>
+  );
+}
+
+export default function ArchitecturePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center"><div className="text-white">로딩 중...</div></div>}>
+      <ArchitectureContent />
+    </Suspense>
   );
 }

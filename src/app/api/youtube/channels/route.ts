@@ -73,11 +73,8 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: '채널을 찾을 수 없습니다' }, { status: 404 });
     }
 
-    // 토큰 파일 삭제
-    const tokenPath = path.join(CREDENTIALS_DIR, channel.tokenFile);
-    if (fs.existsSync(tokenPath)) {
-      fs.unlinkSync(tokenPath);
-    }
+    // 토큰은 DB에 암호화되어 저장되므로 별도 파일 삭제 불필요
+    // (이전 버전의 tokenFile 필드는 제거됨)
 
     // DB에서 채널 삭제
     await deleteYouTubeChannel(channelId);

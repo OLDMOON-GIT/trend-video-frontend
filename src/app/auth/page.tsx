@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function AuthPage() {
+export const dynamic = 'force-dynamic';
+
+function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -240,5 +242,17 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="text-white">로딩 중...</div>
+      </div>
+    }>
+      <AuthContent />
+    </Suspense>
   );
 }
