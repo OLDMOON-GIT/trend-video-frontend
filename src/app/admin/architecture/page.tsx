@@ -154,6 +154,31 @@ export default function ArchitecturePage() {
     renderMermaid();
   }, []);
 
+  // 탭 변경 시 Mermaid 재렌더링
+  useEffect(() => {
+    if (mermaidInitialized.current) {
+      setTimeout(() => {
+        mermaid.run({
+          nodes: document.querySelectorAll('.mermaid:not([data-processed])'),
+        });
+
+        // 다이어그램에 클릭 핸들러 추가
+        const mermaidElements = document.querySelectorAll('.mermaid svg');
+        mermaidElements.forEach((svg) => {
+          // 텍스트 색상 흰색으로
+          const textElements = svg.querySelectorAll('text, tspan');
+          textElements.forEach((text) => {
+            text.setAttribute('fill', '#ffffff');
+            text.setAttribute('style', 'fill: #ffffff !important;');
+          });
+
+          (svg as HTMLElement).style.cursor = 'pointer';
+          (svg as HTMLElement).onclick = () => handleDiagramClick(svg as SVGElement);
+        });
+      }, 100);
+    }
+  }, [activeTab]);
+
   // 다이어그램 클릭 핸들러
   const handleDiagramClick = (svg: SVGElement) => {
     const svgClone = svg.cloneNode(true) as SVGElement;
