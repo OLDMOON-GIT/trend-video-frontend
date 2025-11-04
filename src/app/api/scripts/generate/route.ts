@@ -536,12 +536,16 @@ export async function POST(request: NextRequest) {
             addLog(taskId, `✅ JSON 추출 완료 (${cleanedContent.length}자)`);
             console.log('✅ JSON 추출 완료:', cleanedContent.substring(0, 200) + '...');
 
-            // 3. JSON 유효성 검증
+            // 3. JSON 유효성 검증 및 포맷팅
             try {
               const parsed = JSON.parse(cleanedContent);
               addLog(taskId, '✅ JSON 파싱 성공');
               console.log('✅ JSON 파싱 성공 - 객체 키:', Object.keys(parsed).join(', '));
-              scriptContent = cleanedContent;
+
+              // 4. JSON 포맷팅 (예쁘게 정리)
+              scriptContent = JSON.stringify(parsed, null, 2);
+              addLog(taskId, '✨ JSON 포맷팅 완료');
+              console.log('✨ JSON 포맷팅 완료 - 최종 길이:', scriptContent.length);
             } catch (jsonError: any) {
               addLog(taskId, `⚠️ JSON 파싱 실패: ${jsonError.message}`);
               console.error('❌ JSON 파싱 실패:', jsonError);
@@ -555,69 +559,55 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        addLog(taskId, '💾 데이터베이스에 저장 중...');
+        addLog(taskId, '💾 contents 테이블에 저장 중...');
 
-        // scripts 테이블에 저장 (user_id는 관리자 또는 시스템으로)
-        const db3 = new Database(dbPath);
+        // contents 테이블에 저장 (통합 Content 시스템)
+        const { createContent } = require('@/lib/content');
 
-        // scripts 테이블이 있는지 확인하고 없으면 생성
-        db3.exec(`
-          CREATE TABLE IF NOT EXISTS scripts (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT,
-            status TEXT DEFAULT 'completed',
-            progress INTEGER DEFAULT 100,
-            error TEXT,
-            input_tokens INTEGER,
-            output_tokens INTEGER,
-            original_topic TEXT,
-            type TEXT,
-            created_at TEXT DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT (datetime('now'))
-          )
-        `);
-
-        // type 컬럼이 없으면 추가 (기존 데이터 보존)
         try {
-          db3.exec(`ALTER TABLE scripts ADD COLUMN type TEXT`);
-          console.log('✅ scripts 테이블에 type 컬럼 추가됨');
-        } catch (e: any) {
-          // 컬럼이 이미 존재하면 에러 무시
-          if (!e.message.includes('duplicate column')) {
-            console.error('type 컬럼 추가 실패:', e);
+          const content = createContent(
+            userId,
+            'script',
+            title,
+            {
+              format: scriptType as 'longform' | 'shortform' | 'sora2',
+              originalTitle: title,
+              content: scriptContent,
+              useClaudeLocal: useClaudeLocal
+            }
+          );
+
+          const contentId = content.id;
+          addLog(taskId, `✓ contents 테이블 저장 완료! (ID: ${contentId})`);
+          addLog(taskId, '🎉 모든 작업 완료!');
+          console.log('✅ Local Claude 대본이 contents 테이블에 저장됨:', {
+            contentId,
+            userId,
+            title,
+            format: scriptType,
+            contentLength: scriptContent.length
+          });
+
+          // 임시 scripts 상태 테이블 업데이트 (admin/titles 페이지용)
+          const db4 = new Database(dbPath);
+
+          // 임시 테이블이 있으면 업데이트 (없으면 무시)
+          try {
+            db4.prepare(`
+              UPDATE scripts_temp
+              SET status = ?, message = ?, scriptId = ?
+              WHERE id = ?
+            `).run('DONE', '대본 생성 완료!', contentId, taskId);
+          } catch (e) {
+            // 테이블이 없으면 무시
           }
+
+          db4.close();
+        } catch (saveError: any) {
+          console.error('❌ contents 저장 실패:', saveError);
+          addLog(taskId, `❌ 저장 실패: ${saveError.message}`);
+          throw saveError;
         }
-
-        // 대본을 scripts 테이블에 저장
-        const scriptId = `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        // scriptType을 그대로 저장 (이미 'longform', 'shortform', 'sora2' 형식)
-        db3.prepare(`
-          INSERT INTO scripts (id, user_id, title, content, status, progress, original_topic, type, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        `).run(scriptId, userId, title, scriptContent, 'completed', 100, title, scriptType);
-
-        db3.close();
-
-        addLog(taskId, `✓ 데이터베이스 저장 완료! (ID: ${scriptId})`);
-        addLog(taskId, '🎉 모든 작업 완료!');
-
-        // 임시 scripts 상태 테이블 업데이트 (admin/titles 페이지용)
-        const db4 = new Database(dbPath);
-
-        // 임시 테이블이 있으면 업데이트 (없으면 무시)
-        try {
-          db4.prepare(`
-            UPDATE scripts_temp
-            SET status = ?, message = ?, scriptId = ?
-            WHERE id = ?
-          `).run('DONE', '대본 생성 완료!', scriptId, taskId);
-        } catch (e) {
-          // 테이블이 없으면 무시
-        }
-
-        db4.close();
       } catch (error: any) {
         console.error('Error generating script:', error);
 

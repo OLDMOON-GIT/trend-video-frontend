@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findScriptById } from '@/lib/db';
+import { findContentById } from '@/lib/content';
 import { getCurrentUser } from '@/lib/session';
 import Database from 'better-sqlite3';
 import path from 'path';
@@ -24,18 +24,18 @@ export async function GET(
     }
 
     const params = await context.params;
-    const scriptId = params.id;
+    const contentId = params.id;
 
-    if (!scriptId) {
+    if (!contentId) {
       return NextResponse.json(
-        { error: 'scriptId가 필요합니다.' },
+        { error: 'contentId가 필요합니다.' },
         { status: 400 }
       );
     }
 
-    const script = await findScriptById(scriptId);
+    const content = findContentById(contentId);
 
-    if (!script) {
+    if (!content || content.type !== 'script') {
       return NextResponse.json(
         { error: 'Script not found' },
         { status: 404 }
@@ -43,14 +43,15 @@ export async function GET(
     }
 
     // 본인의 대본만 조회 가능 (관리자는 모두 조회 가능)
-    if (!user.isAdmin && script.userId !== user.userId) {
+    if (!user.isAdmin && content.userId !== user.userId) {
       return NextResponse.json(
         { error: '권한이 없습니다.' },
         { status: 403 }
       );
     }
 
-    return NextResponse.json({ script });
+    // Return as 'script' for backward compatibility
+    return NextResponse.json({ script: content });
   } catch (error) {
     console.error('Error fetching script:', error);
     return NextResponse.json(
@@ -75,11 +76,11 @@ export async function PUT(
     }
 
     const params = await context.params;
-    const scriptId = params.id;
+    const contentId = params.id;
 
-    if (!scriptId) {
+    if (!contentId) {
       return NextResponse.json(
-        { error: 'scriptId가 필요합니다.' },
+        { error: 'contentId가 필요합니다.' },
         { status: 400 }
       );
     }
@@ -88,16 +89,16 @@ export async function PUT(
     const { folderId } = body;
 
     // 스크립트 소유권 확인
-    const script = await findScriptById(scriptId);
+    const content = findContentById(contentId);
 
-    if (!script) {
+    if (!content || content.type !== 'script') {
       return NextResponse.json(
         { error: '스크립트를 찾을 수 없습니다.' },
         { status: 404 }
       );
     }
 
-    if (!user.isAdmin && script.userId !== user.userId) {
+    if (!user.isAdmin && content.userId !== user.userId) {
       return NextResponse.json(
         { error: '권한이 없습니다.' },
         { status: 403 }
@@ -118,13 +119,13 @@ export async function PUT(
       }
     }
 
-    // folder_id 업데이트
+    // folder_id 업데이트 (contents 테이블)
     const db = new Database(dbPath);
     db.prepare(`
-      UPDATE scripts
+      UPDATE contents
       SET folder_id = ?, updated_at = datetime('now')
       WHERE id = ?
-    `).run(folderId || null, scriptId);
+    `).run(folderId || null, contentId);
     db.close();
 
     return NextResponse.json({

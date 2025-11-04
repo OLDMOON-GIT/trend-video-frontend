@@ -888,9 +888,9 @@ export async function getUserSessionStats(userId: string): Promise<{
   };
 }
 
-// ==================== 대본 관리 (SQLite) ====================
+// ==================== 대본 관리 (SQLite) - contents 테이블 사용 ====================
 
-// 대본 생성 (초기 pending 상태)
+// 대본 생성 (초기 pending 상태) - contents 테이블에 저장
 export async function createScript(
   userId: string,
   title: string,
@@ -898,106 +898,80 @@ export async function createScript(
   tokenUsage?: { input_tokens: number; output_tokens: number },
   originalTitle?: string // 사용자가 입력한 원본 제목
 ): Promise<Script> {
-  const now = new Date().toISOString();
-  const scriptId = crypto.randomUUID();
+  // contents 테이블의 createContent 사용
+  const { createContent } = require('./content');
 
-  const stmt = db.prepare(`
-    INSERT INTO scripts (
-      id, user_id, title, original_topic, content, status, progress,
-      input_tokens, output_tokens, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  stmt.run(
-    scriptId,
+  const contentRecord = createContent(
     userId,
+    'script',
     title,
-    originalTitle || null,
-    content,
-    content ? 'completed' : 'pending',
-    content ? 100 : 0,
-    tokenUsage?.input_tokens || null,
-    tokenUsage?.output_tokens || null,
-    now,
-    now
+    {
+      originalTitle: originalTitle || title,
+      content: content,
+      tokenUsage: tokenUsage,
+      useClaudeLocal: false // API Claude 사용
+    }
   );
 
+  // Script 타입으로 변환하여 반환 (하위 호환성)
   const script: Script = {
-    id: scriptId,
-    userId,
-    title,
-    originalTitle,
-    content,
-    status: content ? 'completed' : 'pending',
-    progress: content ? 100 : 0,
-    tokenUsage,
-    createdAt: now,
-    updatedAt: now
+    id: contentRecord.id,
+    userId: contentRecord.userId,
+    title: contentRecord.title,
+    originalTitle: contentRecord.originalTitle,
+    content: contentRecord.content || '',
+    status: contentRecord.status,
+    progress: contentRecord.progress,
+    tokenUsage: contentRecord.tokenUsage,
+    createdAt: contentRecord.createdAt,
+    updatedAt: contentRecord.updatedAt
   };
 
   return script;
 }
 
-// 대본 업데이트
+// 대본 업데이트 - contents 테이블 사용
 export async function updateScript(
   scriptId: string,
   updates: Partial<Pick<Script, 'status' | 'progress' | 'content' | 'error' | 'tokenUsage' | 'logs'>>
 ): Promise<Script | null> {
-  const now = new Date().toISOString();
+  // contents 테이블의 updateContent, addContentLogs 사용
+  const { updateContent, addContentLogs } = require('./content');
 
-  // logs는 별도 테이블에 저장
-  if (updates.logs) {
-    const deleteStmt = db.prepare('DELETE FROM script_logs WHERE script_id = ?');
-    deleteStmt.run(scriptId);
-
-    const insertStmt = db.prepare('INSERT INTO script_logs (script_id, log_message) VALUES (?, ?)');
-    for (const log of updates.logs) {
-      insertStmt.run(scriptId, log);
-    }
+  // logs가 있으면 별도로 저장
+  if (updates.logs && updates.logs.length > 0) {
+    addContentLogs(scriptId, updates.logs);
   }
 
-  // scripts 테이블 업데이트
-  const fieldsToUpdate: string[] = [];
-  const values: any[] = [];
+  // 나머지 필드 업데이트
+  const contentUpdates: any = {};
+  if (updates.status !== undefined) contentUpdates.status = updates.status;
+  if (updates.progress !== undefined) contentUpdates.progress = updates.progress;
+  if (updates.content !== undefined) contentUpdates.content = updates.content;
+  if (updates.error !== undefined) contentUpdates.error = updates.error;
+  if (updates.tokenUsage !== undefined) contentUpdates.tokenUsage = updates.tokenUsage;
 
-  if (updates.status !== undefined) {
-    fieldsToUpdate.push('status = ?');
-    values.push(updates.status);
-  }
-  if (updates.progress !== undefined) {
-    fieldsToUpdate.push('progress = ?');
-    values.push(updates.progress);
-  }
-  if (updates.content !== undefined) {
-    fieldsToUpdate.push('content = ?');
-    values.push(updates.content);
-  }
-  if (updates.error !== undefined) {
-    fieldsToUpdate.push('error = ?');
-    values.push(updates.error);
-  }
-  if (updates.tokenUsage) {
-    if (updates.tokenUsage.input_tokens !== undefined) {
-      fieldsToUpdate.push('input_tokens = ?');
-      values.push(updates.tokenUsage.input_tokens);
-    }
-    if (updates.tokenUsage.output_tokens !== undefined) {
-      fieldsToUpdate.push('output_tokens = ?');
-      values.push(updates.tokenUsage.output_tokens);
-    }
-  }
+  const contentRecord = updateContent(scriptId, contentUpdates);
 
-  fieldsToUpdate.push('updated_at = ?');
-  values.push(now);
+  if (!contentRecord) return null;
 
-  values.push(scriptId);
+  // Script 타입으로 변환하여 반환 (하위 호환성)
+  const script: Script = {
+    id: contentRecord.id,
+    userId: contentRecord.userId,
+    title: contentRecord.title,
+    originalTitle: contentRecord.originalTitle,
+    content: contentRecord.content || '',
+    status: contentRecord.status,
+    progress: contentRecord.progress,
+    error: contentRecord.error,
+    logs: contentRecord.logs,
+    tokenUsage: contentRecord.tokenUsage,
+    createdAt: contentRecord.createdAt,
+    updatedAt: contentRecord.updatedAt
+  };
 
-  if (fieldsToUpdate.length > 0) {
-    const stmt = db.prepare(`UPDATE scripts SET ${fieldsToUpdate.join(', ')} WHERE id = ?`);
-    stmt.run(...values);
-  }
-
-  return findScriptById(scriptId);
+  return script;
 }
 
 // 사용자별 대본 목록 조회
@@ -1042,44 +1016,30 @@ export async function getScriptsByUserId(userId: string): Promise<Script[]> {
   });
 }
 
-// 대본 ID로 찾기
+// 대본 ID로 찾기 - contents 테이블 사용
 export async function findScriptById(scriptId: string): Promise<Script | null> {
-  const stmt = db.prepare(`
-    SELECT
-      id, user_id as userId, title, original_topic as originalTitle,
-      content, status, progress, error, type,
-      input_tokens, output_tokens,
-      created_at as createdAt, updated_at as updatedAt
-    FROM scripts
-    WHERE id = ?
-  `);
+  const { findContentById } = require('./content');
 
-  const row = stmt.get(scriptId) as any;
-  if (!row) return null;
+  const contentRecord = findContentById(scriptId);
+  if (!contentRecord || contentRecord.type !== 'script') return null;
 
-  // logs 가져오기
-  const logsStmt = db.prepare('SELECT log_message FROM script_logs WHERE script_id = ? ORDER BY created_at');
-  const logRows = logsStmt.all(scriptId) as any[];
-  const logs = logRows.map(l => l.log_message);
-
-  return {
-    id: row.id,
-    userId: row.userId,
-    title: row.title,
-    originalTitle: row.originalTitle,
-    content: row.content || '',
-    status: row.status || 'completed',
-    progress: row.progress ?? 100,
-    error: row.error,
-    type: row.type,
-    logs: logs.length > 0 ? logs : undefined,
-    tokenUsage: row.input_tokens || row.output_tokens ? {
-      input_tokens: row.input_tokens || 0,
-      output_tokens: row.output_tokens || 0
-    } : undefined,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt || row.createdAt
+  // Script 타입으로 변환하여 반환 (하위 호환성)
+  const script: Script = {
+    id: contentRecord.id,
+    userId: contentRecord.userId,
+    title: contentRecord.title,
+    originalTitle: contentRecord.originalTitle,
+    content: contentRecord.content || '',
+    status: contentRecord.status,
+    progress: contentRecord.progress,
+    error: contentRecord.error,
+    logs: contentRecord.logs,
+    tokenUsage: contentRecord.tokenUsage,
+    createdAt: contentRecord.createdAt,
+    updatedAt: contentRecord.updatedAt
   };
+
+  return script;
 }
 
 // scripts_temp에서 대본 찾기 (재시도용)
@@ -1275,15 +1235,10 @@ export function addTaskLog(taskId: string, logMessage: string): void {
   stmt.run(taskId, logMessage);
 }
 
+// DEPRECATED: Use content.ts addContentLog instead
 export function addScriptLog(scriptId: string, logMessage: string): void {
-  const script = SCRIPTS.find(s => s.id === scriptId);
-  if (script) {
-    if (!script.logs) {
-      script.logs = [];
-    }
-    const timestamp = new Date().toISOString();
-    script.logs.push(`[${timestamp}] ${logMessage}`);
-  }
+  // No longer used - scripts are now managed in contents table
+  console.warn('addScriptLog is deprecated, use addContentLog from content.ts');
 }
 
 // Task 삭제
@@ -1296,6 +1251,17 @@ export function deleteTask(taskId: string): boolean {
 // ============================================
 // YouTube 채널 관리
 // ============================================
+
+export interface YouTubeChannel {
+  id: string;
+  userId: string;
+  channelId: string;
+  channelTitle: string;
+  thumbnailUrl?: string;
+  isDefault?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // YouTube 채널 목록 읽기
 export async function getYouTubeChannels(): Promise<YouTubeChannel[]> {
@@ -1424,4 +1390,94 @@ export async function getDefaultYouTubeChannel(userId: string): Promise<YouTubeC
 export async function getYouTubeChannelById(channelId: string): Promise<YouTubeChannel | null> {
   const channels = await getYouTubeChannels();
   return channels.find(ch => ch.id === channelId) || null;
+}
+
+// ============================================
+// YouTube 업로드 기록 관리
+// ============================================
+
+export interface YouTubeUpload {
+  id: string;
+  userId: string;
+  jobId?: string;
+  videoId: string;
+  videoUrl: string;
+  title: string;
+  description?: string;
+  thumbnailUrl?: string;
+  channelId: string;
+  channelTitle?: string;
+  privacyStatus?: string;
+  publishedAt: string;
+  createdAt: string;
+}
+
+// YouTube 업로드 기록 추가
+export function createYouTubeUpload(upload: Omit<YouTubeUpload, 'id' | 'createdAt' | 'publishedAt'>): YouTubeUpload {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const stmt = db.prepare(`
+    INSERT INTO youtube_uploads (
+      id, user_id, job_id, video_id, video_url, title, description,
+      thumbnail_url, channel_id, channel_title, privacy_status, published_at, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    id,
+    upload.userId,
+    upload.jobId || null,
+    upload.videoId,
+    upload.videoUrl,
+    upload.title,
+    upload.description || null,
+    upload.thumbnailUrl || null,
+    upload.channelId,
+    upload.channelTitle || null,
+    upload.privacyStatus || null,
+    now,
+    now
+  );
+
+  return {
+    id,
+    ...upload,
+    publishedAt: now,
+    createdAt: now
+  };
+}
+
+// 사용자의 YouTube 업로드 기록 조회
+export function getUserYouTubeUploads(userId: string): YouTubeUpload[] {
+  const stmt = db.prepare(`
+    SELECT * FROM youtube_uploads
+    WHERE user_id = ?
+    ORDER BY published_at DESC
+  `);
+
+  const rows = stmt.all(userId) as any[];
+
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    jobId: row.job_id,
+    videoId: row.video_id,
+    videoUrl: row.video_url,
+    title: row.title,
+    description: row.description,
+    thumbnailUrl: row.thumbnail_url,
+    channelId: row.channel_id,
+    channelTitle: row.channel_title,
+    privacyStatus: row.privacy_status,
+    publishedAt: row.published_at,
+    createdAt: row.created_at
+  }));
+}
+
+// YouTube 업로드 기록 삭제
+export function deleteYouTubeUpload(uploadId: string): boolean {
+  const stmt = db.prepare('DELETE FROM youtube_uploads WHERE id = ?');
+  const result = stmt.run(uploadId);
+  return result.changes > 0;
 }

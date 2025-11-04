@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
-import { findScriptById } from '@/lib/db';
+import { findContentById, getContentLogs } from '@/lib/content';
 import Database from 'better-sqlite3';
 import path from 'path';
 
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
 export async function GET(request: NextRequest) {
+  console.log('=== /api/script-status 시작 ===');
+
   // 사용자 인증
   const user = await getCurrentUser(request);
+  console.log('👤 현재 사용자:', user?.userId);
+
   if (!user) {
     return NextResponse.json(
       { error: '로그인이 필요합니다.' },
@@ -27,114 +31,117 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 1. scripts 테이블에서 찾기
-    const script = await findScriptById(scriptId);
+    console.log('🔍 대본 상태 조회:', scriptId);
 
-    if (script) {
+    // 1. contents 테이블에서 찾기
+    console.log('🔍 findContentById 호출 (contents 테이블)...');
+    const content = findContentById(scriptId);
+    console.log('📦 findContentById 결과:', content ? {
+      id: content.id,
+      userId: content.userId,
+      title: content.title,
+      status: content.status
+    } : null);
+
+    if (content) {
       // 본인의 대본인지 확인
-      if (script.userId !== user.userId) {
+      if (content.userId !== user.userId) {
+        console.log('❌ 권한 없음:', { contentUserId: content.userId, currentUserId: user.userId });
         return NextResponse.json(
           { error: '권한이 없습니다.' },
           { status: 403 }
         );
       }
 
-      return NextResponse.json({
-        status: script.status || 'completed',
-        title: script.title,
-        content: script.content,
-        progress: script.progress || 100,
-        logs: script.logs || [],
-        error: script.error
+      // 로그 가져오기
+      const logs = getContentLogs(scriptId);
+
+      console.log('✅ 대본 상태 (contents):', {
+        id: content.id,
+        status: content.status,
+        progress: content.progress,
+        logsCount: logs.length
       });
-    }
-
-    // 2. scripts_temp 테이블에서 찾기 (로컬 Claude 생성)
-    const db = new Database(dbPath);
-    try {
-      const tempScript = db.prepare('SELECT * FROM scripts_temp WHERE id = ?').get(scriptId) as any;
-
-      if (!tempScript) {
-        db.close();
-        return NextResponse.json(
-          { error: '대본을 찾을 수 없습니다.' },
-          { status: 404 }
-        );
-      }
-
-      // scripts_temp에서 실제 content 가져오기
-      let content = '';
-      if (tempScript.scriptId) {
-        const actualScript = db.prepare('SELECT content FROM scripts WHERE id = ?').get(tempScript.scriptId) as any;
-        if (actualScript && actualScript.content) {
-          content = actualScript.content;
-        }
-      }
-
-      // 로그 파싱 및 진행률 계산
-      let logs: string[] = [];
-      let calculatedProgress = 50;
-      if (tempScript.logs) {
-        try {
-          logs = JSON.parse(tempScript.logs);
-
-          // 로그 기반으로 진행률 추정
-          const logText = logs.join(' ');
-
-          // "Generating... X chars" 패턴 찾기 (실시간 진행률)
-          const generatingMatch = logText.match(/Generating\.\.\.\s+(\d+)\s+chars/);
-          if (generatingMatch) {
-            const currentChars = parseInt(generatingMatch[1], 10);
-            // 타입에 따라 예상 길이 다르게 설정
-            const type = tempScript.type || 'longform';
-            const estimatedLengths: Record<string, number> = {
-              'longform': 33000,  // 롱폼: 약 33,000자
-              'shortform': 3000,  // 숏폼: 약 3,000자
-              'sora2': 500        // SORA2: 약 500자 (영어)
-            };
-            const estimatedTotal = estimatedLengths[type] || 33000;
-
-            // 진행률 계산 (10% ~ 90% 범위로 제한)
-            const rawProgress = (currentChars / estimatedTotal) * 100;
-            calculatedProgress = Math.min(Math.max(Math.floor(rawProgress), 10), 90);
-
-            console.log(`📊 실시간 진행률: ${currentChars}/${estimatedTotal}자 = ${calculatedProgress}%`);
-          } else if (logText.includes('Python 스크립트 실행 완료') || logText.includes('데이터베이스 저장 중')) {
-            calculatedProgress = 90;
-          } else if (logText.includes('Claude 응답 파일 검색') || logText.includes('프롬프트 파일 저장')) {
-            calculatedProgress = 70;
-          } else if (logText.includes('작업 시작됨') || logText.includes('프로세스 PID')) {
-            calculatedProgress = 30;
-          } else if (logText.includes('Waiting for response') || logText.includes('Sending question')) {
-            calculatedProgress = 20;
-          } else if (logs.length > 0) {
-            calculatedProgress = 15;
-          }
-        } catch (e) {
-          logs = [];
-        }
-      }
-
-      // status 변환
-      const status = tempScript.status === 'DONE' ? 'completed' :
-                     tempScript.status === 'ERROR' ? 'failed' :
-                     tempScript.status === 'PENDING' ? 'pending' : 'processing';
-
-      db.close();
 
       return NextResponse.json({
-        status: status,
-        title: tempScript.title,
-        content: content,
-        progress: status === 'completed' ? 100 : status === 'failed' ? 0 : calculatedProgress,
+        status: content.status,
+        title: content.title,
+        content: content.content,
+        progress: content.progress,
         logs: logs,
-        error: tempScript.message?.includes('오류') || tempScript.message?.includes('ERROR') ? tempScript.message : undefined
+        error: content.error
       });
-
-    } catch (dbError) {
-      db.close();
-      throw dbError;
     }
+
+    // 2. contents에 없으면 scripts_temp 테이블에서 찾기 (로컬 Claude 생성 대본)
+    console.log('🔍 scripts_temp 테이블 조회...');
+    let database: Database.Database | null = null;
+    try {
+      database = new Database(dbPath);
+      const tempScript = database.prepare(`
+        SELECT * FROM scripts_temp WHERE id = ?
+      `).get(scriptId) as any;
+
+      if (tempScript) {
+        console.log('📦 scripts_temp 결과:', {
+          id: tempScript.id,
+          title: tempScript.title,
+          status: tempScript.status
+        });
+
+        // scripts_temp는 전역 공유이므로 소유자 확인 없이 조회 가능
+        const logs = tempScript.logs ? JSON.parse(tempScript.logs) : [];
+
+        // 상태 매핑: PENDING -> pending, DONE -> completed, ERROR -> failed
+        const mappedStatus =
+          tempScript.status === 'DONE' ? 'completed' :
+          tempScript.status === 'ERROR' ? 'failed' :
+          tempScript.status === 'PENDING' ? 'pending' : 'processing';
+
+        // scriptId가 있으면 실제 contents 테이블에서 content 가져오기
+        let actualContent = '';
+        if (tempScript.scriptId) {
+          try {
+            const contentRow = database.prepare(`
+              SELECT content FROM contents WHERE id = ?
+            `).get(tempScript.scriptId) as any;
+
+            if (contentRow && contentRow.content) {
+              actualContent = contentRow.content;
+              console.log(`✓ contentId ${tempScript.scriptId}의 content 로드 완료 (${actualContent.length}자)`);
+            }
+          } catch (err) {
+            console.error(`⚠️ contentId ${tempScript.scriptId} content 로드 실패:`, err);
+          }
+        }
+
+        console.log('✅ 대본 상태 (scripts_temp):', {
+          id: tempScript.id,
+          status: mappedStatus,
+          logsCount: logs.length
+        });
+
+        return NextResponse.json({
+          status: mappedStatus,
+          title: tempScript.title,
+          content: actualContent,
+          progress: mappedStatus === 'completed' ? 100 : mappedStatus === 'processing' ? 50 : 0,
+          logs: logs,
+          error: tempScript.status === 'ERROR' ? tempScript.message : undefined
+        });
+      }
+    } finally {
+      if (database) {
+        database.close();
+      }
+    }
+
+    // 3. 둘 다 없으면 404
+    console.log('❌ 대본을 찾을 수 없음:', scriptId);
+    return NextResponse.json(
+      { error: '대본을 찾을 수 없습니다.' },
+      { status: 404 }
+    );
 
   } catch (error: any) {
     console.error('❌ 대본 상태 조회 오류:', error);

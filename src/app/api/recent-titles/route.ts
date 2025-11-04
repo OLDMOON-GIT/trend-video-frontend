@@ -16,11 +16,11 @@ export async function GET(request: NextRequest) {
 
     const db = new Database(dbPath);
 
-    // 최근 4개의 대본 제목만 가져오기 (scripts 테이블에서만)
+    // 최근 4개의 대본 제목만 가져오기 (contents 테이블에서)
     const scriptTitles = db.prepare(`
       SELECT DISTINCT title
-      FROM scripts
-      WHERE user_id = ? AND title IS NOT NULL AND title != ''
+      FROM contents
+      WHERE user_id = ? AND type = 'script' AND title IS NOT NULL AND title != ''
       ORDER BY created_at DESC
       LIMIT 4
     `).all(user.userId) as Array<{title: string}>;

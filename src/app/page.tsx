@@ -812,7 +812,7 @@ export default function Home() {
 
   // SORA2 대본 생성
   const generateSora2Script = async () => {
-    if (!topicOrTitle.trim()) {
+    if (!manualTitle.trim()) {
       showToast('주제를 먼저 입력해주세요', 'error');
       return;
     }
@@ -824,7 +824,7 @@ export default function Home() {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          topic: topicOrTitle.trim(),
+          topic: manualTitle.trim(),
           videoFormat: 'sora2' // SORA2 전용 프롬프트 사용
         })
       });
@@ -854,7 +854,7 @@ export default function Home() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           script: sora2Script,
-          title: topicOrTitle.trim()
+          title: manualTitle.trim()
         })
       });
 
@@ -980,7 +980,7 @@ export default function Home() {
         !titleQuery.trim() || video.title.toLowerCase().includes(titleQuery.trim().toLowerCase());
       const durationSecondsValue = typeof video.durationSeconds === 'number'
         ? video.durationSeconds
-        : Math.max(parseIsoDurationLocal(video.duration), 0);
+        : 0;
       const minDurationSeconds = durationRange.min * 60;
       const maxDurationSeconds = durationRange.max * 60;
       const matchDuration =
@@ -2915,7 +2915,7 @@ export default function Home() {
                           // 로그를 줄 단위로 분리해서 배열로 저장
                           if (statusData.logs) {
                             const logLines = typeof statusData.logs === 'string'
-                              ? statusData.logs.split('\n').filter(line => line.trim())
+                              ? statusData.logs.split('\n').filter((line: string) => line.trim())
                               : statusData.logs;
                             setVideoLogs(logLines);
                           }
@@ -3344,6 +3344,33 @@ export default function Home() {
                             const statusResponse = await fetch(`/api/scripts/${scriptId}`, {
                               headers: getAuthHeaders()
                             });
+
+                            if (!statusResponse.ok) {
+                              const errorText = await statusResponse.text();
+                              console.warn(`❌ 상태 조회 실패 (${statusResponse.status}):`, errorText);
+
+                              // 404는 아직 대본이 생성 중일 수 있으므로 계속 폴링
+                              if (statusResponse.status === 404) {
+                                checkCount++;
+                                if (checkCount >= maxChecks) {
+                                  clearInterval(interval);
+                                  setScriptPollingInterval(null);
+                                  setIsGeneratingScript(false);
+                                  setScriptGenerationLogs(prev => [...prev, {
+                                    timestamp: new Date().toISOString(),
+                                    message: '⏱️ 대본 생성 시간이 초과되었습니다.'
+                                  }]);
+                                  setScriptProgress({ current: 0, total: 100 });
+                                  setCurrentScriptId(null);
+                                  setToast({ message: '대본 생성 시간이 초과되었습니다.', type: 'error' });
+                                  setTimeout(() => setToast(null), 5000);
+                                }
+                                return; // 404는 에러로 처리하지 않고 계속 폴링
+                              }
+
+                              throw new Error(`상태 조회 실패 (${statusResponse.status}): ${errorText}`);
+                            }
+
                             const statusData = await statusResponse.json();
 
                             if (statusData.script?.status === 'completed') {
@@ -3440,6 +3467,21 @@ export default function Home() {
                                 setTimeout(() => setToast(null), 5000);
                               }
                             } else {
+                              // pending 상태 - 로그 표시 및 기본 진행률 증가
+                              if (statusData.script?.logs && statusData.script.logs.length > 0) {
+                                const formattedLogs = statusData.script.logs.map((log: string) => ({
+                                  timestamp: new Date().toISOString(),
+                                  message: log
+                                }));
+                                setScriptGenerationLogs(formattedLogs);
+                              } else {
+                                // 로그가 없어도 기본 진행률 표시
+                                setScriptProgress(prev => ({
+                                  current: Math.min((prev?.current || 0) + 2, 30), // 최대 30%까지만 자동 증가
+                                  total: prev?.total || 100
+                                }));
+                              }
+
                               checkCount++;
                               if (checkCount >= maxChecks) {
                                 clearInterval(interval);
@@ -3519,19 +3561,41 @@ export default function Home() {
 
                         const interval = setInterval(async () => {
                           try {
-                            // 로컬 Claude는 /api/script-status 엔드포인트 사용 (scripts_temp 테이블 조회)
+                            // 로컬 Claude는 /api/script-status 엔드포인트 사용 (contents 테이블 조회)
                             const statusResponse = await fetch(`/api/script-status?scriptId=${scriptId}`, {
                               headers: getAuthHeaders()
                             });
 
                             if (!statusResponse.ok) {
-                              console.warn(`❌ 상태 조회 실패 (${statusResponse.status})`);
-                              throw new Error('상태 조회 실패');
+                              const errorText = await statusResponse.text();
+                              console.warn(`❌ 상태 조회 실패 (${statusResponse.status}):`, errorText);
+
+                              // 404는 아직 대본이 생성 중일 수 있으므로 계속 폴링
+                              if (statusResponse.status === 404) {
+                                checkCount++;
+                                if (checkCount >= maxChecks) {
+                                  clearInterval(interval);
+                                  setScriptPollingInterval(null);
+                                  setIsGeneratingScript(false);
+                                  setScriptGenerationLogs(prev => [...prev, {
+                                    timestamp: new Date().toISOString(),
+                                    message: '⏱️ 대본 생성 시간이 초과되었습니다.'
+                                  }]);
+                                  setScriptProgress({ current: 0, total: 100 });
+                                  setCurrentScriptId(null);
+                                  setToast({ message: '대본 생성 시간이 초과되었습니다.', type: 'error' });
+                                  setTimeout(() => setToast(null), 5000);
+                                }
+                                return; // 404는 에러로 처리하지 않고 계속 폴링
+                              }
+
+                              throw new Error(`상태 조회 실패 (${statusResponse.status}): ${errorText}`);
                             }
 
                             const statusData = await statusResponse.json();
                             console.log('📊 로컬 Claude 상태:', statusData);
 
+                            // 로그 표시 (항상 업데이트)
                             if (statusData.logs && statusData.logs.length > 0) {
                               const formattedLogs = statusData.logs.map((log: any) => ({
                                 timestamp: typeof log === 'object' ? log.timestamp : new Date().toISOString(),
@@ -3541,6 +3605,12 @@ export default function Home() {
 
                               const progress = Math.min(Math.floor((statusData.logs.length / 10) * 90), 90);
                               setScriptProgress({ current: progress, total: 100 });
+                            } else {
+                              // 로그가 없어도 기본 진행률 표시
+                              setScriptProgress(prev => ({
+                                current: Math.min((prev?.current || 0) + 5, 50), // 최대 50%까지만 자동 증가
+                                total: prev?.total || 100
+                              }));
                             }
 
                             if (statusData.status === 'completed') {
@@ -4398,14 +4468,14 @@ export default function Home() {
             <div className="flex gap-4">
               <button
                 onClick={startSora2VideoGeneration}
-                disabled={!sora2Script.trim() || isGenerating}
+                disabled={!sora2Script.trim() || isGeneratingVideo}
                 className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isGenerating ? '⏳ 처리 중...' : '✅ 확인 및 영상 제작'}
+                {isGeneratingVideo ? '⏳ 처리 중...' : '✅ 확인 및 영상 제작'}
               </button>
               <button
                 onClick={() => setShowSora2Review(false)}
-                disabled={isGenerating}
+                disabled={isGeneratingVideo}
                 className="rounded-lg bg-slate-600 px-6 py-4 font-semibold text-white transition hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ✕ 취소

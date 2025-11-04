@@ -9,6 +9,9 @@ interface YouTubeUploadButtonProps {
   thumbnailPath?: string;
   defaultTitle?: string;
   jobId: string;
+  onUploadStart?: () => void;
+  onUploadSuccess?: (data: { videoId: string; videoUrl: string }) => void;
+  onUploadError?: (error: string) => void;
 }
 
 interface YouTubeChannel {
@@ -22,7 +25,10 @@ export default function YouTubeUploadButton({
   videoPath,
   thumbnailPath,
   defaultTitle = '',
-  jobId
+  jobId,
+  onUploadStart,
+  onUploadSuccess,
+  onUploadError
 }: YouTubeUploadButtonProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -85,7 +91,12 @@ export default function YouTubeUploadButton({
 
     try {
       setIsUploading(true);
-      toast.loading('YouTube 업로드 중...', { id: 'upload' });
+      setShowModal(false);
+
+      // 업로드 시작 콜백 호출
+      if (onUploadStart) {
+        onUploadStart();
+      }
 
       const tagList = tags.split(',').map(t => t.trim()).filter(t => t);
 
@@ -99,37 +110,35 @@ export default function YouTubeUploadButton({
           description,
           tags: tagList,
           privacy,
-          channelId: selectedChannelId
+          channelId: selectedChannelId,
+          jobId
         })
       });
 
       const data = await res.json();
 
+      console.log('📥 Upload API Response:', { status: res.status, data });
+
       if (data.success) {
         // 성공 시 공개 설정 저장
         localStorage.setItem('youtube_privacy_setting', privacy);
 
-        toast.success(
-          <div>
-            <div>YouTube 업로드 성공!</div>
-            <a
-              href={data.videoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-blue-300 hover:underline"
-            >
-              {data.videoUrl}
-            </a>
-          </div>,
-          { id: 'upload', duration: 5000 }
-        );
-        setShowModal(false);
+        if (onUploadSuccess) {
+          onUploadSuccess({ videoId: data.videoId, videoUrl: data.videoUrl });
+        }
       } else {
-        throw new Error(data.error || '업로드 실패');
+        console.error('❌ Upload API Error:', data);
+        const errorMsg = data.error || data.details || '업로드 실패';
+        if (onUploadError) {
+          onUploadError(errorMsg);
+        }
+        throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error('YouTube 업로드 실패:', error);
-      toast.error(`업로드 실패: ${error.message}`, { id: 'upload' });
+      if (onUploadError) {
+        onUploadError(error.message);
+      }
     } finally {
       setIsUploading(false);
     }

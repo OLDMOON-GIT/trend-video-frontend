@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
-import { getYouTubeChannelById, getDefaultYouTubeChannel } from '@/lib/db';
+import { getYouTubeChannelById, getDefaultYouTubeChannel, createYouTubeUpload } from '@/lib/db';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -46,16 +46,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let selectedChannel;
     if (channelId) {
       // 특정 채널 ID가 제공된 경우
+      console.log('🔍 채널 ID로 조회:', channelId);
       selectedChannel = await getYouTubeChannelById(channelId);
-      if (!selectedChannel || selectedChannel.userId !== user.userId) {
+      console.log('📺 조회된 채널:', selectedChannel);
+      console.log('👤 현재 사용자 ID:', user.userId);
+
+      if (!selectedChannel) {
+        console.error('❌ 채널을 찾을 수 없음:', channelId);
+        return NextResponse.json({ error: '채널을 찾을 수 없습니다' }, { status: 404 });
+      }
+
+      if (selectedChannel.userId !== user.userId) {
+        console.error('❌ 채널 소유자 불일치:', {
+          channelUserId: selectedChannel.userId,
+          currentUserId: user.userId
+        });
         return NextResponse.json({ error: '유효하지 않은 채널입니다' }, { status: 403 });
       }
+
+      console.log('✅ 채널 검증 성공:', selectedChannel.channelTitle);
     } else {
       // channelId가 없으면 기본 채널 사용
+      console.log('🔍 기본 채널 조회 중... 사용자 ID:', user.userId);
       selectedChannel = await getDefaultYouTubeChannel(user.userId);
       if (!selectedChannel) {
+        console.error('❌ 기본 채널 없음');
         return NextResponse.json({ error: 'YouTube 채널이 연결되지 않았습니다' }, { status: 400 });
       }
+      console.log('✅ 기본 채널 선택:', selectedChannel.channelTitle);
     }
 
     // videoPath가 절대 경로인지 확인
@@ -143,8 +161,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
 
         try {
-          const result = JSON.parse(output.trim());
+          // 마지막 줄에서 JSON 추출 (로그 제외)
+          const lines = output.trim().split('\n');
+          const jsonLine = lines[lines.length - 1];
+          const result = JSON.parse(jsonLine);
           if (result.success) {
+            // YouTube 업로드 기록 저장
+            try {
+              const thumbnailUrl = `https://img.youtube.com/vi/${result.video_id}/maxresdefault.jpg`;
+
+              createYouTubeUpload({
+                userId: user.userId,
+                jobId: body.jobId || undefined,
+                videoId: result.video_id,
+                videoUrl: result.video_url,
+                title,
+                description,
+                thumbnailUrl,
+                channelId: selectedChannel.channelId,
+                channelTitle: selectedChannel.channelTitle,
+                privacyStatus: privacy
+              });
+
+              console.log('✅ YouTube 업로드 기록 저장 완료');
+            } catch (dbError) {
+              console.error('❌ DB 저장 실패:', dbError);
+              // DB 저장 실패해도 업로드는 성공이므로 계속 진행
+            }
+
             resolve(NextResponse.json({
               success: true,
               videoId: result.video_id,

@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         if (script) {
           scriptTitle = script.originalTitle || script.title;
           scriptType = script.type || 'longform';
-          useClaudeLocal = script.useClaudeLocal === 1 || script.useClaudeLocal === true;
+          useClaudeLocal = script.useClaudeLocal === true;
         }
       }
     }

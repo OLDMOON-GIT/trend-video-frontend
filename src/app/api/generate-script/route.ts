@@ -167,9 +167,35 @@ export async function POST(request: NextRequest) {
         };
         const estimatedTotalChars = estimatedLengths[format || 'longform'] || 33000;
 
+        // SORA2 전용 system prompt (JSON 전용 모드 강제)
+        const systemPrompt = format === 'sora2'
+          ? `YOU ARE A JSON-ONLY MACHINE. NOT AN ASSISTANT. NOT A CHATBOT.
+
+YOUR ENTIRE RESPONSE = ONE SINGLE JSON OBJECT
+
+ABSOLUTE RULES:
+1. First character MUST be: {
+2. Last character MUST be: }
+3. Everything between { and } MUST be valid JSON
+4. ZERO text before {
+5. ZERO text after }
+
+FORBIDDEN (INSTANT FAILURE):
+❌ Code fences: \`\`\`json, \`\`\`, \`\`\`
+❌ Explanations: "Here's", "다음은", "제공합니다"
+❌ Greetings: "Hello", "안녕하세요"
+❌ Confirmations: "Sure", "알겠습니다"
+❌ ANY text before {
+❌ ANY text after }
+
+YOU ARE A JSON PRINTER. NOTHING ELSE.
+START YOUR RESPONSE WITH { NOW.`
+          : undefined;
+
         const stream = await anthropic.messages.stream({
           model: 'claude-sonnet-4-5-20250929',
           max_tokens: 64000, // Claude Sonnet 4.5 최대 출력 토큰
+          system: systemPrompt,
           messages: [
             {
               role: 'user',
@@ -232,9 +258,42 @@ export async function POST(request: NextRequest) {
 
         console.log('📝 생성된 대본:', scriptContent.substring(0, 500) + '...');
 
-        // SORA2 형식인 경우 JSON 정리
+        // JSON 형식인 경우 정리 및 포맷팅 (모든 타입)
         let finalContent = scriptContent;
-        if (format === 'sora2') {
+
+        // JSON 포맷인지 확인 (롱폼, 숏폼, SORA2 모두 JSON)
+        console.log('🔧 JSON 정리 시작...');
+
+        // 코드펜스 제거
+        finalContent = finalContent.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+        // 앞뒤 설명문 제거 (JSON이 시작되기 전과 끝난 후의 텍스트)
+        const jsonStart = finalContent.indexOf('{');
+        const jsonEnd = finalContent.lastIndexOf('}');
+
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          finalContent = finalContent.substring(jsonStart, jsonEnd + 1);
+          console.log('✅ JSON 추출 완료');
+
+          // JSON 유효성 검증 및 포맷팅
+          try {
+            const parsed = JSON.parse(finalContent);
+            console.log('✅ JSON 파싱 성공');
+
+            // JSON 포맷팅 (예쁘게 정리)
+            finalContent = JSON.stringify(parsed, null, 2);
+            console.log('✨ JSON 포맷팅 완료');
+          } catch (jsonError) {
+            console.error('❌ JSON 파싱 실패:', jsonError);
+            console.log('원본 내용:', finalContent.substring(0, 500));
+          }
+        } else if (format === 'sora2') {
+          // SORA2만 JSON이 필수이므로 경고
+          console.warn('⚠️ JSON 구조를 찾을 수 없음');
+        }
+
+        // 기존 SORA2 전용 처리 제거 (위에서 통합 처리)
+        if (false && format === 'sora2') {
           console.log('🔧 SORA2 JSON 정리 중...');
 
           // 코드펜스 제거
@@ -248,10 +307,14 @@ export async function POST(request: NextRequest) {
             finalContent = finalContent.substring(jsonStart, jsonEnd + 1);
             console.log('✅ JSON 추출 완료');
 
-            // JSON 유효성 검증
+            // JSON 유효성 검증 및 포맷팅
             try {
-              JSON.parse(finalContent);
+              const parsed = JSON.parse(finalContent);
               console.log('✅ JSON 파싱 성공');
+
+              // JSON 포맷팅 (예쁘게 정리)
+              finalContent = JSON.stringify(parsed, null, 2);
+              console.log('✨ JSON 포맷팅 완료');
             } catch (jsonError) {
               console.error('❌ JSON 파싱 실패:', jsonError);
               console.log('원본 내용:', finalContent.substring(0, 500));

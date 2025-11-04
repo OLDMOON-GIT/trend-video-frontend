@@ -47,6 +47,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 최신순 정렬 (createdAt 기준)
+    filteredJobs.sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA; // 최신순 (내림차순)
+    });
+
     // 전체 개수
     const total = filteredJobs.length;
 

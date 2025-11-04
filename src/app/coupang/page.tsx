@@ -84,7 +84,7 @@ export default function CoupangPartnersPage() {
     return null;
   };
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): Record<string, string> => {
     const sessionId = getSessionId();
     return sessionId ? {
       'Authorization': `Bearer ${sessionId}`

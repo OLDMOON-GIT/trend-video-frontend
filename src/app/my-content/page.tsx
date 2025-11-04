@@ -22,6 +22,9 @@ interface Script {
     input_tokens: number;
     output_tokens: number;
   };
+  sourceContentId?: string;  // 원본 컨텐츠 ID (변환된 경우)
+  conversionType?: string;    // 변환 타입 (예: 'longform-to-sora2')
+  isRegenerated?: boolean;    // 재생성 여부
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +42,7 @@ interface Job {
   title?: string;
   type?: 'longform' | 'shortform' | 'sora2';
   logs?: string[];
+  sourceContentId?: string;  // 원본 대본 ID
 }
 
 type TabType = 'all' | 'videos' | 'scripts' | 'published' | 'settings';
@@ -56,6 +60,51 @@ interface YouTubeChannel {
   subscriberCount: string;
   videoCount: string;
   viewCount: string;
+}
+
+interface YouTubeUpload {
+  id: string;
+  userId: string;
+  jobId?: string;
+  videoId: string;
+  videoUrl: string;
+  title: string;
+  description?: string;
+  thumbnailUrl?: string;
+  channelId: string;
+  channelTitle?: string;
+  privacyStatus?: string;
+  publishedAt: string;
+  createdAt: string;
+}
+
+// 복사 가능한 에러 메시지 컴포넌트
+function ErrorMessage({ message }: { message: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="relative group mt-3 rounded-lg bg-red-500/20 border border-red-500/30 p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <pre className="flex-1 text-red-300 whitespace-pre-wrap break-words font-mono text-xs select-text">
+          {message}
+        </pre>
+        <button
+          onClick={handleCopy}
+          className="flex-shrink-0 rounded px-2 py-1 text-xs bg-red-500/30 hover:bg-red-500/50 text-red-200 transition-colors"
+          title="에러 메시지 복사"
+        >
+          {copied ? '✓ 복사됨' : '📋 복사'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function MyContentPage() {
@@ -89,6 +138,12 @@ export default function MyContentPage() {
   const scriptLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scriptLastLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
+  // Scripts pagination
+  const [scriptsOffset, setScriptsOffset] = useState(0);
+  const [scriptsTotal, setScriptsTotal] = useState(0);
+  const [scriptsHasMore, setScriptsHasMore] = useState(false);
+  const [isLoadingMoreScripts, setIsLoadingMoreScripts] = useState(false);
+
   // Pagination states for each tab
   const [allTabLimit, setAllTabLimit] = useState(10);
   const [scriptsTabLimit, setScriptsTabLimit] = useState(10);
@@ -98,11 +153,30 @@ export default function MyContentPage() {
   const [filter, setFilter] = useState<'all' | 'active'>('all');
   const [isLoadingVideos, setIsLoadingVideos] = useState(false);
   const [expandedLogJobId, setExpandedLogJobId] = useState<string | null>(null);
+
+  // Published (YouTube uploads) state
+  const [youtubeUploads, setYoutubeUploads] = useState<YouTubeUpload[]>([]);
+  const [isLoadingUploads, setIsLoadingUploads] = useState(false);
+  const [uploadingJobs, setUploadingJobs] = useState<Map<string, {
+    status: 'uploading' | 'success' | 'error';
+    title: string;
+    videoUrl?: string;
+    error?: string;
+  }>>(new Map());
+
+  // Published pagination
+  const [publishedOffset, setPublishedOffset] = useState(0);
+  const [publishedTotal, setPublishedTotal] = useState(0);
+  const [publishedHasMore, setPublishedHasMore] = useState(false);
+  const [isLoadingMorePublished, setIsLoadingMorePublished] = useState(false);
+
+  // Videos pagination
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // 입력 중인 검색어
+  const [activeSearchQuery, setActiveSearchQuery] = useState(''); // 실제 검색에 사용되는 검색어
   const jobLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Modal state
@@ -124,6 +198,11 @@ export default function MyContentPage() {
     options: { value: string; label: string }[];
   } | null>(null);
 
+  // TTS (읽어보기) 상태
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
   // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
   const getAuthHeaders = (): HeadersInit => {
     return {}; // 빈 객체 반환 (쿠키가 자동으로 전송됨)
@@ -139,22 +218,61 @@ export default function MyContentPage() {
     checkAuth();
   }, []);
 
+  // 초기 로딩 시 모든 탭의 카운트 가져오기
+  useEffect(() => {
+    if (user) {
+      fetchAllCounts();
+    }
+  }, [user]);
+
+  const fetchAllCounts = async () => {
+    try {
+      // 병렬로 모든 카운트 가져오기
+      const [scriptsRes, videosRes, publishedRes] = await Promise.all([
+        fetch('/api/my-scripts?limit=0&offset=0', { credentials: 'include' }),
+        fetch('/api/my-videos?filter=all&limit=0&offset=0', { credentials: 'include' }),
+        fetch('/api/youtube/published?limit=0&offset=0', { credentials: 'include' })
+      ]);
+
+      const [scriptsData, videosData, publishedData] = await Promise.all([
+        scriptsRes.json(),
+        videosRes.json(),
+        publishedRes.json()
+      ]);
+
+      // 카운트만 설정
+      if (scriptsRes.ok) setScriptsTotal(scriptsData.total || 0);
+      if (videosRes.ok) setTotal(videosData.total || 0);
+      if (publishedRes.ok) setPublishedTotal(publishedData.total || 0);
+    } catch (error) {
+      console.error('카운트 가져오기 실패:', error);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       if (activeTab === 'scripts') {
-        fetchScripts();
+        setScripts([]);
+        setScriptsOffset(0);
+        fetchScripts(true);
       } else if (activeTab === 'videos') {
         setJobs([]);
         setOffset(0);
         fetchJobs(true);
       } else if (activeTab === 'all') {
-        fetchScripts();
+        setScripts([]);
+        setScriptsOffset(0);
+        fetchScripts(true);
         setJobs([]);
         setOffset(0);
         fetchJobs(true);
+      } else if (activeTab === 'published') {
+        setYoutubeUploads([]);
+        setPublishedOffset(0);
+        fetchYouTubeUploads(true);
       }
     }
-  }, [user, activeTab, filter, searchQuery]);
+  }, [user, activeTab, filter, activeSearchQuery]);
 
   // 진행 중인 대본 자동 스크롤
   useEffect(() => {
@@ -221,7 +339,9 @@ export default function MyContentPage() {
           if (statusData.status === 'completed' || statusData.status === 'failed') {
             clearInterval(interval);
             // 전체 목록 새로고침 (완료되었으므로)
-            fetchScripts();
+            setScripts([]);
+            setScriptsOffset(0);
+            fetchScripts(true);
           } else {
             // 진행 중인 대본만 업데이트 (scripts 배열에서 해당 항목만 교체)
             setScripts(prev => prev.map(s =>
@@ -268,7 +388,7 @@ export default function MyContentPage() {
           });
           const statusData = await response.json();
 
-          if (statusData.status === 'completed' || statusData.status === 'failed' || statusData.status === 'cancelled') {
+          if (statusData.status === 'completed' || statusData.status === 'failed') {
             clearInterval(interval);
             // 전체 목록 새로고침 (완료되었으므로)
             fetchJobs(true);
@@ -319,10 +439,23 @@ export default function MyContentPage() {
   };
 
   // ===== 대본 관련 함수 =====
-  const fetchScripts = async () => {
-    setIsLoadingScripts(true);
+  const fetchScripts = async (reset = false) => {
+    const currentOffset = reset ? 0 : scriptsOffset;
+
+    if (reset) {
+      setIsLoadingScripts(true);
+    } else {
+      setIsLoadingMoreScripts(true);
+    }
+
     try {
-      const response = await fetch('/api/my-scripts', {
+      const params = new URLSearchParams({
+        limit: '10',
+        offset: currentOffset.toString(),
+        ...(activeSearchQuery && { search: activeSearchQuery })
+      });
+
+      const response = await fetch(`/api/my-scripts?${params}`, {
         headers: getAuthHeaders(),
         credentials: 'include'
       });
@@ -330,7 +463,23 @@ export default function MyContentPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setScripts(data.scripts);
+        console.log('[fetchScripts] 응답:', {
+          reset,
+          currentOffset,
+          받은데이터: data.scripts.length,
+          total: data.total,
+          hasMore: data.hasMore,
+          새offset: currentOffset + data.scripts.length
+        });
+
+        if (reset) {
+          setScripts(data.scripts);
+        } else {
+          setScripts(prev => [...prev, ...data.scripts]);
+        }
+        setScriptsTotal(data.total);
+        setScriptsHasMore(data.hasMore);
+        setScriptsOffset(currentOffset + data.scripts.length);
       } else {
         console.error('❌ 대본 가져오기 실패:', data.error);
         toast.error(data.error || '대본을 불러올 수 없습니다.');
@@ -340,6 +489,21 @@ export default function MyContentPage() {
       toast.error('대본 목록을 불러오는 중 오류가 발생했습니다.');
     } finally {
       setIsLoadingScripts(false);
+      setIsLoadingMoreScripts(false);
+    }
+  };
+
+  const loadMoreScripts = () => {
+    console.log('[loadMoreScripts] 호출:', {
+      isLoadingMoreScripts,
+      scriptsHasMore,
+      현재offset: scriptsOffset,
+      현재scripts개수: scripts.length,
+      total: scriptsTotal
+    });
+
+    if (!isLoadingMoreScripts && scriptsHasMore) {
+      fetchScripts(false);
     }
   };
 
@@ -393,7 +557,7 @@ export default function MyContentPage() {
 
           if (response.ok) {
             toast.success('대본 생성이 취소되었습니다.');
-            fetchScripts();
+            fetchScripts(true);
           } else {
             toast.error('취소 실패: ' + (data.error || '알 수 없는 오류'));
           }
@@ -425,7 +589,7 @@ export default function MyContentPage() {
 
           if (response.ok) {
             toast.success('대본이 삭제되었습니다.');
-            fetchScripts();
+            fetchScripts(true);
           } else {
             toast.error('삭제 실패: ' + (data.error || '알 수 없는 오류'));
           }
@@ -456,7 +620,7 @@ export default function MyContentPage() {
         filter,
         limit: '10',
         offset: currentOffset.toString(),
-        ...(searchQuery && { search: searchQuery })
+        ...(activeSearchQuery && { search: activeSearchQuery })
       });
 
       const response = await fetch(`/api/my-videos?${params}`, {
@@ -486,6 +650,73 @@ export default function MyContentPage() {
   const loadMore = () => {
     if (!isLoadingMore && hasMore) {
       fetchJobs(false);
+    }
+  };
+
+  // YouTube 업로드 기록 가져오기
+  const fetchYouTubeUploads = async (reset = false) => {
+    const currentOffset = reset ? 0 : publishedOffset;
+
+    if (reset) {
+      setIsLoadingUploads(true);
+    } else {
+      setIsLoadingMorePublished(true);
+    }
+
+    try {
+      const params = new URLSearchParams({
+        limit: '10',
+        offset: currentOffset.toString()
+      });
+
+      const response = await fetch(`/api/youtube/published?${params}`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        if (reset) {
+          setYoutubeUploads(data.uploads || []);
+        } else {
+          setYoutubeUploads(prev => [...prev, ...(data.uploads || [])]);
+        }
+        setPublishedTotal(data.total || 0);
+        setPublishedHasMore(data.hasMore || false);
+        setPublishedOffset(currentOffset + (data.uploads?.length || 0));
+      }
+    } catch (error) {
+      console.error('YouTube 업로드 기록 조회 실패:', error);
+    } finally {
+      setIsLoadingUploads(false);
+      setIsLoadingMorePublished(false);
+    }
+  };
+
+  const loadMorePublished = () => {
+    if (!isLoadingMorePublished && publishedHasMore) {
+      fetchYouTubeUploads(false);
+    }
+  };
+
+  // YouTube 업로드 기록 삭제
+  const handleDeleteUpload = async (uploadId: string) => {
+    try {
+      const response = await fetch(`/api/youtube/published?id=${uploadId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        toast.success('삭제되었습니다');
+        setYoutubeUploads([]);
+        setPublishedOffset(0);
+        fetchYouTubeUploads(true);
+      } else {
+        toast.error('삭제 실패');
+      }
+    } catch (error) {
+      console.error('삭제 실패:', error);
+      toast.error('삭제 실패');
     }
   };
 
@@ -605,7 +836,7 @@ export default function MyContentPage() {
             // 대본 탭으로 전환
             setActiveTab('scripts');
             // 목록 새로고침
-            fetchScripts();
+            fetchScripts(true);
             // 새로운 scriptId의 로그를 자동으로 열기
             if (data.scriptId) {
               setExpandedScriptLogId(data.scriptId);
@@ -621,77 +852,303 @@ export default function MyContentPage() {
     );
   };
 
-  const handleCopyScript = async (content: string, title: string) => {
+  // 안전한 클립보드 복사 유틸리티 함수
+  const safeCopyToClipboard = async (text: string): Promise<boolean> => {
     try {
-      if (!content || content.trim().length === 0) {
-        toast.error('복사할 대본 내용이 없습니다.');
-        return;
-      }
-
       // Clipboard API 사용 가능 여부 확인
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        await navigator.clipboard.writeText(content);
-        toast.success('대본이 클립보드에 복사되었습니다!');
+        await navigator.clipboard.writeText(text);
+        return true;
       } else {
         // 폴백: document.execCommand 사용
         const textarea = document.createElement('textarea');
-        textarea.value = content;
+        textarea.value = text;
         textarea.style.position = 'fixed';
         textarea.style.opacity = '0';
         document.body.appendChild(textarea);
         textarea.select();
         const successful = document.execCommand('copy');
         document.body.removeChild(textarea);
-
-        if (successful) {
-          toast.success('대본이 클립보드에 복사되었습니다!');
-        } else {
-          throw new Error('복사 실패');
-        }
+        return successful;
       }
     } catch (error) {
       console.error('Copy error:', error);
-      // 폴백도 실패한 경우
+      // 폴백도 실패한 경우 한 번 더 시도
       try {
         const textarea = document.createElement('textarea');
-        textarea.value = content;
+        textarea.value = text;
         textarea.style.position = 'fixed';
         textarea.style.opacity = '0';
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand('copy');
+        const successful = document.execCommand('copy');
         document.body.removeChild(textarea);
-        toast.success('대본이 클립보드에 복사되었습니다!');
+        return successful;
       } catch (err) {
-        toast.error('복사 중 오류가 발생했습니다.');
+        console.error('Fallback copy error:', err);
+        return false;
       }
     }
   };
 
-  const handleCopyLogs = async (logs: string[] | undefined) => {
+  // TTS 나레이션 추출 함수
+  const extractNarration = (content: string): string => {
     try {
-      if (!logs || logs.length === 0) {
-        alert('복사할 로그가 없습니다.');
+      // JSON 파싱
+      const parseResult = parseJsonSafely(content);
+      if (!parseResult.success || !parseResult.data) {
+        return content; // 파싱 실패 시 전체 텍스트 반환
+      }
+
+      const data = parseResult.data;
+      const narrations: string[] = [];
+
+      // scenes 배열에서 narration 추출
+      if (data.scenes && Array.isArray(data.scenes)) {
+        data.scenes.forEach((scene: any, index: number) => {
+          const narration = scene.narration || scene.voiceover || '';
+          if (narration) {
+            narrations.push(`씬 ${index + 1}: ${narration}`);
+          }
+        });
+      }
+
+      return narrations.length > 0 ? narrations.join('\n\n') : content;
+    } catch (error) {
+      console.error('Narration extraction error:', error);
+      return content; // 에러 시 전체 텍스트 반환
+    }
+  };
+
+  // TTS 읽어보기 시작
+  const handleSpeak = (id: string, content: string) => {
+    // 브라우저 지원 확인
+    if (!('speechSynthesis' in window)) {
+      toast.error('이 브라우저는 음성 합성을 지원하지 않습니다.');
+      return;
+    }
+
+    // 이미 읽고 있으면 정지
+    if (speakingId === id) {
+      if (isPaused) {
+        // 일시정지 상태면 재개
+        window.speechSynthesis.resume();
+        setIsPaused(false);
+        toast('▶️ 재생');
+      } else {
+        // 읽고 있으면 정지
+        window.speechSynthesis.cancel();
+        setSpeakingId(null);
+        setIsPaused(false);
+        utteranceRef.current = null;
+        toast('⏹️ 중지됨');
+      }
+      return;
+    }
+
+    // 다른 음성이 읽고 있으면 정지
+    window.speechSynthesis.cancel();
+
+    // 나레이션 추출
+    const narrationText = extractNarration(content);
+
+    if (!narrationText || narrationText.trim().length === 0) {
+      toast.error('읽을 내용이 없습니다.');
+      return;
+    }
+
+    // 텍스트 길이 제한 (일부 브라우저에서 긴 텍스트 문제)
+    const maxLength = 5000;
+    const textToSpeak = narrationText.length > maxLength
+      ? narrationText.substring(0, maxLength) + '... (내용이 너무 길어 일부만 재생됩니다)'
+      : narrationText;
+
+    console.log('🔊 TTS 시작:', {
+      originalLength: narrationText.length,
+      speakLength: textToSpeak.length,
+      preview: textToSpeak.substring(0, 100)
+    });
+
+    // 새로운 음성 합성
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = 'ko-KR';
+    utterance.rate = 1.0; // 읽기 속도
+    utterance.pitch = 1.0; // 음높이
+    utterance.volume = 1.0; // 볼륨
+
+    utterance.onstart = () => {
+      console.log('🔊 TTS 재생 시작됨');
+    };
+
+    utterance.onend = () => {
+      console.log('✅ TTS 재생 완료');
+      setSpeakingId(null);
+      setIsPaused(false);
+      utteranceRef.current = null;
+      toast('✅ 재생 완료');
+    };
+
+    utterance.onerror = (event) => {
+      console.error('❌ TTS error:', {
+        error: event.error,
+        message: event.type,
+        charIndex: event.charIndex,
+        elapsedTime: event.elapsedTime
+      });
+
+      let errorMessage = '음성 재생 중 오류가 발생했습니다.';
+      if (event.error === 'not-allowed') {
+        errorMessage = '음성 재생 권한이 없습니다. 브라우저 설정을 확인해주세요.';
+      } else if (event.error === 'network') {
+        errorMessage = '네트워크 오류로 음성을 재생할 수 없습니다.';
+      } else if (event.error === 'synthesis-failed') {
+        errorMessage = '음성 합성에 실패했습니다.';
+      } else if (event.error === 'synthesis-unavailable') {
+        errorMessage = '음성 합성을 사용할 수 없습니다.';
+      } else if (event.error === 'text-too-long') {
+        errorMessage = '텍스트가 너무 깁니다.';
+      } else if (event.error === 'invalid-argument') {
+        errorMessage = '잘못된 입력입니다.';
+      }
+
+      toast.error(errorMessage);
+      setSpeakingId(null);
+      setIsPaused(false);
+      utteranceRef.current = null;
+    };
+
+    utteranceRef.current = utterance;
+
+    // 음성 목록이 로드될 때까지 대기 (일부 브라우저 필요)
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.addEventListener('voiceschanged', () => {
+        window.speechSynthesis.speak(utterance);
+      }, { once: true });
+    } else {
+      window.speechSynthesis.speak(utterance);
+    }
+
+    setSpeakingId(id);
+    setIsPaused(false);
+    toast.success('🔊 나레이션 읽기 시작');
+  };
+
+  // TTS 일시정지
+  const handlePause = () => {
+    if (speakingId && !isPaused) {
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+      toast('⏸️ 일시정지');
+    }
+  };
+
+  // 컴포넌트 언마운트 시 TTS 정리
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  // 이미지크롤링 핸들러
+  const handleImageCrawling = async (scriptId: string, jobId?: string) => {
+    try {
+      // scriptId로 대본 가져오기
+      const script = scripts.find(s => s.id === scriptId);
+      if (!script || !script.content) {
+        toast.error('대본을 찾을 수 없습니다.');
         return;
       }
-      const logsText = logs.join('\n');
-      await navigator.clipboard.writeText(logsText);
-      alert('로그가 클립보드에 복사되었습니다.');
-    } catch (error) {
-      console.error('Copy error:', error);
-      // 클립보드 권한이 없을 때 폴백
-      try {
-        const textarea = document.createElement('textarea');
-        textarea.value = logs?.join('\n') || '';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        alert('로그가 클립보드에 복사되었습니다.');
-      } catch (fallbackError) {
-        console.error('Fallback copy error:', fallbackError);
-        alert('로그 복사 중 오류가 발생했습니다.');
+
+      const scriptContent = script.content;
+
+      // JSON 파싱
+      const parseResult = parseJsonSafely(scriptContent);
+      if (!parseResult.success || !parseResult.data || !parseResult.data.scenes || !Array.isArray(parseResult.data.scenes)) {
+        toast.error('대본 형식이 올바르지 않습니다.');
+        return;
       }
+
+      const scriptData = parseResult.data;
+      const scenes = scriptData.scenes;
+      if (scenes.length === 0) {
+        toast.error('씬이 없습니다.');
+        return;
+      }
+
+      toast.success(`${scenes.length}개 씬의 이미지 생성을 시작합니다.`);
+
+      // scene_00 (또는 첫 번째 씬) - ImageFX
+      const firstScene = scenes[0];
+      const firstPrompt = firstScene.image_prompt || firstScene.sora_prompt || '';
+      if (firstPrompt) {
+        // 클립보드에 복사
+        await safeCopyToClipboard(firstPrompt);
+        toast.success(`📋 scene_00 프롬프트가 클립보드에 복사되었습니다!\n\nImageFX 창에서 Ctrl+V로 붙여넣기하세요.`, {
+          duration: 4000
+        });
+
+        // ImageFX 창 열기
+        const imageFxUrl = `https://aitestkitchen.withgoogle.com/tools/image-fx`;
+        window.open(imageFxUrl, '_blank');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기 (사용자가 확인할 시간)
+      }
+
+      // scene_01 이후 - Whisk
+      for (let i = 1; i < scenes.length; i++) {
+        const scene = scenes[i];
+        const sceneNumber = scene.scene_number || scene.scene_id || `scene_${String(i).padStart(2, '0')}`;
+        const prompt = scene.image_prompt || scene.sora_prompt || '';
+
+        if (prompt) {
+          // 클립보드에 복사
+          await safeCopyToClipboard(prompt);
+          toast.success(`📋 ${sceneNumber} 프롬프트가 클립보드에 복사되었습니다!\n\nWhisk 창에서 Ctrl+V로 붙여넣기하세요.`, {
+            duration: 4000
+          });
+
+          // Whisk 창 열기
+          const whiskUrl = `https://labs.google/fx/tools/whisk`;
+          window.open(whiskUrl, '_blank');
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기
+        }
+      }
+
+      toast.success('모든 이미지 생성 창이 열렸습니다. 각 창에서 Ctrl+V로 프롬프트를 붙여넣으세요!', {
+        duration: 5000
+      });
+    } catch (error) {
+      console.error('이미지크롤링 에러:', error);
+      toast.error('이미지 생성 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleCopyScript = async (content: string, title: string) => {
+    if (!content || content.trim().length === 0) {
+      toast.error('복사할 대본 내용이 없습니다.');
+      return;
+    }
+
+    const success = await safeCopyToClipboard(content);
+    if (success) {
+      toast.success('대본이 클립보드에 복사되었습니다!');
+    } else {
+      toast.error('복사 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleCopyLogs = async (logs: string[] | undefined) => {
+    if (!logs || logs.length === 0) {
+      toast.error('복사할 로그가 없습니다.');
+      return;
+    }
+
+    const logsText = logs.join('\n');
+    const success = await safeCopyToClipboard(logsText);
+
+    if (success) {
+      toast.success('로그가 클립보드에 복사되었습니다.');
+    } else {
+      toast.error('로그 복사 중 오류가 발생했습니다.');
     }
   };
 
@@ -756,7 +1213,7 @@ export default function MyContentPage() {
     setConversionModal(null);
 
     try {
-      const response = await fetch('/api/convert-script', {
+      const response = await fetch('/api/convert-format', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -776,7 +1233,7 @@ export default function MyContentPage() {
 
         // 목록 새로고침
         setTimeout(() => {
-          fetchScripts();
+          fetchScripts(true);
         }, 1000);
       } else {
         toast.error('대본 변환 실패: ' + (data.error || '알 수 없는 오류'));
@@ -1093,7 +1550,7 @@ export default function MyContentPage() {
                 : 'bg-white/10 text-slate-300 hover:bg-white/20'
             }`}
           >
-            📂 전체 {(jobs.length + scripts.length) > 0 && `(${jobs.length + scripts.length})`}
+            📂 전체 {(total + scriptsTotal) > 0 && `(${total + scriptsTotal})`}
           </button>
           <button
             onClick={() => handleTabChange('videos')}
@@ -1103,7 +1560,7 @@ export default function MyContentPage() {
                 : 'bg-white/10 text-slate-300 hover:bg-white/20'
             }`}
           >
-            🎬 영상 {jobs.length > 0 && `(${jobs.length})`}
+            🎬 영상 {total > 0 && `(${total})`}
           </button>
           <button
             onClick={() => handleTabChange('scripts')}
@@ -1113,7 +1570,7 @@ export default function MyContentPage() {
                 : 'bg-white/10 text-slate-300 hover:bg-white/20'
             }`}
           >
-            📝 대본 {scripts.length > 0 && `(${scripts.length})`}
+            📝 대본 {scriptsTotal > 0 && `(${scriptsTotal})`}
           </button>
           <button
             onClick={() => handleTabChange('published')}
@@ -1123,7 +1580,7 @@ export default function MyContentPage() {
                 : 'bg-white/10 text-slate-300 hover:bg-white/20'
             }`}
           >
-            📺 퍼블리시
+            📺 퍼블리시 {publishedTotal > 0 && `(${publishedTotal})`}
           </button>
           <button
             onClick={() => handleTabChange('settings')}
@@ -1149,14 +1606,34 @@ export default function MyContentPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    e.currentTarget.blur();
+                    setActiveSearchQuery(searchQuery);
+                    setJobs([]);
+                    setOffset(0);
+                    fetchJobs(true);
                   }
                 }}
                 className="flex-1 rounded-lg bg-white/10 px-4 py-2 text-white placeholder-slate-400 border border-white/20 focus:border-purple-500 focus:outline-none transition"
               />
-              {searchQuery && (
+              <button
+                onClick={() => {
+                  setActiveSearchQuery(searchQuery);
+                  setJobs([]);
+                  setOffset(0);
+                  fetchJobs(true);
+                }}
+                className="rounded-lg bg-purple-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+              >
+                검색
+              </button>
+              {activeSearchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setActiveSearchQuery('');
+                    setJobs([]);
+                    setOffset(0);
+                    fetchJobs(true);
+                  }}
                   className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500"
                 >
                   초기화
@@ -1314,9 +1791,7 @@ export default function MyContentPage() {
                                 </div>
                               )}
                               {item.data.error && (
-                                <div className="mt-3 rounded-lg bg-red-500/20 border border-red-500/30 p-3 text-sm text-red-300">
-                                  {item.data.error}
-                                </div>
+                                <ErrorMessage message={item.data.error} />
                               )}
                             </div>
 
@@ -1357,6 +1832,22 @@ export default function MyContentPage() {
                                   defaultTitle={item.data.title || ''}
                                   jobId={item.data.id}
                                 />
+                                {item.data.sourceContentId && (() => {
+                                  const sourceScript = scripts.find(s => s.id === item.data.sourceContentId);
+                                  return sourceScript && sourceScript.content ? (
+                                    <button
+                                      onClick={() => handleSpeak(item.data.id, sourceScript.content)}
+                                      className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition cursor-pointer whitespace-nowrap ${
+                                        speakingId === item.data.id
+                                          ? 'bg-red-600 hover:bg-red-500'
+                                          : 'bg-indigo-600 hover:bg-indigo-500'
+                                      }`}
+                                      title={speakingId === item.data.id ? '읽기 중지' : '나레이션 읽어보기'}
+                                    >
+                                      {speakingId === item.data.id ? '⏹️ 중지' : '🔊 읽어보기'}
+                                    </button>
+                                  ) : null;
+                                })()}
                                 {user?.isAdmin && (
                                   <button
                                     onClick={() => handleOpenFolder(item.data.id)}
@@ -1398,7 +1889,7 @@ export default function MyContentPage() {
                                 </button>
                               </>
                             )}
-                            {(item.data.status === 'failed' || item.data.status === 'cancelled') && (
+                            {item.data.status === 'failed' && (
                               <>
                                 {item.data.logs && item.data.logs.length > 0 && (
                                   <button
@@ -1496,9 +1987,9 @@ export default function MyContentPage() {
                                     className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4"
                                   >
                                     <div className="space-y-1">
-                                      {item.data.logs.map((log, idx) => {
+                                      {item.data.logs.map((log: any, idx: number) => {
                                         const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
-                                        const logTimestamp = typeof log === 'object' && log.timestamp ? log.timestamp : new Date().toISOString();
+                                        const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
 
                                         // API 사용 여부 감지
                                         const isUsingAPI = logMessage.includes('Claude API') ||
@@ -1543,9 +2034,7 @@ export default function MyContentPage() {
 
                             {/* 에러 상태 */}
                             {item.data.error && (
-                              <div className="mb-3 rounded bg-red-500/20 p-3 text-sm text-red-300">
-                                {item.data.error}
-                              </div>
+                              <ErrorMessage message={item.data.error} />
                             )}
 
                             {/* 대본 미리보기 (축소 상태) */}
@@ -1586,6 +2075,24 @@ export default function MyContentPage() {
                                   className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
                                 >
                                   {expandedScriptId === item.data.id ? '📄 닫기' : '📖 대본'}
+                                </button>
+                                <button
+                                  onClick={() => handleSpeak(item.data.id, item.data.content)}
+                                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition cursor-pointer whitespace-nowrap ${
+                                    speakingId === item.data.id
+                                      ? 'bg-red-600 hover:bg-red-500'
+                                      : 'bg-indigo-600 hover:bg-indigo-500'
+                                  }`}
+                                  title={speakingId === item.data.id ? '읽기 중지' : '나레이션 읽어보기'}
+                                >
+                                  {speakingId === item.data.id ? '⏹️ 중지' : '🔊 읽어보기'}
+                                </button>
+                                <button
+                                  onClick={() => handleImageCrawling(item.data.id, '')}
+                                  className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
+                                  title="이미지 생성"
+                                >
+                                  🎨 이미지크롤링
                                 </button>
                                 <button
                                   onClick={() => {
@@ -1702,7 +2209,7 @@ export default function MyContentPage() {
                                 </button>
                               </>
                             )}
-                            {(item.data.status === 'failed' || item.data.status === 'cancelled') && (
+                            {item.data.status === 'failed' && (
                               <>
                                 {item.data.logs && item.data.logs.length > 0 && (
                                   <button
@@ -1764,7 +2271,7 @@ export default function MyContentPage() {
                             }}
                             className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
                           >
-                            {item.data.logs.map((log, idx) => (
+                            {item.data.logs.map((log: any, idx: number) => (
                               <div
                                 key={idx}
                                 className="text-emerald-400 whitespace-pre-wrap break-all mb-1"
@@ -1799,7 +2306,7 @@ export default function MyContentPage() {
                             }}
                             className="h-[500px] overflow-y-auto rounded bg-black/60 p-4 font-mono text-sm leading-relaxed"
                           >
-                            {item.data.logs.map((log, idx) => (
+                            {item.data.logs.map((log: any, idx: number) => (
                               <div key={idx} className="text-green-400 whitespace-pre-wrap break-all mb-2">
                                 {typeof log === 'string' ? log : log.message || JSON.stringify(log)}
                               </div>
@@ -1916,6 +2423,7 @@ export default function MyContentPage() {
                   {filteredScripts.slice(0, scriptsTabLimit).map((script) => (
                   <div
                     key={script.id}
+                    id={`script-${script.id}`}
                     className="group rounded-xl border border-white/10 bg-white/5 backdrop-blur transition hover:bg-white/10 hover:border-purple-500/50 overflow-hidden"
                   >
                     <div className="p-4">
@@ -1946,6 +2454,37 @@ export default function MyContentPage() {
                               <span className="text-slate-500">•</span>
                               <span>{formatDate(script.createdAt)}</span>
                             </p>
+                            {/* From 링크 (변환된 대본인 경우) */}
+                            {script.sourceContentId && (
+                              <p className="flex items-center gap-2">
+                                <span className="text-slate-500">•</span>
+                                <span>
+                                  From:{' '}
+                                  <button
+                                    onClick={() => {
+                                      const sourceElement = document.getElementById(`script-${script.sourceContentId}`);
+                                      if (sourceElement) {
+                                        sourceElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        sourceElement.classList.add('ring-2', 'ring-purple-500', 'ring-offset-2', 'ring-offset-slate-900');
+                                        setTimeout(() => {
+                                          sourceElement.classList.remove('ring-2', 'ring-purple-500', 'ring-offset-2', 'ring-offset-slate-900');
+                                        }, 2000);
+                                      } else {
+                                        toast.error('원본 대본을 찾을 수 없습니다.');
+                                      }
+                                    }}
+                                    className="text-purple-400 hover:text-purple-300 underline cursor-pointer transition"
+                                  >
+                                    원본 대본 보기 🔗
+                                  </button>
+                                  {script.conversionType && (
+                                    <span className="ml-1 text-xs text-slate-500">
+                                      ({script.conversionType})
+                                    </span>
+                                  )}
+                                </span>
+                              </p>
+                            )}
                             {script.status === 'completed' && (
                               <p className="flex items-center gap-2">
                                 <span className="text-slate-500">•</span>
@@ -1983,9 +2522,9 @@ export default function MyContentPage() {
                                 className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4"
                               >
                                 <div className="space-y-1">
-                                  {script.logs.map((log, idx) => {
+                                  {script.logs.map((log: any, idx: number) => {
                                     const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
-                                    const logTimestamp = typeof log === 'object' && log.timestamp ? log.timestamp : new Date().toISOString();
+                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
 
                                     // API 사용 여부 감지
                                     const isUsingAPI = logMessage.includes('Claude API') ||
@@ -2023,16 +2562,107 @@ export default function MyContentPage() {
 
                         {/* 대기 중 상태 */}
                         {script.status === 'pending' && (
-                          <div className="mb-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 p-3 text-sm text-yellow-300">
-                            ⏳ 대본 생성 대기 중...
-                          </div>
+                          <>
+                            <div className="mb-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 p-3 text-sm text-yellow-300">
+                              ⏳ 대본 생성 대기 중...
+                            </div>
+
+                            {/* 로그 표시 (대기 중에도) */}
+                            {script.logs && script.logs.length > 0 && (
+                              <div
+                                ref={(el) => {
+                                  if (el) {
+                                    scriptLogRefs.current.set(script.id, el);
+                                  } else {
+                                    scriptLogRefs.current.delete(script.id);
+                                  }
+                                }}
+                                className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4 mb-3"
+                              >
+                                <div className="space-y-1">
+                                  {script.logs.map((log: any, idx: number) => {
+                                    const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                                    const isUsingAPI = logMessage.includes('Claude API') ||
+                                                      logMessage.includes('API 호출') ||
+                                                      logMessage.includes('Using Claude API') ||
+                                                      logMessage.includes('💰');
+                                    const isUsingLocal = logMessage.includes('로컬 Claude') ||
+                                                        logMessage.includes('Local Claude') ||
+                                                        logMessage.includes('python') ||
+                                                        logMessage.includes('🖥️');
+
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="text-sm text-slate-300 font-mono"
+                                        ref={(el) => {
+                                          if (idx === script.logs!.length - 1 && el) {
+                                            scriptLastLogRefs.current.set(script.id, el);
+                                          }
+                                        }}
+                                      >
+                                        <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                        {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                                        {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                                        {logMessage}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
 
                         {/* 에러 상태 */}
                         {script.error && (
-                          <div className="mb-3 rounded bg-red-500/20 p-3 text-sm text-red-300">
-                            {script.error}
-                          </div>
+                          <>
+                            <ErrorMessage message={script.error} />
+
+                            {/* 실패 시 로그 표시 */}
+                            {script.logs && script.logs.length > 0 && (
+                              <div
+                                ref={(el) => {
+                                  if (el) {
+                                    scriptLogRefs.current.set(script.id, el);
+                                  } else {
+                                    scriptLogRefs.current.delete(script.id);
+                                  }
+                                }}
+                                className="max-h-96 overflow-y-auto rounded-lg border border-red-600 bg-slate-900/80 p-4 mb-3"
+                              >
+                                <div className="space-y-1">
+                                  {script.logs.map((log: any, idx: number) => {
+                                    const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                                    const isUsingAPI = logMessage.includes('Claude API') ||
+                                                      logMessage.includes('API 호출') ||
+                                                      logMessage.includes('Using Claude API') ||
+                                                      logMessage.includes('💰');
+                                    const isUsingLocal = logMessage.includes('로컬 Claude') ||
+                                                        logMessage.includes('Local Claude') ||
+                                                        logMessage.includes('python') ||
+                                                        logMessage.includes('🖥️');
+
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="text-sm text-slate-300 font-mono"
+                                      >
+                                        <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                        {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                                        {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                                        {logMessage}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
 
                         {/* 대본 미리보기 (축소 상태) */}
@@ -2074,6 +2704,24 @@ export default function MyContentPage() {
                               {expandedScriptId === script.id ? '📄 닫기' : '📖 대본'}
                             </button>
                             <button
+                              onClick={() => handleSpeak(script.id, script.content)}
+                              className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition cursor-pointer whitespace-nowrap ${
+                                speakingId === script.id
+                                  ? 'bg-red-600 hover:bg-red-500'
+                                  : 'bg-indigo-600 hover:bg-indigo-500'
+                              }`}
+                              title={speakingId === script.id ? '읽기 중지' : '나레이션 읽어보기'}
+                            >
+                              {speakingId === script.id ? '⏹️ 중지' : '🔊 읽어보기'}
+                            </button>
+                            <button
+                              onClick={() => handleImageCrawling(script.id, '')}
+                              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
+                              title="이미지 생성"
+                            >
+                              🎨 이미지크롤링
+                            </button>
+                            <button
                               onClick={() => {
                                 console.log('🎬 [대본 탭] 영상 제작 버튼 클릭됨');
                                 console.log('📝 대본 제목:', script.title);
@@ -2113,7 +2761,7 @@ export default function MyContentPage() {
 
                                       // {"title" 패턴을 찾아서 그 이전의 모든 텍스트 제거 (가장 정확한 방법)
                                       // \s*는 공백, 탭, 줄바꿈(\n, \r) 모두 포함
-                                      const titleMatch = fixed.match(/\{\s*"title"/s);
+                                      const titleMatch = fixed.match(/\{\s*"title"/);
                                       if (titleMatch && titleMatch.index !== undefined && titleMatch.index > 0) {
                                         fixed = fixed.substring(titleMatch.index);
                                         console.log('✅ {"title" 패턴으로 JSON 시작점 발견 (위치:', titleMatch.index, ')');
@@ -2257,7 +2905,7 @@ export default function MyContentPage() {
                             </button>
                           </>
                         )}
-                        {(script.status === 'failed' || script.status === 'cancelled') && (
+                        {script.status === 'failed' && (
                           <>
                             {script.logs && script.logs.length > 0 && (
                               <button
@@ -2318,7 +2966,7 @@ export default function MyContentPage() {
                           }}
                           className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
                         >
-                          {script.logs.map((log, idx) => (
+                          {script.logs.map((log: any, idx: number) => (
                             <div
                               key={idx}
                               className="text-emerald-400 whitespace-pre-wrap break-all mb-1"
@@ -2339,13 +2987,14 @@ export default function MyContentPage() {
                 ))}
 
                 {/* 더보기 버튼 */}
-                {filteredScripts.length > scriptsTabLimit && (
+                {scriptsHasMore && (
                   <div className="mt-6 text-center">
                     <button
-                      onClick={() => setScriptsTabLimit(prev => prev + 10)}
-                      className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500"
+                      onClick={loadMoreScripts}
+                      disabled={isLoadingMoreScripts}
+                      className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      더보기 ({filteredScripts.length - scriptsTabLimit}개 더)
+                      {isLoadingMoreScripts ? '로딩 중...' : `더보기 (${scriptsTotal - scripts.length}개 더)`}
                     </button>
                   </div>
                 )}
@@ -2367,14 +3016,34 @@ export default function MyContentPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    e.currentTarget.blur();
+                    setActiveSearchQuery(searchQuery);
+                    setJobs([]);
+                    setOffset(0);
+                    fetchJobs(true);
                   }
                 }}
                 className="flex-1 rounded-lg bg-white/10 px-4 py-2 text-white placeholder-slate-400 border border-white/20 focus:border-purple-500 focus:outline-none transition"
               />
-              {searchQuery && (
+              <button
+                onClick={() => {
+                  setActiveSearchQuery(searchQuery);
+                  setJobs([]);
+                  setOffset(0);
+                  fetchJobs(true);
+                }}
+                className="rounded-lg bg-purple-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+              >
+                검색
+              </button>
+              {activeSearchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setActiveSearchQuery('');
+                    setJobs([]);
+                    setOffset(0);
+                    fetchJobs(true);
+                  }}
                   className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500"
                 >
                   초기화
@@ -2493,6 +3162,37 @@ export default function MyContentPage() {
                               <span className="text-slate-500">•</span>
                               <span>{formatDate(job.createdAt)}</span>
                             </p>
+                            {/* From 링크 (대본에서 생성된 영상인 경우) */}
+                            {job.sourceContentId && (
+                              <p className="flex items-center gap-2">
+                                <span className="text-slate-500">•</span>
+                                <span>
+                                  From:{' '}
+                                  <button
+                                    onClick={() => {
+                                      // Scripts 탭으로 이동
+                                      setActiveTab('scripts');
+                                      // 약간의 지연 후 스크롤
+                                      setTimeout(() => {
+                                        const sourceElement = document.getElementById(`script-${job.sourceContentId}`);
+                                        if (sourceElement) {
+                                          sourceElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                          sourceElement.classList.add('ring-2', 'ring-purple-500', 'ring-offset-2', 'ring-offset-slate-900');
+                                          setTimeout(() => {
+                                            sourceElement.classList.remove('ring-2', 'ring-purple-500', 'ring-offset-2', 'ring-offset-slate-900');
+                                          }, 2000);
+                                        } else {
+                                          toast.error('원본 대본을 찾을 수 없습니다.');
+                                        }
+                                      }, 100);
+                                    }}
+                                    className="text-purple-400 hover:text-purple-300 underline cursor-pointer transition"
+                                  >
+                                    원본 대본 보기 🔗
+                                  </button>
+                                </span>
+                              </p>
+                            )}
                             {job.updatedAt !== job.createdAt && (
                               <p className="flex items-center gap-2">
                                 <span className="text-slate-500">•</span>
@@ -2515,9 +3215,7 @@ export default function MyContentPage() {
                             </div>
                           )}
                           {job.error && (
-                            <div className="mt-3 rounded-lg bg-red-500/20 border border-red-500/30 p-3 text-sm text-red-300">
-                              {job.error}
-                            </div>
+                            <ErrorMessage message={job.error} />
                           )}
                         </div>
 
@@ -2558,6 +3256,22 @@ export default function MyContentPage() {
                               defaultTitle={job.title || ''}
                               jobId={job.id}
                             />
+                            {job.sourceContentId && (() => {
+                              const sourceScript = scripts.find(s => s.id === job.sourceContentId);
+                              return sourceScript && sourceScript.content ? (
+                                <button
+                                  onClick={() => handleSpeak(job.id, sourceScript.content)}
+                                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition cursor-pointer whitespace-nowrap ${
+                                    speakingId === job.id
+                                      ? 'bg-red-600 hover:bg-red-500'
+                                      : 'bg-indigo-600 hover:bg-indigo-500'
+                                  }`}
+                                  title={speakingId === job.id ? '읽기 중지' : '나레이션 읽어보기'}
+                                >
+                                  {speakingId === job.id ? '⏹️ 중지' : '🔊 읽어보기'}
+                                </button>
+                              ) : null;
+                            })()}
                             {user?.isAdmin && (
                               <button
                                 onClick={() => handleOpenFolder(job.id)}
@@ -2576,6 +3290,13 @@ export default function MyContentPage() {
                                 {expandedLogJobId === job.id ? '📋 닫기' : `📋 로그 (${job.logs.length})`}
                               </button>
                             )}
+                            <button
+                              onClick={() => handleImageCrawling(job.sourceContentId || '', job.id)}
+                              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
+                              title="이미지 생성"
+                            >
+                              🎨 이미지크롤링
+                            </button>
                             <a
                               href={`/api/download-video?jobId=${job.id}`}
                               download
@@ -2599,7 +3320,7 @@ export default function MyContentPage() {
                             </button>
                           </>
                         )}
-                        {(job.status === 'failed' || job.status === 'cancelled') && (
+                        {job.status === 'failed' && (
                           <>
                             {job.logs && job.logs.length > 0 && (
                               <button
@@ -2646,7 +3367,7 @@ export default function MyContentPage() {
                           }}
                           className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
                         >
-                          {job.logs.map((log, idx) => (
+                          {job.logs.map((log: any, idx: number) => (
                             <div key={idx} className="text-green-400 whitespace-pre-wrap break-all mb-1">
                               {typeof log === 'string' ? log : log.message || JSON.stringify(log)}
                             </div>
@@ -2676,15 +3397,129 @@ export default function MyContentPage() {
 
         {/* 퍼블리시 탭 콘텐츠 */}
         {activeTab === 'published' && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm">
-            <div className="text-center text-slate-400 py-12">
-              <svg className="w-16 h-16 mx-auto mb-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              <p className="text-lg font-semibold mb-2">퍼블리시된 영상</p>
-              <p className="text-sm">YouTube에 업로드된 영상 목록이 여기에 표시됩니다.</p>
-              <p className="text-xs mt-2 text-slate-500">(준비 중)</p>
-            </div>
+          <div className="space-y-4">
+            {isLoadingUploads ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm">
+                <div className="text-center text-slate-400 py-12">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                  <p className="text-lg">로딩 중...</p>
+                </div>
+              </div>
+            ) : youtubeUploads.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm">
+                <div className="text-center text-slate-400 py-12">
+                  <svg className="w-16 h-16 mx-auto mb-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-lg font-semibold mb-2">퍼블리시된 영상 없음</p>
+                  <p className="text-sm">YouTube에 업로드된 영상이 여기에 표시됩니다.</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {youtubeUploads.map((upload) => (
+                  <div
+                    key={upload.id}
+                    className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all"
+                  >
+                    <div className="flex flex-col md:flex-row gap-4 p-4">
+                      {/* 썸네일 */}
+                      <div className="relative w-full md:w-64 h-36 flex-shrink-0 bg-slate-800/50 rounded-lg overflow-hidden">
+                        {upload.thumbnailUrl ? (
+                          <img
+                            src={upload.thumbnailUrl}
+                            alt={upload.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <svg className="w-12 h-12 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+                        {/* YouTube 배지 */}
+                        <div className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded">
+                          YouTube
+                        </div>
+                      </div>
+
+                      {/* 정보 */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-2 break-words line-clamp-2">
+                            {upload.title}
+                          </h3>
+                          <div className="flex flex-wrap gap-2 text-sm text-slate-400 mb-2">
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              {upload.channelTitle || '채널'}
+                            </span>
+                            <span>•</span>
+                            <span>{new Date(upload.publishedAt).toLocaleString('ko-KR')}</span>
+                            {upload.privacyStatus && (
+                              <>
+                                <span>•</span>
+                                <span className="capitalize">{upload.privacyStatus}</span>
+                              </>
+                            )}
+                          </div>
+                          {upload.description && (
+                            <p className="text-sm text-slate-400 line-clamp-2">{upload.description}</p>
+                          )}
+                        </div>
+
+                        {/* 버튼 */}
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          <a
+                            href={upload.videoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+                          >
+                            YouTube에서 보기
+                          </a>
+                          <button
+                            onClick={async () => {
+                              const success = await safeCopyToClipboard(upload.videoUrl);
+                              if (success) {
+                                toast.success('URL 복사됨');
+                              } else {
+                                toast.error('URL 복사 실패');
+                              }
+                            }}
+                            className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                          >
+                            📋 URL 복사
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUpload(upload.id)}
+                            className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-600"
+                          >
+                            🗑️ 삭제
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* 더보기 버튼 */}
+                {publishedHasMore && (
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={loadMorePublished}
+                      disabled={isLoadingMorePublished}
+                      className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoadingMorePublished ? '로딩 중...' : `더보기 (${publishedTotal - youtubeUploads.length}개 더)`}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 

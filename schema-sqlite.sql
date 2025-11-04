@@ -198,6 +198,28 @@ CREATE TABLE IF NOT EXISTS folders (
 
 CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
 
+-- YouTube uploads table (published videos)
+CREATE TABLE IF NOT EXISTS youtube_uploads (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  job_id TEXT,
+  video_id TEXT NOT NULL,
+  video_url TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  thumbnail_url TEXT,
+  channel_id TEXT NOT NULL,
+  channel_title TEXT,
+  privacy_status TEXT,
+  published_at TEXT DEFAULT (datetime('now')),
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_youtube_uploads_user_id ON youtube_uploads(user_id);
+CREATE INDEX IF NOT EXISTS idx_youtube_uploads_video_id ON youtube_uploads(video_id);
+CREATE INDEX IF NOT EXISTS idx_youtube_uploads_published_at ON youtube_uploads(published_at);
+
 -- Insert default settings if not exists
 INSERT OR IGNORE INTO settings (id, ai_script_cost, video_generation_cost)
 VALUES (1, 25, 50);
