@@ -124,25 +124,20 @@ export default function ArchitecturePage() {
     // 탭이 변경되거나 마크다운이 로드될 때 다이어그램 렌더링
     const renderMermaid = () => {
       setTimeout(() => {
+        // .language-mermaid와 .mermaid 둘 다 렌더링
+        const mermaidNodes = document.querySelectorAll('.language-mermaid, .mermaid');
         mermaid.run({
-          nodes: document.querySelectorAll('.language-mermaid'),
+          nodes: mermaidNodes,
         });
 
         // Mermaid 다이어그램의 모든 텍스트를 흰색으로 강제 설정
-        const mermaidElements = document.querySelectorAll('.language-mermaid svg');
+        const mermaidElements = document.querySelectorAll('.language-mermaid svg, .mermaid svg');
         mermaidElements.forEach((svg) => {
           // SVG 내 모든 text 요소를 흰색으로
-          const textElements = svg.querySelectorAll('text');
+          const textElements = svg.querySelectorAll('text, tspan');
           textElements.forEach((text) => {
             text.setAttribute('fill', '#ffffff');
             text.setAttribute('style', 'fill: #ffffff !important;');
-          });
-
-          // tspan 요소도 흰색으로
-          const tspanElements = svg.querySelectorAll('tspan');
-          tspanElements.forEach((tspan) => {
-            tspan.setAttribute('fill', '#ffffff');
-            tspan.setAttribute('style', 'fill: #ffffff !important;');
           });
 
           (svg as HTMLElement).style.cursor = 'pointer';
@@ -158,12 +153,16 @@ export default function ArchitecturePage() {
   useEffect(() => {
     if (mermaidInitialized.current) {
       setTimeout(() => {
-        mermaid.run({
-          nodes: document.querySelectorAll('.mermaid:not([data-processed])'),
-        });
+        // data-processed가 없는 노드만 선택
+        const unprocessedNodes = document.querySelectorAll('.language-mermaid:not([data-processed]), .mermaid:not([data-processed])');
+        if (unprocessedNodes.length > 0) {
+          mermaid.run({
+            nodes: unprocessedNodes,
+          });
+        }
 
         // 다이어그램에 클릭 핸들러 추가
-        const mermaidElements = document.querySelectorAll('.mermaid svg');
+        const mermaidElements = document.querySelectorAll('.language-mermaid svg, .mermaid svg');
         mermaidElements.forEach((svg) => {
           // 텍스트 색상 흰색으로
           const textElements = svg.querySelectorAll('text, tspan');
@@ -175,7 +174,7 @@ export default function ArchitecturePage() {
           (svg as HTMLElement).style.cursor = 'pointer';
           (svg as HTMLElement).onclick = () => handleDiagramClick(svg as SVGElement);
         });
-      }, 100);
+      }, 200);
     }
   }, [activeTab]);
 
