@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
     const jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const projectName = `uploaded_${jobId}`;
-    const inputPath = path.join(backendPath, 'input', projectName);
+    const inputPath = path.join(backendPath, 'uploads', projectName);
 
     // Job을 DB에 저장 (JSON의 title과 videoFormat 사용)
     await createJob(user.userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2');
