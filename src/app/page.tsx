@@ -1487,9 +1487,21 @@ export default function Home() {
                   handleRunAutomation();
                 }}
                 disabled={isPipelineProcessing}
-                className="w-full rounded-xl bg-teal-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-teal-500 disabled:cursor-wait disabled:opacity-70"
+                className="mb-3 w-full rounded-xl bg-teal-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-teal-500 disabled:cursor-wait disabled:opacity-70"
               >
                 {isPipelineProcessing && productionMode === 'merge' ? '⏳ 병합 중...' : '🎞️ 영상 병합'}
+              </button>
+
+              {/* 큰 버튼: 중국영상변환 */}
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = '/chinese-converter';
+                }}
+                disabled={isPipelineProcessing}
+                className="w-full rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-4 py-3 text-base font-semibold text-white transition hover:from-red-500 hover:to-orange-500 disabled:cursor-wait disabled:opacity-70"
+              >
+                🇨🇳 중국영상변환
               </button>
             </div>
           </div>

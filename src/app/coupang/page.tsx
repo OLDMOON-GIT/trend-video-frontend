@@ -7,6 +7,7 @@ interface CoupangSettings {
   accessKey: string;
   secretKey: string;
   trackingId: string;
+  openaiApiKey?: string;
   isConnected: boolean;
   lastChecked?: string;
 }
@@ -54,6 +55,7 @@ export default function CoupangPartnersPage() {
     accessKey: '',
     secretKey: '',
     trackingId: '',
+    openaiApiKey: '',
     isConnected: false
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -79,10 +81,10 @@ export default function CoupangPartnersPage() {
 
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error' | 'info'} | null>(null);
 
-  // Shopping Shorts Automation
-  const [videoLimit, setVideoLimit] = useState(5);
+  // Shopping Shorts Automation (Coupang → Douyin)
+  const [productLimit, setProductLimit] = useState(3);
+  const [videosPerProduct, setVideosPerProduct] = useState(2);
   const [category, setCategory] = useState('electronics');
-  const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [currentTask, setCurrentTask] = useState<ShoppingShortsTask | null>(null);
   const [isRunningPipeline, setIsRunningPipeline] = useState(false);
   const [taskPollingInterval, setTaskPollingInterval] = useState<NodeJS.Timeout | null>(null);
@@ -307,14 +309,14 @@ export default function CoupangPartnersPage() {
 
   // Shopping Shorts Automation Functions
   const startShoppingShortsPipeline = async () => {
-    if (!openaiApiKey.trim()) {
-      showToast('OpenAI API 키를 입력하세요.', 'error');
-      return;
+    // OpenAI는 경고만 (중국어 번역에 필요)
+    if (!settings.openaiApiKey?.trim()) {
+      showToast('⚠️ OpenAI 미설정 - 기본 번역 사용됩니다 (AI 번역 스킵)', 'info');
     }
 
+    // 쿠팡 연결은 경고만 (선택사항)
     if (!settings.isConnected) {
-      showToast('먼저 쿠팡 API 키를 연결하세요.', 'error');
-      return;
+      showToast('⚠️ 쿠팡 API 미연결 - 프론트엔드 API 사용', 'info');
     }
 
     setIsRunningPipeline(true);
@@ -326,9 +328,10 @@ export default function CoupangPartnersPage() {
           ...getAuthHeaders()
         },
         body: JSON.stringify({
-          videoLimit,
+          productLimit,
+          videosPerProduct,
           category,
-          openaiApiKey
+          openaiApiKey: settings.openaiApiKey
         })
       });
 
@@ -550,6 +553,22 @@ export default function CoupangPartnersPage() {
                 />
               </div>
 
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                  OpenAI API Key
+                </label>
+                <input
+                  type="password"
+                  value={settings.openaiApiKey || ''}
+                  onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
+                  placeholder="sk-..."
+                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  쇼핑 쇼츠 자동화에 사용 (GPT-4 제품 분석 및 대본 생성)
+                </p>
+              </div>
+
               <div className="flex gap-3">
                 <button
                   onClick={saveSettings}
@@ -722,19 +741,21 @@ export default function CoupangPartnersPage() {
         <div className="space-y-6 lg:col-span-2">
           {/* Pipeline Info */}
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-            <h2 className="mb-4 text-xl font-bold text-white">🎬 쇼핑 쇼츠 자동화 파이프라인</h2>
+            <h2 className="mb-4 text-xl font-bold text-white">🎬 쿠팡 → Douyin 쇼츠 자동화</h2>
             <div className="rounded-lg bg-blue-500/20 p-4">
-              <p className="text-sm font-semibold text-blue-300">자동화 프로세스:</p>
+              <p className="text-sm font-semibold text-blue-300">자동화 프로세스 (새 파이프라인):</p>
               <ol className="mt-2 space-y-1 text-sm text-blue-200">
-                <li>1. 더우인(Douyin) 트렌딩 쇼핑 영상 크롤링</li>
-                <li>2. 영상 다운로드 (워터마크 없는 영상 선택)</li>
-                <li>3. AI로 제품 정보 추출 및 한국어 번역</li>
-                <li>4. 쿠팡에서 유사 제품 검색 및 affiliate 링크 생성</li>
-                <li>5. 한국어 쇼츠 대본 자동 생성 (GPT-4)</li>
-                <li>6. TTS 음성 생성 (예정)</li>
-                <li>7. 자막 합성 (예정)</li>
-                <li>8. YouTube/Instagram/TikTok 업로드 (예정)</li>
+                <li>1. 🛒 쿠팡 베스트셀러 상품 가져오기</li>
+                <li>2. 🔤 상품명 → 중국어 키워드 번역 (GPT-4)</li>
+                <li>3. 🔍 Douyin에서 중국어 키워드로 영상 검색</li>
+                <li>4. 📥 영상 다운로드 (워터마크 없는 영상)</li>
+                <li>5. 🔊 한국어 TTS 음성 생성 (예정)</li>
+                <li>6. 📝 자막 + 쿠팡링크 합성 (예정)</li>
+                <li>7. ⬆️ YouTube/Instagram/TikTok 업로드 (예정)</li>
               </ol>
+            </div>
+            <div className="mt-3 rounded-lg bg-emerald-500/20 p-3 text-xs text-emerald-300">
+              💡 베스트 전략: 한국에서 잘 팔리는 상품 → 중국 영상 찾기 → 한국어로 재편집
             </div>
           </section>
 
@@ -742,37 +763,52 @@ export default function CoupangPartnersPage() {
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
             <h2 className="mb-4 text-xl font-bold text-white">⚙️ 파이프라인 설정</h2>
 
+            {settings.openaiApiKey && (
+              <div className="mb-4 rounded-lg bg-emerald-500/20 p-3 text-sm text-emerald-300">
+                ✅ OpenAI API 키 설정됨 - 전체 파이프라인 (AI 분석 포함) 실행 가능
+              </div>
+            )}
+
+            {!settings.openaiApiKey && (
+              <div className="mb-4 rounded-lg bg-blue-500/20 p-3 text-sm text-blue-300">
+                ℹ️ OpenAI 미설정 - 크롤링/다운로드만 테스트됩니다 (Step 1-2)
+                <br />
+                AI 분석/대본 생성은 "파트너스 링크 생성" 탭에서 OpenAI API 키 설정 필요 (Step 3, 5)
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-300">
-                  OpenAI API 키
+                  상품 개수 (Product Limit)
                 </label>
                 <input
-                  type="password"
-                  value={openaiApiKey}
-                  onChange={(e) => setOpenaiApiKey(e.target.value)}
-                  placeholder="sk-..."
+                  type="number"
+                  value={productLimit}
+                  onChange={(e) => setProductLimit(parseInt(e.target.value) || 3)}
+                  min="1"
+                  max="10"
                   className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  제품 분석 및 대본 생성에 사용됩니다 (GPT-4)
+                  쿠팡에서 가져올 베스트셀러 상품 개수 (1-10)
                 </p>
               </div>
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-300">
-                  영상 개수 (Video Limit)
+                  상품당 영상 개수 (Videos Per Product)
                 </label>
                 <input
                   type="number"
-                  value={videoLimit}
-                  onChange={(e) => setVideoLimit(parseInt(e.target.value) || 5)}
+                  value={videosPerProduct}
+                  onChange={(e) => setVideosPerProduct(parseInt(e.target.value) || 2)}
                   min="1"
-                  max="20"
+                  max="5"
                   className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  크롤링할 영상 개수 (1-20)
+                  각 상품당 Douyin에서 검색할 영상 개수 (1-5)
                 </p>
               </div>
 
@@ -783,28 +819,67 @@ export default function CoupangPartnersPage() {
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
+                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white focus:border-purple-500 focus:outline-none [&>option]:bg-slate-800 [&>option]:text-white [&>optgroup]:bg-slate-900 [&>optgroup]:text-slate-300"
                 >
-                  <option value="electronics">전자제품</option>
-                  <option value="fashion">패션</option>
-                  <option value="beauty">뷰티</option>
-                  <option value="home">홈데코</option>
-                  <option value="kitchen">주방용품</option>
-                  <option value="toys">장난감</option>
-                  <option value="sports">스포츠</option>
+                  <optgroup label="인기 카테고리" className="bg-slate-900 text-slate-300">
+                    <option value="electronics" className="bg-slate-800 text-white">📱 전자제품</option>
+                    <option value="fashion" className="bg-slate-800 text-white">👗 패션</option>
+                    <option value="beauty" className="bg-slate-800 text-white">💄 뷰티/화장품</option>
+                    <option value="kitchen" className="bg-slate-800 text-white">🍳 주방용품</option>
+                    <option value="home" className="bg-slate-800 text-white">🏠 홈데코/인테리어</option>
+                  </optgroup>
+                  <optgroup label="라이프스타일" className="bg-slate-900 text-slate-300">
+                    <option value="pets" className="bg-slate-800 text-white">🐶 반려동물용품</option>
+                    <option value="baby" className="bg-slate-800 text-white">👶 유아/출산</option>
+                    <option value="health" className="bg-slate-800 text-white">💊 건강/웰니스</option>
+                    <option value="food" className="bg-slate-800 text-white">🍽️ 식품/간식</option>
+                    <option value="sports" className="bg-slate-800 text-white">⚽ 스포츠/아웃도어</option>
+                    <option value="toys" className="bg-slate-800 text-white">🧸 장난감/취미</option>
+                  </optgroup>
+                  <optgroup label="디지털/IT" className="bg-slate-900 text-slate-300">
+                    <option value="computers" className="bg-slate-800 text-white">💻 컴퓨터/노트북</option>
+                    <option value="mobile" className="bg-slate-800 text-white">📱 핸드폰/액세서리</option>
+                    <option value="camera" className="bg-slate-800 text-white">📷 카메라/영상장비</option>
+                    <option value="gaming" className="bg-slate-800 text-white">🎮 게임/콘솔</option>
+                    <option value="smartdevice" className="bg-slate-800 text-white">⌚ 스마트기기/웨어러블</option>
+                  </optgroup>
+                  <optgroup label="가정/생활" className="bg-slate-900 text-slate-300">
+                    <option value="appliances" className="bg-slate-800 text-white">🔌 가전제품</option>
+                    <option value="furniture" className="bg-slate-800 text-white">🛋️ 가구</option>
+                    <option value="bedding" className="bg-slate-800 text-white">🛏️ 침구/홈패브릭</option>
+                    <option value="storage" className="bg-slate-800 text-white">📦 수납/정리용품</option>
+                    <option value="cleaning" className="bg-slate-800 text-white">🧹 청소/생활용품</option>
+                  </optgroup>
+                  <optgroup label="취미/레저" className="bg-slate-900 text-slate-300">
+                    <option value="travel" className="bg-slate-800 text-white">✈️ 여행/레저용품</option>
+                    <option value="camping" className="bg-slate-800 text-white">⛺ 캠핑/등산</option>
+                    <option value="fishing" className="bg-slate-800 text-white">🎣 낚시</option>
+                    <option value="bicycle" className="bg-slate-800 text-white">🚴 자전거</option>
+                    <option value="musical" className="bg-slate-800 text-white">🎸 악기</option>
+                  </optgroup>
+                  <optgroup label="기타" className="bg-slate-900 text-slate-300">
+                    <option value="automotive" className="bg-slate-800 text-white">🚗 자동차용품</option>
+                    <option value="tools" className="bg-slate-800 text-white">🔧 공구/DIY</option>
+                    <option value="stationery" className="bg-slate-800 text-white">✏️ 문구/사무용품</option>
+                    <option value="books" className="bg-slate-800 text-white">📚 도서</option>
+                    <option value="garden" className="bg-slate-800 text-white">🌱 원예/가드닝</option>
+                  </optgroup>
                 </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  쿠팡 베스트셀러 카테고리 선택
+                </p>
               </div>
 
               {!settings.isConnected && (
-                <div className="rounded-lg bg-amber-500/20 p-3 text-sm text-amber-300">
-                  ⚠️ 먼저 "파트너스 링크 생성" 탭에서 쿠팡 API 키를 연결하세요.
+                <div className="rounded-lg bg-blue-500/20 p-3 text-sm text-blue-300">
+                  ℹ️ 쿠팡 API 미연결 - 프론트엔드 API로 자동 조회합니다
                 </div>
               )}
 
               <div className="flex gap-3">
                 <button
                   onClick={startShoppingShortsPipeline}
-                  disabled={isRunningPipeline || !settings.isConnected || !openaiApiKey}
+                  disabled={isRunningPipeline}
                   className="flex-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 font-bold text-white transition hover:from-purple-500 hover:to-pink-500 disabled:opacity-50"
                 >
                   {isRunningPipeline ? '⏳ 실행 중...' : '🚀 파이프라인 시작'}
@@ -868,10 +943,10 @@ export default function CoupangPartnersPage() {
                 {/* Logs */}
                 {currentTask.logs.length > 0 && (
                   <div>
-                    <p className="mb-2 text-sm font-semibold text-slate-400">실행 로그 (최근 10개)</p>
-                    <div className="max-h-40 overflow-y-auto rounded-lg bg-black/30 p-3 font-mono text-xs text-slate-300">
-                      {currentTask.logs.slice(-10).map((log, idx) => (
-                        <div key={idx} className="mb-1">{log}</div>
+                    <p className="mb-2 text-sm font-semibold text-slate-400">실행 로그 (최근 50개)</p>
+                    <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 p-3 font-mono text-xs text-slate-300">
+                      {currentTask.logs.slice(-50).map((log, idx) => (
+                        <div key={idx} className="mb-1 whitespace-pre-wrap break-words">{log}</div>
                       ))}
                     </div>
                   </div>

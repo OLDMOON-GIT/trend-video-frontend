@@ -67,18 +67,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
     }
 
-    // 쿠팡 API 설정 확인
-    const settings = await loadUserSettings(user.userId);
-    if (!settings || !settings.accessKey || !settings.secretKey) {
-      return NextResponse.json({ error: '쿠팡 API 키를 먼저 설정하세요.' }, { status: 400 });
-    }
-
     const body = await request.json();
-    const { videoLimit = 5, category = 'electronics', openaiApiKey } = body;
-
-    if (!openaiApiKey) {
-      return NextResponse.json({ error: 'OpenAI API 키가 필요합니다.' }, { status: 400 });
-    }
+    const { productLimit = 5, category = 'electronics', videosPerProduct = 3, openaiApiKey } = body;
 
     // 작업 ID 생성
     const taskId = crypto.randomBytes(16).toString('hex');
@@ -89,25 +79,24 @@ export async function POST(request: NextRequest) {
       status: 'running',
       progress: '파이프라인 시작 중...',
       startTime: new Date().toISOString(),
-      logs: [`[${new Date().toISOString()}] 쇼핑 쇼츠 파이프라인 시작`]
+      logs: [`[${new Date().toISOString()}] 쿠팡 → Douyin 쇼츠 자동화 파이프라인 시작`]
     };
     await saveTaskStatus(taskId, initialStatus);
 
-    // Python 스크립트 경로
-    const scriptPath = path.join(BACKEND_DIR, 'src', 'pipelines', 'shopping_shorts_pipeline.py');
+    // Python 스크립트 경로 (새 파이프라인)
+    const scriptPath = path.join(BACKEND_DIR, 'src', 'pipelines', 'coupang_to_douyin_pipeline.py');
 
     // Python 프로세스 실행
     const pythonProcess = spawn('python', [
-      '-m', 'src.pipelines.shopping_shorts_pipeline',
-      '--video-limit', String(videoLimit),
-      '--category', category,
-      '--openai-api-key', openaiApiKey,
-      '--frontend-url', `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}`
+      scriptPath
     ], {
       cwd: BACKEND_DIR,
       env: {
         ...process.env,
-        OPENAI_API_KEY: openaiApiKey,
+        COUPANG_CATEGORY: category,
+        PRODUCT_LIMIT: String(productLimit),
+        VIDEOS_PER_PRODUCT: String(videosPerProduct),
+        OPENAI_API_KEY: openaiApiKey || '',
         FRONTEND_URL: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}`,
         PYTHONIOENCODING: 'utf-8'
       }
@@ -123,17 +112,19 @@ export async function POST(request: NextRequest) {
       const log = data.toString();
       currentStatus.logs.push(`[${new Date().toISOString()}] ${log}`);
 
-      // 진행 상황 파싱
-      if (log.includes('Step 1:')) {
-        currentStatus.progress = '더우인 크롤링 중...';
-      } else if (log.includes('Step 2:')) {
+      // 진행 상황 파싱 (새 파이프라인)
+      if (log.includes('Step 1:') || log.includes('쿠팡 베스트셀러')) {
+        currentStatus.progress = '쿠팡 베스트셀러 가져오는 중...';
+      } else if (log.includes('Step 2:') || log.includes('상품명 번역')) {
+        currentStatus.progress = '상품명 중국어로 번역 중...';
+      } else if (log.includes('Step 3:') || log.includes('Douyin 영상 검색')) {
+        currentStatus.progress = 'Douyin 영상 검색 중...';
+      } else if (log.includes('Step 4:') || log.includes('영상 다운로드')) {
         currentStatus.progress = '영상 다운로드 중...';
-      } else if (log.includes('Step 3:')) {
-        currentStatus.progress = 'AI 제품 분석 중...';
-      } else if (log.includes('Step 4:')) {
-        currentStatus.progress = '쿠팡 제품 검색 중...';
-      } else if (log.includes('Step 5:')) {
-        currentStatus.progress = '쇼츠 대본 생성 중...';
+      } else if (log.includes('Step 5:') || log.includes('TTS')) {
+        currentStatus.progress = 'TTS 음성 생성 중...';
+      } else if (log.includes('Step 6:') || log.includes('업로드')) {
+        currentStatus.progress = '멀티 플랫폼 업로드 중...';
       }
 
       await saveTaskStatus(taskId, currentStatus);
@@ -147,9 +138,9 @@ export async function POST(request: NextRequest) {
 
     pythonProcess.on('close', async (code) => {
       if (code === 0) {
-        // 성공 - 결과 파일 읽기
+        // 성공 - 결과 파일 읽기 (새 파이프라인 출력 디렉토리)
         try {
-          const outputDir = path.join(BACKEND_DIR, 'shopping_shorts_output', 'scripts');
+          const outputDir = path.join(BACKEND_DIR, 'coupang_shorts_output', 'data');
           const files = await fs.readdir(outputDir);
           const results = [];
 
@@ -165,7 +156,7 @@ export async function POST(request: NextRequest) {
           currentStatus.progress = '파이프라인 완료!';
           currentStatus.endTime = new Date().toISOString();
           currentStatus.results = results;
-          currentStatus.logs.push(`[${new Date().toISOString()}] 파이프라인 완료 - ${results.length}개 영상 처리됨`);
+          currentStatus.logs.push(`[${new Date().toISOString()}] 파이프라인 완료 - ${results.length}개 상품 처리됨`);
         } catch (error: any) {
           currentStatus.status = 'failed';
           currentStatus.progress = '결과 파일 읽기 실패';
