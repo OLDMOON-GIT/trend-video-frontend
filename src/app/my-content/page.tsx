@@ -475,16 +475,10 @@ export default function MyContentPage() {
         if (reset) {
           setScripts(data.scripts);
         } else {
-          // 중복 제거: 이미 있는 ID는 추가하지 않음
+          // 중복 제거
           setScripts(prev => {
-            const existingIds = new Set(prev.map((s: Script) => s.id));
-            const newScripts = data.scripts.filter((s: Script) => !existingIds.has(s.id));
-            console.log('[fetchScripts] 중복 제거:', {
-              기존개수: prev.length,
-              받은개수: data.scripts.length,
-              중복제거후: newScripts.length,
-              중복된ID들: data.scripts.filter((s: Script) => existingIds.has(s.id)).map((s: Script) => s.id)
-            });
+            const existingIds = new Set(prev.map(s => s.id));
+            const newScripts = data.scripts.filter(s => !existingIds.has(s.id));
             return [...prev, ...newScripts];
           });
         }
@@ -649,16 +643,10 @@ export default function MyContentPage() {
         if (reset) {
           setJobs(data.jobs);
         } else {
-          // 중복 제거: 이미 있는 ID는 추가하지 않음
+          // 중복 제거
           setJobs(prev => {
-            const existingIds = new Set(prev.map((j: Job) => j.id));
-            const newJobs = data.jobs.filter((j: Job) => !existingIds.has(j.id));
-            console.log('[fetchJobs] 중복 제거:', {
-              기존개수: prev.length,
-              받은개수: data.jobs.length,
-              중복제거후: newJobs.length,
-              중복된ID들: data.jobs.filter((j: Job) => existingIds.has(j.id)).map((j: Job) => j.id)
-            });
+            const existingIds = new Set(prev.map(j => j.id));
+            const newJobs = data.jobs.filter(j => !existingIds.has(j.id));
             return [...prev, ...newJobs];
           });
         }
@@ -705,16 +693,10 @@ export default function MyContentPage() {
         if (reset) {
           setYoutubeUploads(data.uploads || []);
         } else {
-          // 중복 제거: 이미 있는 ID는 추가하지 않음
+          // 중복 제거
           setYoutubeUploads(prev => {
-            const existingIds = new Set(prev.map((u: YouTubeUpload) => u.id));
-            const newUploads = (data.uploads || []).filter((u: YouTubeUpload) => !existingIds.has(u.id));
-            console.log('[fetchYouTubeUploads] 중복 제거:', {
-              기존개수: prev.length,
-              받은개수: data.uploads?.length || 0,
-              중복제거후: newUploads.length,
-              중복된ID들: (data.uploads || []).filter((u: YouTubeUpload) => existingIds.has(u.id)).map((u: YouTubeUpload) => u.id)
-            });
+            const existingIds = new Set(prev.map(u => u.id));
+            const newUploads = (data.uploads || []).filter(u => !existingIds.has(u.id));
             return [...prev, ...newUploads];
           });
         }
@@ -2438,25 +2420,21 @@ export default function MyContentPage() {
                           console.log('[더보기 클릭] 전체 탭', {
                             이전limit: allTabLimit,
                             새limit: allTabLimit + 10,
-                            hasMoreItems,
                             hasMore,
                             scriptsHasMore,
-                            allItemsLength: allItems.length,
                             jobsLength: jobs.length,
                             scriptsLength: scripts.length
                           });
 
-                          // limit 증가 (이미 로드된 데이터를 더 보여줌)
-                          const newLimit = allTabLimit + 10;
-                          setAllTabLimit(newLimit);
+                          // limit 증가
+                          setAllTabLimit(prev => prev + 10);
 
-                          // 서버에 더 많은 데이터가 있고, 표시할 데이터가 부족해지면 가져오기
-                          // 여유분 10개 남기고 미리 가져오기
-                          if (hasMore && !isLoadingMore && allItems.length < newLimit + 10) {
+                          // 서버에서 더 많은 데이터 가져오기
+                          if (hasMore && !isLoadingMore) {
                             console.log('[전체 탭] 영상 더 가져오기');
                             fetchJobs(false);
                           }
-                          if (scriptsHasMore && !isLoadingMoreScripts && allItems.length < newLimit + 10) {
+                          if (scriptsHasMore && !isLoadingMoreScripts) {
                             console.log('[전체 탭] 대본 더 가져오기');
                             fetchScripts(false);
                           }
@@ -2464,7 +2442,7 @@ export default function MyContentPage() {
                         disabled={isLoadingMore || isLoadingMoreScripts}
                         className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isLoadingMore || isLoadingMoreScripts ? '로딩 중...' : `더보기 (${remainingItems}개 더)`}
+                        {isLoadingMore || isLoadingMoreScripts ? '로딩 중...' : `더보기 (${remainingItems > 0 ? remainingItems : '더 많이'}개)`}
                       </button>
                     </div>
                   )}
