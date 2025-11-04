@@ -194,6 +194,21 @@ export default function AdminPage() {
               설정하기 →
             </div>
           </Link>
+
+          {/* 시스템 아키텍처 */}
+          <Link
+            href="/admin/architecture"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-slate-500/20 to-gray-500/20 p-8 backdrop-blur transition hover:border-slate-500/50 hover:shadow-2xl hover:shadow-slate-500/20"
+          >
+            <div className="mb-4 text-5xl">🏗️</div>
+            <h2 className="mb-2 text-2xl font-bold text-white">시스템 아키텍처</h2>
+            <p className="text-sm text-slate-300">
+              Frontend-Backend 구조, 데이터 흐름, 핵심 패턴 문서
+            </p>
+            <div className="mt-4 flex items-center text-sm font-semibold text-slate-300 transition group-hover:translate-x-2">
+              문서 보기 →
+            </div>
+          </Link>
         </div>
 
         {/* 안내 */}
@@ -206,6 +221,7 @@ export default function AdminPage() {
             <p>• <strong>사용자 활동 로그:</strong> 로그인/로그아웃 기록, 활동 시간, 활성 세션 모니터링</p>
             <p>• <strong>DB 백업 관리:</strong> 데이터베이스 자동/수동 백업, 복원, 무결성 체크</p>
             <p>• <strong>YouTube Credentials:</strong> 모든 사용자가 공용으로 사용하는 YouTube API 인증 정보 설정</p>
+            <p>• <strong>시스템 아키텍처:</strong> Frontend-Backend 구조, 데이터 흐름도, 워크플로우, 핵심 패턴 문서</p>
             <p>• <strong>권한:</strong> 이 페이지는 관리자만 접근할 수 있습니다.</p>
           </div>
         </div>

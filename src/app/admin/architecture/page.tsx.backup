@@ -1,0 +1,867 @@
+'use client';
+
+import { useEffect, useState, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import mermaid from 'mermaid';
+
+type TabType = 'architecture' | 'erd';
+
+export default function ArchitecturePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [user, setUser] = useState<{ id: string; email: string; isAdmin: boolean } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('architecture');
+  const [erdMarkdown, setErdMarkdown] = useState('');
+  const [erdError, setErdError] = useState('');
+  const mermaidInitialized = useRef(false);
+
+  // 다이어그램 확대 모달 상태
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalSvg, setModalSvg] = useState<string>('');
+  const [zoomLevel, setZoomLevel] = useState(100);
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const getAuthHeaders = (): HeadersInit => {
+    return {};
+  };
+
+  useEffect(() => {
+    checkAuth();
+
+    // URL 쿼리 파라미터에서 탭 정보 읽기
+    const tab = searchParams.get('tab');
+    if (tab === 'erd') {
+      setActiveTab('erd');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (activeTab === 'erd' && !erdMarkdown && !erdError) {
+      loadERD();
+    }
+  }, [activeTab]);
+
+  // ESC 키로 모달 닫기
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isModalOpen) {
+        handleCloseModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    if (!mermaidInitialized.current) {
+      // Mermaid 초기화 - 매우 밝은 색상 테마 (가독성 최대화)
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        themeVariables: {
+          // 기본 색상 - 매우 밝은 보라색 계열
+          primaryColor: '#c4b5fd',
+          primaryTextColor: '#ffffff',
+          primaryBorderColor: '#a78bfa',
+
+          // 선 및 화살표 - 매우 밝은 보라색
+          lineColor: '#e9d5ff',
+
+          // 보조 색상 - 매우 밝은 청록색
+          secondaryColor: '#a5f3fc',
+          secondaryTextColor: '#ffffff',
+          secondaryBorderColor: '#67e8f9',
+
+          // 3차 색상 - 매우 밝은 녹색
+          tertiaryColor: '#a7f3d0',
+          tertiaryTextColor: '#ffffff',
+          tertiaryBorderColor: '#6ee7b7',
+
+          // 배경색 - 더 밝게
+          background: '#334155',
+          mainBkg: '#475569',
+          secondBkg: '#64748b',
+
+          // 텍스트 - 흰색으로 통일
+          textColor: '#ffffff',
+          labelTextColor: '#ffffff',
+          fontSize: '16px',
+
+          // 노트 및 액터 - 밝은 보라색
+          noteBkgColor: '#a78bfa',
+          noteTextColor: '#ffffff',
+          noteBorderColor: '#8b5cf6',
+
+          actorBkg: '#a78bfa',
+          actorTextColor: '#ffffff',
+          actorBorder: '#8b5cf6',
+          actorLineColor: '#e9d5ff',
+
+          // 그리드 및 축
+          gridColor: '#94a3b8',
+          gridTextColor: '#f1f5f9',
+
+          // 클래스 다이어그램 (ERD용)
+          classText: '#ffffff',
+        },
+      });
+      mermaidInitialized.current = true;
+    }
+
+    // 탭이 변경되거나 마크다운이 로드될 때 다이어그램 렌더링
+    const renderMermaid = () => {
+      setTimeout(() => {
+        mermaid.run({
+          nodes: document.querySelectorAll('.language-mermaid'),
+        });
+
+        // Mermaid 다이어그램에 클릭 이벤트 추가
+        const mermaidElements = document.querySelectorAll('.language-mermaid svg');
+        mermaidElements.forEach((svg) => {
+          (svg as HTMLElement).style.cursor = 'pointer';
+          (svg as HTMLElement).onclick = () => handleDiagramClick(svg as SVGElement);
+        });
+      }, 100);
+    };
+
+    if (activeTab === 'architecture' || (activeTab === 'erd' && erdMarkdown)) {
+      renderMermaid();
+    }
+  }, [activeTab, erdMarkdown]);
+
+  // 다이어그램 클릭 핸들러
+  const handleDiagramClick = (svg: SVGElement) => {
+    const svgClone = svg.cloneNode(true) as SVGElement;
+    setModalSvg(svgClone.outerHTML);
+    setZoomLevel(100);
+    setPosition({ x: 0, y: 0 });
+    setIsModalOpen(true);
+  };
+
+  // 확대
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(prev + 25, 300));
+  };
+
+  // 축소
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(prev - 25, 50));
+  };
+
+  // 리셋
+  const handleZoomReset = () => {
+    setZoomLevel(100);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  // 모달 닫기
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setModalSvg('');
+  };
+
+  // 드래그 시작
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+  };
+
+  // 드래그 중
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  };
+
+  // 드래그 종료
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // 탭 변경 + URL 업데이트
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    if (tab === 'erd') {
+      router.push('/admin/architecture?tab=erd');
+    } else {
+      router.push('/admin/architecture');
+    }
+  };
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/session', {
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      });
+      const data = await response.json();
+
+      if (!data.user || !data.user.isAdmin) {
+        alert('관리자 권한이 필요합니다.');
+        router.push('/');
+        return;
+      }
+
+      setUser(data.user);
+    } catch (error) {
+      console.error('Auth check error:', error);
+      router.push('/auth');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadERD = async () => {
+    try {
+      const response = await fetch('/api/admin/architecture');
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErdError(data.error || 'ERD 문서를 불러올 수 없습니다.');
+        return;
+      }
+
+      setErdMarkdown(data.content);
+    } catch (err: any) {
+      console.error('ERD 로드 실패:', err);
+      setErdError(err.message || 'ERD 문서 로딩 실패');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">로딩 중...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+      <div className="mx-auto max-w-7xl">
+        {/* 헤더 */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-white">🏗️ 시스템 아키텍처 & ERD</h1>
+            <p className="mt-2 text-sm text-slate-400">시스템 구조 및 데이터베이스 설계 문서</p>
+          </div>
+          <Link
+            href="/admin"
+            className="rounded-lg bg-slate-700 px-4 py-2 text-sm text-white transition hover:bg-slate-600"
+          >
+            ← 관리자 대시보드
+          </Link>
+        </div>
+
+        {/* 탭 네비게이션 */}
+        <div className="mb-6 flex gap-4">
+          <button
+            onClick={() => handleTabChange('architecture')}
+            className={`rounded-lg px-6 py-3 font-semibold transition ${
+              activeTab === 'architecture'
+                ? 'bg-purple-600 text-white shadow-lg'
+                : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white'
+            }`}
+          >
+            🏗️ 시스템 아키텍처
+          </button>
+          <button
+            onClick={() => handleTabChange('erd')}
+            className={`rounded-lg px-6 py-3 font-semibold transition ${
+              activeTab === 'erd'
+                ? 'bg-purple-600 text-white shadow-lg'
+                : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white'
+            }`}
+          >
+            📊 ERD 문서
+          </button>
+        </div>
+
+        {/* 탭 콘텐츠 */}
+        {activeTab === 'architecture' && (
+          <>
+        {/* Mermaid 시스템 아키텍처 다이어그램 */}
+        <div className="mb-8 rounded-2xl border border-purple-500/30 bg-slate-800/50 p-8 backdrop-blur">
+          <h2 className="mb-6 text-2xl font-bold text-white">🏗️ 시스템 아키텍처 다이어그램</h2>
+          <div
+            className="rounded-lg border border-purple-500/20 bg-slate-900/50 p-6 overflow-x-auto relative group cursor-pointer hover:border-purple-500/50 transition-all"
+            onClick={(e) => {
+              const svg = e.currentTarget.querySelector('svg');
+              if (svg) {
+                handleDiagramClick(svg as SVGElement);
+              }
+            }}
+          >
+            {/* 클릭 힌트 */}
+            <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg bg-purple-600 px-3 py-1 text-xs text-white shadow-lg pointer-events-none">
+              🔍 클릭하여 확대
+            </div>
+            <pre className="language-mermaid mermaid bg-transparent border-none p-0">
+{`graph TB
+    subgraph Browser["🌐 사용자 브라우저"]
+        UI["React/Next.js UI<br/>쿠키 기반 인증"]
+    end
+
+    subgraph Frontend["⚛️ Next.js API Routes"]
+        Auth["/api/auth/*<br/>인증/세션"]
+        Scripts["/api/scripts/generate<br/>대본 생성"]
+        Video["/api/generate-video-upload<br/>영상 생성"]
+        Merge["/api/video-merge<br/>비디오 병합"]
+        Sora["/api/sora2/generate<br/>SORA2"]
+    end
+
+    subgraph Backend["🐍 Python Backend"]
+        AIAgg["run_ai_aggregator.py<br/>Multi-AI 대본"]
+        VideoGen["video_generator_main.py<br/>롱폼 영상"]
+        ShortGen["short_video_generator.py<br/>숏폼 영상"]
+        VideoMerge["video_merge.py<br/>병합 + TTS"]
+        Sora2Gen["sora2_generator.py<br/>SORA2"]
+    end
+
+    subgraph Storage["💾 저장소"]
+        DB["SQLite Database<br/>users, jobs, scripts"]
+        Files["File System<br/>output/, uploaded/"]
+    end
+
+    UI -->|"HTTP POST"| Auth
+    UI -->|"HTTP POST"| Scripts
+    UI -->|"HTTP POST + Files"| Video
+    UI -->|"HTTP POST + Files"| Merge
+    UI -->|"HTTP POST"| Sora
+
+    Auth --> DB
+    Scripts -->|"spawn(python)"| AIAgg
+    Video -->|"spawn(python)"| VideoGen
+    Video -->|"spawn(python)"| ShortGen
+    Merge -->|"spawn(python)"| VideoMerge
+    Sora -->|"spawn(python)"| Sora2Gen
+
+    AIAgg --> Files
+    VideoGen --> Files
+    ShortGen --> Files
+    VideoMerge --> Files
+    Sora2Gen --> Files
+
+    Scripts --> DB
+    Video --> DB
+    Merge --> DB
+    Sora --> DB
+
+    Files -.->|"폴링(2초)"| UI
+
+    style Browser fill:#1e40af,stroke:#3b82f6,color:#fff
+    style Frontend fill:#7c3aed,stroke:#a78bfa,color:#fff
+    style Backend fill:#059669,stroke:#34d399,color:#fff
+    style Storage fill:#0891b2,stroke:#22d3ee,color:#fff`}
+            </pre>
+          </div>
+        </div>
+
+        {/* 전체 아키텍처 다이어그램 */}
+        <div className="mb-8 rounded-2xl border border-white/10 bg-slate-800/50 p-8 backdrop-blur">
+          <h2 className="mb-6 text-2xl font-bold text-white">📐 전체 시스템 구조 (상세)</h2>
+
+          <div className="space-y-6">
+            {/* 사용자 브라우저 */}
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-2xl">🌐</span>
+                <h3 className="text-xl font-bold text-blue-300">사용자 브라우저</h3>
+              </div>
+              <div className="space-y-2 text-sm text-slate-300">
+                <p>• React/Next.js UI 컴포넌트</p>
+                <p>• 쿠키 기반 인증 (httpOnly)</p>
+                <p>• Fetch API로 Next.js API Routes 호출</p>
+              </div>
+            </div>
+
+            <div className="text-center text-2xl text-purple-400">↓ HTTP Request</div>
+
+            {/* Next.js Frontend Server */}
+            <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-2xl">⚛️</span>
+                <h3 className="text-xl font-bold text-purple-300">Next.js API Routes (Frontend Server)</h3>
+              </div>
+              <div className="mb-4 space-y-2 text-sm text-slate-300">
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">/api/auth/*</code> - 인증 (로그인, 세션 관리)</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">/api/scripts/generate</code> - 대본 생성 요청</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">/api/generate-video-upload</code> - 롱폼/숏폼 영상 생성</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">/api/video-merge</code> - 비디오 병합</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">/api/sora2/generate</code> - SORA2 비디오 생성</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">/api/convert-format</code> - 대본 형식 변환</p>
+              </div>
+              <div className="rounded-lg bg-purple-900/30 p-4">
+                <p className="text-sm font-semibold text-purple-200">주요 역할:</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                  <li>✅ 세션 검증 (쿠키 기반)</li>
+                  <li>✅ 파일 업로드 처리 (이미지, 비디오)</li>
+                  <li>✅ 파일 정렬 (lastModified 기준)</li>
+                  <li>✅ Python 스크립트 spawn 및 PID 관리</li>
+                  <li>✅ 작업 상태 추적 (DB 저장)</li>
+                  <li>✅ 에러 처리 및 로깅</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="text-center text-2xl text-green-400">↓ spawn('python', [...])</div>
+
+            {/* Python Backend */}
+            <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-2xl">🐍</span>
+                <h3 className="text-xl font-bold text-green-300">Python Backend (Subprocess)</h3>
+              </div>
+              <div className="mb-4 space-y-2 text-sm text-slate-300">
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">run_ai_aggregator.py</code> - Multi-AI 대본 생성</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">video_generator_main.py</code> - 롱폼 영상 생성</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">short_video_generator.py</code> - 숏폼 영상 생성</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">video_merge.py</code> - 비디오 병합 + TTS</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">sora2_generator.py</code> - SORA2 비디오 생성</p>
+              </div>
+              <div className="rounded-lg bg-green-900/30 p-4">
+                <p className="text-sm font-semibold text-green-200">주요 역할:</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                  <li>✅ AI 대본 생성 (Claude, GPT, Gemini, Grok)</li>
+                  <li>✅ 비디오 처리 (FFmpeg)</li>
+                  <li>✅ TTS 생성 (Edge TTS + WordBoundary)</li>
+                  <li>✅ 자막 싱크 (ASS 포맷)</li>
+                  <li>✅ 트랜지션 효과 적용</li>
+                  <li>✅ 결과 파일 생성 및 상태 업데이트</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="text-center text-2xl text-yellow-400">↓ 파일 시스템 I/O</div>
+
+            {/* 파일 시스템 */}
+            <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-2xl">📁</span>
+                <h3 className="text-xl font-bold text-yellow-300">파일 시스템 (공유 스토리지)</h3>
+              </div>
+              <div className="space-y-2 text-sm text-slate-300">
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">output/</code> - 생성된 영상 파일</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">uploaded/</code> - 업로드된 이미지/비디오</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">scripts/</code> - 생성된 대본 JSON</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">status.json</code> - 작업 진행 상태</p>
+              </div>
+            </div>
+
+            <div className="text-center text-2xl text-cyan-400">↑ 폴링 (2초마다 status.json 체크)</div>
+
+            {/* 데이터베이스 */}
+            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-6">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-2xl">💾</span>
+                <h3 className="text-xl font-bold text-cyan-300">SQLite 데이터베이스</h3>
+              </div>
+              <div className="space-y-2 text-sm text-slate-300">
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">users</code> - 사용자 정보, 크레딧</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">scripts_temp</code> - 대본 생성 작업 (진행중/완료)</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">video_generation_tasks</code> - 영상 생성 작업</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">charge_requests</code> - 충전 요청</p>
+                <p>• <code className="rounded bg-slate-700 px-2 py-1">user_activity_logs</code> - 사용자 활동 로그</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 데이터 흐름 상세 */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* 대본 생성 워크플로우 */}
+          <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+            <h3 className="mb-4 text-xl font-bold text-white">📝 대본 생성 워크플로우</h3>
+            <div className="space-y-3 text-sm text-slate-300">
+              <div className="rounded-lg bg-blue-900/20 p-3">
+                <p className="font-semibold text-blue-300">1. 사용자 요청</p>
+                <p className="mt-1 text-xs">주제 입력 → /api/scripts/generate POST</p>
+              </div>
+              <div className="rounded-lg bg-purple-900/20 p-3">
+                <p className="font-semibold text-purple-300">2. Frontend 처리</p>
+                <p className="mt-1 text-xs">세션 검증 → 크레딧 확인 → DB에 PENDING 작업 생성</p>
+              </div>
+              <div className="rounded-lg bg-green-900/20 p-3">
+                <p className="font-semibold text-green-300">3. Python Spawn</p>
+                <p className="mt-1 text-xs">run_ai_aggregator.py 실행 → PID 저장</p>
+              </div>
+              <div className="rounded-lg bg-yellow-900/20 p-3">
+                <p className="font-semibold text-yellow-300">4. AI 대본 생성</p>
+                <p className="mt-1 text-xs">Multi-AI 호출 → 대본 JSON 생성</p>
+              </div>
+              <div className="rounded-lg bg-cyan-900/20 p-3">
+                <p className="font-semibold text-cyan-300">5. 완료 처리</p>
+                <p className="mt-1 text-xs">status.json 업데이트 → Frontend 폴링으로 감지 → DB COMPLETED</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 영상 생성 워크플로우 */}
+          <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+            <h3 className="mb-4 text-xl font-bold text-white">🎬 영상 생성 워크플로우</h3>
+            <div className="space-y-3 text-sm text-slate-300">
+              <div className="rounded-lg bg-blue-900/20 p-3">
+                <p className="font-semibold text-blue-300">1. 사용자 업로드</p>
+                <p className="mt-1 text-xs">이미지 업로드 → /api/generate-video-upload POST</p>
+              </div>
+              <div className="rounded-lg bg-purple-900/20 p-3">
+                <p className="font-semibold text-purple-300">2. 파일 정렬</p>
+                <p className="mt-1 text-xs">lastModified 기준 정렬 → image_01.jpg, image_02.jpg...</p>
+              </div>
+              <div className="rounded-lg bg-green-900/20 p-3">
+                <p className="font-semibold text-green-300">3. Python Spawn</p>
+                <p className="mt-1 text-xs">video_generator_main.py 또는 short_video_generator.py</p>
+              </div>
+              <div className="rounded-lg bg-yellow-900/20 p-3">
+                <p className="font-semibold text-yellow-300">4. 비디오 처리</p>
+                <p className="mt-1 text-xs">FFmpeg로 트랜지션 + TTS + 자막 병합</p>
+              </div>
+              <div className="rounded-lg bg-cyan-900/20 p-3">
+                <p className="font-semibold text-cyan-300">5. 완료</p>
+                <p className="mt-1 text-xs">final_video.mp4 생성 → 다운로드 가능</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 비디오 병합 워크플로우 */}
+          <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+            <h3 className="mb-4 text-xl font-bold text-white">🔗 비디오 병합 워크플로우</h3>
+            <div className="space-y-3 text-sm text-slate-300">
+              <div className="rounded-lg bg-blue-900/20 p-3">
+                <p className="font-semibold text-blue-300">1. 비디오 업로드</p>
+                <p className="mt-1 text-xs">여러 MP4 파일 + JSON 업로드 → /api/video-merge POST</p>
+              </div>
+              <div className="rounded-lg bg-purple-900/20 p-3">
+                <p className="font-semibold text-purple-300">2. 파일 정렬</p>
+                <p className="mt-1 text-xs">시퀀스 번호 우선 → lastModified 폴백</p>
+              </div>
+              <div className="rounded-lg bg-green-900/20 p-3">
+                <p className="font-semibold text-green-300">3. Python Spawn</p>
+                <p className="mt-1 text-xs">video_merge.py --mode merge</p>
+              </div>
+              <div className="rounded-lg bg-yellow-900/20 p-3">
+                <p className="font-semibold text-yellow-300">4. TTS + 자막</p>
+                <p className="mt-1 text-xs">Edge TTS WordBoundary → ASS 자막 → FFmpeg 병합</p>
+              </div>
+              <div className="rounded-lg bg-cyan-900/20 p-3">
+                <p className="font-semibold text-cyan-300">5. 제목 파일명</p>
+                <p className="mt-1 text-xs">JSON의 title 추출 → 안전한 파일명으로 변환</p>
+              </div>
+            </div>
+          </div>
+
+          {/* SORA2 생성 워크플로우 */}
+          <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+            <h3 className="mb-4 text-xl font-bold text-white">✨ SORA2 생성 워크플로우</h3>
+            <div className="space-y-3 text-sm text-slate-300">
+              <div className="rounded-lg bg-blue-900/20 p-3">
+                <p className="font-semibold text-blue-300">1. 대본 선택</p>
+                <p className="mt-1 text-xs">SORA2 대본 선택 → /api/sora2/generate POST</p>
+              </div>
+              <div className="rounded-lg bg-purple-900/20 p-3">
+                <p className="font-semibold text-purple-300">2. Frontend 처리</p>
+                <p className="mt-1 text-xs">JSON 파일 저장 → Python spawn</p>
+              </div>
+              <div className="rounded-lg bg-green-900/20 p-3">
+                <p className="font-semibold text-green-300">3. Python Spawn</p>
+                <p className="mt-1 text-xs">sora2_generator.py --input [script.json]</p>
+              </div>
+              <div className="rounded-lg bg-yellow-900/20 p-3">
+                <p className="font-semibold text-yellow-300">4. SORA2 API</p>
+                <p className="mt-1 text-xs">프롬프트 기반 비디오 생성 (외부 API 호출)</p>
+              </div>
+              <div className="rounded-lg bg-cyan-900/20 p-3">
+                <p className="font-semibold text-cyan-300">5. 다운로드</p>
+                <p className="mt-1 text-xs">생성된 비디오 다운로드 → 최종 파일 저장</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 핵심 기술 스택 */}
+        <div className="mt-6 rounded-2xl border border-white/10 bg-slate-800/50 p-8 backdrop-blur">
+          <h2 className="mb-6 text-2xl font-bold text-white">🛠️ 핵심 기술 스택</h2>
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="rounded-lg bg-blue-500/10 p-4">
+              <h4 className="mb-3 font-bold text-blue-300">Frontend</h4>
+              <ul className="space-y-2 text-sm text-slate-300">
+                <li>• Next.js 14 (App Router)</li>
+                <li>• React 18</li>
+                <li>• TypeScript</li>
+                <li>• Tailwind CSS</li>
+                <li>• Fetch API</li>
+              </ul>
+            </div>
+            <div className="rounded-lg bg-green-500/10 p-4">
+              <h4 className="mb-3 font-bold text-green-300">Backend</h4>
+              <ul className="space-y-2 text-sm text-slate-300">
+                <li>• Python 3.11+</li>
+                <li>• Selenium (브라우저 자동화)</li>
+                <li>• Edge TTS (음성 합성)</li>
+                <li>• FFmpeg (비디오 처리)</li>
+                <li>• Multi-AI APIs</li>
+              </ul>
+            </div>
+            <div className="rounded-lg bg-purple-500/10 p-4">
+              <h4 className="mb-3 font-bold text-purple-300">Database & Storage</h4>
+              <ul className="space-y-2 text-sm text-slate-300">
+                <li>• SQLite</li>
+                <li>• 파일 시스템 (로컬)</li>
+                <li>• JSON 상태 파일</li>
+                <li>• better-sqlite3</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* 중요 패턴 및 규칙 */}
+        <div className="mt-6 rounded-2xl border border-orange-500/30 bg-orange-500/10 p-8 backdrop-blur">
+          <h2 className="mb-4 text-2xl font-bold text-orange-300">⚠️ 중요 패턴 및 규칙</h2>
+          <div className="space-y-3 text-sm text-slate-300">
+            <div className="rounded-lg bg-orange-900/30 p-4">
+              <p className="font-semibold text-orange-200">1. 파일 정렬 규칙 (CRITICAL)</p>
+              <p className="mt-2">• 이미지/비디오는 <strong>lastModified 오래된 순</strong>으로 정렬</p>
+              <p>• ImageFX/Whisk 랜덤 ID 대응</p>
+              <p>• Frontend에서 정렬 → Python에서 재정렬 금지</p>
+            </div>
+            <div className="rounded-lg bg-orange-900/30 p-4">
+              <p className="font-semibold text-orange-200">2. 프로세스 관리</p>
+              <p className="mt-2">• Python spawn 시 PID 저장</p>
+              <p>• 취소 시 taskkill /F /T로 프로세스 트리 전체 종료</p>
+              <p>• 좀비 프로세스 방지 (ShimGen.exe 정리)</p>
+            </div>
+            <div className="rounded-lg bg-orange-900/30 p-4">
+              <p className="font-semibold text-orange-200">3. 인증 시스템</p>
+              <p className="mt-2">• 쿠키 기반 세션 (httpOnly)</p>
+              <p>• localStorage 사용 금지</p>
+              <p>• 모든 API는 getCurrentUser()로 인증 확인</p>
+            </div>
+            <div className="rounded-lg bg-orange-900/30 p-4">
+              <p className="font-semibold text-orange-200">4. 에러 처리</p>
+              <p className="mt-2">• HTTP 404는 엔드포인트 없을 때만</p>
+              <p>• 데이터 없음: 400 + errorCode (예: SCRIPT_NOT_FOUND)</p>
+              <p>• 모든 에러에 커스텀 에러 코드 포함</p>
+            </div>
+            <div className="rounded-lg bg-orange-900/30 p-4">
+              <p className="font-semibold text-orange-200">5. 자막 싱크</p>
+              <p className="mt-2">• Edge TTS WordBoundary로 단어별 타임스탬프 수집</p>
+              <p>• ASS 포맷으로 자막 생성</p>
+              <p>• 오디오가 비디오보다 길면 tpad로 프레임 freeze</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 참고 문서 링크 */}
+        <div className="mt-6 rounded-xl border border-blue-500/30 bg-blue-500/10 p-6 backdrop-blur">
+          <h3 className="mb-3 text-lg font-bold text-blue-300">📚 참고 문서</h3>
+          <div className="space-y-2 text-sm text-slate-300">
+            <p>• <strong>DEVELOPMENT_GUIDE.md:</strong> 전체 개발 가이드 (파일 정렬, 자막 싱크, Regression Test 등)</p>
+            <p>• <strong>Frontend 테스트:</strong> <code className="rounded bg-slate-700 px-2 py-1">__tests__/api/file-sorting.test.ts</code></p>
+            <p>• <strong>Backend 테스트:</strong> <code className="rounded bg-slate-700 px-2 py-1">tests/test_regression.py</code></p>
+            <p>• <strong>API 구조:</strong> <code className="rounded bg-slate-700 px-2 py-1">src/app/api/*/route.ts</code></p>
+          </div>
+        </div>
+        </>
+      )}
+
+        {/* ERD 탭 */}
+        {activeTab === 'erd' && (
+          <div className="rounded-2xl border border-white/10 bg-slate-800/50 backdrop-blur p-8">
+            {/* 새로고침 버튼 */}
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white">📊 ERD 문서</h2>
+              <button
+                onClick={() => {
+                  setErdMarkdown('');
+                  setErdError('');
+                  loadERD();
+                }}
+                className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white transition hover:bg-purple-500 flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                새로고침
+              </button>
+            </div>
+
+            {erdError ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-8 text-center">
+                <div className="text-6xl mb-4">❌</div>
+                <h2 className="text-2xl font-bold text-red-300 mb-2">문서 로드 실패</h2>
+                <p className="text-slate-300">{erdError}</p>
+              </div>
+            ) : !erdMarkdown ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                <p className="text-slate-300 text-lg">ERD 문서 로딩 중...</p>
+              </div>
+            ) : (
+              <article className="prose prose-invert prose-slate max-w-none
+                prose-headings:text-white
+                prose-h1:text-4xl prose-h1:font-bold prose-h1:mb-6
+                prose-h2:text-3xl prose-h2:font-bold prose-h2:mt-12 prose-h2:mb-4 prose-h2:border-b prose-h2:border-purple-500/30 prose-h2:pb-3
+                prose-h3:text-2xl prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-3 prose-h3:text-purple-300
+                prose-p:text-slate-300 prose-p:leading-relaxed
+                prose-a:text-purple-400 prose-a:no-underline hover:prose-a:text-purple-300
+                prose-code:text-purple-300 prose-code:bg-slate-900/50 prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+                prose-pre:bg-slate-900/80 prose-pre:border prose-pre:border-purple-500/20 prose-pre:shadow-xl
+                prose-strong:text-white prose-strong:font-bold
+                prose-ul:text-slate-300
+                prose-ol:text-slate-300
+                prose-li:text-slate-300
+                prose-table:border-collapse
+                prose-thead:border-b-2 prose-thead:border-purple-500/30
+                prose-th:text-purple-300 prose-th:font-bold prose-th:p-3 prose-th:text-left
+                prose-td:text-slate-300 prose-td:p-3 prose-td:border-t prose-td:border-slate-700
+                prose-blockquote:border-l-4 prose-blockquote:border-purple-500 prose-blockquote:bg-purple-500/10 prose-blockquote:pl-4 prose-blockquote:py-2
+                prose-img:rounded-lg prose-img:shadow-lg
+              ">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
+                  components={{
+                    code({ node, inline, className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      const language = match ? match[1] : '';
+
+                      if (!inline && language === 'mermaid') {
+                        return (
+                          <div className="my-8 rounded-lg border border-purple-500/20 bg-slate-900/50 p-6 overflow-x-auto relative group">
+                            {/* 클릭 힌트 */}
+                            <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg bg-purple-600 px-3 py-1 text-xs text-white shadow-lg">
+                              🔍 클릭하여 확대
+                            </div>
+                            <pre className="language-mermaid mermaid bg-transparent border-none p-0 overflow-visible">
+                              {String(children).replace(/\n$/, '')}
+                            </pre>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      );
+                    },
+                    table({ children }: any) {
+                      return (
+                        <div className="overflow-x-auto my-6">
+                          <table className="min-w-full border border-slate-700 rounded-lg">
+                            {children}
+                          </table>
+                        </div>
+                      );
+                    },
+                  }}
+                >
+                  {erdMarkdown}
+                </ReactMarkdown>
+              </article>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 다이어그램 확대 모달 */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-4"
+          onClick={handleCloseModal}
+        >
+          <div
+            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-2xl border border-purple-500/30 bg-slate-900 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 컨트롤 버튼 */}
+            <div className="absolute right-6 top-6 z-10 flex gap-2">
+              <button
+                onClick={handleZoomOut}
+                className="rounded-lg bg-purple-600 px-4 py-2 text-white shadow-lg transition hover:bg-purple-500"
+                title="축소"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              </button>
+              <button
+                onClick={handleZoomReset}
+                className="rounded-lg bg-slate-600 px-4 py-2 text-white shadow-lg transition hover:bg-slate-500"
+                title="리셋 (100%)"
+              >
+                {zoomLevel}%
+              </button>
+              <button
+                onClick={handleZoomIn}
+                className="rounded-lg bg-purple-600 px-4 py-2 text-white shadow-lg transition hover:bg-purple-500"
+                title="확대"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+              <button
+                onClick={handleCloseModal}
+                className="rounded-lg bg-red-600 px-4 py-2 text-white shadow-lg transition hover:bg-red-500"
+                title="닫기"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 다이어그램 컨테이너 */}
+            <div
+              className="relative overflow-auto"
+              style={{
+                maxHeight: 'calc(90vh - 6rem)',
+                maxWidth: 'calc(90vw - 3rem)',
+                cursor: isDragging ? 'grabbing' : 'grab'
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            >
+              <div
+                style={{
+                  transform: `scale(${zoomLevel / 100}) translate(${position.x}px, ${position.y}px)`,
+                  transformOrigin: 'top left',
+                  transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+                }}
+                dangerouslySetInnerHTML={{ __html: modalSvg }}
+              />
+            </div>
+
+            {/* 안내 메시지 */}
+            <div className="mt-4 text-center text-sm text-slate-400">
+              💡 드래그로 이동 가능 | 마우스로 확대/축소 | ESC로 닫기
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 맨 위로 버튼 */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="fixed bottom-6 right-6 z-50 cursor-pointer rounded-full bg-purple-600 p-4 text-white shadow-lg transition hover:bg-purple-500 hover:shadow-xl"
+        title="맨 위로"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+      </button>
+    </div>
+  );
+}
