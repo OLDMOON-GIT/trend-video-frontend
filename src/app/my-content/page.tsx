@@ -503,7 +503,12 @@ export default function MyContentPage() {
     });
 
     if (!isLoadingMoreScripts && scriptsHasMore) {
+      console.log('[loadMoreScripts] fetchScripts 호출 시작');
       fetchScripts(false);
+    } else {
+      console.log('[loadMoreScripts] fetchScripts 호출 스킵:', {
+        이유: isLoadingMoreScripts ? '이미 로딩 중' : '더 이상 없음'
+      });
     }
   };
 
@@ -969,12 +974,57 @@ export default function MyContentPage() {
       preview: textToSpeak.substring(0, 100)
     });
 
+    // 최고 품질의 한국어 음성 선택 (Google 1번 음성)
+    const voices = window.speechSynthesis.getVoices();
+    console.log('🎤 사용 가능한 음성 목록:', voices.map((v, idx) => ({
+      index: idx,
+      name: v.name,
+      lang: v.lang,
+      local: v.localService
+    })));
+
+    // 한국어 음성 필터링
+    const koreanVoices = voices.filter(voice =>
+      voice.lang.includes('ko') || voice.lang.includes('KR')
+    );
+
+    console.log('🇰🇷 한국어 음성:', koreanVoices.map((v, idx) => `[${idx}] ${v.name}`));
+
+    // Google 한국어 음성만 선택 (1번 - 첫 번째)
+    let selectedVoice = null;
+
+    // Google 한국어 음성 찾기
+    const googleVoices = koreanVoices.filter(voice =>
+      voice.name.includes('Google') || voice.name.toLowerCase().includes('google')
+    );
+
+    if (googleVoices.length > 0) {
+      // 첫 번째 Google 한국어 음성 사용
+      selectedVoice = googleVoices[0];
+      console.log('✅ Google 한국어 음성 선택:', selectedVoice.name);
+    } else {
+      // Google 음성이 없으면 첫 번째 한국어 음성 사용
+      if (koreanVoices.length > 0) {
+        selectedVoice = koreanVoices[0];
+        console.log('⚠️ Google 음성 없음. 대체 음성 선택:', selectedVoice.name);
+      }
+    }
+
+    console.log('✅ 최종 선택된 음성:', selectedVoice ? selectedVoice.name : '기본 음성');
+
     // 새로운 음성 합성
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
     utterance.lang = 'ko-KR';
-    utterance.rate = 1.0; // 읽기 속도
-    utterance.pitch = 1.0; // 음높이
-    utterance.volume = 1.0; // 볼륨
+
+    // 선택된 음성 설정
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+
+    // 속도와 피치 최적화 (더 자연스럽게)
+    utterance.rate = 0.95; // 약간 느리게 (더 명확함)
+    utterance.pitch = 1.0; // 기본 음높이
+    utterance.volume = 1.0; // 최대 볼륨
 
     utterance.onstart = () => {
       console.log('🔊 TTS 재생 시작됨');
@@ -1049,7 +1099,7 @@ export default function MyContentPage() {
     };
   }, []);
 
-  // 이미지크롤링 핸들러
+  // 이미지크롤링 핸들러 (Python 자동화)
   const handleImageCrawling = async (scriptId: string, jobId?: string) => {
     try {
       // scriptId로 대본 가져오기
@@ -1075,50 +1125,70 @@ export default function MyContentPage() {
         return;
       }
 
-      toast.success(`${scenes.length}개 씬의 이미지 생성을 시작합니다.`);
+      toast.success(`🤖 자동 이미지 생성 시작... (${scenes.length}개 씬)`);
 
-      // scene_00 (또는 첫 번째 씬) - ImageFX
-      const firstScene = scenes[0];
-      const firstPrompt = firstScene.image_prompt || firstScene.sora_prompt || '';
-      if (firstPrompt) {
-        // 클립보드에 복사
-        await safeCopyToClipboard(firstPrompt);
-        toast.success(`📋 scene_00 프롬프트가 클립보드에 복사되었습니다!\n\nImageFX 창에서 Ctrl+V로 붙여넣기하세요.`, {
-          duration: 4000
-        });
+      // API 호출
+      const response = await fetch('/api/images/crawl', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({
+          scenes,
+          contentId: scriptId
+        })
+      });
 
-        // ImageFX 창 열기
-        const imageFxUrl = `https://aitestkitchen.withgoogle.com/tools/image-fx`;
-        window.open(imageFxUrl, '_blank');
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기 (사용자가 확인할 시간)
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '이미지 크롤링 API 호출 실패');
       }
 
-      // scene_01 이후 - Whisk
-      for (let i = 1; i < scenes.length; i++) {
-        const scene = scenes[i];
-        const sceneNumber = scene.scene_number || scene.scene_id || `scene_${String(i).padStart(2, '0')}`;
-        const prompt = scene.image_prompt || scene.sora_prompt || '';
+      const taskId = data.taskId;
+      toast.success(`✅ 이미지 생성 작업 시작! (작업 ID: ${taskId})`);
 
-        if (prompt) {
-          // 클립보드에 복사
-          await safeCopyToClipboard(prompt);
-          toast.success(`📋 ${sceneNumber} 프롬프트가 클립보드에 복사되었습니다!\n\nWhisk 창에서 Ctrl+V로 붙여넣기하세요.`, {
-            duration: 4000
+      // 작업 상태 폴링
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/images/crawl?taskId=${taskId}`, {
+            headers: getAuthHeaders()
           });
 
-          // Whisk 창 열기
-          const whiskUrl = `https://labs.google/fx/tools/whisk`;
-          window.open(whiskUrl, '_blank');
-          await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기
-        }
-      }
+          if (!statusRes.ok) {
+            clearInterval(pollInterval);
+            return;
+          }
 
-      toast.success('모든 이미지 생성 창이 열렸습니다. 각 창에서 Ctrl+V로 프롬프트를 붙여넣으세요!', {
-        duration: 5000
-      });
-    } catch (error) {
+          const status = await statusRes.json();
+
+          if (status.status === 'completed') {
+            clearInterval(pollInterval);
+            toast.success('✅ 모든 이미지 생성 완료!');
+          } else if (status.status === 'failed') {
+            clearInterval(pollInterval);
+            toast.error(`❌ 이미지 생성 실패: ${status.error}`);
+          } else if (status.status === 'processing') {
+            // 진행 상태 표시
+            if (status.logs && status.logs.length > 0) {
+              const lastLog = status.logs[status.logs.length - 1];
+              console.log(`[이미지 크롤링] ${lastLog}`);
+            }
+          }
+        } catch (error) {
+          console.error('작업 상태 조회 오류:', error);
+        }
+      }, 2000); // 2초마다 상태 확인
+
+      // 5분 후 자동 종료
+      setTimeout(() => {
+        clearInterval(pollInterval);
+      }, 5 * 60 * 1000);
+
+    } catch (error: any) {
       console.error('이미지크롤링 에러:', error);
-      toast.error('이미지 생성 중 오류가 발생했습니다.');
+      toast.error(error?.message || '이미지 생성 중 오류가 발생했습니다.');
     }
   };
 
@@ -1688,6 +1758,16 @@ export default function MyContentPage() {
 
                   const displayedItems = allItems.slice(0, allTabLimit);
                   const hasMoreItems = allItems.length > allTabLimit;
+                  const remainingItems = Math.max(0, allItems.length - allTabLimit);
+
+                  console.log('[전체 탭 더보기]', {
+                    allItemsLength: allItems.length,
+                    allTabLimit,
+                    hasMoreItems,
+                    remainingItems,
+                    jobsLength: jobs.length,
+                    scriptsLength: scripts.length
+                  });
 
                   return (
                     <>
@@ -2318,13 +2398,36 @@ export default function MyContentPage() {
                   ))}
 
                   {/* 더보기 버튼 */}
-                  {hasMoreItems && (
+                  {(hasMoreItems || hasMore || scriptsHasMore) && (
                     <div className="mt-6 text-center">
                       <button
-                        onClick={() => setAllTabLimit(prev => prev + 10)}
-                        className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500"
+                        onClick={() => {
+                          console.log('[더보기 클릭] 전체 탭', {
+                            이전limit: allTabLimit,
+                            새limit: allTabLimit + 10,
+                            hasMore,
+                            scriptsHasMore,
+                            jobsLength: jobs.length,
+                            scriptsLength: scripts.length
+                          });
+
+                          // limit 증가
+                          setAllTabLimit(prev => prev + 10);
+
+                          // 서버에서 더 많은 데이터 가져오기
+                          if (hasMore && !isLoadingMore) {
+                            console.log('[전체 탭] 영상 더 가져오기');
+                            fetchJobs(false);
+                          }
+                          if (scriptsHasMore && !isLoadingMoreScripts) {
+                            console.log('[전체 탭] 대본 더 가져오기');
+                            fetchScripts(false);
+                          }
+                        }}
+                        disabled={isLoadingMore || isLoadingMoreScripts}
+                        className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        더보기 ({allItems.length - allTabLimit}개 더)
+                        {isLoadingMore || isLoadingMoreScripts ? '로딩 중...' : `더보기 (${remainingItems > 0 ? remainingItems : '더 많이'}개)`}
                       </button>
                     </div>
                   )}
