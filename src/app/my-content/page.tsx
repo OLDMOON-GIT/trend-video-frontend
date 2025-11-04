@@ -616,7 +616,7 @@ export default function MyContentPage() {
   };
 
   // ===== 영상 관련 함수 =====
-  const fetchJobs = async (reset = false) => {
+  const fetchJobs = async (reset = false, forceFilter?: 'all' | 'active') => {
     const currentOffset = reset ? 0 : offset;
 
     if (reset) {
@@ -626,8 +626,11 @@ export default function MyContentPage() {
     }
 
     try {
+      // 전체 탭에서는 무조건 'all' 필터 사용
+      const actualFilter = forceFilter || (activeTab === 'all' ? 'all' : filter);
+
       const params = new URLSearchParams({
-        filter,
+        filter: actualFilter,
         limit: '10',
         offset: currentOffset.toString(),
         ...(activeSearchQuery && { search: activeSearchQuery })
@@ -1155,7 +1158,17 @@ export default function MyContentPage() {
         })
       });
 
-      const data = await response.json();
+      // 응답 파싱 (HTML 오류 대응)
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // HTML이나 다른 형식이 반환된 경우
+        const text = await response.text();
+        console.error('❌ JSON이 아닌 응답:', text.substring(0, 200));
+        throw new Error('이미지 크롤링 API가 존재하지 않거나 오류가 발생했습니다.');
+      }
 
       if (!response.ok) {
         throw new Error(data.error || '이미지 크롤링 API 호출 실패');
