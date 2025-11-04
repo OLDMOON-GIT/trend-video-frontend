@@ -153,28 +153,39 @@ export default function ArchitecturePage() {
   useEffect(() => {
     if (mermaidInitialized.current) {
       setTimeout(() => {
-        // data-processed가 없는 노드만 선택
-        const unprocessedNodes = document.querySelectorAll('.language-mermaid:not([data-processed]), .mermaid:not([data-processed])');
-        if (unprocessedNodes.length > 0) {
+        // 현재 활성화된 탭의 다이어그램만 찾기
+        const activeContent = document.querySelector(`[data-tab="${activeTab}"]`);
+        if (!activeContent) return;
+
+        // data-processed 속성 제거하여 강제 재렌더링
+        const allMermaidNodes = activeContent.querySelectorAll('.language-mermaid, .mermaid');
+        allMermaidNodes.forEach(node => {
+          node.removeAttribute('data-processed');
+        });
+
+        // 다시 렌더링
+        if (allMermaidNodes.length > 0) {
           mermaid.run({
-            nodes: unprocessedNodes,
+            nodes: Array.from(allMermaidNodes),
           });
         }
 
         // 다이어그램에 클릭 핸들러 추가
-        const mermaidElements = document.querySelectorAll('.language-mermaid svg, .mermaid svg');
-        mermaidElements.forEach((svg) => {
-          // 텍스트 색상 흰색으로
-          const textElements = svg.querySelectorAll('text, tspan');
-          textElements.forEach((text) => {
-            text.setAttribute('fill', '#ffffff');
-            text.setAttribute('style', 'fill: #ffffff !important;');
-          });
+        setTimeout(() => {
+          const mermaidElements = activeContent.querySelectorAll('.language-mermaid svg, .mermaid svg');
+          mermaidElements.forEach((svg) => {
+            // 텍스트 색상 흰색으로
+            const textElements = svg.querySelectorAll('text, tspan');
+            textElements.forEach((text) => {
+              text.setAttribute('fill', '#ffffff');
+              text.setAttribute('style', 'fill: #ffffff !important;');
+            });
 
-          (svg as HTMLElement).style.cursor = 'pointer';
-          (svg as HTMLElement).onclick = () => handleDiagramClick(svg as SVGElement);
-        });
-      }, 200);
+            (svg as HTMLElement).style.cursor = 'pointer';
+            (svg as HTMLElement).onclick = () => handleDiagramClick(svg as SVGElement);
+          });
+        }, 100);
+      }, 300);
     }
   }, [activeTab]);
 
@@ -396,7 +407,7 @@ export default function ArchitecturePage() {
 
         {/* 콘텐츠 */}
         {activeTab === 'architecture' && (
-        <>
+        <div data-tab="architecture">
         {/* Mermaid 시스템 아키텍처 다이어그램 */}
         <div className="mb-8 rounded-2xl border border-purple-500/30 bg-slate-800/50 p-8 backdrop-blur">
           <h2 className="mb-6 text-2xl font-bold text-white">🏗️ 시스템 아키텍처 다이어그램</h2>
@@ -778,7 +789,7 @@ export default function ArchitecturePage() {
             <p>• <strong>API 구조:</strong> <code className="rounded bg-slate-700 px-2 py-1">src/app/api/*/route.ts</code></p>
           </div>
         </div>
-        </>
+        </div>
       )}
       </div>
 
@@ -874,7 +885,7 @@ export default function ArchitecturePage() {
 
         {/* ERD 탭 */}
         {activeTab === 'erd' && (
-          <>
+          <div data-tab="erd">
             {/* Mermaid ERD 다이어그램 */}
             <div className="mb-8 rounded-2xl border border-blue-500/30 bg-slate-800/50 p-8 backdrop-blur">
               <h2 className="mb-6 text-2xl font-bold text-white">📊 데이터베이스 ERD</h2>
@@ -1736,7 +1747,7 @@ export default function ArchitecturePage() {
                   </div>
                 </div>
               </div>
-          </>
+          </div>
         )}
 
       {/* 맨 위로 버튼 */}
