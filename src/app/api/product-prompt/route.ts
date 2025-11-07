@@ -11,14 +11,9 @@ let promptCache: {
 } | null = null;
 
 export async function GET(request: NextRequest) {
-  // 관리자 인증 확인
+  // 사용자 인증 확인 (관리자 체크는 편집 모드에서만)
   const user = await getCurrentUser(request);
-  if (!user || !user.isAdmin) {
-    return NextResponse.json(
-      { error: '관리자만 접근할 수 있습니다.' },
-      { status: 403 }
-    );
-  }
+  const isAdmin = user?.isAdmin || false;
 
   try {
     // prompts 디렉토리에서 prompt_product로 시작하는 .txt 파일 찾기
@@ -67,8 +62,8 @@ export async function GET(request: NextRequest) {
     const acceptHeader = request.headers.get('accept') || '';
     const wantsHtml = acceptHeader.includes('text/html');
 
-    // 브라우저에서 직접 접근 시 HTML로 보기 좋게 표시
-    if (wantsHtml) {
+    // 브라우저에서 직접 접근 시 HTML로 보기 좋게 표시 (관리자만)
+    if (wantsHtml && isAdmin) {
       const html = `
 <!DOCTYPE html>
 <html lang="ko">
