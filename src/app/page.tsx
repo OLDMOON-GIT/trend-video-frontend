@@ -1302,8 +1302,14 @@ export default function Home() {
     // 영상이 선택되지 않았으면 프롬프트만 복사하고 모델 홈페이지로 이동
     if (!selectedIds.length) {
       try {
-        // 프롬프트 파일 가져오기
-        const response = await fetch(getPromptApiUrl());
+        // 프롬프트 파일 가져오기 - videoFormat에 따라 결정
+        let promptUrl = '/api/prompt';
+        if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+        else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+        else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+
+        console.log('🔍 LLM 이동 - videoFormat:', videoFormat, 'URL:', promptUrl);
+        const response = await fetch(promptUrl);
 
         if (!response.ok) {
           showToast('프롬프트를 가져오는데 실패했습니다.', 'error');
@@ -1840,9 +1846,15 @@ export default function Home() {
                     addToTitleHistory(manualTitle.trim());
 
                     if (titleInputMode === 'copy') {
-                    // Claude로 프롬프트 열기 - /api/prompt에서 텍스트 파일 전체 내용 가져오기
+                    // Claude로 프롬프트 열기 - 포맷에 따른 프롬프트 파일 가져오기
                     try {
-                      const response = await fetch(getPromptApiUrl());
+                      let promptUrl = '/api/prompt';
+                      if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                      else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                      else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+
+                      console.log('🔍 Claude.ai 자동실행 - videoFormat:', videoFormat, 'URL:', promptUrl);
+                      const response = await fetch(promptUrl);
 
                       if (!response.ok) {
                         throw new Error(`API 오류: ${response.status}`);
@@ -3817,8 +3829,15 @@ export default function Home() {
                       }]);
 
                       try {
-                        const promptUrl = getPromptApiUrl();
+                        // videoFormat에 따라 프롬프트 URL 결정
+                        let promptUrl = '/api/prompt'; // 기본값: 롱폼
+                        if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                        else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                        else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+
+                        console.log('🔍 현재 videoFormat:', videoFormat);
                         console.log('📥 프롬프트 fetch 시작:', promptUrl);
+
                         const promptResponse = await fetch(promptUrl);
                         const promptData = await promptResponse.json();
                         console.log('📥 프롬프트 로드 완료:', promptData.filename || 'filename 없음');
@@ -4730,7 +4749,13 @@ export default function Home() {
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch(getPromptApiUrl());
+                      let promptUrl = '/api/prompt';
+                      if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                      else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                      else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+
+                      console.log('🔍 프롬프트 복사 - videoFormat:', videoFormat, 'URL:', promptUrl);
+                      const response = await fetch(promptUrl);
                       const data = await response.json();
                       if (data.content) {
                         // 모든 선택된 제목들을 조합
@@ -4796,7 +4821,13 @@ export default function Home() {
                   // 확인 모달 표시
                   setScriptConfirmCallback(() => async () => {
                     try {
-                    const promptResponse = await fetch(getPromptApiUrl());
+                    let promptUrl = '/api/prompt';
+                    if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                    else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                    else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+
+                    console.log('🔍 제목 제안 생성 - videoFormat:', videoFormat, 'URL:', promptUrl);
+                    const promptResponse = await fetch(promptUrl);
                     const promptData = await promptResponse.json();
 
                     if (!promptData.content) {
