@@ -177,10 +177,14 @@ export default function Home() {
     // 상품 프롬프트 타입인 경우 초기값을 product로 설정
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('promptType') === 'product') {
+      const promptType = params.get('promptType');
+      console.log('🔍 초기 URL promptType:', promptType);
+      if (promptType === 'product') {
+        console.log('✅ videoFormat 초기값: product');
         return 'product';
       }
     }
+    console.log('✅ videoFormat 초기값: longform');
     return 'longform';
   });
   const [productionMode, setProductionMode] = useState<'create' | 'merge'>('create'); // 영상제작 vs 영상병합
@@ -302,6 +306,10 @@ export default function Home() {
       const promptType = urlParams.get('promptType');
 
       if (promptType === 'product') {
+        // 확실하게 상품 포맷으로 설정
+        console.log('🛍️ 상품 모드 강제 설정');
+        setVideoFormat('product');
+
         // localStorage에서 상품 정보 로드
         const productInfoStr = localStorage.getItem('product_video_info');
         if (productInfoStr) {
@@ -389,11 +397,18 @@ export default function Home() {
     }
   }, [chineseConvertLogs]);
 
-  // videoFormat이 변경될 때마다 localStorage에 저장
+  // videoFormat이 변경될 때마다 localStorage에 저장 (상품 모드는 제외)
   useEffect(() => {
     if (typeof window !== 'undefined' && isMounted) {
-      console.log('💾 videoFormat 저장:', videoFormat);
-      localStorage.setItem('videoFormat', videoFormat);
+      const urlParams = new URLSearchParams(window.location.search);
+      const isProductMode = urlParams.get('promptType') === 'product';
+
+      if (!isProductMode && videoFormat !== 'product') {
+        console.log('💾 videoFormat 저장:', videoFormat);
+        localStorage.setItem('videoFormat', videoFormat);
+      } else {
+        console.log('🛍️ 상품 모드: localStorage 저장 건너뛰기');
+      }
     }
   }, [videoFormat, isMounted]);
 
