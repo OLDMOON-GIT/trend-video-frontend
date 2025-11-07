@@ -343,7 +343,6 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - 씬당 12줄 이상 필수
 - 표면 ≠ 진짜 의미 ('밥 드셨어요?' = '당신이 아직 여기 있구나')
 - **필수: 대사에 작은따옴표(')만 사용, 큰따옴표(") 절대 금지** (JSON 이스케이프 방지)
-- **필수: 줄바꿈(\n) 금지 - narration은 한 줄로 작성, 문장 구분은 마침표만 사용** (JSON 파싱 오류 방지)
 
 **5감 골고루:**
 - 시각/청각/촉각 매 씬 필수
@@ -521,7 +520,6 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - [ ] 서브텍스트 5개 이상
 - [ ] 세대별 차별화
 - [ ] **작은따옴표(')만 사용, 큰따옴표(") 절대 금지**
-- [ ] **줄바꿈(\n) 금지 - 한 줄로 작성**
 
 【중복 - v9.5 실용화】 🆕
 - [ ] 의미 있는 내용어 3-4개 연속 동일 없음
@@ -647,7 +645,6 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - ImageFX 프롬프트: 50-70 단어
 - 모든 씬 완전한 문장 마무리 (마침표/물음표/느낌표)
 - **대사/내레이션: 작은따옴표(')만 사용, 큰따옴표(") 금지** (이스케이프 방지)
-- **대사/내레이션: 줄바꿈(\n) 금지 - 한 줄로 작성, 마침표로 문장 구분** (JSON 파싱 오류 방지)
 
 **출력 길이 제한 (CRITICAL):**
 - Claude 제한: 20,000자 (안전 마진)
