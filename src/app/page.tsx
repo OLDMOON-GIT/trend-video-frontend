@@ -246,8 +246,16 @@ export default function Home() {
 
   // 프롬프트 API URL 헬퍼 함수
   const getPromptApiUrl = () => {
-    if (videoFormat === 'shortform') return '/api/shortform-prompt';
-    if (videoFormat === 'product') return '/api/product-prompt';
+    console.log('🔍 getPromptApiUrl - 현재 videoFormat:', videoFormat);
+    if (videoFormat === 'shortform') {
+      console.log('✅ 숏폼 프롬프트 URL 반환');
+      return '/api/shortform-prompt';
+    }
+    if (videoFormat === 'product') {
+      console.log('✅ 상품 프롬프트 URL 반환');
+      return '/api/product-prompt';
+    }
+    console.log('✅ 롱폼 프롬프트 URL 반환');
     return '/api/prompt';
   };
 
@@ -1294,7 +1302,7 @@ export default function Home() {
     if (!selectedIds.length) {
       try {
         // 프롬프트 파일 가져오기
-        const response = await fetch(`/api/prompt?format=${videoFormat}`);
+        const response = await fetch(getPromptApiUrl());
 
         if (!response.ok) {
           showToast('프롬프트를 가져오는데 실패했습니다.', 'error');
@@ -1833,7 +1841,7 @@ export default function Home() {
                     if (titleInputMode === 'copy') {
                     // Claude로 프롬프트 열기 - /api/prompt에서 텍스트 파일 전체 내용 가져오기
                     try {
-                      const response = await fetch(`/api/prompt?format=${videoFormat}`);
+                      const response = await fetch(getPromptApiUrl());
 
                       if (!response.ok) {
                         throw new Error(`API 오류: ${response.status}`);
@@ -3808,8 +3816,11 @@ export default function Home() {
                       }]);
 
                       try {
-                        const promptResponse = await fetch(getPromptApiUrl());
+                        const promptUrl = getPromptApiUrl();
+                        console.log('📥 프롬프트 fetch 시작:', promptUrl);
+                        const promptResponse = await fetch(promptUrl);
                         const promptData = await promptResponse.json();
+                        console.log('📥 프롬프트 로드 완료:', promptData.filename || 'filename 없음');
 
                         setScriptGenerationLogs(prev => [...prev, {
                           timestamp: new Date().toISOString(),
@@ -3818,6 +3829,7 @@ export default function Home() {
 
                         // 상품 정보 준비 (상품 포맷인 경우)
                         let productInfo = null;
+                        console.log('🔍 상품 정보 체크 - videoFormat:', videoFormat);
                         if (videoFormat === 'product') {
                           const productInfoStr = localStorage.getItem('current_product_info');
                           if (productInfoStr) {
@@ -4717,7 +4729,7 @@ export default function Home() {
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch('/api/prompt');
+                      const response = await fetch(getPromptApiUrl());
                       const data = await response.json();
                       if (data.content) {
                         // 모든 선택된 제목들을 조합
