@@ -313,6 +313,18 @@ export default function Home() {
 
             console.log('🛍️ 상품 정보 로드 완료:', productInfo);
 
+            // AI 대본 생성 섹션 열기 및 스크롤
+            setShowTitleInput(true);
+
+            // 약간의 딜레이 후 스크롤 (DOM 렌더링 대기)
+            setTimeout(() => {
+              const aiSection = document.querySelector('[data-ai-script-section]');
+              if (aiSection) {
+                aiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                console.log('📜 AI 대본 생성 섹션으로 이동');
+              }
+            }, 300);
+
             // localStorage 클리어 (일회용)
             localStorage.removeItem('product_video_info');
           } catch (e) {
@@ -1529,7 +1541,7 @@ export default function Home() {
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* Flow 1: AI 대본 생성 */}
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 backdrop-blur">
+            <div data-ai-script-section className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 backdrop-blur">
               <div className="mb-3 flex items-start justify-between">
                 <div className="flex-1">
                   <div className="mb-1 flex items-center gap-2">
