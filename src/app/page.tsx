@@ -411,13 +411,21 @@ export default function Home() {
     checkAuth();
 
     // localStorage에서 videoFormat 복원 (클라이언트에서만)
-    const savedVideoFormat = localStorage.getItem('videoFormat');
-    console.log('📂 localStorage에서 videoFormat 불러오기:', savedVideoFormat);
-    if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2' || savedVideoFormat === 'video-merge') {
-      console.log('✅ videoFormat 복원:', savedVideoFormat);
-      setVideoFormat(savedVideoFormat as any);
+    // 단, promptType=product인 경우는 제외 (이미 초기값으로 설정됨)
+    const urlParams = new URLSearchParams(window.location.search);
+    const isProductMode = urlParams.get('promptType') === 'product';
+
+    if (!isProductMode) {
+      const savedVideoFormat = localStorage.getItem('videoFormat');
+      console.log('📂 localStorage에서 videoFormat 불러오기:', savedVideoFormat);
+      if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2' || savedVideoFormat === 'video-merge') {
+        console.log('✅ videoFormat 복원:', savedVideoFormat);
+        setVideoFormat(savedVideoFormat as any);
+      } else {
+        console.log('⚠️ 저장된 videoFormat 없음, 기본값(longform) 사용');
+      }
     } else {
-      console.log('⚠️ 저장된 videoFormat 없음, 기본값(longform) 사용');
+      console.log('🛍️ 상품 모드: localStorage 복원 건너뛰기');
     }
 
     // localStorage에서 selectedModel 복원 (isFilterExpanded는 useState lazy init에서 이미 처리됨)
