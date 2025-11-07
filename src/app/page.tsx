@@ -173,7 +173,16 @@ export default function Home() {
     return false; // 기본값 false (접힌 상태)
   });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product'>('longform'); // 항상 기본값으로 시작
+  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product'>(() => {
+    // 상품 프롬프트 타입인 경우 초기값을 product로 설정
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('promptType') === 'product') {
+        return 'product';
+      }
+    }
+    return 'longform';
+  });
   const [productionMode, setProductionMode] = useState<'create' | 'merge'>('create'); // 영상제작 vs 영상병합
   const [sora2Script, setSora2Script] = useState<string>(''); // SORA2 대본
   const [showSora2Review, setShowSora2Review] = useState(false); // SORA2 대본 확인 모달
@@ -293,9 +302,6 @@ export default function Home() {
       const promptType = urlParams.get('promptType');
 
       if (promptType === 'product') {
-        // 상품 포맷으로 변경
-        setVideoFormat('product');
-
         // localStorage에서 상품 정보 로드
         const productInfoStr = localStorage.getItem('product_video_info');
         if (productInfoStr) {
