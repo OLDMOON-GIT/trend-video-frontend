@@ -16,13 +16,14 @@ export async function POST(request: NextRequest) {
 
 
   try {
-    const { prompt, topic, suggestTitles, format } = await request.json();
+    const { prompt, topic, suggestTitles, format, productInfo } = await request.json();
 
     console.log('📝 대본 생성 요청:', {
       hasPrompt: !!prompt,
       hasTopic: !!topic,
       suggestTitles,
-      format
+      format,
+      hasProductInfo: !!productInfo
     });
 
     if (!prompt) {
@@ -145,7 +146,21 @@ export async function POST(request: NextRequest) {
         });
 
         // 프롬프트와 주제를 하나로 합쳐서 캐시 효율 향상
-        const combinedPrompt = topic ? `${prompt}\n\n주제: ${topic}` : prompt;
+        let combinedPrompt = topic ? `${prompt}\n\n주제: ${topic}` : prompt;
+
+        // 상품 정보 추가 (product 포맷인 경우)
+        if (format === 'product' && productInfo) {
+          console.log('🛍️ 상품 정보 포함:', productInfo);
+
+          // 프롬프트의 {title}, {thumbnail}, {product_link}, {product_description} 플레이스홀더 치환
+          combinedPrompt = combinedPrompt
+            .replace(/{title}/g, productInfo.title || '')
+            .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+            .replace(/{product_link}/g, productInfo.product_link || '')
+            .replace(/{product_description}/g, productInfo.description || '');
+
+          console.log('✅ 상품 정보 치환 완료');
+        }
 
         console.log('🤖 Claude API 호출 중 (대본 생성)...');
         console.log('📄 프롬프트 길이:', combinedPrompt.length);
@@ -164,12 +179,13 @@ export async function POST(request: NextRequest) {
         const estimatedLengths: Record<string, number> = {
           'longform': 33000,  // 씨당 3,800~4,200자 × 8개 + 폭탄/구독 씬 700자 = 약 31,000~34,000자
           'shortform': 3000,  // 숏폼은 훨씬 짧음 (200~300자 × 10씬 정도)
-          'sora2': 500        // SORA2는 영어 프롬프트로 매우 짧음
+          'sora2': 500,       // SORA2는 영어 프롬프트로 매우 짧음
+          'product': 600      // 상품 프롬프트는 SORA2와 유사 (4씬, 영어 프롬프트)
         };
         const estimatedTotalChars = estimatedLengths[format || 'longform'] || 33000;
 
-        // SORA2 전용 system prompt (JSON 전용 모드 강제)
-        const systemPrompt = format === 'sora2'
+        // SORA2/Product 전용 system prompt (JSON 전용 모드 강제)
+        const systemPrompt = (format === 'sora2' || format === 'product')
           ? `YOU ARE A JSON-ONLY MACHINE. NOT AN ASSISTANT. NOT A CHATBOT.
 
 YOUR ENTIRE RESPONSE = ONE SINGLE JSON OBJECT
@@ -308,8 +324,8 @@ START YOUR RESPONSE WITH { NOW.`
             console.error('❌ JSON 파싱 실패:', parseResult.error);
             console.log('원본 내용:', finalContent.substring(0, 500));
           }
-        } else if (format === 'sora2') {
-          // SORA2만 JSON이 필수이므로 경고
+        } else if (format === 'sora2' || format === 'product') {
+          // SORA2/Product는 JSON이 필수이므로 경고
           console.warn('⚠️ JSON 구조를 찾을 수 없음');
         }
 

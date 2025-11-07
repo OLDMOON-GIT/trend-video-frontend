@@ -19,6 +19,23 @@ interface Product {
   created_at: string;
 }
 
+interface CrawlHistoryItem {
+  id: string;
+  url: string;
+  hostname?: string;
+  lastCrawledAt?: string;
+  resultCount?: number;
+  duplicateCount?: number;
+  errorCount?: number;
+  totalLinks?: number;
+  status?: string;
+  message?: string;
+  pendingCount?: number;
+}
+
+const HISTORY_INITIAL_LIMIT = 5;
+const HISTORY_PAGE_SIZE = 10;
+
 export default function CoupangProductsAdminPage() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -45,13 +62,37 @@ export default function CoupangProductsAdminPage() {
   const [crawlUrl, setCrawlUrl] = useState('');
   const [isCrawling, setIsCrawling] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
-  const [crawlHistory, setCrawlHistory] = useState<Array<{url: string, count: number, latestDate?: string}>>([]);
+  const [crawlHistory, setCrawlHistory] = useState<CrawlHistoryItem[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
   const [crawlProgress, setCrawlProgress] = useState(0);
   const [crawlStatus, setCrawlStatus] = useState('');
-  const [showAllHistory, setShowAllHistory] = useState(false);
   const [crawlLogs, setCrawlLogs] = useState<string[]>([]);
   const [showCrawlLogs, setShowCrawlLogs] = useState(false);
-  const [crawlAbortController, setCrawlAbortController] = useState<AbortController | null>(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [jobPollingInterval, setJobPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  const applyPendingCounts = (historyItems: CrawlHistoryItem[], products: any[]) => {
+    if (historyItems.length === 0) return historyItems;
+    const counts = new Map<string, number>();
+    products.forEach((p: any) => {
+      if (!p?.source_url) return;
+      counts.set(p.source_url, (counts.get(p.source_url) || 0) + 1);
+    });
+    return historyItems.map(item => ({
+      ...item,
+      pendingCount: counts.get(item.url) ?? 0
+    }));
+  };
+
+  const getHostnameFromUrl = (url: string) => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
+    }
+  };
 
   // 통합 검색
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,8 +115,18 @@ export default function CoupangProductsAdminPage() {
   useEffect(() => {
     if (isAuthenticated && activeTab === 'pending') {
       loadPendingProducts();
+      loadLinkHistory();
     }
   }, [isAuthenticated, activeTab]);
+
+  // 컴포넌트 언마운트 시 폴링 정리
+  useEffect(() => {
+    return () => {
+      if (jobPollingInterval) {
+        clearInterval(jobPollingInterval);
+      }
+    };
+  }, [jobPollingInterval]);
 
   const checkAuth = async () => {
     try {
@@ -86,6 +137,7 @@ export default function CoupangProductsAdminPage() {
         setIsAuthenticated(true);
         await loadProducts();
         await loadPendingProducts(); // 대기 목록도 초기 로드
+        await loadLinkHistory();
       } else {
         router.push('/auth');
       }
@@ -312,34 +364,67 @@ export default function CoupangProductsAdminPage() {
       if (res.ok) {
         const products = data.products || [];
         setPendingProducts(products);
-
-        // 크롤링 히스토리 계산 (source_url별 그룹화 + 최신 날짜)
-        const historyMap = new Map<string, {count: number, latestDate: string}>();
-        products.forEach((p: any) => {
-          const url = p.source_url;
-          const existing = historyMap.get(url);
-          if (existing) {
-            existing.count += 1;
-            // 최신 날짜 업데이트
-            if (p.created_at && new Date(p.created_at) > new Date(existing.latestDate)) {
-              existing.latestDate = p.created_at;
-            }
-          } else {
-            historyMap.set(url, { count: 1, latestDate: p.created_at || new Date().toISOString() });
-          }
-        });
-
-        const history = Array.from(historyMap.entries())
-          .map(([url, data]) => ({ url, count: data.count, latestDate: data.latestDate }))
-          .sort((a, b) => {
-            // 최신 날짜 순으로 정렬
-            return new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime();
-          });
-
-        setCrawlHistory(history);
+        setCrawlHistory(prev => applyPendingCounts(prev, products));
       }
     } catch (error) {
       console.error('대기 목록 조회 실패:', error);
+    }
+  };
+
+  const loadLinkHistory = async (
+    { append = false, limit = HISTORY_INITIAL_LIMIT }: { append?: boolean; limit?: number } = {}
+  ) => {
+    try {
+      setIsHistoryLoading(true);
+      const offset = append ? crawlHistory.length : 0;
+      const res = await fetch(`/api/crawl-link-history?limit=${limit}&offset=${offset}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error('링크 히스토리 조회 실패:', data.error || data.message);
+        return;
+      }
+
+      const mapped: CrawlHistoryItem[] = (data.items || []).map((item: any) => ({
+        id: item.id,
+        url: item.sourceUrl,
+        hostname: item.hostname,
+        lastCrawledAt: item.lastCrawledAt,
+        resultCount: item.lastResultCount,
+        duplicateCount: item.lastDuplicateCount,
+        errorCount: item.lastErrorCount,
+        totalLinks: item.lastTotalLinks,
+        status: item.lastStatus,
+        message: item.lastMessage
+      }));
+
+      setHistoryTotal(data.total || 0);
+
+      setCrawlHistory(prev => {
+        if (append) {
+          const map = new Map(prev.map(item => [item.id, item]));
+          mapped.forEach(item => {
+            map.set(item.id, { ...map.get(item.id), ...item });
+          });
+          const combined = Array.from(map.values()).sort((a, b) => {
+            const aTime = a.lastCrawledAt ? new Date(a.lastCrawledAt).getTime() : 0;
+            const bTime = b.lastCrawledAt ? new Date(b.lastCrawledAt).getTime() : 0;
+            return bTime - aTime;
+          });
+          return applyPendingCounts(combined, pendingProducts);
+        }
+
+        const sorted = mapped.sort((a, b) => {
+          const aTime = a.lastCrawledAt ? new Date(a.lastCrawledAt).getTime() : 0;
+          const bTime = b.lastCrawledAt ? new Date(b.lastCrawledAt).getTime() : 0;
+          return bTime - aTime;
+        });
+        return applyPendingCounts(sorted, pendingProducts);
+      });
+    } catch (error) {
+      console.error('링크 히스토리 조회 실패:', error);
+    } finally {
+      setIsHistoryLoading(false);
     }
   };
 
@@ -352,13 +437,122 @@ export default function CoupangProductsAdminPage() {
   };
 
   // 크롤링 중지
-  const handleStopCrawl = () => {
-    if (crawlAbortController) {
-      crawlAbortController.abort();
-      addCrawlLog('⛔ 사용자가 크롤링을 중지했습니다.');
-      toast.error('크롤링이 중지되었습니다.');
-      setIsCrawling(false);
-      setCrawlAbortController(null);
+  const handleStopCrawl = async () => {
+    if (!currentJobId) {
+      toast.error('중지할 작업이 없습니다.');
+      return;
+    }
+
+    // 즉시 폴링 중지
+    if (jobPollingInterval) {
+      clearInterval(jobPollingInterval);
+      setJobPollingInterval(null);
+    }
+
+    // UI 상태 즉시 업데이트
+    setIsCrawling(false);
+    setCrawlStatus('중지 요청 중...');
+    addCrawlLog('🛑 중지 요청 전송 중...');
+
+    try {
+      const res = await fetch(`/api/crawl-product-links?jobId=${currentJobId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        addCrawlLog('✅ 크롤링이 중지되었습니다.');
+        setCrawlStatus('중지됨');
+        toast.success('크롤링이 중지되었습니다.');
+
+        // 대기 목록 새로고침
+        await loadPendingProducts();
+        await loadLinkHistory();
+      } else {
+        addCrawlLog(`❌ 중지 요청 실패: ${data.error}`);
+        toast.error(data.error || '중지 실패');
+      }
+    } catch (error: any) {
+      console.error('중지 요청 실패:', error);
+      addCrawlLog(`❌ 중지 요청 오류: ${error.message}`);
+      toast.error('중지 요청 중 오류가 발생했습니다.');
+    } finally {
+      setCurrentJobId(null);
+
+      // 3초 후 진행바 초기화
+      setTimeout(() => {
+        setCrawlProgress(0);
+        setCrawlStatus('');
+      }, 3000);
+    }
+  };
+
+  // Job 상태 폴링
+  const pollJobStatus = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/crawl-product-links?jobId=${jobId}`);
+      const data = await res.json();
+
+      if (res.ok && data.job) {
+        const job = data.job;
+
+        console.log('📡 Job 상태:', {
+          progress: job.progress,
+          status: job.status,
+          logsCount: job.logs?.length || 0,
+          aborted: job.aborted
+        });
+
+        // 진행률 및 상태 업데이트
+        setCrawlProgress(job.progress);
+        setCrawlStatus(job.status);
+
+        // 로그 업데이트 - 서버 로그로 완전히 교체
+        if (job.logs && job.logs.length > 0) {
+          console.log('📝 로그 업데이트:', job.logs.length, '개');
+          setCrawlLogs(job.logs);
+        }
+
+        // Job이 완료되었거나 중지되었으면 폴링 중지
+          if (job.progress >= 100 || job.aborted || job.status.includes('완료') || job.status.includes('중지')) {
+            console.log('✅ Job 완료/중지 감지, 폴링 중지');
+            if (jobPollingInterval) {
+              clearInterval(jobPollingInterval);
+              setJobPollingInterval(null);
+            }
+            setIsCrawling(false);
+            setCurrentJobId(null);
+
+            // 대기 목록 새로고침
+            await loadPendingProducts();
+            await loadLinkHistory();
+            setCrawlLogs(prev => [...prev, '✅ 대기 목록이 새로고침되었습니다.']);
+
+          // 완료 메시지
+          if (job.status.includes('완료')) {
+            toast.success('크롤링이 완료되었습니다!');
+          } else if (job.aborted || job.status.includes('중지')) {
+            toast.error('크롤링이 중지되었습니다.');
+          }
+
+          // 3초 후 진행바 초기화
+          setTimeout(() => {
+            setCrawlProgress(0);
+            setCrawlStatus('');
+          }, 3000);
+        }
+      } else {
+        // Job을 찾을 수 없으면 폴링 중지
+        if (jobPollingInterval) {
+          clearInterval(jobPollingInterval);
+          setJobPollingInterval(null);
+        }
+        setIsCrawling(false);
+        setCurrentJobId(null);
+      }
+    } catch (error: any) {
+      console.error('Job 상태 조회 실패:', error);
     }
   };
 
@@ -371,120 +565,51 @@ export default function CoupangProductsAdminPage() {
 
     setIsCrawling(true);
     setCrawlProgress(0);
-    setCrawlStatus('페이지 크롤링 중...');
-    setCrawlLogs([]);
+    setCrawlStatus('크롤링 시작 중...');
+    setCrawlLogs([`🔍 크롤링 시작 요청: ${crawlUrl}`]);
     setShowCrawlLogs(true);
 
-    // AbortController 생성
-    const controller = new AbortController();
-    setCrawlAbortController(controller);
-
-    // 진행바 시뮬레이션
-    // 링크당 평균 8초 예상 + 초기 페이지 크롤링 3초
-    const startTime = Date.now();
-    const baseTime = 3000; // 초기 페이지 크롤링
-    const timePerLink = 8000; // 링크당 8초
-    // 평균 5개 링크로 가정 (실제로는 응답 후 업데이트)
-    let estimatedDuration = baseTime + (5 * timePerLink); // 기본 43초
-
-    addCrawlLog(`🔍 크롤링 시작: ${crawlUrl}`);
-
-    const progressInterval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min((elapsed / estimatedDuration) * 95, 95); // 최대 95%까지만
-      setCrawlProgress(progress);
-
-      if (progress < 10) {
-        setCrawlStatus('페이지 HTML 다운로드 중...');
-      } else if (progress < 20) {
-        setCrawlStatus('쿠팡 링크 추출 중...');
-        if (Math.floor(progress) === 15) addCrawlLog('📄 HTML 다운로드 완료, 링크 추출 중...');
-      } else if (progress < 40) {
-        setCrawlStatus('축약 링크 확장 중...');
-        if (Math.floor(progress) === 25) addCrawlLog('🔗 쿠팡 링크 발견, 축약 링크 확장 시작...');
-      } else if (progress < 70) {
-        setCrawlStatus('상품 정보 크롤링 중... (썸네일, 제목)');
-        if (Math.floor(progress) === 45) addCrawlLog('🖼️ 상품 정보 크롤링 중...');
-      } else if (progress < 90) {
-        setCrawlStatus('AI 카테고리 분류 중...');
-        if (Math.floor(progress) === 75) addCrawlLog('🤖 AI 카테고리 분류 중...');
-      } else {
-        setCrawlStatus('거의 완료...');
-      }
-    }, 500);
+    console.log('🚀 크롤링 시작:', crawlUrl);
 
     try {
+      // Job 생성
       const res = await fetch('/api/crawl-product-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceUrl: crawlUrl }),
-        signal: controller.signal
+        body: JSON.stringify({ sourceUrl: crawlUrl })
       });
 
       const data = await res.json();
 
-      clearInterval(progressInterval);
+      if (res.ok && data.jobId) {
+        const jobId = data.jobId;
+        setCurrentJobId(jobId);
+        console.log('✅ Job 생성됨:', jobId);
+        setCrawlLogs(prev => [
+          ...prev,
+          `✅ 크롤링 Job 생성: ${jobId}`,
+          '📡 서버에서 백그라운드로 크롤링 중...'
+        ]);
 
-      if (res.ok) {
-        // 실제 링크 수에 따른 예상 시간 업데이트 (다음 크롤링 참고용)
-        if (data.totalFound) {
-          estimatedDuration = baseTime + (data.totalFound * timePerLink);
-        }
+        // Job 상태 폴링 시작 (1초마다)
+        const interval = setInterval(() => {
+          pollJobStatus(jobId);
+        }, 1000);
+        setJobPollingInterval(interval);
 
-        setCrawlProgress(100);
-        setCrawlStatus(`완료! ${data.totalFound}개 링크 → ${data.added}개 추가, ${data.duplicate}개 중복, ${data.error}개 실패`);
-
-        // 로그 추가
-        addCrawlLog(`✅ 크롤링 완료: 총 ${data.totalFound}개 링크 발견`);
-        addCrawlLog(`   ✓ 신규 추가: ${data.added}개`);
-        addCrawlLog(`   ⏭️ 중복 제외: ${data.duplicate}개`);
-        if (data.error > 0) {
-          addCrawlLog(`   ❌ 실패: ${data.error}개`);
-        }
-
-        // 성공 메시지
-        toast.success(data.message);
-
-        // 에러가 있으면 경고 표시
-        if (data.error > 0 && data.errors && data.errors.length > 0) {
-          console.warn('❌ 크롤링 실패 링크:', data.errors);
-          toast.error(`${data.error}개 링크 크롤링 실패 (로그 확인)`);
-          data.errors.forEach((err: string) => {
-            addCrawlLog(`   ⚠️ ${err}`);
-          });
-        }
-
-        addCrawlLog('🎉 대기 목록 새로고침 중...');
-        await loadPendingProducts();
-        addCrawlLog('✅ 모든 작업 완료!');
-
-        setCrawlUrl('');
+        // 초기 상태 조회
+        setTimeout(() => pollJobStatus(jobId), 500);
+        loadLinkHistory();
       } else {
-        setCrawlProgress(0);
-        setCrawlStatus('');
-        addCrawlLog(`❌ 크롤링 실패: ${data.error}`);
-        toast.error(data.error || '크롤링 실패');
+        setIsCrawling(false);
+        setCrawlLogs(prev => [...prev, `❌ 크롤링 시작 실패: ${data.error || data.message}`]);
+        toast.error(data.error || '크롤링 시작 실패');
       }
     } catch (error: any) {
-      clearInterval(progressInterval);
-      setCrawlProgress(0);
-      setCrawlStatus('');
-
-      // Abort 에러는 무시 (사용자가 중지한 경우)
-      if (error.name === 'AbortError') {
-        console.log('크롤링이 사용자에 의해 중지되었습니다.');
-      } else {
-        console.error('크롤링 실패:', error);
-        addCrawlLog(`❌ 크롤링 오류: ${error.message}`);
-        toast.error('크롤링 중 오류가 발생했습니다.');
-      }
-    } finally {
       setIsCrawling(false);
-      setCrawlAbortController(null);
-      setTimeout(() => {
-        setCrawlProgress(0);
-        setCrawlStatus('');
-      }, 3000);
+      console.error('크롤링 시작 실패:', error);
+      setCrawlLogs(prev => [...prev, `❌ 크롤링 시작 오류: ${error.message}`]);
+      toast.error('크롤링 시작 중 오류가 발생했습니다.');
     }
   };
 
@@ -643,6 +768,52 @@ export default function CoupangProductsAdminPage() {
     }
   };
 
+  const handleRefreshHistory = () => {
+    const limit = Math.max(HISTORY_INITIAL_LIMIT, crawlHistory.length || HISTORY_INITIAL_LIMIT);
+    loadLinkHistory({ limit });
+  };
+
+  const handleOpenHistoryModal = () => {
+    setIsHistoryModalOpen(true);
+    if (crawlHistory.length < historyTotal && !isHistoryLoading) {
+      loadLinkHistory({ append: true, limit: HISTORY_PAGE_SIZE });
+    }
+  };
+
+  const handleCloseHistoryModal = () => {
+    setIsHistoryModalOpen(false);
+  };
+
+  const handleLoadMoreHistory = () => {
+    if (isHistoryLoading || crawlHistory.length >= historyTotal) return;
+    loadLinkHistory({ append: true, limit: HISTORY_PAGE_SIZE });
+  };
+
+  const handleDeleteHistoryItem = async (historyId: string) => {
+    if (!historyId) return;
+    if (!confirm('이 링크 기록을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/crawl-link-history?id=${historyId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success('링크 기록이 삭제되었습니다.');
+        setCrawlHistory(prev => applyPendingCounts(prev.filter(item => item.id !== historyId), pendingProducts));
+        setHistoryTotal(prev => Math.max(0, prev - 1));
+      } else {
+        toast.error(data.error || '링크 기록 삭제에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('링크 기록 삭제 실패:', error);
+      toast.error('링크 기록 삭제 중 오류가 발생했습니다.');
+    }
+  };
+
   // 통합 검색
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -694,6 +865,9 @@ export default function CoupangProductsAdminPage() {
       </div>
     );
   }
+
+  const visibleHistory = crawlHistory.slice(0, HISTORY_INITIAL_LIMIT);
+  const remainingHistoryCount = Math.max(historyTotal - HISTORY_INITIAL_LIMIT, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
@@ -841,7 +1015,7 @@ export default function CoupangProductsAdminPage() {
           )}
         </div>
 
-        {/* 탭 + 설정 버튼 */}
+        {/* 탭 */}
         <div className="mb-8 flex items-center justify-between">
           <div className="flex gap-2">
             <button
@@ -866,13 +1040,6 @@ export default function CoupangProductsAdminPage() {
             </button>
           </div>
 
-          {/* 설정 버튼 */}
-          <button
-            onClick={() => router.push('/settings?tab=google-sites')}
-            className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-3 text-white font-semibold hover:from-blue-500 hover:to-cyan-500 transition"
-          >
-            ⚙️ 설정
-          </button>
         </div>
 
         {/* 내 목록 탭 */}
@@ -1073,6 +1240,27 @@ export default function CoupangProductsAdminPage() {
 
                 {/* 액션 버튼 */}
                 <div className="flex flex-col gap-2">
+                  {/* 영상 제작 버튼 */}
+                  <button
+                    onClick={() => {
+                      // 상품 정보를 로컬 스토리지에 저장
+                      const productInfo = {
+                        title: product.title,
+                        thumbnail: product.image_url,
+                        product_link: product.deep_link,
+                        description: product.description
+                      };
+                      localStorage.setItem('product_video_info', JSON.stringify(productInfo));
+
+                      // 메인 페이지로 이동 (상품 프롬프트 타입)
+                      router.push('/?promptType=product');
+                      toast.success('상품 정보가 로드되었습니다!');
+                    }}
+                    className="w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:from-green-500 hover:to-emerald-500 transition"
+                  >
+                    🎬 영상 제작하기
+                  </button>
+
                   <div className="flex gap-2">
                     <a
                       href={product.deep_link}
@@ -1128,144 +1316,174 @@ export default function CoupangProductsAdminPage() {
         {activeTab === 'pending' && (
           <>
             {/* 크롤링 히스토리 */}
-            {crawlHistory.length > 0 && (
-              <div className="mb-8 rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-950/40 to-slate-800/40 p-6 backdrop-blur shadow-xl">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-1">
-                      📚 크롤링 히스토리
-                    </h3>
-                    <p className="text-sm text-blue-300">
-                      최근 크롤링한 {crawlHistory.length}개 링크 • 총 {pendingProducts.length}개 상품
-                    </p>
-                  </div>
-                  {crawlHistory.length > 5 && (
-                    <button
-                      onClick={() => setShowAllHistory(!showAllHistory)}
-                      className="px-4 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 hover:text-blue-200 transition font-semibold text-sm flex items-center gap-2"
-                    >
-                      {showAllHistory ? (
-                        <>접기 <span className="text-xs">▲</span></>
-                      ) : (
-                        <>더보기 ({crawlHistory.length - 5}개) <span className="text-xs">▼</span></>
-                      )}
-                    </button>
-                  )}
+            <div className="mb-8 rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-950/40 to-slate-800/40 p-6 backdrop-blur shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-1">
+                    📚 최근 링크 히스토리
+                  </h3>
+                  <p className="text-sm text-blue-300">
+                    최근 크롤링한 {historyTotal}개 링크 • 대기 목록 {pendingProducts.length}개
+                  </p>
                 </div>
-
-                {/* 최근 5개 - 카드 스타일 */}
-                <div className="space-y-3">
-                  {crawlHistory.slice(0, 5).map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="group relative rounded-xl border border-slate-600 bg-slate-800/80 hover:bg-slate-800 hover:border-blue-500/50 transition-all p-4 shadow-lg hover:shadow-blue-500/20"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => setCrawlUrl(item.url)}
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs px-2 py-1 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/30 font-semibold">
-                              #{idx + 1}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              🌐 {new URL(item.url).hostname}
-                            </span>
-                          </div>
-                          <p className="text-sm text-white font-medium truncate mb-2 hover:text-blue-300 transition">
-                            {item.url}
-                          </p>
-                          <div className="flex items-center gap-4 text-xs text-slate-400">
-                            {item.latestDate && (
-                              <span className="flex items-center gap-1">
-                                📅 {new Date(item.latestDate).toLocaleString('ko-KR', {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1">
-                              📦 {item.count}개 상품
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCrawlUrl(item.url);
-                              toast.success('URL이 입력되었습니다!');
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 text-blue-300 hover:text-blue-200 text-xs font-semibold transition"
-                            title="다시 크롤링"
-                          >
-                            🔄 재실행
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteBySourceUrl(item.url, item.count);
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold transition"
-                            title="모든 상품 삭제"
-                          >
-                            🗑️ 삭제
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRefreshHistory}
+                    className="px-4 py-2 rounded-lg bg-slate-900/60 border border-slate-700/70 text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition text-sm font-semibold"
+                  >
+                    🔄 새로고침
+                  </button>
+                  <button
+                    onClick={handleOpenHistoryModal}
+                    className="px-4 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-200 transition text-sm font-semibold flex items-center gap-2"
+                  >
+                    📋 목록보기
+                  </button>
                 </div>
+              </div>
 
-                {/* 나머지 목록 - 접을 수 있음 */}
-                {showAllHistory && crawlHistory.length > 5 && (
-                  <div className="mt-4 pt-4 border-t border-slate-600">
-                    <h4 className="text-sm font-semibold text-slate-400 mb-3">이전 크롤링 기록</h4>
-                    <div className="space-y-2">
-                      {crawlHistory.slice(5).map((item, idx) => (
+              {historyTotal === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <p>아직 저장된 링크 기록이 없습니다.</p>
+                  <p className="text-slate-500 text-sm mt-2">링크 모음 URL을 입력하고 크롤링을 시작해보세요!</p>
+                </div>
+              ) : crawlHistory.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">최근 링크를 불러오는 중입니다...</div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {visibleHistory.map((item, idx) => {
+                      const normalizedStatus = (item.status || '').toLowerCase();
+                      const statusLabel = normalizedStatus === 'completed'
+                        ? '완료'
+                        : normalizedStatus === 'error'
+                        ? '실패'
+                        : normalizedStatus === 'aborted'
+                        ? '중지'
+                        : '진행중';
+                      const statusColor = normalizedStatus === 'completed'
+                        ? 'text-emerald-300'
+                        : normalizedStatus === 'error'
+                        ? 'text-red-300'
+                        : normalizedStatus === 'aborted'
+                        ? 'text-orange-300'
+                        : 'text-blue-300';
+                      const pendingCount = item.pendingCount ?? 0;
+
+                      return (
                         <div
-                          key={idx + 5}
-                          className="group flex items-center justify-between p-3 rounded-lg bg-slate-900/50 hover:bg-slate-900 transition border border-transparent hover:border-slate-600"
+                          key={item.id}
+                          className="group relative rounded-xl border border-slate-600 bg-slate-800/80 hover:bg-slate-800 hover:border-blue-500/50 transition-all p-4 shadow-lg hover:shadow-blue-500/20"
                         >
-                          <div
-                            className="flex-1 min-w-0 cursor-pointer"
-                            onClick={() => {
-                              setCrawlUrl(item.url);
-                              toast.success('URL이 입력되었습니다!');
-                            }}
-                          >
-                            <p className="text-sm text-white truncate hover:text-blue-300 transition">
-                              {item.url}
-                            </p>
-                            <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                              <span>🌐 {new URL(item.url).hostname}</span>
-                              {item.latestDate && (
-                                <span>📅 {new Date(item.latestDate).toLocaleDateString('ko-KR')}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <div
+                              className="flex-1 min-w-0 cursor-pointer"
+                              onClick={() => {
+                                setCrawlUrl(item.url);
+                                toast.success('URL이 입력되었습니다!');
+                              }}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs px-2 py-1 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/30 font-semibold">
+                                  #{idx + 1}
+                                </span>
+                                <span className="text-xs text-slate-400">
+                                  🌐 {item.hostname || getHostnameFromUrl(item.url)}
+                                </span>
+                              </div>
+                              <p className="text-sm text-white font-medium break-all mb-2 hover:text-blue-300 transition">
+                                {item.url}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                                {item.lastCrawledAt && (
+                                  <span className="flex items-center gap-1">
+                                    📅 {new Date(item.lastCrawledAt).toLocaleString('ko-KR', {
+                                      year: 'numeric',
+                                      month: '2-digit',
+                                      day: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-1 text-emerald-300">
+                                  ✅ 신규 {item.resultCount ?? 0}개
+                                </span>
+                                {typeof item.duplicateCount === 'number' && item.duplicateCount > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    ⏭️ 중복 {item.duplicateCount}
+                                  </span>
+                                )}
+                                {typeof item.errorCount === 'number' && item.errorCount > 0 && (
+                                  <span className="flex items-center gap-1 text-red-300">
+                                    ⚠️ 실패 {item.errorCount}
+                                  </span>
+                                )}
+                                {pendingCount > 0 && (
+                                  <span className="flex items-center gap-1 text-orange-300">
+                                    🕒 대기 {pendingCount}
+                                  </span>
+                                )}
+                                <span className={`flex items-center gap-1 font-semibold ${statusColor}`}>
+                                  {statusLabel}
+                                </span>
+                              </div>
+                              {item.message && (
+                                <p className="text-xs text-slate-500 mt-2 line-clamp-2">
+                                  {item.message}
+                                </p>
                               )}
-                              <span className="text-blue-400 font-semibold">{item.count}개</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCrawlUrl(item.url);
+                                  toast.success('URL이 입력되었습니다!');
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 text-blue-300 hover:text-blue-200 text-xs font-semibold transition"
+                              >
+                                🔁 URL 입력
+                              </button>
+                              {pendingCount > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteBySourceUrl(item.url, pendingCount);
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-200 text-xs font-semibold transition"
+                                >
+                                  🧺 대기 삭제
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteHistoryItem(item.id);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 text-xs font-semibold transition"
+                              >
+                                🧹 기록 삭제
+                              </button>
                             </div>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteBySourceUrl(item.url, item.count);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 rounded bg-red-600/20 hover:bg-red-600/40 text-red-400 text-xs font-semibold ml-3"
-                            title="모든 상품 삭제"
-                          >
-                            삭제
-                          </button>
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
-            )}
+                  {remainingHistoryCount > 0 && (
+                    <div className="text-right mt-5">
+                      <button
+                        onClick={handleOpenHistoryModal}
+                        className="text-sm font-semibold text-blue-200 hover:text-blue-100 transition"
+                      >
+                        목록보기 · {remainingHistoryCount}개 더 보기
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
 
             {/* 크롤링 섹션 */}
             <div className="mb-8 rounded-3xl border border-blue-500/20 bg-blue-950/20 p-8 backdrop-blur">
@@ -1323,7 +1541,7 @@ export default function CoupangProductsAdminPage() {
               )}
 
               {/* 크롤링 로그 */}
-              {showCrawlLogs && crawlLogs.length > 0 && (
+              {(isCrawling || crawlLogs.length > 0) && (
                 <div className="mt-6 rounded-lg border border-slate-600 bg-slate-900/90 overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700">
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1331,18 +1549,27 @@ export default function CoupangProductsAdminPage() {
                       <span className="text-xs text-slate-400">({crawlLogs.length})</span>
                     </h3>
                     <button
-                      onClick={() => setShowCrawlLogs(false)}
+                      onClick={() => {
+                        setShowCrawlLogs(false);
+                        if (!isCrawling) setCrawlLogs([]);
+                      }}
                       className="text-slate-400 hover:text-white transition"
                     >
                       ✕
                     </button>
                   </div>
                   <div className="p-4 max-h-80 overflow-y-auto font-mono text-xs space-y-1">
-                    {crawlLogs.map((log, idx) => (
-                      <div key={idx} className="text-slate-300 hover:bg-slate-800/50 px-2 py-1 rounded">
-                        {log}
+                    {crawlLogs.length > 0 ? (
+                      crawlLogs.map((log, idx) => (
+                        <div key={idx} className="text-slate-300 hover:bg-slate-800/50 px-2 py-1 rounded">
+                          {log}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-slate-500 text-center py-4">
+                        로그를 기다리는 중...
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               )}
@@ -1612,6 +1839,115 @@ export default function CoupangProductsAdminPage() {
           </div>
         </div>
       </div>
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-[99999] bg-black/70 flex items-start justify-center p-4 pt-16 overflow-y-auto">
+          <div className="w-full max-w-4xl bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+              <div>
+                <h3 className="text-lg font-bold text-white">📋 링크 모음 전체 목록</h3>
+                <p className="text-sm text-slate-400">총 {historyTotal}개 링크가 저장되어 있습니다.</p>
+              </div>
+              <button
+                onClick={handleCloseHistoryModal}
+                className="text-slate-400 hover:text-white transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto divide-y divide-slate-800">
+              {crawlHistory.length === 0 ? (
+                <div className="text-center text-slate-400 py-10">링크를 불러오는 중입니다...</div>
+              ) : (
+                crawlHistory.map((item) => {
+                  const normalizedStatus = (item.status || '').toLowerCase();
+                  const statusLabel = normalizedStatus === 'completed'
+                    ? '완료'
+                    : normalizedStatus === 'error'
+                    ? '실패'
+                    : normalizedStatus === 'aborted'
+                    ? '중지'
+                    : '진행중';
+                  const statusColor = normalizedStatus === 'completed'
+                    ? 'text-emerald-300'
+                    : normalizedStatus === 'error'
+                    ? 'text-red-300'
+                    : normalizedStatus === 'aborted'
+                    ? 'text-orange-300'
+                    : 'text-blue-300';
+                  const pendingCount = item.pendingCount ?? 0;
+
+                  return (
+                    <div key={item.id} className="px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white font-medium break-all mb-1">{item.url}</p>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                          <span>🌐 {item.hostname || getHostnameFromUrl(item.url)}</span>
+                          {item.lastCrawledAt && (
+                            <span>📅 {new Date(item.lastCrawledAt).toLocaleString('ko-KR')}</span>
+                          )}
+                          <span className="text-emerald-300">✅ {item.resultCount ?? 0}개</span>
+                          {typeof item.duplicateCount === 'number' && item.duplicateCount > 0 && (
+                            <span>⏭️ {item.duplicateCount}개 중복</span>
+                          )}
+                          {typeof item.errorCount === 'number' && item.errorCount > 0 && (
+                            <span className="text-red-300">⚠️ {item.errorCount}개 실패</span>
+                          )}
+                          {pendingCount > 0 && (
+                            <span className="text-orange-300">🕒 대기 {pendingCount}개</span>
+                          )}
+                          <span className={`font-semibold ${statusColor}`}>{statusLabel}</span>
+                        </div>
+                        {item.message && (
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-2">{item.message}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 w-full sm:w-48">
+                        <button
+                          onClick={() => {
+                            setCrawlUrl(item.url);
+                            toast.success('URL이 입력되었습니다!');
+                          }}
+                          className="px-3 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-200 text-xs font-semibold transition"
+                        >
+                          🔁 URL 입력
+                        </button>
+                        {pendingCount > 0 && (
+                          <button
+                            onClick={() => handleDeleteBySourceUrl(item.url, pendingCount)}
+                            className="px-3 py-2 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-100 text-xs font-semibold transition"
+                          >
+                            🧺 대기 삭제
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteHistoryItem(item.id)}
+                          className="px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-200 text-xs font-semibold transition"
+                        >
+                          🧹 기록 삭제
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-700">
+              <span className="text-sm text-slate-400">
+                {crawlHistory.length} / {historyTotal}개 로드됨
+              </span>
+              {crawlHistory.length < historyTotal && (
+                <button
+                  onClick={handleLoadMoreHistory}
+                  disabled={isHistoryLoading}
+                  className="px-4 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 text-blue-200 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isHistoryLoading ? '불러오는 중...' : `더보기 (${historyTotal - crawlHistory.length}개 남음)`}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

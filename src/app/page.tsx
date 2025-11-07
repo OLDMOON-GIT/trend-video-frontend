@@ -173,7 +173,7 @@ export default function Home() {
     return false; // 기본값 false (접힌 상태)
   });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2'>('longform'); // 항상 기본값으로 시작
+  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product'>('longform'); // 항상 기본값으로 시작
   const [productionMode, setProductionMode] = useState<'create' | 'merge'>('create'); // 영상제작 vs 영상병합
   const [sora2Script, setSora2Script] = useState<string>(''); // SORA2 대본
   const [showSora2Review, setShowSora2Review] = useState(false); // SORA2 대본 확인 모달
@@ -191,7 +191,7 @@ export default function Home() {
   const [isSuggestingTitles, setIsSuggestingTitles] = useState(false);
   const [selectedSuggestedTitle, setSelectedSuggestedTitle] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<'none' | 'dalle' | 'google'>('none');
-  const [originalFormat, setOriginalFormat] = useState<'longform' | 'shortform' | 'sora2' | null>(null); // 불러온 대본의 원본 포맷
+  const [originalFormat, setOriginalFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product' | null>(null); // 불러온 대본의 원본 포맷
   const [titleHistory, setTitleHistory] = useState<string[]>([]); // 제목 히스토리
   const [isInitialLoading, setIsInitialLoading] = useState(true); // 초기 로딩 상태
 
@@ -204,11 +204,18 @@ export default function Home() {
   // 중국영상변환 관련 state
   const [showChineseConverter, setShowChineseConverter] = useState(false);
   const [chineseVideoFile, setChineseVideoFile] = useState<File | null>(null);
+  const [chineseVideoTitle, setChineseVideoTitle] = useState<string>(''); // 상품 제목
   const [isConvertingChinese, setIsConvertingChinese] = useState(false);
   const [chineseConvertLogs, setChineseConvertLogs] = useState<Array<{timestamp: string; message: string}>>([]);
   const [chineseJobId, setChineseJobId] = useState<string | null>(null);
   const [chineseProgress, setChineseProgress] = useState<{step: string; progress: number} | null>(null);
   const chineseLogRef = useRef<HTMLDivElement>(null);
+  const chineseConverterSectionRef = useRef<HTMLDivElement>(null);
+
+  // Douyin 영상 크롤링 관련 state
+  const [douyinUrl, setDouyinUrl] = useState('');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadedVideo, setDownloadedVideo] = useState<string | null>(null);
 
   const [removeWatermark, setRemoveWatermark] = useState(() => {
     // localStorage에서 저장된 값 불러오기 (기본값: OFF)
@@ -226,7 +233,9 @@ export default function Home() {
 
   // 프롬프트 API URL 헬퍼 함수
   const getPromptApiUrl = () => {
-    return videoFormat === 'shortform' ? '/api/shortform-prompt' : '/api/prompt';
+    if (videoFormat === 'shortform') return '/api/shortform-prompt';
+    if (videoFormat === 'product') return '/api/product-prompt';
+    return '/api/prompt';
   };
 
   // 제목 히스토리에 추가 (DB에서 자동으로 로드되므로 별도 저장 불필요)
@@ -236,13 +245,14 @@ export default function Home() {
   };
 
   // 포맷 변경 핸들러 (대본이 로드된 경우 경고)
-  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2') => {
+  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2' | 'product') => {
     // 대본이 로드되어 있고, 원본 포맷과 다른 경우 경고
     if (originalFormat && originalFormat !== newFormat && uploadedJson) {
       const formatNames = {
         longform: '롱폼 (16:9 가로)',
         shortform: '숏폼 (9:16 세로)',
-        sora2: 'Sora2 (AI 시네마틱)'
+        sora2: 'Sora2 (AI 시네마틱)',
+        product: '상품 (AI 마케팅)'
       };
 
       if (confirm(`⚠️ 포맷 변경 경고\n\n현재 불러온 대본은 ${formatNames[originalFormat]} 형식입니다.\n${formatNames[newFormat]}(으)로 변경하시겠습니까?\n\n대본 내용이 형식에 맞지 않을 수 있습니다.`)) {
@@ -274,6 +284,43 @@ export default function Home() {
 
     // 제목 히스토리는 checkAuth()에서 로드됨
     setIsMounted(true);
+  }, []);
+
+  // 상품 프롬프트 타입 감지 및 상품 정보 로드
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const promptType = urlParams.get('promptType');
+
+      if (promptType === 'product') {
+        // 상품 포맷으로 변경
+        setVideoFormat('product');
+
+        // localStorage에서 상품 정보 로드
+        const productInfoStr = localStorage.getItem('product_video_info');
+        if (productInfoStr) {
+          try {
+            const productInfo = JSON.parse(productInfoStr);
+
+            // 제목 자동 입력
+            if (productInfo.title) {
+              setTitle(productInfo.title);
+              console.log('🛍️ 상품 제목 로드:', productInfo.title);
+            }
+
+            // 상품 정보를 state나 localStorage에 저장 (프롬프트 생성 시 사용)
+            localStorage.setItem('current_product_info', productInfoStr);
+
+            console.log('🛍️ 상품 정보 로드 완료:', productInfo);
+
+            // localStorage 클리어 (일회용)
+            localStorage.removeItem('product_video_info');
+          } catch (e) {
+            console.error('❌ 상품 정보 로드 실패:', e);
+          }
+        }
+      }
+    }
   }, []);
 
   // 드롭다운 외부 클릭 시 닫기
@@ -316,6 +363,13 @@ export default function Home() {
       scriptGenerationLogRef.current.scrollTop = scriptGenerationLogRef.current.scrollHeight;
     }
   }, [scriptGenerationLog, scriptGenerationLogs]);
+
+  // 중국영상변환 로그 자동 스크롤
+  useEffect(() => {
+    if (chineseLogRef.current) {
+      chineseLogRef.current.scrollTop = chineseLogRef.current.scrollHeight;
+    }
+  }, [chineseConvertLogs]);
 
   // videoFormat이 변경될 때마다 localStorage에 저장
   useEffect(() => {
@@ -451,6 +505,17 @@ export default function Home() {
 
         localStorage.removeItem('pipelineScript');
         console.log('  ✓ pipelineScript localStorage 제거');
+
+        // 업로드 섹션으로 스크롤 (섹션이 렌더링된 후)
+        setTimeout(() => {
+          if (uploadSectionRef.current) {
+            uploadSectionRef.current.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+            console.log('  ✓ 업로드 섹션으로 스크롤 완료');
+          }
+        }, 100);
 
         // Sora2 타입인 경우 자동으로 영상 생성 시작
         if (formatType === 'sora2') {
@@ -704,17 +769,38 @@ export default function Home() {
           titlesRes.json()
         ]);
 
+        console.log('📊 API 응답 상태:', {
+          credits: creditsRes.status,
+          settings: settingsRes.status,
+          titles: titlesRes.status
+        });
+
+        // 에러 응답 확인
+        if (!titlesRes.ok) {
+          console.error('❌ 최근 제목 API 호출 실패:', {
+            status: titlesRes.status,
+            statusText: titlesRes.statusText,
+            data: titlesData
+          });
+          setTitleHistory([]);
+        } else {
+          console.log('📦 titlesData 전체:', titlesData);
+
+          if (titlesData && titlesData.titles && Array.isArray(titlesData.titles)) {
+            setTitleHistory(titlesData.titles);
+            console.log('✅ 최근 제목 로드됨:', titlesData.titles.length, '개', titlesData.titles);
+          } else {
+            console.warn('⚠️ 제목 데이터가 올바르지 않습니다:', titlesData);
+            setTitleHistory([]); // 빈 배열로 초기화
+          }
+        }
+
         if (creditsData.credits !== undefined) {
           setUser(prev => prev ? {...prev, credits: creditsData.credits} : null);
         }
 
         if (settingsData) {
           setSettings(settingsData);
-        }
-
-        if (titlesData.titles && Array.isArray(titlesData.titles)) {
-          setTitleHistory(titlesData.titles);
-          console.log('✅ 최근 제목 로드됨:', titlesData.titles.length, '개', titlesData.titles);
         }
       }
     } catch (error) {
@@ -817,6 +903,46 @@ export default function Home() {
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
     setToast({ message, type });
+  };
+
+  // Douyin 영상 다운로드 함수
+  const downloadDouyinVideo = async () => {
+    if (!douyinUrl.trim()) {
+      showToast('Douyin URL을 입력하세요', 'error');
+      return;
+    }
+
+    if (!douyinUrl.includes('douyin.com') && !douyinUrl.includes('iesdouyin.com')) {
+      showToast('올바른 Douyin URL이 아닙니다', 'error');
+      return;
+    }
+
+    setIsDownloading(true);
+    setDownloadedVideo(null);
+
+    try {
+      const response = await fetch('/api/douyin/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ videoUrl: douyinUrl })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setDownloadedVideo(data.videoPath);
+        showToast('영상 다운로드 완료!', 'success');
+      } else {
+        showToast('다운로드 실패: ' + data.error, 'error');
+      }
+    } catch (error: any) {
+      showToast('다운로드 실패: ' + error.message, 'error');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   // SORA2 대본 생성
@@ -1355,7 +1481,7 @@ export default function Home() {
                 AI 대본을 생성하고, LLM을 사용하거나 자동으로 영상을 제작하세요.
               </p>
             </div>
-            {/* 롱폼/숏폼/SORA2 선택 */}
+            {/* 롱폼/숏폼/SORA2/상품 선택 */}
             <div className="flex gap-2">
               <button
                 onClick={() => handleFormatChange('longform')}
@@ -1386,6 +1512,16 @@ export default function Home() {
                 }`}
               >
                 🎥 SORA2
+              </button>
+              <button
+                onClick={() => handleFormatChange('product')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  videoFormat === 'product'
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                🛍️ 상품
               </button>
             </div>
           </div>
@@ -1511,6 +1647,14 @@ export default function Home() {
                       // 섹션이 열릴 때 다른 섹션들 닫기
                       setShowTitleInput(false);
                       setShowUploadSection(false);
+
+                      // 섹션으로 스크롤
+                      setTimeout(() => {
+                        chineseConverterSectionRef.current?.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'start'
+                        });
+                      }, 100);
                     }
                   }}
                   disabled={isPipelineProcessing || isConvertingChinese}
@@ -1518,6 +1662,41 @@ export default function Home() {
                 >
                   {isConvertingChinese ? '⏳ 변환 중...' : '🇨🇳 중국영상변환'}
                 </button>
+
+                {/* Douyin 영상 크롤링 버튼 */}
+                <div className="mt-4 rounded-2xl border border-cyan-500/30 bg-cyan-950/10 p-4 backdrop-blur">
+                  <h3 className="mb-2 text-sm font-semibold text-cyan-300">🎬 Douyin 영상 크롤링</h3>
+                  <p className="mb-3 text-xs text-slate-400">Douyin 링크로 워터마크 없는 영상 다운로드</p>
+
+                  <input
+                    type="text"
+                    value={douyinUrl}
+                    onChange={(e) => setDouyinUrl(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && douyinUrl.trim() && !isDownloading) {
+                        downloadDouyinVideo();
+                      }
+                    }}
+                    placeholder="https://www.douyin.com/video/..."
+                    className="mb-3 w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={downloadDouyinVideo}
+                    disabled={isDownloading || !douyinUrl.trim()}
+                    className="w-full rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:from-cyan-500 hover:to-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isDownloading ? '⏳ 다운로드 중...' : '📥 영상 다운로드'}
+                  </button>
+
+                  {downloadedVideo && (
+                    <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-900/20 p-3">
+                      <p className="text-xs font-semibold text-emerald-300">✅ 다운로드 완료</p>
+                      <p className="mt-1 break-all text-xs text-emerald-200">{downloadedVideo}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -3033,7 +3212,7 @@ export default function Home() {
 
         {/* 중국영상변환 */}
         {showChineseConverter && (
-        <section className="rounded-3xl border border-red-500/20 bg-red-950/20 p-6 backdrop-blur">
+        <section ref={chineseConverterSectionRef} className="rounded-3xl border border-red-500/20 bg-red-950/20 p-6 backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold text-red-400">🇨🇳 중국영상변환</h2>
             <button
@@ -3054,6 +3233,23 @@ export default function Home() {
           <p className="mb-4 text-sm text-slate-300">
             중국어 자막이 포함된 영상을 업로드하면 한국어 자막과 음성으로 변환합니다.
           </p>
+
+          {/* 상품 제목 입력 */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              🏷️ 상품 제목 (선택사항)
+            </label>
+            <input
+              type="text"
+              value={chineseVideoTitle}
+              onChange={(e) => setChineseVideoTitle(e.target.value)}
+              placeholder="예: 겨울 니트 스웨터 여성용"
+              className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder-slate-500 focus:border-red-500 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              제목을 입력하면 변환된 파일명으로 저장됩니다.
+            </p>
+          </div>
 
           {/* 파일 업로드 */}
           <div className="mb-4">
@@ -3147,15 +3343,22 @@ export default function Home() {
           )}
 
           {/* 로그 */}
-          {chineseConvertLogs.length > 0 && (
+          {(isConvertingChinese || chineseConvertLogs.length > 0) && (
             <div ref={chineseLogRef} className="mb-4 max-h-48 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-slate-300">📋 변환 로그</h3>
               <div className="space-y-1">
-                {chineseConvertLogs.map((log, idx) => (
-                  <div key={idx} className="text-sm text-slate-300 font-mono">
-                    <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
-                    {log.message}
+                {chineseConvertLogs.length > 0 ? (
+                  chineseConvertLogs.map((log, idx) => (
+                    <div key={idx} className="text-sm text-slate-300 font-mono">
+                      <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                      {log.message}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-400 font-mono">
+                    로그를 불러오는 중...
                   </div>
-                ))}
+                )}
               </div>
             </div>
           )}
@@ -3180,6 +3383,11 @@ export default function Home() {
                 // FormData 생성
                 const formData = new FormData();
                 formData.append('video', chineseVideoFile);
+
+                // 제목이 입력되었으면 추가
+                if (chineseVideoTitle.trim()) {
+                  formData.append('title', chineseVideoTitle.trim());
+                }
 
                 const response = await fetch('/api/chinese-converter/convert', {
                   method: 'POST',
@@ -3565,13 +3773,28 @@ export default function Home() {
                           message: '📝 프롬프트 로드 완료'
                         }]);
 
+                        // 상품 정보 준비 (상품 포맷인 경우)
+                        let productInfo = null;
+                        if (videoFormat === 'product') {
+                          const productInfoStr = localStorage.getItem('current_product_info');
+                          if (productInfoStr) {
+                            try {
+                              productInfo = JSON.parse(productInfoStr);
+                              console.log('🛍️ 상품 정보 포함:', productInfo);
+                            } catch (e) {
+                              console.error('❌ 상품 정보 파싱 실패:', e);
+                            }
+                          }
+                        }
+
                         const response = await fetch('/api/generate-script', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                           body: JSON.stringify({
                             prompt: promptData.content,
                             topic: title,
-                            format: videoFormat
+                            format: videoFormat,
+                            productInfo: productInfo // 상품 정보 추가
                           })
                         });
                         const data = await response.json();
