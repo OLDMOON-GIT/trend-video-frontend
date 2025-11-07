@@ -284,6 +284,23 @@ START YOUR RESPONSE WITH { NOW.`
               console.log('🔧 JSON 자동 수정 적용됨');
             }
 
+            // narration 필드에서 \n 문자 제거 (JSON 파싱 오류 방지)
+            if (parseResult.data.scenes && Array.isArray(parseResult.data.scenes)) {
+              let cleanedCount = 0;
+              parseResult.data.scenes.forEach((scene: any) => {
+                if (scene.narration && typeof scene.narration === 'string') {
+                  const original = scene.narration;
+                  scene.narration = scene.narration.replace(/\\n/g, ' ').replace(/\n/g, ' ');
+                  if (original !== scene.narration) {
+                    cleanedCount++;
+                  }
+                }
+              });
+              if (cleanedCount > 0) {
+                console.log(`🔧 ${cleanedCount}개 씬의 narration에서 줄바꿈 문자 제거`);
+              }
+            }
+
             // JSON 포맷팅 (예쁘게 정리)
             finalContent = JSON.stringify(parseResult.data, null, 2);
             console.log('✨ JSON 포맷팅 완료');
