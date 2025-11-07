@@ -267,14 +267,6 @@ export default function Home() {
 
   // 포맷 변경 핸들러 (대본이 로드된 경우 경고)
   const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2' | 'product') => {
-    // 상품 정보가 있는 경우 product 모드에서 벗어날 수 없음
-    const hasProductInfo = localStorage.getItem('current_product_info');
-    if (hasProductInfo && newFormat !== 'product') {
-      alert('⚠️ 상품 영상 제작 모드입니다.\n\n다른 포맷으로 변경하려면 먼저 상품 정보를 제거하세요.\n(페이지를 새로고침하거나 홈에서 다시 시작하세요)');
-      console.log('🛍️ 상품 모드에서 포맷 변경 차단:', newFormat);
-      return;
-    }
-
     // 대본이 로드되어 있고, 원본 포맷과 다른 경우 경고
     if (originalFormat && originalFormat !== newFormat && uploadedJson) {
       const formatNames = {
@@ -293,6 +285,7 @@ export default function Home() {
     } else {
       // 대본이 없거나 같은 포맷이면 바로 변경
       setVideoFormat(newFormat);
+      console.log(`📝 포맷 변경: ${newFormat}`);
     }
   };
 
@@ -441,23 +434,15 @@ export default function Home() {
     setIsMounted(true);
     checkAuth();
 
-    // 상품 정보가 있는지 확인 (상품 모드 유지를 위해)
-    const hasProductInfo = localStorage.getItem('current_product_info');
-    const urlParams = new URLSearchParams(window.location.search);
-    const isProductMode = urlParams.get('promptType') === 'product' || !!hasProductInfo;
-
-    // 상품 정보가 있으면 무조건 product 모드 유지
-    if (hasProductInfo && videoFormat !== 'product') {
-      console.log('🛍️ 상품 정보 감지 - product 모드 강제 설정');
-      setVideoFormat('product');
-    }
-
     // localStorage에서 videoFormat 복원 (클라이언트에서만)
-    // 단, promptType=product이거나 상품 정보가 있는 경우는 제외
+    // 단, promptType=product인 경우는 제외 (이미 초기값으로 설정됨)
+    const urlParams = new URLSearchParams(window.location.search);
+    const isProductMode = urlParams.get('promptType') === 'product';
+
     if (!isProductMode) {
       const savedVideoFormat = localStorage.getItem('videoFormat');
       console.log('📂 localStorage에서 videoFormat 불러오기:', savedVideoFormat);
-      if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2') {
+      if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2' || savedVideoFormat === 'product') {
         console.log('✅ videoFormat 복원:', savedVideoFormat);
         setVideoFormat(savedVideoFormat as any);
       } else {
