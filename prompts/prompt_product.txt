@@ -8,6 +8,21 @@
 - 상품링크: {product_link}
 - 상품상세: {product_description}
 
+📸 **썸네일 이미지 활용:**
+- 썸네일 이미지를 분석하여 상품의 색상, 크기, 형태, 특징을 파악하세요
+- 실제 상품의 비주얼 특징을 대본에 자연스럽게 녹여내세요
+- 예: "밝은 노란색 조명", "귀여운 병아리 디자인", "부드러운 실리콘 소재"
+
+🔗 **상품 링크 활용:**
+- 상품 구매 링크를 CTA(행동유도) 씬에서 자연스럽게 언급
+- "지금 바로 구매하세요" 같은 직접적 표현 대신 은근한 유도
+- 예: "더 자세한 정보는 상품 페이지에서", "특별한 경험을 놓치지 마세요"
+
+📝 **상품 상세 활용:**
+- 상품 설명에서 핵심 키워드와 기능을 추출하세요
+- 고객이 얻을 수 있는 실제 가치와 혜택에 집중
+- 기술적 스펙보다는 감성적 경험을 강조
+
 🚫 **절대 금지 사항:**
 - 질문하지 마세요 ("어떤 스타일로 작성할까요?", "추가 정보가 필요한가요?" 등)
 - 확인하지 마세요 ("~로 작성하면 될까요?")
@@ -23,9 +38,17 @@
 상품 영상 대본 작성 가이드:
 1. 총 4개 씬으로 구성 (총 30초 분량)
 2. 씬 0: 훅(Hook) - 3초 안에 상품의 핵심 매력으로 시선 사로잡기 (50자)
+   - **상품 썸네일의 가장 눈에 띄는 특징을 활용**
+   - 예: "부드러운 빛을 내는 귀여운 병아리 무드등"
 3. 씬 1: 문제/필요 - 9초 고객의 고민이나 필요 제시 (150자)
+   - **상품 설명에서 해결하는 문제점 파악**
+   - 예: "밤에 아기가 깨서 울 때마다 밝은 조명을 켜야 했다면"
 4. 씬 2: 해결/기능 - 9초 상품이 문제를 어떻게 해결하는지 (150자)
+   - **상품의 핵심 기능과 장점을 구체적으로**
+   - 예: "은은한 LED 조명으로 아기 눈을 자극하지 않으면서도 충분한 밝기"
 5. 씬 3: 행동유도 - 9초 구매 욕구 자극 및 만족감 전달 (150자)
+   - **상품 링크를 자연스럽게 언급, 특별한 가치 강조**
+   - 예: "지금 특별 가격으로 만나보세요. 평화로운 밤을 선물하세요"
 6. **모든 씬은 9:16 세로형, 상품 중심, 시네마틱 필수**
 
 🎯 **상품 영상 스타일:**
@@ -100,32 +123,32 @@
       "scene_name": "훅 - 3초 상품 매력",
       "duration_seconds": 3,
       "word_count": 50,
-      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic product showcase, [상품의 가장 매력적인 포인트 - 즉시 시선 사로잡기], full vertical composition with product centered, [상품 디테일 강조 또는 놀라운 사용 장면], dramatic product lighting with high contrast, slowly pushing in on product, desirable and eye-catching mood, shot on 35mm film, shallow depth of field, premium bokeh, bold and attractive color palette, mobile-optimized product framing",
-      "narration": "상품의 핵심 매력 포인트로 시선을 끄는 문장 (50자)..."
+      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic product showcase, [상품 썸네일의 핵심 비주얼 특징 - 예: 'soft yellow chick-shaped LED mood light glowing warmly'], full vertical composition with product centered, [상품의 독특한 디자인 요소 강조 - 예: 'cute rounded silicone texture, gentle pulsing glow'], dramatic product lighting with high contrast, slowly pushing in on product revealing fine details, desirable and eye-catching mood, shot on 35mm film, shallow depth of field, premium bokeh, [상품 색상에 맞는 컬러 팔레트 - 예: 'warm yellow and soft white tones'], mobile-optimized product framing",
+      "narration": "[상품 제목의 핵심 키워드를 활용한 매력 문장 - 예: '부드러운 빛을 밝히는 귀여운 병아리 친구'] (50자)..."
     },
     {
       "scene_id": "scene_01_problem",
       "scene_name": "문제/필요 - 9초 공감",
       "duration_seconds": 9,
       "word_count": 150,
-      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic lifestyle scene, [고객이 겪는 문제나 불편함], full vertical composition with person or situation centered, [공감되는 상황을 부드럽게 표현], soft natural lighting with relatable atmosphere, slowly tracking with empathy, relatable and understanding mood, shot on 35mm film, shallow depth of field, emotional bokeh, muted realistic color palette, mobile-optimized lifestyle framing",
-      "narration": "고객이 공감할 수 있는 문제나 필요를 제시 (150자)..."
+      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic lifestyle scene, [상품 설명에서 추출한 고객 페인 포인트 - 예: 'tired parent struggling with bright overhead light at night, baby crying'], full vertical composition with person or situation centered, [공감되는 일상 상황 - 예: 'dimly lit bedroom, frustrated expression, harsh lighting'], soft natural lighting with relatable atmosphere, slowly tracking with empathy, relatable and understanding mood, shot on 35mm film, shallow depth of field, emotional bokeh, muted realistic color palette with [문제 상황에 맞는 톤 - 예: 'cool blue tones suggesting discomfort'], mobile-optimized lifestyle framing",
+      "narration": "[상품이 해결하는 구체적 문제 - 예: '밤마다 아기를 재우느라 밝은 조명에 눈이 부시셨나요? 수유할 때마다 눈이 번쩍 떠지는 경험, 이제 그만'] (150자)..."
     },
     {
       "scene_id": "scene_02_solution",
       "scene_name": "해결/기능 - 9초 설득",
       "duration_seconds": 9,
       "word_count": 150,
-      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic product demonstration, [상품이 문제를 해결하는 장면], full vertical composition with product in action centered, [상품 사용의 편리함과 효과 강조], bright satisfying lighting, slowly orbiting product showcase, convincing and impressive mood, shot on 35mm film, shallow depth of field, crisp bokeh, vibrant satisfying color palette, mobile-optimized demonstration framing",
-      "narration": "상품이 어떻게 문제를 해결하는지 명확히 설명 (150자)..."
+      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic product demonstration, [상품 설명의 핵심 기능 시연 - 예: 'gentle LED mood light glowing softly beside sleeping baby, parent easily feeding with perfect ambient light'], full vertical composition with product in action centered, [구체적 사용 장면 - 예: 'one-touch control, adjustable brightness levels, baby comfortable and calm'], bright satisfying lighting with [상품 컬러와 조화 - 예: 'warm amber glow creating cozy atmosphere'], slowly orbiting product showcase revealing all features, convincing and impressive mood, shot on 35mm film, shallow depth of field, crisp bokeh, vibrant satisfying color palette, mobile-optimized demonstration framing",
+      "narration": "[상품의 핵심 기능을 고객 혜택으로 - 예: '은은한 LED 조명이 아기 눈을 보호하면서도 충분히 밝아요. 원터치로 쉽게 조절하고, 부드러운 실리콘으로 안전해요'] (150자)..."
     },
     {
       "scene_id": "scene_03_cta",
       "scene_name": "행동유도 - 9초 구매욕구",
       "duration_seconds": 9,
       "word_count": 150,
-      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic satisfaction scene, [상품 사용 후 만족스러운 결과], full vertical composition with happy result centered, [만족감과 성공적인 결과 강조], warm golden hour lighting with rewarding atmosphere, slowly pulling away with satisfaction, desirable and rewarding mood, shot on 35mm film, shallow depth of field, dreamy bokeh, premium attractive color palette, mobile-optimized result framing",
-      "narration": "구매 욕구를 자극하고 만족감을 전달하는 마무리 (150자)..."
+      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic satisfaction scene, [상품이 만드는 이상적 결과 - 예: 'peaceful sleeping baby with mood light glowing, happy parent relaxed and smiling, perfect nighttime routine'], full vertical composition with happy result centered, [만족스러운 라이프스타일 - 예: 'cozy bedroom atmosphere, product beautifully integrated into life, warm family moment'], warm golden hour lighting with rewarding atmosphere creating [상품의 감성적 가치 - 예: 'sense of comfort and care'], slowly pulling away revealing complete scene of satisfaction, desirable and rewarding mood, shot on 35mm film, shallow depth of field, dreamy bokeh, premium attractive color palette with [상품 브랜드 감성 - 예: 'soft pastels and warm tones'], mobile-optimized result framing",
+      "narration": "[구매 링크를 자연스럽게 + 특별한 가치 강조 - 예: '지금 특별 가격으로 만나보세요. 매일 밤 평화로운 시간을 선물해요. 아기와 함께하는 소중한 순간들을 더 특별하게'] (150자)..."
     }
   ],
   "quality_check": {
