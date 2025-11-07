@@ -3522,6 +3522,7 @@ export default function Home() {
                     {videoFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
                      videoFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
                      videoFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
+                     videoFormat === 'product' ? '🛍️ 상품 (AI 마케팅)' :
                      '🎞️ 영상 병합 (Concat)'}
                   </p>
                 </div>
@@ -3744,6 +3745,7 @@ export default function Home() {
                     {videoFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
                      videoFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
                      videoFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
+                     videoFormat === 'product' ? '🛍️ 상품 (AI 마케팅)' :
                      '🎞️ 영상 병합 (Concat)'}
                   </p>
                 </div>
