@@ -304,7 +304,7 @@ export default function Home() {
 
             // 제목 자동 입력
             if (productInfo.title) {
-              setTitle(productInfo.title);
+              setManualTitle(productInfo.title);
               console.log('🛍️ 상품 제목 로드:', productInfo.title);
             }
 
