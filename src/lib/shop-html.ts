@@ -16,7 +16,7 @@ export function generateShopHtml(products: PublishedProduct[]): string {
 
   const categoryTabs = [
     '<button class="active" data-category="all">전체</button>',
-    '<button data-category="bookmarks">⭐ 북마크</button>',
+    '<button data-category="bookmarks">⭐ 잠시저장</button>',
     ...normalizedCategories.map(
       (category) =>
         `<button data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
@@ -99,6 +99,9 @@ export function generateShopHtml(products: PublishedProduct[]): string {
     ? `
   <div class="coupang-category-tabs">
     ${categoryTabs}
+  </div>
+  <div class="coupang-bookmark-notice" style="display: none; background-color: #fef3c7; color: #92400e; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 16px; font-size: 14px; border: 1px solid #fbbf24;">
+    ⚠️ 잠시저장은 임시 기능입니다. 새로고침하면 목록이 사라집니다.
   </div>
   <div class="coupang-shop-grid">
     ${productCards}
@@ -358,6 +361,12 @@ export function generateShopHtml(products: PublishedProduct[]): string {
       console.log('[Bookmark] Found', tabs.length, 'tabs and', cards.length, 'cards');
 
       function filterProducts(category) {
+        // Show/hide bookmark notice
+        var bookmarkNotice = container.querySelector('.coupang-bookmark-notice');
+        if (bookmarkNotice) {
+          bookmarkNotice.style.display = category === 'bookmarks' ? 'block' : 'none';
+        }
+
         if (category === 'bookmarks') {
           var bookmarks = getBookmarks();
           cards.forEach(function(card) {

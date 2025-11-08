@@ -258,6 +258,12 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
     if (!tabs.length) return;
 
     const filterProducts = (category: string) => {
+      // Show/hide bookmark notice
+      const bookmarkNotice = container.querySelector<HTMLElement>('.coupang-bookmark-notice');
+      if (bookmarkNotice) {
+        bookmarkNotice.style.display = category === 'bookmarks' ? 'block' : 'none';
+      }
+
       if (category === 'bookmarks') {
         const bookmarks = getBookmarks();
         cards.forEach((card) => {

@@ -49,7 +49,7 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
     it('북마크 탭이 생성되어야 함', () => {
       const html = generateShopHtml(mockProducts);
       expect(html).toContain('data-category="bookmarks"');
-      expect(html).toContain('⭐ 북마크');
+      expect(html).toContain('⭐ 잠시저장');
     });
 
     it('각 상품 카드에 북마크 버튼이 있어야 함', () => {
@@ -86,6 +86,12 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
       const html = generateShopHtml(mockProducts);
       expect(html).toContain('if (category === \'bookmarks\')');
       expect(html).toContain('filterProducts');
+    });
+
+    it('북마크 안내 문구가 포함되어야 함', () => {
+      const html = generateShopHtml(mockProducts);
+      expect(html).toContain('coupang-bookmark-notice');
+      expect(html).toContain('새로고침하면 목록이 사라집니다');
     });
   });
 
