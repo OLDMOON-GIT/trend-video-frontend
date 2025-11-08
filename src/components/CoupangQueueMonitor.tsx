@@ -29,8 +29,9 @@ export default function CoupangQueueMonitor() {
   const fetchQueueStatus = async () => {
     try {
       const response = await fetch('/api/coupang-crawl-queue', {
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sessionToken')}`
+          'Content-Type': 'application/json'
         }
       });
 
@@ -51,7 +52,9 @@ export default function CoupangQueueMonitor() {
     }
 
     try {
-      const response = await fetch('/api/coupang-crawl-worker');
+      const response = await fetch('/api/coupang-crawl-worker', {
+        credentials: 'include'
+      });
       if (response.ok) {
         const data = await response.json();
         console.log('Worker 응답:', data);
@@ -60,6 +63,9 @@ export default function CoupangQueueMonitor() {
         if (data.success) {
           toast.success('상품 크롤링 완료!');
         }
+
+        // 상태 업데이트
+        fetchQueueStatus();
 
         // 다음 항목이 있으면 계속 처리
         if (data.hasMore && autoProcess) {
@@ -76,9 +82,9 @@ export default function CoupangQueueMonitor() {
     try {
       const response = await fetch('/api/coupang-crawl-queue', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('sessionToken')}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ queueId })
       });
