@@ -352,22 +352,27 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
     };
   }, [htmlPreview]);
 
+  // 관리자 모드인지 확인 (onClose 함수가 실제로 존재하는 경우)
+  const isAdminMode = onClose && onClose.toString() !== '() => {}';
+
   return (
     <div className="my-12">
-        <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 text-amber-100 p-4 mb-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <p className="font-semibold">미리보기 모드: {versionName || versionId}</p>
-                    <p className="text-xs opacity-80">총 {productCount}개 상품</p>
-                </div>
-                <button 
-                    onClick={onClose}
-                    className="bg-amber-500/20 hover:bg-amber-500/40 text-white font-bold py-2 px-4 rounded-lg transition"
-                >
-                    미리보기 닫기
-                </button>
-            </div>
-        </div>
+        {isAdminMode && (
+          <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 text-amber-100 p-4 mb-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                      <p className="font-semibold">미리보기 모드: {versionName || versionId}</p>
+                      <p className="text-xs opacity-80">총 {productCount}개 상품</p>
+                  </div>
+                  <button
+                      onClick={onClose}
+                      className="bg-amber-500/20 hover:bg-amber-500/40 text-white font-bold py-2 px-4 rounded-lg transition"
+                  >
+                      미리보기 닫기
+                  </button>
+              </div>
+          </div>
+        )}
 
       {errorMessage && (
         <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
