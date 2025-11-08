@@ -3839,10 +3839,17 @@ export default function Home() {
                         });
 
                         console.log('\n📤 FormData에 추가되는 순서:');
+
+                        // 원본 파일명 매핑 정보 생성
+                        const originalNames: Record<number, string> = {};
+
                         // 정렬된 이미지를 image_00.ext, image_01.ext 형식으로 파일명 변경하여 전송
                         sortedImages.forEach((img, idx) => {
                           const ext = img.name.split('.').pop() || 'jpg';
                           const newFileName = `image_${String(idx).padStart(2, '0')}.${ext}`;
+
+                          // 원본 파일명 저장
+                          originalNames[idx] = img.name;
 
                           // 새로운 File 객체 생성 (파일명 변경)
                           const renamedFile = new File([img], newFileName, { type: img.type });
@@ -3850,6 +3857,9 @@ export default function Home() {
                           formData.append(`image_${idx}`, renamedFile);
                           console.log(`  FormData.append('image_${idx}', ${newFileName}) - 원본: ${img.name}`);
                         });
+
+                        // 원본 파일명 매핑 정보 추가
+                        formData.append('originalNames', JSON.stringify(originalNames));
 
                         console.log('\n' + '='.repeat(70));
                         console.log('✅ 이미지 정렬 및 FormData 추가 완료');

@@ -68,7 +68,7 @@ function runMigrations() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-    console.log('✅ wordpress_settings 테이블 생성 완료');
+    // 로그 제거 (IF NOT EXISTS이므로 매번 실행되지만 실제 생성은 최초 1회만)
   } catch (e: any) {
     console.error('❌ wordpress_settings 테이블 생성 실패:', e.message);
   }
@@ -86,7 +86,7 @@ function runMigrations() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-    console.log('✅ wordpress_oauth_tokens 테이블 생성 완료');
+    // 로그 제거
   } catch (e: any) {
     console.error('❌ wordpress_oauth_tokens 테이블 생성 실패:', e.message);
   }
@@ -113,7 +113,7 @@ function runMigrations() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-    console.log('✅ coupang_products 테이블 생성 완료');
+    // 로그 제거
   } catch (e: any) {
     console.error('❌ coupang_products 테이블 생성 실패:', e.message);
   }
@@ -123,7 +123,7 @@ function runMigrations() {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_coupang_products_category ON coupang_products(category)`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_coupang_products_status ON coupang_products(status)`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_coupang_products_user_id ON coupang_products(user_id)`);
-    console.log('✅ coupang_products 인덱스 생성 완료');
+    // 로그 제거
   } catch (e: any) {
     console.error('❌ coupang_products 인덱스 생성 실패:', e.message);
   }
@@ -166,7 +166,7 @@ function runMigrations() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-    console.log('✅ crawled_product_links 테이블 생성 완료');
+    // 로그 제거
   } catch (e: any) {
     console.error('❌ crawled_product_links 테이블 생성 실패:', e.message);
   }
@@ -213,7 +213,7 @@ function runMigrations() {
     `);
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_crawl_link_history_user_source ON crawl_link_history(user_id, source_url)`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_crawl_link_history_last_crawled ON crawl_link_history(last_crawled_at)`);
-    console.log('✅ crawl_link_history 테이블 생성 완료');
+    // 로그 제거
   } catch (e: any) {
     console.error('❌ crawl_link_history 테이블 생성 실패:', e.message);
   }
@@ -236,7 +236,7 @@ function runMigrations() {
     `);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_shop_versions_created_at ON shop_versions(created_at)`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_shop_versions_published ON shop_versions(is_published, published_at)`);
-    console.log('✅ shop_versions 테이블 생성 완료');
+    // 로그 제거
   } catch (e: any) {
     console.error('❌ shop_versions 테이블 생성 실패:', e.message);
   }
@@ -317,6 +317,26 @@ function runMigrations() {
     }
   } catch (e: any) {
     console.error('❌ contents 테이블 마이그레이션 실패:', e.message);
+  }
+
+  // coupang_crawl_queue 테이블에 destination 컬럼 추가
+  try {
+    db.exec(`ALTER TABLE coupang_crawl_queue ADD COLUMN destination TEXT DEFAULT 'my_list'`);
+    console.log('✅ coupang_crawl_queue.destination 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ coupang_crawl_queue.destination 컬럼 추가 실패:', e.message);
+    }
+  }
+
+  // coupang_crawl_queue 테이블에 source_url 컬럼 추가 (링크 모음 출처)
+  try {
+    db.exec(`ALTER TABLE coupang_crawl_queue ADD COLUMN source_url TEXT`);
+    console.log('✅ coupang_crawl_queue.source_url 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ coupang_crawl_queue.source_url 컬럼 추가 실패:', e.message);
+    }
   }
 }
 

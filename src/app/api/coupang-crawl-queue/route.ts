@@ -155,3 +155,89 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// 큐 항목 삭제
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const queueId = searchParams.get('id');
+    const deleteAll = searchParams.get('all'); // 전체 삭제
+    const status = searchParams.get('status'); // 특정 상태만 삭제
+
+    // 전체 삭제 또는 상태별 삭제
+    if (deleteAll === 'true') {
+      let query = `DELETE FROM coupang_crawl_queue WHERE user_id = ?`;
+      const params: any[] = [user.userId];
+
+      // 특정 상태만 삭제
+      if (status) {
+        query += ` AND status = ?`;
+        params.push(status);
+        console.log(`🗑️ ${status} 상태 큐 항목 전체 삭제 시작`);
+      } else {
+        console.log('🗑️ 전체 큐 항목 삭제 시작');
+      }
+
+      const result = db.prepare(query).run(...params);
+
+      console.log(`✅ ${result.changes}개 항목 삭제 완료`);
+
+      return NextResponse.json({
+        success: true,
+        message: `${result.changes}개 항목이 삭제되었습니다.`,
+        deletedCount: result.changes
+      });
+    }
+
+    // 개별 항목 삭제
+    if (!queueId) {
+      return NextResponse.json(
+        { error: 'queueId 또는 all=true 파라미터가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 큐 항목 확인
+    const queueItem = db.prepare(`
+      SELECT * FROM coupang_crawl_queue
+      WHERE id = ? AND user_id = ?
+    `).get(queueId, user.userId) as any;
+
+    if (!queueItem) {
+      return NextResponse.json(
+        { error: '큐 항목을 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
+    console.log('🗑️ 큐 항목 삭제:', queueId);
+
+    // 큐 항목 삭제
+    db.prepare(`
+      DELETE FROM coupang_crawl_queue
+      WHERE id = ?
+    `).run(queueId);
+
+    console.log('✅ 큐 항목 삭제 완료');
+
+    return NextResponse.json({
+      success: true,
+      message: '큐 항목이 삭제되었습니다.'
+    });
+
+  } catch (error: any) {
+    console.error('❌ 큐 삭제 오류:', error);
+    return NextResponse.json(
+      { error: error?.message || '큐 삭제 실패' },
+      { status: 500 }
+    );
+  }
+}

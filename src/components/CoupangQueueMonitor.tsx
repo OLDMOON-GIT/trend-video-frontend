@@ -24,8 +24,7 @@ export default function CoupangQueueMonitor() {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [autoProcess, setAutoProcess] = useState(true);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>('pending');
 
   // 큐 상태 조회
   const fetchQueueStatus = async () => {
@@ -103,6 +102,65 @@ export default function CoupangQueueMonitor() {
     }
   };
 
+  // 큐 항목 삭제
+  const deleteItem = async (queueId: string) => {
+    if (!confirm('이 큐 항목을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/coupang-crawl-queue?id=${queueId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('큐 항목이 삭제되었습니다.');
+        fetchQueueStatus();
+      } else {
+        toast.error(data.error || '삭제 실패');
+      }
+    } catch (error) {
+      toast.error('삭제 요청 실패');
+    }
+  };
+
+  // 전체 삭제
+  const deleteAll = async (status?: string) => {
+    const confirmMessage = status
+      ? `${statusLabels[status]} 상태의 모든 항목을 삭제하시겠습니까?`
+      : '모든 큐 항목을 삭제하시겠습니까?';
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({ all: 'true' });
+      if (status) {
+        params.append('status', status);
+      }
+
+      const response = await fetch(`/api/coupang-crawl-queue?${params}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(data.message || '항목이 삭제되었습니다.');
+        fetchQueueStatus();
+      } else {
+        toast.error(data.error || '삭제 실패');
+      }
+    } catch (error) {
+      toast.error('삭제 요청 실패');
+    }
+  };
+
   // 주기적 업데이트
   useEffect(() => {
     fetchQueueStatus();
@@ -128,13 +186,6 @@ export default function CoupangQueueMonitor() {
   // 상태 클릭 핸들러
   const handleStatusClick = (status: string) => {
     setSelectedStatus(status);
-    setIsModalOpen(true);
-  };
-
-  // 모달 닫기
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setSelectedStatus(null);
   };
 
   // 상태 라벨
@@ -145,10 +196,11 @@ export default function CoupangQueueMonitor() {
     failed: '실패'
   };
 
-  const selectedItems = selectedStatus ? getItemsByStatus(selectedStatus) : [];
+  const selectedItems = getItemsByStatus(selectedStatus);
 
   return (
-    <div className="mb-8 rounded-2xl border border-purple-500/20 bg-purple-950/20 p-6 backdrop-blur">
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-purple-500/20 bg-purple-950/20 p-6 backdrop-blur">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-semibold text-white">⚙️ 크롤링 큐 상태</h3>
         <label className="flex items-center space-x-2">
@@ -194,111 +246,85 @@ export default function CoupangQueueMonitor() {
         </button>
       </div>
 
-      {/* 실패한 항목 */}
-      {failedItems.length > 0 && (
-        <div className="border-t border-white/10 pt-4 mt-4">
-          <h4 className="font-semibold text-white mb-3">❌ 실패한 항목 ({failedItems.length})</h4>
-          <div className="space-y-2">
-            {failedItems.map(item => (
-              <div key={item.id} className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">{item.product_url}</div>
-                  <div className="text-xs text-red-400 mt-2">
+      </div>
+
+      {/* 상태별 항목 목록 */}
+      <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white">
+            {statusLabels[selectedStatus]} 항목 ({selectedItems.length})
+          </h3>
+          {selectedItems.length > 0 && (
+            <button
+              onClick={() => deleteAll(selectedStatus)}
+              className="px-4 py-2 bg-red-600/80 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              전체 삭제 ({selectedItems.length})
+            </button>
+          )}
+        </div>
+
+        {selectedItems.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            항목이 없습니다.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {selectedItems.map((item, index) => (
+              <div key={item.id} className="bg-slate-700/50 border border-white/10 rounded-xl p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-slate-400 text-sm flex-shrink-0">#{index + 1}</span>
+                    <a
+                      href={item.product_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 hover:underline text-sm font-medium flex items-center gap-1 truncate"
+                    >
+                      <span className="truncate">{item.product_url}</span>
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
+                  <span className="text-xs text-slate-400 flex-shrink-0 ml-4">
+                    {new Date(item.created_at).toLocaleString('ko-KR')}
+                  </span>
+                </div>
+
+                {item.error_message && (
+                  <div className="mt-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
                     {item.error_message}
                   </div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    재시도 횟수: {item.retry_count}/3
+                )}
+
+                <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                  <span>재시도: {item.retry_count}/3</span>
+                  <div className="ml-auto flex gap-2">
+                    {selectedStatus === 'failed' && (
+                      <button
+                        onClick={() => retryItem(item.id)}
+                        className="px-3 py-1 bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
+                      >
+                        다시 시도
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteItem(item.id)}
+                      className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                    >
+                      🗑️ 삭제
+                    </button>
                   </div>
                 </div>
-                <button
-                  onClick={() => retryItem(item.id)}
-                  className="ml-4 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  다시 시도
-                </button>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* 모달 - 상태별 항목 목록 */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeModal}>
-          <div className="bg-slate-800 rounded-2xl border border-white/10 max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            {/* 모달 헤더 */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
-              <h3 className="text-xl font-semibold text-white">
-                {selectedStatus ? statusLabels[selectedStatus] : ''} 항목 ({selectedItems.length})
-              </h3>
-              <button
-                onClick={closeModal}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* 모달 콘텐츠 */}
-            <div className="p-6 overflow-y-auto max-h-[calc(80vh-88px)]">
-              {selectedItems.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                  항목이 없습니다.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {selectedItems.map((item, index) => (
-                    <div key={item.id} className="bg-slate-700/50 border border-white/10 rounded-xl p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-400 text-sm">#{index + 1}</span>
-                          <a
-                            href={item.product_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-400 hover:text-blue-300 hover:underline text-sm font-medium flex items-center gap-1"
-                          >
-                            {item.product_url}
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                          </a>
-                        </div>
-                        <span className="text-xs text-slate-400">
-                          {new Date(item.created_at).toLocaleString('ko-KR')}
-                        </span>
-                      </div>
-
-                      {item.error_message && (
-                        <div className="mt-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
-                          {item.error_message}
-                        </div>
-                      )}
-
-                      <div className="mt-2 flex items-center gap-4 text-xs text-slate-400">
-                        <span>재시도: {item.retry_count}/3</span>
-                        {selectedStatus === 'failed' && (
-                          <button
-                            onClick={() => {
-                              retryItem(item.id);
-                              closeModal();
-                            }}
-                            className="ml-auto px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                          >
-                            다시 시도
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

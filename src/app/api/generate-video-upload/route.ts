@@ -73,6 +73,18 @@ export async function POST(request: NextRequest) {
     const videoFormat = formData.get('videoFormat') as string || 'longform';
     console.log('비디오 포맷:', videoFormat);
 
+    // 원본 파일명 매핑 정보 파싱
+    const originalNamesStr = formData.get('originalNames') as string;
+    let originalNames: Record<number, string> = {};
+    if (originalNamesStr) {
+      try {
+        originalNames = JSON.parse(originalNamesStr);
+        console.log('✅ 원본 파일명 매핑 정보 수신:', originalNames);
+      } catch (error) {
+        console.warn('⚠️ 원본 파일명 파싱 실패, 변환된 이름만 사용');
+      }
+    }
+
     // 이미지 파일들 수집
     const imageFiles: File[] = [];
     for (let i = 0; i < 50; i++) { // 최대 50개까지 확인
@@ -89,7 +101,8 @@ export async function POST(request: NextRequest) {
       const sceneNum = i === 0 ? '씬 0 (폭탄)' : i === imageFiles.length - 1 ? '씬 마지막 (구독)' : `씬 ${i}`;
       const date = new Date(f.lastModified);
       const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${String(date.getMilliseconds()).padStart(3,'0')}`;
-      console.log(`  ${sceneNum}: ${f.name} (lastModified: ${timeStr})`);
+      const originalName = originalNames[i] ? ` (원본: ${originalNames[i]})` : '';
+      console.log(`  ${sceneNum}: ${f.name}${originalName} (lastModified: ${timeStr})`);
     });
 
     // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
@@ -142,7 +155,8 @@ export async function POST(request: NextRequest) {
       imageFiles,
       imageSource,
       isAdmin: user.isAdmin || false,
-      videoFormat // 롱폼/숏폼 정보 전달
+      videoFormat, // 롱폼/숏폼 정보 전달
+      originalNames // 원본 파일명 매핑
     });
 
     return NextResponse.json({
@@ -173,6 +187,7 @@ async function generateVideoFromUpload(
     imageSource: string;
     isAdmin: boolean;
     videoFormat: string; // 'longform', 'shortform', 'sora2'
+    originalNames?: Record<number, string>; // 원본 파일명 매핑
   }
 ) {
   try {
@@ -242,7 +257,10 @@ async function generateVideoFromUpload(
         await fs.writeFile(finalPath, imgBuffer);
 
         const sceneLabel = i === 0 ? '씬 0 (폭탄)' : i === config.imageFiles.length - 1 ? '씬 마지막' : `씬 ${i}`;
-        await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name} → image_${String(i + 1).padStart(2, '0')}.${ext}`);
+
+        // 원본 파일명 정보 추가
+        const originalName = config.originalNames?.[i] ? ` (원본: ${config.originalNames[i]})` : '';
+        await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name}${originalName} → image_${String(i + 1).padStart(2, '0')}.${ext}`);
       }
     } else if (config.imageSource === 'google') {
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
@@ -321,7 +339,7 @@ async function generateVideoFromUpload(
       const subtitlesArg = ['--add-subtitles'];
 
       // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
-      const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...isAdminArg];
+      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...isAdminArg];
       console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
 
       pythonProcess = spawn('python', pythonArgs, {
