@@ -77,8 +77,9 @@ export async function POST(request: NextRequest) {
     const removeWatermark = formData.get('removeWatermark') === 'true';
     console.log('🧹 워터마크 제거 옵션:', removeWatermark);
 
-    // JSON 파일에서 나레이션 텍스트 추출 (선택사항)
+    // JSON 파일에서 나레이션 텍스트 및 제목 추출 (선택사항)
     let narrationText = '';
+    let videoTitle = '';
     const jsonFile = formData.get('json') as File;
 
     console.log('📄 JSON 파일 확인:', jsonFile ? `있음 (${jsonFile.name})` : '없음');
@@ -100,6 +101,12 @@ export async function POST(request: NextRequest) {
 
         const jsonData = JSON.parse(jsonText);
         console.log('📄 JSON 파싱 완료:', Object.keys(jsonData));
+
+        // JSON에서 제목 추출
+        if (jsonData.title) {
+          videoTitle = jsonData.title;
+          console.log(`✅ JSON에서 제목 추출: "${videoTitle}"`);
+        }
 
         // 다양한 JSON 형식 지원
         // 1. scenes 배열에서 text/narration 추출 (우선순위)
@@ -184,9 +191,11 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ 크레딧 차감 성공: ${user.email}, 차감: ${cost}, 잔액: ${deductResult.balance}`);
 
-    // Job 생성
-    const jobTitle = `비디오 병합 (${videoFiles.length}개)`;
+    // Job 생성 (JSON에서 추출한 제목 또는 기본 제목 사용)
+    const jobTitle = videoTitle || `비디오 병합 (${videoFiles.length}개)`;
     const jobId = `merge_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    console.log(`📝 Job 제목: "${jobTitle}"`);
 
     createJob(user.userId, jobId, jobTitle);
 
@@ -236,6 +245,7 @@ export async function POST(request: NextRequest) {
       narration_text: narrationText,
       add_subtitles: addSubtitles,
       remove_watermark: removeWatermark,
+      title: videoTitle,  // 대본의 title
       output_dir: outputDir
     };
 
