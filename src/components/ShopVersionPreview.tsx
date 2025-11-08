@@ -59,32 +59,37 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
     const container = containerRef.current;
     if (!container) return;
 
-    // In-memory fallback storage for iframe environments
-    let memoryStorage: string[] = [];
+    // Multi-level fallback storage for restricted environments
+    if (!(window as any).__shopBookmarks) {
+      (window as any).__shopBookmarks = [];
+    }
 
-    // Storage helper functions with fallback
+    // Storage helper functions with multi-level fallback
     const getBookmarks = (): string[] => {
+      // Level 1: Try localStorage
       try {
-        // Try localStorage first (works in most environments)
         const stored = localStorage.getItem('shop_bookmarks');
         if (stored) {
           return JSON.parse(stored);
         }
       } catch (e) {
-        // localStorage blocked (iframe), use memory storage
-        console.log('Using in-memory bookmark storage (iframe mode)');
+        console.log('[Bookmark] localStorage blocked, using window storage');
       }
-      return [...memoryStorage];
+
+      // Level 2: Use window object (works in iframe)
+      return [...((window as any).__shopBookmarks || [])];
     };
 
     const saveBookmarks = (bookmarks: string[]) => {
+      // Save to all available storage
       try {
-        // Try localStorage first
         localStorage.setItem('shop_bookmarks', JSON.stringify(bookmarks));
       } catch (e) {
-        // localStorage blocked, use memory storage
-        memoryStorage = [...bookmarks];
+        // localStorage blocked, that's ok
       }
+
+      // Always save to window object as fallback
+      (window as any).__shopBookmarks = [...bookmarks];
     };
 
     const updateBookmarkButtons = () => {

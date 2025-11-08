@@ -112,46 +112,56 @@ export function generateShopHtml(products: PublishedProduct[]): string {
     ? `
 <script>
   (function() {
-    // In-memory fallback storage for iframe environments (Google Sites)
-    var memoryStorage = [];
+    // Multi-level fallback storage for restricted environments
+    if (!window.__shopBookmarks) {
+      window.__shopBookmarks = [];
+    }
 
-    // Storage helper functions with fallback
+    // Storage helper functions with multi-level fallback
     function getBookmarks() {
+      // Level 1: Try localStorage
       try {
-        // Try localStorage first (works in most environments)
         var stored = localStorage.getItem('shop_bookmarks');
         if (stored) {
           return JSON.parse(stored);
         }
       } catch (e) {
-        // localStorage blocked (iframe), use memory storage
-        console.log('Using in-memory bookmark storage (iframe mode)');
+        console.log('[Bookmark] localStorage blocked, using window storage');
       }
-      return memoryStorage.slice();
+
+      // Level 2: Use window object (works in iframe)
+      return (window.__shopBookmarks || []).slice();
     }
 
     function saveBookmarks(bookmarks) {
+      // Save to all available storage
       try {
-        // Try localStorage first
         localStorage.setItem('shop_bookmarks', JSON.stringify(bookmarks));
       } catch (e) {
-        // localStorage blocked, use memory storage
-        memoryStorage = bookmarks.slice();
+        // localStorage blocked, that's ok
       }
+
+      // Always save to window object as fallback
+      window.__shopBookmarks = bookmarks.slice();
     }
 
     // Global toggle function
     window.toggleBookmark = function(productId) {
+      console.log('[Bookmark] Toggle clicked for product:', productId);
       var bookmarks = getBookmarks();
+      console.log('[Bookmark] Current bookmarks:', bookmarks);
       var index = bookmarks.indexOf(productId);
 
       if (index > -1) {
         bookmarks.splice(index, 1);
+        console.log('[Bookmark] Removed from bookmarks');
       } else {
         bookmarks.push(productId);
+        console.log('[Bookmark] Added to bookmarks');
       }
 
       saveBookmarks(bookmarks);
+      console.log('[Bookmark] Saved bookmarks:', bookmarks);
       updateBookmarkButtons();
 
       // If we're on bookmark tab, re-filter
@@ -175,11 +185,16 @@ export function generateShopHtml(products: PublishedProduct[]): string {
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+      console.log('[Bookmark] Script initialized');
       var container = document.querySelector('.coupang-shop-container');
-      if (!container) return;
+      if (!container) {
+        console.error('[Bookmark] Container not found!');
+        return;
+      }
 
       var tabs = container.querySelectorAll('.coupang-category-tabs button');
       var cards = container.querySelectorAll('.coupang-product-card');
+      console.log('[Bookmark] Found', tabs.length, 'tabs and', cards.length, 'cards');
 
       function filterProducts(category) {
         if (category === 'bookmarks') {
@@ -214,7 +229,9 @@ export function generateShopHtml(products: PublishedProduct[]): string {
       });
 
       // Initialize bookmark buttons
+      console.log('[Bookmark] Initializing bookmark buttons...');
       updateBookmarkButtons();
+      console.log('[Bookmark] Bookmark buttons initialized');
 
       if (tabs.length > 0) {
         var defaultTab = Array.from(tabs).find(function(btn) {
@@ -223,9 +240,11 @@ export function generateShopHtml(products: PublishedProduct[]): string {
         if (defaultTab) {
           defaultTab.classList.add('active');
           var selected = defaultTab.getAttribute('data-category') || 'all';
+          console.log('[Bookmark] Setting default tab:', selected);
           filterProducts(selected);
         }
       }
+      console.log('[Bookmark] Setup complete!');
     });
   })();
 </script>`

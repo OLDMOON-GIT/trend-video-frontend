@@ -77,7 +77,7 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
       expect(html).toContain('function getBookmarks');
       expect(html).toContain('function saveBookmarks');
       expect(html).toContain('localStorage');
-      expect(html).toContain('memoryStorage'); // fallback for iframe
+      expect(html).toContain('window.__shopBookmarks'); // fallback for iframe
     });
 
     it('북마크 탭 필터링 로직이 있어야 함', () => {
