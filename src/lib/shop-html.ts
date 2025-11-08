@@ -185,9 +185,47 @@ export function generateShopHtml(products: PublishedProduct[]): string {
       });
     }
 
+    // Cookie helpers for cross-origin iframe
+    function getCookie(name) {
+      var value = '; ' + document.cookie;
+      var parts = value.split('; ' + name + '=');
+      if (parts.length === 2) {
+        var cookieValue = parts.pop().split(';').shift();
+        console.log('[Bookmark] Cookie read:', cookieValue ? 'exists' : 'empty');
+        return cookieValue;
+      }
+      return '';
+    }
+
+    function setCookie(name, value, days) {
+      var expires = '';
+      if (days) {
+        var date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = '; expires=' + date.toUTCString();
+      }
+      // Try SameSite=None for cross-origin (requires HTTPS in production)
+      // For HTTP, use SameSite=Lax
+      var sameSite = window.location.protocol === 'https:' ? '; SameSite=None; Secure' : '; SameSite=Lax';
+      document.cookie = name + '=' + (value || '') + expires + '; path=/' + sameSite;
+      console.log('[Bookmark] Cookie set with SameSite:', window.location.protocol === 'https:' ? 'None' : 'Lax');
+    }
+
     // Storage helper functions with multi-level fallback
     function getBookmarks() {
-      // Level 1: Try localStorage (best - survives page reload)
+      // Level 1: Try Cookie (works in some iframes)
+      try {
+        var cookieData = getCookie('shop_bookmarks');
+        if (cookieData) {
+          var decoded = JSON.parse(decodeURIComponent(cookieData));
+          console.log('[Bookmark] Loaded from Cookie:', decoded.length, 'items');
+          return decoded;
+        }
+      } catch (e) {
+        console.log('[Bookmark] Cookie read failed:', e.message);
+      }
+
+      // Level 2: Try localStorage (best - survives page reload)
       try {
         var stored = localStorage.getItem('shop_bookmarks');
         if (stored) {
@@ -198,7 +236,7 @@ export function generateShopHtml(products: PublishedProduct[]): string {
         console.log('[Bookmark] localStorage blocked');
       }
 
-      // Level 2: Try sessionStorage (survives page reload in same tab)
+      // Level 3: Try sessionStorage (survives page reload in same tab)
       try {
         var sessionStored = sessionStorage.getItem('shop_bookmarks');
         if (sessionStored) {
@@ -209,13 +247,22 @@ export function generateShopHtml(products: PublishedProduct[]): string {
         console.log('[Bookmark] sessionStorage blocked');
       }
 
-      // Level 3: Use window object (synchronous fallback)
+      // Level 4: Use window object (synchronous fallback)
       console.log('[Bookmark] Using in-memory storage');
       return (window.__shopBookmarks || []).slice();
     }
 
     function saveBookmarks(bookmarks) {
       var saved = false;
+
+      // Save to Cookie (priority 1 - for iframe support)
+      try {
+        setCookie('shop_bookmarks', encodeURIComponent(JSON.stringify(bookmarks)), 365);
+        console.log('[Bookmark] Saved to Cookie');
+        saved = true;
+      } catch (e) {
+        console.log('[Bookmark] Cookie save failed:', e.message);
+      }
 
       // Save to localStorage
       try {
@@ -237,7 +284,6 @@ export function generateShopHtml(products: PublishedProduct[]): string {
 
       // Save to IndexedDB (async, best for iframe)
       saveToIndexedDB(bookmarks);
-      saved = true; // Assume it will work
 
       // Always save to window object
       window.__shopBookmarks = bookmarks.slice();
