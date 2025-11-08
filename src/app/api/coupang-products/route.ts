@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
  * POST: 새 상품 추가 (자동 크롤링 + AI 분류)
  */
 
-// 상품 목록 조회
+// 상품 목록 조회 (큐 상태 포함)
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
@@ -25,17 +25,23 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
 
     let query = `
-      SELECT * FROM coupang_products
-      WHERE user_id = ? AND status != 'deleted'
+      SELECT
+        p.*,
+        q.status as queue_status,
+        q.retry_count as queue_retry_count,
+        q.error_message as queue_error
+      FROM coupang_products p
+      LEFT JOIN coupang_crawl_queue q ON p.queue_id = q.id
+      WHERE p.user_id = ? AND p.status != 'deleted'
     `;
     const params: any[] = [user.userId];
 
     if (category) {
-      query += ` AND category = ?`;
+      query += ` AND p.category = ?`;
       params.push(category);
     }
 
-    query += ` ORDER BY created_at DESC`;
+    query += ` ORDER BY p.created_at DESC`;
 
     const products = db.prepare(query).all(...params);
 
@@ -53,7 +59,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// 새 상품 추가
+// 새 상품 추가 (큐에 등록)
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
@@ -74,63 +80,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('🚀 쿠팡 상품 추가 시작:', productUrl);
+    console.log('🚀 쿠팡 상품 크롤링 큐에 추가:', productUrl);
 
-    // 입력된 URL을 그대로 사용 (쿠팡 파트너스에서 생성한 딥링크)
-    const deepLink = productUrl;
-
-    // 상품 정보 크롤링
-    const productInfo = await scrapeProductInfo(productUrl);
-    console.log('✅ 상품 정보 크롤링 완료');
-
-    // AI 카테고리 분류
-    const category = customCategory || await classifyCategory(
-      productInfo.title,
-      productInfo.description
-    );
-    console.log('✅ 카테고리:', category);
-
-    // AI 상세 설명 생성
-    const detailedDescription = await generateDetailedDescription(productInfo);
-    console.log('✅ 상세 설명 생성 완료');
-
-    // DB에 저장
-    const productId = uuidv4();
+    // 크롤링 큐에 추가
+    const queueId = uuidv4();
     db.prepare(`
-      INSERT INTO coupang_products (
-        id, user_id, product_url, deep_link, title, description,
-        category, original_price, discount_price, image_url, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
-    `).run(
-      productId,
-      user.userId,
-      productUrl,
-      deepLink,
-      productInfo.title,
-      detailedDescription,
-      category,
-      productInfo.originalPrice || null,
-      productInfo.discountPrice || null,
-      productInfo.imageUrl
-    );
+      INSERT INTO coupang_crawl_queue (
+        id, user_id, product_url, status, retry_count, max_retries,
+        timeout_seconds, custom_category
+      ) VALUES (?, ?, ?, 'pending', 0, 3, 60, ?)
+    `).run(queueId, user.userId, productUrl, customCategory || null);
 
-    console.log('✅ 상품 저장 완료:', productId);
+    console.log('✅ 큐에 추가 완료:', queueId);
+
+    // 즉시 Worker 호출하여 처리 시작 (백그라운드)
+    fetch(`${request.nextUrl.origin}/api/coupang-crawl-worker`, {
+      method: 'GET'
+    }).catch(err => {
+      console.error('Worker 호출 실패:', err);
+    });
 
     return NextResponse.json({
       success: true,
-      productId,
-      category,
-      message: '상품이 추가되었습니다.'
+      queueId,
+      message: '상품이 크롤링 큐에 추가되었습니다. 잠시 후 처리됩니다.'
     });
 
   } catch (error: any) {
-    console.error('❌ 상품 추가 오류:', error);
-    console.error('❌ 에러 스택:', error?.stack);
+    console.error('❌ 큐 추가 오류:', error);
     return NextResponse.json(
       {
-        error: error?.message || '상품 추가 실패',
-        details: error?.stack,
-        type: error?.constructor?.name
+        error: error?.message || '큐 추가 실패',
+        details: error?.stack
       },
       { status: 500 }
     );
