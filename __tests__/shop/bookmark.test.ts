@@ -77,7 +77,9 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
       expect(html).toContain('function getBookmarks');
       expect(html).toContain('function saveBookmarks');
       expect(html).toContain('localStorage');
-      expect(html).toContain('window.__shopBookmarks'); // fallback for iframe
+      expect(html).toContain('sessionStorage'); // fallback level 2
+      expect(html).toContain('window.location.hash'); // fallback level 3
+      expect(html).toContain('window.__shopBookmarks'); // fallback level 4
     });
 
     it('북마크 탭 필터링 로직이 있어야 함', () => {
@@ -91,6 +93,7 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
     beforeEach(() => {
       // localStorage 초기화
       localStorage.clear();
+      sessionStorage.clear();
     });
 
     it('localStorage에서 북마크를 읽고 저장할 수 있어야 함', () => {
@@ -100,6 +103,19 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
 
       // 북마크 읽기
       const savedBookmarks = localStorage.getItem('shop_bookmarks');
+      expect(savedBookmarks).toBeTruthy();
+
+      const parsedBookmarks = JSON.parse(savedBookmarks!);
+      expect(parsedBookmarks).toEqual(bookmarks);
+    });
+
+    it('sessionStorage에서 북마크를 읽고 저장할 수 있어야 함', () => {
+      // 북마크 저장
+      const bookmarks = ['product-1', 'product-2'];
+      sessionStorage.setItem('shop_bookmarks', JSON.stringify(bookmarks));
+
+      // 북마크 읽기
+      const savedBookmarks = sessionStorage.getItem('shop_bookmarks');
       expect(savedBookmarks).toBeTruthy();
 
       const parsedBookmarks = JSON.parse(savedBookmarks!);

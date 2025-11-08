@@ -119,30 +119,93 @@ export function generateShopHtml(products: PublishedProduct[]): string {
 
     // Storage helper functions with multi-level fallback
     function getBookmarks() {
-      // Level 1: Try localStorage
+      // Level 1: Try localStorage (best - survives page reload)
       try {
         var stored = localStorage.getItem('shop_bookmarks');
         if (stored) {
+          console.log('[Bookmark] Loaded from localStorage');
           return JSON.parse(stored);
         }
       } catch (e) {
-        console.log('[Bookmark] localStorage blocked, using window storage');
+        console.log('[Bookmark] localStorage blocked');
       }
 
-      // Level 2: Use window object (works in iframe)
+      // Level 2: Try sessionStorage (survives page reload in same tab)
+      try {
+        var sessionStored = sessionStorage.getItem('shop_bookmarks');
+        if (sessionStored) {
+          console.log('[Bookmark] Loaded from sessionStorage');
+          return JSON.parse(sessionStored);
+        }
+      } catch (e) {
+        console.log('[Bookmark] sessionStorage blocked');
+      }
+
+      // Level 3: Try URL fragment (survives page reload if URL preserved)
+      try {
+        var hash = window.location.hash;
+        if (hash && hash.indexOf('bookmarks=') > -1) {
+          var bookmarkParam = hash.split('bookmarks=')[1];
+          if (bookmarkParam) {
+            var ids = bookmarkParam.split('&')[0].split(',').filter(function(id) { return id; });
+            if (ids.length > 0) {
+              console.log('[Bookmark] Loaded from URL fragment:', ids.length);
+              return ids;
+            }
+          }
+        }
+      } catch (e) {
+        console.log('[Bookmark] URL fragment read failed');
+      }
+
+      // Level 4: Use window object (lost on page reload)
+      console.log('[Bookmark] Using in-memory storage (lost on reload)');
       return (window.__shopBookmarks || []).slice();
     }
 
     function saveBookmarks(bookmarks) {
-      // Save to all available storage
+      var saved = false;
+
+      // Save to localStorage
       try {
         localStorage.setItem('shop_bookmarks', JSON.stringify(bookmarks));
+        console.log('[Bookmark] Saved to localStorage');
+        saved = true;
       } catch (e) {
-        // localStorage blocked, that's ok
+        // localStorage blocked
       }
 
-      // Always save to window object as fallback
+      // Save to sessionStorage (fallback)
+      try {
+        sessionStorage.setItem('shop_bookmarks', JSON.stringify(bookmarks));
+        console.log('[Bookmark] Saved to sessionStorage');
+        saved = true;
+      } catch (e) {
+        // sessionStorage blocked
+      }
+
+      // Save to URL fragment (fallback)
+      try {
+        if (bookmarks.length > 0) {
+          window.location.hash = 'bookmarks=' + bookmarks.join(',');
+          console.log('[Bookmark] Saved to URL fragment');
+          saved = true;
+        } else {
+          // Remove fragment if no bookmarks
+          if (window.location.hash.indexOf('bookmarks=') > -1) {
+            window.location.hash = '';
+          }
+        }
+      } catch (e) {
+        // URL modification blocked
+      }
+
+      // Always save to window object
       window.__shopBookmarks = bookmarks.slice();
+
+      if (!saved) {
+        console.warn('[Bookmark] Only saved to memory - will be lost on reload!');
+      }
     }
 
     // Global toggle function
