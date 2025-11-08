@@ -128,18 +128,18 @@ export default function YouTubeUploadButton({
         }
       } else {
         const errorMsg = data.error || data.details || '업로드 실패';
-        console.error('❌ Upload API Error:', {
+        console.warn('❌ Upload API Error:', {
           error: errorMsg,
           fullData: data
         });
         if (onUploadError) {
           onUploadError(errorMsg);
         }
-        throw new Error(errorMsg);
+        // throw 하지 않고 조용히 종료
       }
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || '알 수 없는 오류';
-      console.error('YouTube 업로드 실패:', {
+      console.warn('YouTube 업로드 실패:', {
         message: errorMessage,
         error: error
       });
