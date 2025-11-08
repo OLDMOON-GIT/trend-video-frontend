@@ -64,6 +64,74 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
       (window as any).__shopBookmarks = [];
     }
 
+    // IndexedDB helper
+    let dbPromise: Promise<IDBDatabase> | null = null;
+    const openDB = (): Promise<IDBDatabase> => {
+      if (dbPromise) return dbPromise;
+
+      dbPromise = new Promise((resolve, reject) => {
+        try {
+          const request = indexedDB.open('ShopBookmarksDB', 1);
+
+          request.onerror = () => {
+            console.log('[Bookmark] IndexedDB blocked');
+            reject(request.error);
+          };
+
+          request.onsuccess = () => {
+            console.log('[Bookmark] IndexedDB opened');
+            resolve(request.result);
+          };
+
+          request.onupgradeneeded = (event: any) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('bookmarks')) {
+              db.createObjectStore('bookmarks');
+            }
+          };
+        } catch (e) {
+          console.log('[Bookmark] IndexedDB error:', e);
+          reject(e);
+        }
+      });
+
+      return dbPromise;
+    };
+
+    const getFromIndexedDB = (callback: (bookmarks: string[] | null) => void) => {
+      openDB().then(db => {
+        const tx = db.transaction('bookmarks', 'readonly');
+        const store = tx.objectStore('bookmarks');
+        const request = store.get('bookmarks');
+
+        request.onsuccess = () => {
+          if (request.result) {
+            console.log('[Bookmark] Loaded from IndexedDB');
+            callback(request.result);
+          } else {
+            callback(null);
+          }
+        };
+
+        request.onerror = () => {
+          callback(null);
+        };
+      }).catch(() => {
+        callback(null);
+      });
+    };
+
+    const saveToIndexedDB = (bookmarks: string[]) => {
+      openDB().then(db => {
+        const tx = db.transaction('bookmarks', 'readwrite');
+        const store = tx.objectStore('bookmarks');
+        store.put(bookmarks, 'bookmarks');
+        console.log('[Bookmark] Saved to IndexedDB');
+      }).catch(() => {
+        // IndexedDB failed
+      });
+    };
+
     // Storage helper functions with multi-level fallback
     const getBookmarks = (): string[] => {
       // Level 1: Try localStorage (best - survives page reload)
@@ -88,25 +156,8 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
         console.log('[Bookmark] sessionStorage blocked');
       }
 
-      // Level 3: Try URL fragment (survives page reload if URL preserved)
-      try {
-        const hash = window.location.hash;
-        if (hash && hash.indexOf('bookmarks=') > -1) {
-          const bookmarkParam = hash.split('bookmarks=')[1];
-          if (bookmarkParam) {
-            const ids = bookmarkParam.split('&')[0].split(',').filter(id => id);
-            if (ids.length > 0) {
-              console.log('[Bookmark] Loaded from URL fragment:', ids.length);
-              return ids;
-            }
-          }
-        }
-      } catch (e) {
-        console.log('[Bookmark] URL fragment read failed');
-      }
-
-      // Level 4: Use window object (lost on page reload)
-      console.log('[Bookmark] Using in-memory storage (lost on reload)');
+      // Level 3: Use window object (synchronous fallback)
+      console.log('[Bookmark] Using in-memory storage');
       return [...((window as any).__shopBookmarks || [])];
     };
 
@@ -131,21 +182,9 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
         // sessionStorage blocked
       }
 
-      // Save to URL fragment (fallback)
-      try {
-        if (bookmarks.length > 0) {
-          window.location.hash = `bookmarks=${bookmarks.join(',')}`;
-          console.log('[Bookmark] Saved to URL fragment');
-          saved = true;
-        } else {
-          // Remove fragment if no bookmarks
-          if (window.location.hash.indexOf('bookmarks=') > -1) {
-            window.location.hash = '';
-          }
-        }
-      } catch (e) {
-        // URL modification blocked
-      }
+      // Save to IndexedDB (async, best for iframe)
+      saveToIndexedDB(bookmarks);
+      saved = true; // Assume it will work
 
       // Always save to window object
       (window as any).__shopBookmarks = [...bookmarks];
@@ -239,7 +278,18 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
       btn.addEventListener('click', handler);
     });
 
-    // Initialize
+    // Initialize - Try to restore from IndexedDB first
+    getFromIndexedDB((storedBookmarks) => {
+      if (storedBookmarks && storedBookmarks.length > 0) {
+        (window as any).__shopBookmarks = [...storedBookmarks];
+        console.log('[Bookmark] Restored', storedBookmarks.length, 'bookmarks from IndexedDB');
+        // Update UI after restoring
+        setTimeout(() => {
+          updateBookmarkButtons();
+        }, 100);
+      }
+    });
+
     updateBookmarkButtons();
     const defaultTab = tabs.find((tab) => tab.getAttribute('data-category') === 'all') || tabs[0];
     if (defaultTab) setActiveCategory(defaultTab);
