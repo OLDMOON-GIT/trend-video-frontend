@@ -112,36 +112,32 @@ export function generateShopHtml(products: PublishedProduct[]): string {
     ? `
 <script>
   (function() {
-    // Cookie helper functions
-    function getCookie(name) {
-      var value = '; ' + document.cookie;
-      var parts = value.split('; ' + name + '=');
-      if (parts.length === 2) return parts.pop().split(';').shift();
-      return '';
-    }
+    // In-memory fallback storage for iframe environments (Google Sites)
+    var memoryStorage = [];
 
-    function setCookie(name, value, days) {
-      var expires = '';
-      if (days) {
-        var date = new Date();
-        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-        expires = '; expires=' + date.toUTCString();
-      }
-      document.cookie = name + '=' + (value || '') + expires + '; path=/';
-    }
-
+    // Storage helper functions with fallback
     function getBookmarks() {
-      var bookmarkStr = getCookie('shop_bookmarks');
-      if (!bookmarkStr) return [];
       try {
-        return JSON.parse(decodeURIComponent(bookmarkStr));
+        // Try localStorage first (works in most environments)
+        var stored = localStorage.getItem('shop_bookmarks');
+        if (stored) {
+          return JSON.parse(stored);
+        }
       } catch (e) {
-        return [];
+        // localStorage blocked (iframe), use memory storage
+        console.log('Using in-memory bookmark storage (iframe mode)');
       }
+      return memoryStorage.slice();
     }
 
     function saveBookmarks(bookmarks) {
-      setCookie('shop_bookmarks', encodeURIComponent(JSON.stringify(bookmarks)), 365);
+      try {
+        // Try localStorage first
+        localStorage.setItem('shop_bookmarks', JSON.stringify(bookmarks));
+      } catch (e) {
+        // localStorage blocked, use memory storage
+        memoryStorage = bookmarks.slice();
+      }
     }
 
     // Global toggle function

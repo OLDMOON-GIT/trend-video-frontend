@@ -59,36 +59,32 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
     const container = containerRef.current;
     if (!container) return;
 
-    // Cookie helper functions
-    const getCookie = (name: string): string => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift() || '';
-      return '';
-    };
+    // In-memory fallback storage for iframe environments
+    let memoryStorage: string[] = [];
 
-    const setCookie = (name: string, value: string, days: number) => {
-      let expires = '';
-      if (days) {
-        const date = new Date();
-        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-        expires = `; expires=${date.toUTCString()}`;
-      }
-      document.cookie = `${name}=${value || ''}${expires}; path=/`;
-    };
-
+    // Storage helper functions with fallback
     const getBookmarks = (): string[] => {
-      const bookmarkStr = getCookie('shop_bookmarks');
-      if (!bookmarkStr) return [];
       try {
-        return JSON.parse(decodeURIComponent(bookmarkStr));
+        // Try localStorage first (works in most environments)
+        const stored = localStorage.getItem('shop_bookmarks');
+        if (stored) {
+          return JSON.parse(stored);
+        }
       } catch (e) {
-        return [];
+        // localStorage blocked (iframe), use memory storage
+        console.log('Using in-memory bookmark storage (iframe mode)');
       }
+      return [...memoryStorage];
     };
 
     const saveBookmarks = (bookmarks: string[]) => {
-      setCookie('shop_bookmarks', encodeURIComponent(JSON.stringify(bookmarks)), 365);
+      try {
+        // Try localStorage first
+        localStorage.setItem('shop_bookmarks', JSON.stringify(bookmarks));
+      } catch (e) {
+        // localStorage blocked, use memory storage
+        memoryStorage = [...bookmarks];
+      }
     };
 
     const updateBookmarkButtons = () => {

@@ -4,7 +4,7 @@
  * 핵심 테스트 케이스:
  * 1. 북마크 탭이 카테고리 탭에 올바르게 생성되는지
  * 2. 각 상품 카드에 북마크 버튼이 있는지
- * 3. 북마크 추가/제거가 쿠키에 저장되는지
+ * 3. 북마크 추가/제거가 localStorage에 저장되는지 (iframe에서는 in-memory fallback)
  * 4. 북마크 탭 필터링이 작동하는지
  * 5. 북마크 탭에서 북마크 제거 시 탭이 유지되는지 (핵심!)
  */
@@ -72,12 +72,12 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
       expect(html).toContain('onclick=');
     });
 
-    it('쿠키 헬퍼 함수가 포함되어야 함', () => {
+    it('storage 헬퍼 함수가 포함되어야 함', () => {
       const html = generateShopHtml(mockProducts);
-      expect(html).toContain('function getCookie');
-      expect(html).toContain('function setCookie');
       expect(html).toContain('function getBookmarks');
       expect(html).toContain('function saveBookmarks');
+      expect(html).toContain('localStorage');
+      expect(html).toContain('memoryStorage'); // fallback for iframe
     });
 
     it('북마크 탭 필터링 로직이 있어야 함', () => {
@@ -89,35 +89,20 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
 
   describe('북마크 기능 동작 검증 (DOM 시뮬레이션)', () => {
     beforeEach(() => {
-      // JSDOM 환경에서 document.cookie 초기화
-      Object.defineProperty(document, 'cookie', {
-        writable: true,
-        value: '',
-      });
+      // localStorage 초기화
+      localStorage.clear();
     });
 
-    it('쿠키에서 북마크를 읽고 저장할 수 있어야 함', () => {
-      // 쿠키 헬퍼 함수 모킹
-      const setCookie = (name: string, value: string) => {
-        document.cookie = `${name}=${value}; path=/`;
-      };
-
-      const getCookie = (name: string): string => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift() || '';
-        return '';
-      };
-
+    it('localStorage에서 북마크를 읽고 저장할 수 있어야 함', () => {
       // 북마크 저장
       const bookmarks = ['product-1', 'product-2'];
-      setCookie('shop_bookmarks', encodeURIComponent(JSON.stringify(bookmarks)));
+      localStorage.setItem('shop_bookmarks', JSON.stringify(bookmarks));
 
       // 북마크 읽기
-      const savedBookmarks = getCookie('shop_bookmarks');
+      const savedBookmarks = localStorage.getItem('shop_bookmarks');
       expect(savedBookmarks).toBeTruthy();
 
-      const parsedBookmarks = JSON.parse(decodeURIComponent(savedBookmarks));
+      const parsedBookmarks = JSON.parse(savedBookmarks!);
       expect(parsedBookmarks).toEqual(bookmarks);
     });
 
@@ -290,19 +275,19 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
       expect(bookmarks).toEqual(['product-1', 'product-2']);
     });
 
-    it('쿠키가 손상되었을 때 빈 배열을 반환해야 함', () => {
-      const getBookmarks = (cookieValue: string): string[] => {
-        if (!cookieValue) return [];
+    it('localStorage 데이터가 손상되었을 때 빈 배열을 반환해야 함', () => {
+      const getBookmarks = (storageValue: string | null): string[] => {
+        if (!storageValue) return [];
         try {
-          return JSON.parse(decodeURIComponent(cookieValue));
+          return JSON.parse(storageValue);
         } catch (e) {
           return [];
         }
       };
 
-      // 손상된 쿠키
-      const corruptedCookie = 'invalid-json{{{';
-      const bookmarks = getBookmarks(corruptedCookie);
+      // 손상된 데이터
+      const corruptedData = 'invalid-json{{{';
+      const bookmarks = getBookmarks(corruptedData);
 
       expect(bookmarks).toEqual([]);
     });
