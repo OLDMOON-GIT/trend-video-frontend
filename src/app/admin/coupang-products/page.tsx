@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
+import CoupangQueueMonitor from '@/components/CoupangQueueMonitor';
 
 interface Product {
   id: string;
@@ -10,6 +11,7 @@ interface Product {
   description: string;
   category: string;
   image_url: string;
+  product_url?: string;
   deep_link: string;
   original_price?: number;
   discount_price?: number;
@@ -41,8 +43,28 @@ export default function CoupangProductsAdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 탭 관리
-  const [activeTab, setActiveTab] = useState<'my-list' | 'pending'>('my-list');
+  // 탭 관리 - URL에서 초기값 읽기
+  const [activeTab, setActiveTab] = useState<'my-list' | 'pending'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab === 'pending') return 'pending';
+    }
+    return 'my-list';
+  });
+
+  // 탭 변경 시 URL도 업데이트
+  const changeTab = (tab: 'my-list' | 'pending') => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(window.location.search);
+    if (tab === 'pending') {
+      params.set('tab', 'pending');
+    } else {
+      params.delete('tab');
+    }
+    const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+    window.history.pushState({}, '', newUrl);
+  };
 
   // 상품 추가 사이드바
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -51,7 +73,8 @@ export default function CoupangProductsAdminPage() {
   const [isAdding, setIsAdding] = useState(false);
 
   // 내 목록
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]); // 전체 상품
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]); // 필터링된 상품
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
@@ -119,6 +142,15 @@ export default function CoupangProductsAdminPage() {
     }
   }, [isAuthenticated, activeTab]);
 
+  // products 또는 selectedCategory 변경 시 필터링 업데이트
+  useEffect(() => {
+    if (selectedCategory === 'all') {
+      setFilteredProducts(products);
+    } else {
+      setFilteredProducts(products.filter((p: Product) => p.category === selectedCategory));
+    }
+  }, [products, selectedCategory]);
+
   // 컴포넌트 언마운트 시 폴링 정리
   useEffect(() => {
     return () => {
@@ -138,6 +170,9 @@ export default function CoupangProductsAdminPage() {
         await loadProducts();
         await loadPendingProducts(); // 대기 목록도 초기 로드
         await loadLinkHistory();
+
+        // 진행 중인 작업 복구 (새로고침 시)
+        await checkOngoingJob();
       } else {
         router.push('/auth');
       }
@@ -149,21 +184,84 @@ export default function CoupangProductsAdminPage() {
     }
   };
 
-  const loadProducts = async (category?: string) => {
+  // 진행 중인 작업 확인 및 복구
+  const checkOngoingJob = async () => {
     try {
-      const url = category && category !== 'all'
-        ? `/api/coupang-products?category=${category}`
-        : '/api/coupang-products';
+      // 가장 최근의 product_batch 작업 중 processing 상태인 것 찾기
+      const res = await fetch('/api/job-status?type=product_batch&status=processing');
+      const data = await res.json();
 
-      const res = await fetch(url);
+      if (data.jobId) {
+        console.log('🔄 진행 중인 작업 발견:', data.jobId);
+        setCurrentJobId(data.jobId);
+        setIsMoving(true);
+        setShowCrawlLogs(true);
+        setCrawlProgress(data.progress || 0);
+        setCrawlStatus(data.step || '');
+
+        // 로그 로드
+        if (data.logs && Array.isArray(data.logs)) {
+          const logMessages = data.logs.map((log: any) =>
+            typeof log === 'string' ? log : log.log_message
+          );
+          setCrawlLogs(logMessages);
+        }
+
+        // 폴링 시작
+        const interval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
+            const statusData = await statusRes.json();
+
+            setCrawlProgress(statusData.progress || 0);
+            setCrawlStatus(statusData.step || '');
+
+            if (statusData.logs && Array.isArray(statusData.logs)) {
+              const logMessages = statusData.logs.map((log: any) =>
+                typeof log === 'string' ? log : log.log_message
+              );
+              setCrawlLogs(logMessages);
+            }
+
+            if (statusData.status === 'completed' || statusData.status === 'failed') {
+              clearInterval(interval);
+              setJobPollingInterval(null);
+              setIsMoving(false);
+              setCurrentJobId(null);
+
+              if (statusData.status === 'completed') {
+                toast.success('일괄 이동이 완료되었습니다!');
+                await loadPendingProducts();
+                await loadProducts();
+              } else {
+                toast.error('일괄 이동 실패: ' + (statusData.error || '알 수 없는 오류'));
+              }
+            }
+          } catch (pollError) {
+            console.error('폴링 오류:', pollError);
+          }
+        }, 2000);
+
+        setJobPollingInterval(interval);
+      }
+    } catch (error) {
+      console.error('진행 중인 작업 확인 실패:', error);
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      const res = await fetch('/api/coupang-products');
       const data = await res.json();
 
       if (res.ok) {
         setProducts(data.products);
 
-        // 카테고리 추출
+        // 카테고리 추출 (전체 상품에서)
         const cats = Array.from(new Set(data.products.map((p: Product) => p.category)));
         setCategories(cats as string[]);
+
+        // 필터링은 useEffect에서 자동 처리됨
       }
     } catch (error) {
       console.error('상품 목록 조회 실패:', error);
@@ -235,7 +333,7 @@ export default function CoupangProductsAdminPage() {
 
   const handleCategoryFilter = (category: string) => {
     setSelectedCategory(category);
-    loadProducts(category);
+    // 필터링은 useEffect에서 자동 처리됨
   };
 
   // 내 목록 선택 토글
@@ -251,10 +349,10 @@ export default function CoupangProductsAdminPage() {
 
   // 내 목록 전체 선택/해제
   const toggleSelectAllProducts = () => {
-    if (selectedProductIds.size === products.length) {
+    if (selectedProductIds.size === filteredProducts.length) {
       setSelectedProductIds(new Set());
     } else {
-      setSelectedProductIds(new Set(products.map(p => p.id)));
+      setSelectedProductIds(new Set(filteredProducts.map(p => p.id)));
     }
   };
 
@@ -262,6 +360,16 @@ export default function CoupangProductsAdminPage() {
   const handleBulkPublish = async () => {
     if (selectedProductIds.size === 0) {
       toast.error('퍼블리시할 상품을 선택해주세요.');
+      return;
+    }
+
+    // 선택한 상품 중 이미 published 상태인 것만 선택되었는지 확인
+    const selectedProducts = products.filter(p => selectedProductIds.has(p.id));
+    const alreadyPublished = selectedProducts.filter(p => p.status === 'published');
+    const needsPublish = selectedProducts.filter(p => p.status !== 'published');
+
+    if (needsPublish.length === 0) {
+      toast.error('선택한 모든 상품이 이미 Google Sites에 퍼블리시되어 있습니다.');
       return;
     }
 
@@ -279,7 +387,7 @@ export default function CoupangProductsAdminPage() {
       );
 
       await Promise.all(promises);
-      toast.success(`${selectedProductIds.size}개 상품이 퍼블리시되었습니다!`);
+      toast.success(`${needsPublish.length}개 상품이 퍼블리시되었습니다!${alreadyPublished.length > 0 ? ` (${alreadyPublished.length}개는 이미 퍼블리시됨)` : ''}`);
       setSelectedProductIds(new Set());
       await loadProducts();
     } catch (error) {
@@ -292,6 +400,16 @@ export default function CoupangProductsAdminPage() {
   const handleBulkUnpublish = async () => {
     if (selectedProductIds.size === 0) {
       toast.error('비공개 전환할 상품을 선택해주세요.');
+      return;
+    }
+
+    // 선택한 상품 중 이미 active(비공개) 상태인 것만 선택되었는지 확인
+    const selectedProducts = products.filter(p => selectedProductIds.has(p.id));
+    const alreadyActive = selectedProducts.filter(p => p.status === 'active');
+    const needsUnpublish = selectedProducts.filter(p => p.status !== 'active');
+
+    if (needsUnpublish.length === 0) {
+      toast.error('선택한 모든 상품이 이미 비공개 상태입니다.');
       return;
     }
 
@@ -309,7 +427,7 @@ export default function CoupangProductsAdminPage() {
       );
 
       await Promise.all(promises);
-      toast.success(`${selectedProductIds.size}개 상품이 비공개로 전환되었습니다!`);
+      toast.success(`${needsUnpublish.length}개 상품이 비공개로 전환되었습니다!${alreadyActive.length > 0 ? ` (${alreadyActive.length}개는 이미 비공개)` : ''}`);
       setSelectedProductIds(new Set());
       await loadProducts();
     } catch (error) {
@@ -342,7 +460,11 @@ export default function CoupangProductsAdminPage() {
       const data = await res.json();
 
       if (res.ok) {
-        toast.success(`${data.count}개 상품이 퍼블리시되었습니다!`);
+        if (data.alreadyPublished) {
+          toast.error(data.message || '선택한 모든 상품이 이미 쇼핑몰에 퍼블리시되어 있습니다.');
+        } else {
+          toast.success(`${data.count}개 상품이 퍼블리시되었습니다!`);
+        }
         setSelectedProductIds(new Set());
         await loadProducts();
       } else {
@@ -488,7 +610,73 @@ export default function CoupangProductsAdminPage() {
     }
   };
 
+  // 일괄 이동 중지
+  const handleStopBatchMove = async () => {
+    if (!currentJobId) {
+      toast.error('중지할 작업이 없습니다.');
+      return;
+    }
+
+    // 즉시 폴링 중지
+    if (jobPollingInterval) {
+      clearInterval(jobPollingInterval);
+      setJobPollingInterval(null);
+    }
+
+    // UI 상태 즉시 업데이트
+    setIsMoving(false);
+    setCrawlStatus('중지 요청 중...');
+    addCrawlLog('🛑 중지 요청 전송 중...');
+
+    try {
+      const res = await fetch(`/api/pending-products/batch?jobId=${currentJobId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        addCrawlLog('✅ 일괄 이동이 중지되었습니다.');
+        setCrawlStatus('중지됨');
+        toast.success('일괄 이동이 중지되었습니다.');
+
+        // 대기 목록 새로고침
+        await loadPendingProducts();
+        await loadProducts();
+      } else {
+        addCrawlLog(`❌ 중지 요청 실패: ${data.error}`);
+        toast.error(data.error || '중지 실패');
+      }
+    } catch (error: any) {
+      console.error('중지 요청 실패:', error);
+      addCrawlLog(`❌ 중지 요청 오류: ${error.message}`);
+      toast.error('중지 요청 중 오류가 발생했습니다.');
+    } finally {
+      setCurrentJobId(null);
+
+      // 3초 후 진행바 초기화
+      setTimeout(() => {
+        setCrawlProgress(0);
+        setCrawlStatus('');
+      }, 3000);
+    }
+  };
+
   // Job 상태 폴링
+  // 마지막 대기 목록 새로고침 시간 추적
+  const lastPendingRefreshRef = useRef<number>(0);
+  const lastProgressCheckRef = useRef<number>(0);
+
+  // 로그 자동 스크롤용 ref
+  const logContainerRef = useRef<HTMLDivElement>(null);
+
+  // 로그가 업데이트될 때마다 자동으로 맨 아래로 스크롤
+  useEffect(() => {
+    if (logContainerRef.current && crawlLogs.length > 0) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [crawlLogs]);
+
   const pollJobStatus = async (jobId: string) => {
     try {
       const res = await fetch(`/api/crawl-product-links?jobId=${jobId}`);
@@ -505,13 +693,31 @@ export default function CoupangProductsAdminPage() {
         });
 
         // 진행률 및 상태 업데이트
+        const previousProgress = lastProgressCheckRef.current;
         setCrawlProgress(job.progress);
         setCrawlStatus(job.status);
+        lastProgressCheckRef.current = job.progress;
 
         // 로그 업데이트 - 서버 로그로 완전히 교체
         if (job.logs && job.logs.length > 0) {
           console.log('📝 로그 업데이트:', job.logs.length, '개');
           setCrawlLogs(job.logs);
+        }
+
+        // 크롤링 진행 중 - 5초마다 또는 진행률 5% 증가마다 대기 목록 새로고침
+        const now = Date.now();
+        const timeSinceLastRefresh = now - lastPendingRefreshRef.current;
+        const progressIncrease = job.progress - previousProgress;
+
+        if (
+          job.progress > 20 &&
+          job.progress < 95 &&
+          !job.aborted &&
+          (timeSinceLastRefresh > 5000 || progressIncrease >= 5)
+        ) {
+          console.log('🔄 크롤링 중 대기 목록 자동 새로고침 (progress:', job.progress, ')');
+          lastPendingRefreshRef.current = now;
+          await loadPendingProducts();
         }
 
         // Job이 완료되었거나 중지되었으면 폴링 중지
@@ -645,6 +851,9 @@ export default function CoupangProductsAdminPage() {
     }
 
     setIsMoving(true);
+    setCrawlLogs([]);
+    setShowCrawlLogs(true);
+
     try {
       const res = await fetch('/api/pending-products/batch', {
         method: 'POST',
@@ -657,18 +866,57 @@ export default function CoupangProductsAdminPage() {
 
       const data = await res.json();
 
-      if (res.ok) {
-        toast.success(data.message);
+      if (res.ok && data.jobId) {
+        toast.success('백그라운드에서 처리 중입니다.');
+        setCurrentJobId(data.jobId);
         setSelectedPendingIds(new Set());
-        await loadPendingProducts();
-        await loadProducts(); // 내 목록도 새로고침
+
+        // 폴링 시작
+        const interval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
+            const statusData = await statusRes.json();
+
+            // 진행 상태 업데이트
+            setCrawlProgress(statusData.progress || 0);
+            setCrawlStatus(statusData.step || '');
+
+            // 로그 업데이트
+            if (statusData.logs && Array.isArray(statusData.logs)) {
+              const logMessages = statusData.logs.map((log: any) =>
+                typeof log === 'string' ? log : log.log_message
+              );
+              setCrawlLogs(logMessages);
+            }
+
+            // 완료 또는 실패 시 폴링 중지
+            if (statusData.status === 'completed' || statusData.status === 'failed') {
+              clearInterval(interval);
+              setJobPollingInterval(null);
+              setIsMoving(false);
+              setCurrentJobId(null);
+
+              if (statusData.status === 'completed') {
+                toast.success('일괄 이동이 완료되었습니다!');
+                await loadPendingProducts();
+                await loadProducts(); // 내 목록도 새로고침
+              } else {
+                toast.error('일괄 이동 실패: ' + (statusData.error || '알 수 없는 오류'));
+              }
+            }
+          } catch (pollError) {
+            console.error('폴링 오류:', pollError);
+          }
+        }, 2000); // 2초마다 확인
+
+        setJobPollingInterval(interval);
       } else {
         toast.error(data.error || '이동 실패');
+        setIsMoving(false);
       }
     } catch (error) {
       console.error('이동 실패:', error);
       toast.error('이동 중 오류가 발생했습니다.');
-    } finally {
       setIsMoving(false);
     }
   };
@@ -845,7 +1093,7 @@ export default function CoupangProductsAdminPage() {
       setSearchResults(combined);
 
       if (combined.length === 0) {
-        toast.info('검색 결과가 없습니다.');
+        toast('검색 결과가 없습니다.');
       }
     } catch (error) {
       console.error('검색 실패:', error);
@@ -882,7 +1130,22 @@ export default function CoupangProductsAdminPage() {
           <p className="text-slate-400">
             쿠팡 상품을 추가하고 관리하세요. 자동으로 쇼핑몰 사이트에 표시됩니다.
           </p>
+          <div className="mt-4 flex flex-wrap gap-3 text-sm">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-white">
+              <span className="text-xs uppercase tracking-widest text-slate-400">총 보유</span>
+              <span className="text-lg font-bold">{products.length}</span>
+              <span className="text-slate-300">개 상품</span>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-emerald-200">
+              <span className="text-xs uppercase tracking-widest text-emerald-300">대기</span>
+              <span className="text-base font-semibold">{pendingProducts.length}</span>
+              <span className="text-emerald-100">개 준비 중</span>
+            </span>
+          </div>
         </div>
+
+        {/* 크롤링 큐 모니터 */}
+        <CoupangQueueMonitor />
 
         {/* 통합 검색 */}
         <div className="mb-8 rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-6 backdrop-blur">
@@ -972,6 +1235,36 @@ export default function CoupangProductsAdminPage() {
                       </p>
                     )}
 
+                    {/* 가격 정보 */}
+                    {(item.discount_price || item.original_price) && (
+                      <div className="flex items-center gap-2 mb-2">
+                        {item.discount_price && (
+                          <span className="text-base font-bold text-green-400">
+                            {Number(item.discount_price).toLocaleString()}원
+                          </span>
+                        )}
+                        {item.original_price && item.discount_price !== item.original_price && (
+                          <span className="text-xs text-slate-500 line-through">
+                            {Number(item.original_price).toLocaleString()}원
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 원본 URL */}
+                    {item.product_url && (
+                      <div className="mb-2">
+                        <a
+                          href={item.product_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-400 hover:text-blue-300 break-all line-clamp-1 underline"
+                        >
+                          {item.product_url}
+                        </a>
+                      </div>
+                    )}
+
                     {/* 액션 버튼 */}
                     <div className="flex flex-col gap-2 mt-3">
                       {item.source === 'my-list' ? (
@@ -998,7 +1291,7 @@ export default function CoupangProductsAdminPage() {
                       ) : (
                         <button
                           onClick={() => {
-                            setActiveTab('pending');
+                            changeTab('pending');
                             setSearchResults([]);
                             setSearchQuery('');
                           }}
@@ -1019,7 +1312,7 @@ export default function CoupangProductsAdminPage() {
         <div className="mb-8 flex items-center justify-between">
           <div className="flex gap-2">
             <button
-              onClick={() => setActiveTab('my-list')}
+              onClick={() => changeTab('my-list')}
               className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
                 activeTab === 'my-list'
                   ? 'bg-purple-600 text-white'
@@ -1029,7 +1322,7 @@ export default function CoupangProductsAdminPage() {
               📦 내 목록 ({products.length})
             </button>
             <button
-              onClick={() => setActiveTab('pending')}
+              onClick={() => changeTab('pending')}
               className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
                 activeTab === 'pending'
                   ? 'bg-purple-600 text-white'
@@ -1045,9 +1338,68 @@ export default function CoupangProductsAdminPage() {
         {/* 내 목록 탭 */}
         {activeTab === 'my-list' && (
           <>
+        {/* 카테고리 필터 탭 */}
+        {products.length > 0 && (
+          <div className="mb-6">
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => handleCategoryFilter('all')}
+                className={`px-6 py-3 rounded-xl text-base font-bold transition-all ${
+                  selectedCategory === 'all'
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
+                }`}
+              >
+                🌐 전체 ({products.length})
+              </button>
+              {categories.map((cat) => {
+                const count = products.filter(p => p.category === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => handleCategoryFilter(cat)}
+                    className={`px-6 py-3 rounded-xl text-base font-bold transition-all ${
+                      selectedCategory === cat
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
+                    }`}
+                  >
+                    {cat} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* 일괄 처리 버튼 */}
         {products.length > 0 && (
-          <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="mb-6 space-y-4">
+            {/* 선택된 상품 카테고리별 개수 표시 */}
+            {selectedProductIds.size > 0 && (
+              <div className="rounded-lg bg-slate-800/50 border border-purple-500/30 p-4">
+                <h3 className="text-sm font-semibold text-purple-400 mb-3">📊 선택한 상품 (총 {selectedProductIds.size}개)</h3>
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const categoryCounts = new Map<string, number>();
+                    products.forEach(p => {
+                      if (selectedProductIds.has(p.id)) {
+                        categoryCounts.set(p.category, (categoryCounts.get(p.category) || 0) + 1);
+                      }
+                    });
+                    return Array.from(categoryCounts.entries())
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([category, count]) => (
+                        <span key={category} className="inline-flex items-center gap-1 rounded-full bg-purple-600/20 border border-purple-500/30 px-3 py-1.5 text-sm">
+                          <span className="font-semibold text-purple-300">{category}</span>
+                          <span className="text-purple-400">{count}개</span>
+                        </span>
+                      ));
+                  })()}
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-4 flex-wrap">
               <button
                 onClick={toggleSelectAllProducts}
@@ -1085,59 +1437,30 @@ export default function CoupangProductsAdminPage() {
           </div>
         )}
 
-        {/* 카테고리 필터 + 페이지 크기 */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => handleCategoryFilter('all')}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              selectedCategory === 'all'
-                ? 'bg-purple-600 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            전체 ({products.length})
-          </button>
-          {categories.map((cat) => (
+        {/* 페이지 크기 선택 */}
+        <div className="mb-6 flex items-center justify-end gap-2">
+          <span className="text-sm text-slate-400">표시:</span>
+          {[20, 50, 100].map((size) => (
             <button
-              key={cat}
-              onClick={() => handleCategoryFilter(cat)}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                selectedCategory === cat
-                  ? 'bg-purple-600 text-white'
+              key={size}
+              onClick={() => {
+                setMyListPageSize(size);
+                setMyListDisplayCount(size);
+              }}
+              className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                myListPageSize === size
+                  ? 'bg-emerald-600 text-white'
                   : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
-              {cat}
+              {size}개
             </button>
           ))}
-          </div>
-
-          {/* 페이지 크기 선택 */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-400">표시:</span>
-            {[20, 50, 100].map((size) => (
-              <button
-                key={size}
-                onClick={() => {
-                  setMyListPageSize(size);
-                  setMyListDisplayCount(size);
-                }}
-                className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
-                  myListPageSize === size
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                {size}개
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* 상품 목록 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.slice(0, myListDisplayCount).map((product) => (
+          {filteredProducts.slice(0, myListDisplayCount).map((product) => (
             <div
               key={product.id}
               className={`rounded-xl border backdrop-blur transition overflow-hidden ${
@@ -1186,11 +1509,41 @@ export default function CoupangProductsAdminPage() {
                   {product.description}
                 </p>
 
-                {/* 통계 */}
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-3">
-                  <span>👁️ {product.view_count} 조회</span>
-                  <span>🖱️ {product.click_count} 클릭</span>
-                </div>
+                {/* 가격 정보 */}
+                {(product.discount_price || product.original_price) && (
+                  <div className="flex items-center gap-2 mb-3">
+                    {product.discount_price && (
+                      <span className="text-xl font-bold text-green-400">
+                        {Number(product.discount_price).toLocaleString()}원
+                      </span>
+                    )}
+                    {product.original_price && product.discount_price !== product.original_price && (
+                      <span className="text-sm text-slate-500 line-through">
+                        {Number(product.original_price).toLocaleString()}원
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* 통계 제거 */}
+                <div className="text-xs text-slate-500 mb-3">파트너스 조회/클릭 데이터는 관리자 페이지에서만 확인합니다.</div>
+
+                {/* 원본 상품 URL */}
+                {product.product_url && (
+                  <div className="bg-slate-900/50 rounded-lg p-2 mb-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-500">상품 원본:</span>
+                      <a
+                        href={product.product_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-400 hover:text-blue-300 underline line-clamp-1"
+                      >
+                        {product.product_url}
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 {/* 파트너스 딥링크 */}
                 <div className="bg-slate-900/50 rounded-lg p-2 mb-4">
@@ -1250,7 +1603,20 @@ export default function CoupangProductsAdminPage() {
                         product_link: product.deep_link,
                         description: product.description
                       };
+
+                      console.log('🎬🎬🎬 영상 제작하기 클릭 - 상품 정보 저장');
+                      console.log('📦 Product 전체:', product);
+                      console.log('📝 저장할 productInfo:', productInfo);
+                      console.log('  - title:', productInfo.title);
+                      console.log('  - thumbnail:', productInfo.thumbnail);
+                      console.log('  - product_link:', productInfo.product_link);
+                      console.log('  - description:', productInfo.description);
+
                       localStorage.setItem('product_video_info', JSON.stringify(productInfo));
+
+                      // 저장 확인
+                      const saved = localStorage.getItem('product_video_info');
+                      console.log('💾 localStorage 저장 확인:', saved);
 
                       // 메인 페이지로 이동 (상품 프롬프트 타입)
                       router.push('/?promptType=product');
@@ -1292,13 +1658,25 @@ export default function CoupangProductsAdminPage() {
         </div>
 
         {/* 더보기 버튼 */}
-        {myListDisplayCount < products.length && (
+        {myListDisplayCount < filteredProducts.length && (
           <div className="text-center mt-8">
             <button
               onClick={() => setMyListDisplayCount(myListDisplayCount + myListPageSize)}
               className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-3 text-white font-bold hover:from-purple-500 hover:to-pink-500 transition"
             >
-              ➕ {Math.min(myListPageSize, products.length - myListDisplayCount)}개 더 보기 ({myListDisplayCount} / {products.length})
+              ➕ {Math.min(myListPageSize, filteredProducts.length - myListDisplayCount)}개 더 보기 ({myListDisplayCount} / {filteredProducts.length})
+            </button>
+          </div>
+        )}
+
+        {filteredProducts.length === 0 && products.length > 0 && (
+          <div className="text-center py-12">
+            <p className="text-slate-400 text-lg">선택한 카테고리에 상품이 없습니다.</p>
+            <button
+              onClick={() => handleCategoryFilter('all')}
+              className="mt-4 rounded-lg bg-purple-600 px-6 py-2 text-white font-semibold hover:bg-purple-500 transition"
+            >
+              전체 상품 보기
             </button>
           </div>
         )}
@@ -1540,37 +1918,55 @@ export default function CoupangProductsAdminPage() {
                 </div>
               )}
 
-              {/* 크롤링 로그 */}
-              {(isCrawling || crawlLogs.length > 0) && (
+              {/* 크롤링 로그 - 접기/펼치기 가능 */}
+              {(isCrawling || crawlLogs.length > 0 || showCrawlLogs) && (
                 <div className="mt-6 rounded-lg border border-slate-600 bg-slate-900/90 overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700">
+                  <div
+                    className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 cursor-pointer hover:bg-slate-750 transition"
+                    onClick={() => setShowCrawlLogs(!showCrawlLogs)}
+                  >
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      📝 크롤링 로그
+                      {showCrawlLogs ? '▼' : '▶'} 📝 크롤링 로그
                       <span className="text-xs text-slate-400">({crawlLogs.length})</span>
+                      {isCrawling && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/30 text-xs animate-pulse">
+                          ● 진행 중
+                        </span>
+                      )}
                     </h3>
-                    <button
-                      onClick={() => {
-                        setShowCrawlLogs(false);
-                        if (!isCrawling) setCrawlLogs([]);
-                      }}
-                      className="text-slate-400 hover:text-white transition"
+                    <div className="flex items-center gap-2">
+                      {!isCrawling && crawlLogs.length > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCrawlLogs([]);
+                            setShowCrawlLogs(false);
+                          }}
+                          className="text-xs text-slate-400 hover:text-white transition"
+                        >
+                          로그 지우기
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {showCrawlLogs && (
+                    <div
+                      ref={logContainerRef}
+                      className="p-4 h-96 overflow-y-auto font-mono text-xs space-y-1 bg-slate-950/50"
                     >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="p-4 max-h-80 overflow-y-auto font-mono text-xs space-y-1">
-                    {crawlLogs.length > 0 ? (
-                      crawlLogs.map((log, idx) => (
-                        <div key={idx} className="text-slate-300 hover:bg-slate-800/50 px-2 py-1 rounded">
-                          {log}
+                      {crawlLogs.length > 0 ? (
+                        crawlLogs.map((log, idx) => (
+                          <div key={idx} className="text-slate-300 hover:bg-slate-800/50 px-2 py-1 rounded transition">
+                            {log}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-slate-500 text-center py-8">
+                          {isCrawling ? '로그를 기다리는 중...' : '크롤링을 시작하면 로그가 여기에 표시됩니다.'}
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-slate-500 text-center py-4">
-                        로그를 기다리는 중...
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1692,11 +2088,32 @@ export default function CoupangProductsAdminPage() {
                       </p>
                     )}
 
-                    {/* URL */}
+                    {/* 가격 정보 */}
+                    {(pending.discount_price || pending.original_price) && (
+                      <div className="flex items-center gap-2 mb-3">
+                        {pending.discount_price && (
+                          <span className="text-lg font-bold text-green-400">
+                            {Number(pending.discount_price).toLocaleString()}원
+                          </span>
+                        )}
+                        {pending.original_price && pending.discount_price !== pending.original_price && (
+                          <span className="text-xs text-slate-500 line-through">
+                            {Number(pending.original_price).toLocaleString()}원
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 원본 URL */}
                     <div className="bg-slate-900/50 rounded-lg p-2 mb-2">
-                      <p className="text-xs text-slate-500 break-all line-clamp-1">
+                      <a
+                        href={pending.product_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-400 hover:text-blue-300 break-all line-clamp-1 underline"
+                      >
                         {pending.product_url}
-                      </p>
+                      </a>
                     </div>
 
                     {/* 출처 */}

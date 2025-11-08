@@ -113,59 +113,59 @@ export default function CoupangQueueMonitor() {
   const failedItems = items.filter(item => item.status === 'failed');
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">크롤링 큐 상태</h3>
+    <div className="mb-8 rounded-2xl border border-purple-500/20 bg-purple-950/20 p-6 backdrop-blur">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-semibold text-white">⚙️ 크롤링 큐 상태</h3>
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
             checked={autoProcess}
             onChange={(e) => setAutoProcess(e.target.checked)}
-            className="rounded"
+            className="rounded bg-white/10 border-white/20 text-purple-500 focus:ring-purple-500"
           />
-          <span className="text-sm">자동 처리</span>
+          <span className="text-sm text-slate-300">자동 처리</span>
         </label>
       </div>
 
       {/* 통계 */}
       <div className="grid grid-cols-4 gap-4 mb-4">
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded">
-          <div className="text-sm text-yellow-600 dark:text-yellow-400">대기중</div>
-          <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.pending}</div>
+        <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl">
+          <div className="text-sm text-yellow-400 mb-1">대기중</div>
+          <div className="text-3xl font-bold text-yellow-300">{stats.pending}</div>
         </div>
-        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded">
-          <div className="text-sm text-blue-600 dark:text-blue-400">처리중</div>
-          <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.processing}</div>
+        <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
+          <div className="text-sm text-blue-400 mb-1">처리중</div>
+          <div className="text-3xl font-bold text-blue-300">{stats.processing}</div>
         </div>
-        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded">
-          <div className="text-sm text-green-600 dark:text-green-400">완료</div>
-          <div className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.done}</div>
+        <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
+          <div className="text-sm text-emerald-400 mb-1">완료</div>
+          <div className="text-3xl font-bold text-emerald-300">{stats.done}</div>
         </div>
-        <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded">
-          <div className="text-sm text-red-600 dark:text-red-400">실패</div>
-          <div className="text-2xl font-bold text-red-700 dark:text-red-300">{stats.failed}</div>
+        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
+          <div className="text-sm text-red-400 mb-1">실패</div>
+          <div className="text-3xl font-bold text-red-300">{stats.failed}</div>
         </div>
       </div>
 
       {/* 실패한 항목 */}
       {failedItems.length > 0 && (
-        <div className="border-t pt-4">
-          <h4 className="font-semibold mb-2">실패한 항목 ({failedItems.length})</h4>
+        <div className="border-t border-white/10 pt-4 mt-4">
+          <h4 className="font-semibold text-white mb-3">❌ 실패한 항목 ({failedItems.length})</h4>
           <div className="space-y-2">
             {failedItems.map(item => (
-              <div key={item.id} className="bg-red-50 dark:bg-red-900/20 p-3 rounded flex items-start justify-between">
+              <div key={item.id} className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{item.product_url}</div>
-                  <div className="text-xs text-red-600 dark:text-red-400 mt-1">
+                  <div className="text-sm font-medium text-white truncate">{item.product_url}</div>
+                  <div className="text-xs text-red-400 mt-2">
                     {item.error_message}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-slate-400 mt-1">
                     재시도 횟수: {item.retry_count}/3
                   </div>
                 </div>
                 <button
                   onClick={() => retryItem(item.id)}
-                  className="ml-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                  className="ml-4 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
                 >
                   다시 시도
                 </button>
