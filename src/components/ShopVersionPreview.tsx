@@ -7,9 +7,10 @@ import { generateShopHtml, type PublishedProduct } from '@/lib/shop-html';
 interface ShopVersionPreviewProps {
   versionId: string;
   onClose: () => void;
+  showHeader?: boolean; // 상단 안내 배너 표시 여부
 }
 
-export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPreviewProps) {
+export default function ShopVersionPreview({ versionId, onClose, showHeader = false }: ShopVersionPreviewProps) {
   const [loading, setLoading] = useState(true);
   const [htmlPreview, setHtmlPreview] = useState('');
   const [versionName, setVersionName] = useState<string | null>(null);
@@ -352,12 +353,9 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
     };
   }, [htmlPreview]);
 
-  // 관리자 모드인지 확인 (onClose 함수가 실제로 존재하는 경우)
-  const isAdminMode = onClose && onClose.toString() !== '() => {}';
-
   return (
     <div className="my-12">
-        {isAdminMode && (
+        {showHeader && (
           <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 text-amber-100 p-4 mb-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>

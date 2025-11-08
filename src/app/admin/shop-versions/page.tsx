@@ -28,6 +28,7 @@ export default function ShopVersionsAdminPage() {
           <ShopVersionPreview
             versionId={previewVersionId}
             onClose={() => setPreviewVersionId(null)}
+            showHeader={true}
           />
         )}
       </main>
