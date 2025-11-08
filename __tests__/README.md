@@ -5,6 +5,8 @@
 Frontend regression tests verify critical business logic:
 - **File Sorting Logic**: Image and video sequence detection and ordering
 - **JSON Title Extraction**: Parse and sanitize video titles from JSON/TXT files
+- **Video Format Selection**: Ensure correct format (롱폼/숏폼/SORA2/상품) is transmitted and processed
+- **AI Model Selection**: Ensure correct AI model (ChatGPT/Gemini/Claude) is selected and executed
 
 ## Test Structure
 
@@ -37,6 +39,8 @@ npm test
 ```bash
 npm test file-sorting
 npm test json-title-extraction
+npm test videoFormat
+npm test aiModelSelection
 ```
 
 ### Run with coverage
@@ -94,6 +98,56 @@ Tests title parsing from JSON/TXT files:
 - Filenames are Windows-compatible
 - No data loss for valid characters
 
+### 3. Video Format Selection (`videoFormat.test.ts`)
+
+Tests video format parameter transmission and processing:
+
+**Format Selection**:
+- 🎬 롱폼 (Longform): `type: "longform"`
+- 📱 숏폼 (Shortform): `type: "shortform"`
+- 🎥 SORA2: `type: "sora2"`
+- 🛍️ 상품 (Product): `type: "product"`
+
+**API Request Validation**:
+- Frontend sends correct `type` parameter (not `format`)
+- Server handles both `type` and `videoFormat` for backward compatibility
+- Database stores correct type value
+
+**Prompt File Mapping**:
+- Shortform → `prompt_shortform.txt`
+- Longform → `prompt_longform.txt`
+- SORA2 → `prompt_sora2.txt`
+
+**Success Criteria**:
+- All 14 format selection tests pass
+- No regression: shortform doesn't save as longform
+- Edge cases (undefined, null, invalid) default to longform
+
+### 4. AI Model Selection (`aiModelSelection.test.ts`)
+
+Tests AI model parameter transmission and Python agent selection:
+
+**Model Selection**:
+- 💬 ChatGPT: `scriptModel: "gpt"` → Python agent: `chatgpt`
+- ✨ Gemini: `scriptModel: "gemini"` → Python agent: `gemini`
+- 🤖 Claude: `scriptModel: "claude"` → Python agent: `claude`
+
+**Parameter Flow**:
+1. Frontend: User selects model → `scriptModel` parameter
+2. API Route: Maps `scriptModel` to agent name using `MODEL_TO_AGENT`
+3. Python: Receives `-a [agent]` argument
+4. UnifiedAgent: Initializes with correct AI configuration
+
+**Critical Bug Fix**:
+- ❌ Previous: Python args hardcoded `-a 'claude'` → Gemini selection opened Claude
+- ✅ Fixed: Python args use dynamic `agentName` → Correct AI opens
+
+**Success Criteria**:
+- All 27 AI model tests pass
+- All 3 API call sites include `scriptModel` parameter
+- All format+model combinations (9 total) work correctly
+- Edge cases (undefined, invalid) default to claude
+
 ## When to Update Tests
 
 From `DEVELOPMENT_GUIDE.md`:
@@ -102,12 +156,20 @@ From `DEVELOPMENT_GUIDE.md`:
 > 1. File sorting logic changes
 > 2. Title extraction/sanitization logic changes
 > 3. New sequence number patterns are added
-> 4. Critical bugs are fixed (add test to prevent regression)
+> 4. Video format selection logic changes
+> 5. AI model selection/mapping logic changes
+> 6. Critical bugs are fixed (add test to prevent regression)
 
 **DO NOT** update tests for:
 - UI/styling changes
 - Non-logic code refactoring
 - API endpoint URL changes (unless logic changes)
+
+**CRITICAL**: Always update tests when:
+- Adding new video formats (e.g., adding 상품/product format)
+- Adding new AI models (e.g., adding Grok or GPT-4)
+- Changing parameter names (e.g., `format` → `type`, `model` → `scriptModel`)
+- Modifying MODEL_TO_AGENT mapping in `/api/scripts/generate/route.ts`
 
 ## Test Data
 

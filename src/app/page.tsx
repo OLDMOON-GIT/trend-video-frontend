@@ -132,7 +132,17 @@ export default function Home() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [titleQuery, setTitleQuery] = useState("");
   const [durationRange, setDurationRange] = useState(defaultDurationRange);
-  const [selectedModel, setSelectedModel] = useState<ModelOption>('gpt');
+  const [selectedModel, setSelectedModel] = useState<ModelOption>('gpt'); // 소재찾기(LLM으로 이동)용
+  const [scriptModel, setScriptModel] = useState<ModelOption>(() => {
+    // localStorage에서 저장된 AI 모델 불러오기 (기본값: claude)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('scriptModel');
+      if (saved === 'gpt' || saved === 'gemini' || saved === 'claude') {
+        return saved as ModelOption;
+      }
+    }
+    return 'claude'; // 기본값: Claude
+  });
   const [videos, setVideos] = useState<VideoItem[]>(fallbackVideos);
   const [isFetching, setIsFetching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -182,6 +192,13 @@ export default function Home() {
       if (promptType === 'product') {
         console.log('✅ videoFormat 초기값: product');
         return 'product';
+      }
+
+      // localStorage에서 저장된 포맷 불러오기
+      const savedFormat = localStorage.getItem('videoFormat');
+      if (savedFormat === 'longform' || savedFormat === 'shortform' || savedFormat === 'sora2' || savedFormat === 'product') {
+        console.log('✅ videoFormat 초기값 (저장됨):', savedFormat);
+        return savedFormat as 'longform' | 'shortform' | 'sora2' | 'product';
       }
     }
     console.log('✅ videoFormat 초기값: longform');
@@ -905,10 +922,26 @@ export default function Home() {
       return;
     }
 
-    const confirmCancel = window.confirm('대본 생성을 취소하시겠습니까?');
+    const confirmCancel = window.confirm('대본 생성을 취소하시겠습니까? Chrome 창이 닫힙니다.');
     if (!confirmCancel) return;
 
     try {
+      // 1. Chrome 창 닫고 Python 프로세스 종료
+      try {
+        const cancelResponse = await fetch('/api/ai/auto-open/cancel', {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+
+        if (cancelResponse.ok) {
+          console.log('✅ Chrome 창과 Python 프로세스가 종료되었습니다.');
+        }
+      } catch (error) {
+        console.error('Chrome/Python 종료 중 오류:', error);
+        // 에러가 나도 계속 진행 (DB 삭제는 해야 함)
+      }
+
+      // 2. DB에서 작업 삭제
       const response = await fetch(`/api/scripts/${currentScriptId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
@@ -916,7 +949,7 @@ export default function Home() {
       });
 
       if (response.ok) {
-        showToast('대본 생성이 취소되었습니다.', 'success');
+        showToast('대본 생성이 취소되었습니다. Chrome 창이 닫혔습니다.', 'success');
 
         // 폴링 중지
         if (scriptPollingInterval) {
@@ -1010,7 +1043,8 @@ export default function Home() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           topic: manualTitle.trim(),
-          videoFormat: 'sora2' // SORA2 전용 프롬프트 사용
+          videoFormat: 'sora2', // SORA2 전용 프롬프트 사용
+          scriptModel: scriptModel // AI 모델 선택
         })
       });
 
@@ -1079,6 +1113,22 @@ export default function Home() {
     window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
     cachedFilters = filters;
   }, [viewRange, subRange, videoType, dateFilter, sortBy, selectedCategories, titleQuery, durationRange, selectedModel]);
+
+  // scriptModel을 localStorage에 저장 (AI 대본 생성 모델 기억)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && scriptModel) {
+      window.localStorage.setItem('scriptModel', scriptModel);
+      console.log('💾 AI 모델 저장:', scriptModel);
+    }
+  }, [scriptModel]);
+
+  // videoFormat을 localStorage에 저장 (포맷 선택 기억)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && videoFormat) {
+      window.localStorage.setItem('videoFormat', videoFormat);
+      console.log('💾 비디오 포맷 저장:', videoFormat);
+    }
+  }, [videoFormat]);
 
   const pushLog = useCallback((message: string) => {
     setLogs((prev) => {
@@ -1597,6 +1647,49 @@ export default function Home() {
                   </p>
                 </div>
               </div>
+
+              {/* AI 모델 선택 */}
+              <div className="mb-3">
+                <label className="mb-2 block text-xs font-medium text-slate-300">
+                  AI 모델 선택
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setScriptModel('gpt')}
+                    className={`flex-1 rounded-lg border-2 p-2 transition ${
+                      scriptModel === 'gpt'
+                        ? 'border-green-500 bg-green-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="text-sm font-bold">💬 ChatGPT</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScriptModel('gemini')}
+                    className={`flex-1 rounded-lg border-2 p-2 transition ${
+                      scriptModel === 'gemini'
+                        ? 'border-blue-500 bg-blue-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="text-sm font-bold">✨ Gemini</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScriptModel('claude')}
+                    className={`flex-1 rounded-lg border-2 p-2 transition ${
+                      scriptModel === 'claude'
+                        ? 'border-orange-500 bg-orange-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="text-sm font-bold">🤖 Claude</div>
+                  </button>
+                </div>
+              </div>
+
               <div className="flex flex-col gap-3">
                 {user?.isAdmin && (
                   <button
@@ -1780,6 +1873,51 @@ export default function Home() {
             </button>
           </div>
 
+          {/* AI 모델 선택 - 맨 위로 이동 */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              AI 모델 선택
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setScriptModel('gpt')}
+                disabled={isGeneratingScript}
+                className={`flex-1 rounded-lg border-2 p-3 transition ${
+                  scriptModel === 'gpt'
+                    ? 'border-green-500 bg-green-500/20 text-white'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                } disabled:opacity-50`}
+              >
+                <div className="text-base font-bold">💬 ChatGPT</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScriptModel('gemini')}
+                disabled={isGeneratingScript}
+                className={`flex-1 rounded-lg border-2 p-3 transition ${
+                  scriptModel === 'gemini'
+                    ? 'border-blue-500 bg-blue-500/20 text-white'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                } disabled:opacity-50`}
+              >
+                <div className="text-base font-bold">✨ Gemini</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScriptModel('claude')}
+                disabled={isGeneratingScript}
+                className={`flex-1 rounded-lg border-2 p-3 transition ${
+                  scriptModel === 'claude'
+                    ? 'border-orange-500 bg-orange-500/20 text-white'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                } disabled:opacity-50`}
+              >
+                <div className="text-base font-bold">🤖 Claude</div>
+              </button>
+            </div>
+          </div>
+
           {/* 선택된 모드 표시 */}
           <div className="mb-4 flex items-center gap-2 rounded-lg bg-white/10 px-4 py-3">
             <span className="text-2xl">
@@ -1798,7 +1936,7 @@ export default function Home() {
                   ? 'Claude.ai를 새 탭으로 열고 프롬프트를 클립보드에 복사합니다 (Ctrl+V로 붙여넣기)'
                   : titleInputMode === 'generate-api'
                   ? 'Claude API를 직접 호출합니다 (테스트용, 비용 발생)'
-                  : '로컬 Claude로 대본을 생성합니다 (실패 시 API 사용)'}
+                  : `로컬 ${scriptModel === 'gpt' ? 'ChatGPT' : scriptModel === 'gemini' ? 'Gemini' : 'Claude'}로 대본을 생성합니다 (실패 시 API 사용)`}
               </div>
             </div>
           </div>
@@ -1987,7 +2125,8 @@ export default function Home() {
                         headers: getAuthHeaders(),
                         body: JSON.stringify({
                           title: manualTitle.trim(),
-                          type: videoFormat
+                          type: videoFormat,
+                          scriptModel: scriptModel // AI 모델 선택
                         })
                       });
 
@@ -3775,7 +3914,11 @@ export default function Home() {
                   <p className="text-sm text-slate-400">대본 정보</p>
                   <p className="text-white">📝 주제: {scriptConfirmData.title}</p>
                   <p className="text-white">
-                    🤖 생성 방식: {scriptConfirmData.mode === 'generate-api' ? 'Claude API' : '로컬 Claude'}
+                    🤖 생성 방식: {scriptConfirmData.mode === 'generate-api' ? 'API 호출' : '로컬'} {
+                      scriptModel === 'gpt' ? 'ChatGPT' :
+                      scriptModel === 'gemini' ? 'Gemini' :
+                      scriptModel === 'claude' ? 'Claude' : scriptModel
+                    }
                   </p>
                 </div>
 
@@ -3819,13 +3962,20 @@ export default function Home() {
 
                       // 실제 AI 대본 생성 로직 실행
                       if (mode === 'generate-api') {
-                        // Claude API 사용
+                        // API 사용
+                        const modelNames: Record<string, string> = {
+                          'claude': 'Claude',
+                          'gpt': 'ChatGPT',
+                          'gemini': 'Gemini',
+                          'groq': 'Groq'
+                        };
+
                         setIsGeneratingScript(true);
                       setShowScriptLogs(true);
                       setScriptProgress({ current: 0, total: 100 });
                       setScriptGenerationLogs([{
                         timestamp: new Date().toISOString(),
-                        message: '💰 Claude API를 사용하여 대본 생성 시작...'
+                        message: `💰 ${modelNames[scriptModel] || scriptModel} API를 사용하여 대본 생성 시작...`
                       }]);
 
                       try {
@@ -3869,6 +4019,7 @@ export default function Home() {
                             prompt: promptData.content,
                             topic: title,
                             format: videoFormat,
+                            model: scriptModel, // 대본 생성용 AI 모델
                             productInfo: productInfo // 상품 정보 추가
                           })
                         });
@@ -4074,9 +4225,16 @@ export default function Home() {
                       setIsGeneratingScript(true);
                       setShowScriptLogs(true);
                       setScriptProgress({ current: 0, total: 100 });
+                      const modelNames: Record<string, string> = {
+                        'claude': 'Claude',
+                        'gpt': 'ChatGPT',
+                        'gemini': 'Gemini',
+                        'groq': 'Groq'
+                      };
+
                       setScriptGenerationLogs([{
                         timestamp: new Date().toISOString(),
-                        message: '🖥️ 로컬 Claude를 사용하여 대본 생성 시작...'
+                        message: `🖥️ 로컬 ${modelNames[scriptModel] || scriptModel}를 사용하여 대본 생성 시작...`
                       }]);
 
                       try {
@@ -4086,6 +4244,7 @@ export default function Home() {
                           body: JSON.stringify({
                             title: title,
                             type: videoFormat, // format -> type으로 수정
+                            scriptModel: scriptModel, // 대본 생성용 AI 모델
                             useClaudeLocal: true
                           })
                         });
@@ -4185,7 +4344,7 @@ export default function Home() {
                               });
 
                               fetchCreditsAndSettings();
-                              setToast({ message: '로컬 Claude로 대본이 생성되었습니다!', type: 'success' });
+                              setToast({ message: `로컬 ${modelNames[scriptModel] || scriptModel}로 대본이 생성되었습니다!`, type: 'success' });
                               setTimeout(() => setToast(null), 3000);
                               setManualTitle('');
                               setIsGeneratingScript(false);
@@ -4237,7 +4396,7 @@ export default function Home() {
 
                         setScriptPollingInterval(interval);
 
-                        setToast({ message: '로컬 Claude로 대본 생성 중... 잠시만 기다려주세요.', type: 'info' });
+                        setToast({ message: `로컬 ${modelNames[scriptModel] || scriptModel}로 대본 생성 중... 잠시만 기다려주세요.`, type: 'info' });
                       } catch (error: any) {
                         console.error(error);
                         setIsGeneratingScript(false);

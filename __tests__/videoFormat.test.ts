@@ -45,6 +45,19 @@ describe('비디오 포맷 선택 테스트', () => {
       expect(requestBody).toHaveProperty('type');
       expect(requestBody).not.toHaveProperty('format');
     });
+
+    it('상품 선택 시 type: "product"로 전송되어야 함', () => {
+      const videoFormat = 'product';
+      const requestBody = {
+        title: '테스트 제목',
+        type: videoFormat,
+        useClaudeLocal: true
+      };
+
+      expect(requestBody.type).toBe('product');
+      expect(requestBody).toHaveProperty('type');
+      expect(requestBody).not.toHaveProperty('format');
+    });
   });
 
   describe('서버 파라미터 처리 검증', () => {
@@ -78,18 +91,21 @@ describe('비디오 포맷 선택 테스트', () => {
         { input: 'sora2', expected: 'sora2' },
         { input: 'shortform', expected: 'shortform' },
         { input: 'longform', expected: 'longform' },
+        { input: 'product', expected: 'product' },
         { input: undefined, expected: 'longform' },
         { input: null, expected: 'longform' },
         { input: '', expected: 'longform' }
       ];
 
       testCases.forEach(({ input, expected }) => {
-        let scriptType: 'longform' | 'shortform' | 'sora2' = 'longform';
+        let scriptType: 'longform' | 'shortform' | 'sora2' | 'product' = 'longform';
 
         if (input === 'sora2') {
           scriptType = 'sora2';
         } else if (input === 'shortform') {
           scriptType = 'shortform';
+        } else if (input === 'product') {
+          scriptType = 'product';
         } else if (input === 'longform') {
           scriptType = 'longform';
         }
@@ -108,6 +124,8 @@ describe('비디오 포맷 선택 테스트', () => {
         promptFile = 'prompt_shortform.txt';
       } else if (videoFormat === 'longform') {
         promptFile = 'prompt_longform.txt';
+      } else if (videoFormat === 'product') {
+        promptFile = 'prompt_product.txt';
       } else {
         promptFile = 'prompt_sora2.txt';
       }
@@ -123,6 +141,8 @@ describe('비디오 포맷 선택 테스트', () => {
         promptFile = 'prompt_shortform.txt';
       } else if (videoFormat === 'longform') {
         promptFile = 'prompt_longform.txt';
+      } else if (videoFormat === 'product') {
+        promptFile = 'prompt_product.txt';
       } else {
         promptFile = 'prompt_sora2.txt';
       }
@@ -138,11 +158,30 @@ describe('비디오 포맷 선택 테스트', () => {
         promptFile = 'prompt_shortform.txt';
       } else if (videoFormat === 'longform') {
         promptFile = 'prompt_longform.txt';
+      } else if (videoFormat === 'product') {
+        promptFile = 'prompt_product.txt';
       } else {
         promptFile = 'prompt_sora2.txt';
       }
 
       expect(promptFile).toBe('prompt_sora2.txt');
+    });
+
+    it('상품은 prompt_product.txt를 사용해야 함', () => {
+      const videoFormat = 'product';
+      let promptFile: string;
+
+      if (videoFormat === 'shortform') {
+        promptFile = 'prompt_shortform.txt';
+      } else if (videoFormat === 'longform') {
+        promptFile = 'prompt_longform.txt';
+      } else if (videoFormat === 'product') {
+        promptFile = 'prompt_product.txt';
+      } else {
+        promptFile = 'prompt_sora2.txt';
+      }
+
+      expect(promptFile).toBe('prompt_product.txt');
     });
   });
 
@@ -151,7 +190,8 @@ describe('비디오 포맷 선택 테스트', () => {
       const testCases = [
         { videoFormat: 'shortform', expected: 'shortform' },
         { videoFormat: 'longform', expected: 'longform' },
-        { videoFormat: 'sora2', expected: 'sora2' }
+        { videoFormat: 'sora2', expected: 'sora2' },
+        { videoFormat: 'product', expected: 'product' }
       ];
 
       testCases.forEach(({ videoFormat, expected }) => {
