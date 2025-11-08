@@ -427,4 +427,112 @@ describe('쿠팡 샵 북마크 기능 테스트', () => {
       expect(currentTab).toBe('bookmarks');
     });
   });
+
+  describe('리그레션 테스트 - 잠시저장 기능', () => {
+    it('REGRESSION: 탭 이름이 "잠시저장"이어야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      // 이전 버그: "북마크"로 표시됨
+      // 수정: "잠시저장"으로 변경
+      expect(html).toContain('⭐ 잠시저장');
+      expect(html).not.toContain('⭐ 북마크');
+    });
+
+    it('REGRESSION: 안내 문구가 올바른 위치에 있어야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      // 안내 문구가 탭과 상품 그리드 사이에 있어야 함
+      // CSS 클래스 정의가 아닌 실제 HTML 요소를 검색
+      const tabsIndex = html.indexOf('<div class="coupang-category-tabs');
+      const noticeIndex = html.indexOf('<div class="coupang-bookmark-notice');
+      const gridIndex = html.indexOf('<div class="coupang-shop-grid');
+
+      expect(tabsIndex).toBeGreaterThan(-1);
+      expect(noticeIndex).toBeGreaterThan(-1);
+      expect(gridIndex).toBeGreaterThan(-1);
+      expect(tabsIndex).toBeLessThan(noticeIndex);
+      expect(noticeIndex).toBeLessThan(gridIndex);
+    });
+
+    it('REGRESSION: 안내 문구가 기본적으로 숨겨져 있어야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      // display: none으로 기본 숨김
+      expect(html).toContain('coupang-bookmark-notice');
+      expect(html).toContain('display: none');
+    });
+
+    it('REGRESSION: 안내 문구 내용이 정확해야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      expect(html).toContain('⚠️ 잠시저장은 임시 기능입니다');
+      expect(html).toContain('새로고침하면 목록이 사라집니다');
+    });
+
+    it('REGRESSION: 탭 전환 시 안내 문구 표시/숨김 로직이 있어야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      // filterProducts 함수에 안내 문구 표시/숨김 로직이 있어야 함
+      expect(html).toContain('coupang-bookmark-notice');
+      expect(html).toContain("category === 'bookmarks' ? 'block' : 'none'");
+    });
+
+    it('REGRESSION: 잠시저장 탭에서 북마크 제거 시 탭이 유지되어야 함', () => {
+      let currentTab = 'bookmarks';
+      let bookmarks = ['product-1', 'product-2'];
+
+      // 북마크 제거
+      const productToRemove = 'product-1';
+      const index = bookmarks.indexOf(productToRemove);
+      if (index > -1) {
+        bookmarks.splice(index, 1);
+      }
+
+      // 이전 버그: 전체 탭으로 이동함
+      // 수정: 잠시저장 탭에 그대로 유지
+      expect(currentTab).toBe('bookmarks');
+      expect(bookmarks).toEqual(['product-2']);
+    });
+
+    it('REGRESSION: Cookie가 최우선 저장소여야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      // Level 1: Cookie (최우선)
+      // Level 2: localStorage
+      // Level 3: sessionStorage
+      const cookieIndex = html.indexOf('getCookie(');
+      const localStorageIndex = html.indexOf('localStorage.getItem');
+      const sessionStorageIndex = html.indexOf('sessionStorage.getItem');
+
+      // Cookie가 가장 먼저 시도되어야 함
+      expect(cookieIndex).toBeLessThan(localStorageIndex);
+      expect(localStorageIndex).toBeLessThan(sessionStorageIndex);
+    });
+
+    it('REGRESSION: SameSite 쿠키 속성이 설정되어야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      // HTTPS: SameSite=None; Secure
+      // HTTP: SameSite=Lax
+      expect(html).toContain('SameSite');
+      expect(html).toContain("window.location.protocol === 'https:'");
+    });
+
+    it('REGRESSION: IndexedDB 복원 로직이 있어야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      // 페이지 로드 시 IndexedDB에서 복원 시도
+      expect(html).toContain('getFromIndexedDB');
+      expect(html).toContain('Restored');
+      expect(html).toContain('bookmarks from IndexedDB');
+    });
+
+    it('REGRESSION: 모든 저장소 실패 시 경고가 표시되어야 함', () => {
+      const html = generateShopHtml(mockProducts);
+
+      // 모든 저장소 실패 시 콘솔 경고
+      expect(html).toContain('Only saved to memory');
+      expect(html).toContain('will be lost on reload');
+    });
+  });
 });

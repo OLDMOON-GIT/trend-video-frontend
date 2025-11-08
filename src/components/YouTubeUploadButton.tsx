@@ -127,17 +127,24 @@ export default function YouTubeUploadButton({
           onUploadSuccess({ videoId: data.videoId, videoUrl: data.videoUrl });
         }
       } else {
-        console.error('❌ Upload API Error:', data);
         const errorMsg = data.error || data.details || '업로드 실패';
+        console.error('❌ Upload API Error:', {
+          error: errorMsg,
+          fullData: data
+        });
         if (onUploadError) {
           onUploadError(errorMsg);
         }
         throw new Error(errorMsg);
       }
     } catch (error: any) {
-      console.error('YouTube 업로드 실패:', error);
+      const errorMessage = error?.message || error?.toString() || '알 수 없는 오류';
+      console.error('YouTube 업로드 실패:', {
+        message: errorMessage,
+        error: error
+      });
       if (onUploadError) {
-        onUploadError(error.message);
+        onUploadError(errorMessage);
       }
     } finally {
       setIsUploading(false);

@@ -239,6 +239,29 @@ export async function POST(request: NextRequest) {
     // 저장된 경로를 다시 정렬 (파일명 기준)
     savedVideoPaths.sort();
 
+    // scenes 배열 추출 (비디오 배치용)
+    let scenes = null;
+    if (jsonFile) {
+      try {
+        let jsonText = await jsonFile.text();
+        jsonText = jsonText
+          .replace(/^```json\s*/i, '')
+          .replace(/\s*```\s*$/i, '')
+          .trim();
+        const jsonData = JSON.parse(jsonText);
+
+        if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
+          scenes = jsonData.scenes.map((s: any) => ({
+            narration: s.text || s.narration || '',
+            duration: s.duration_seconds || 0
+          }));
+          console.log(`✅ scenes 배열 추출: ${scenes.length}개 씬`);
+        }
+      } catch (e) {
+        console.log('⚠️ scenes 배열 추출 실패, 무시');
+      }
+    }
+
     // 설정 파일 생성
     const config = {
       video_files: savedVideoPaths,
@@ -246,6 +269,7 @@ export async function POST(request: NextRequest) {
       add_subtitles: addSubtitles,
       remove_watermark: removeWatermark,
       title: videoTitle,  // 대본의 title
+      scenes: scenes,  // scenes 배열 (비디오 배치용)
       output_dir: outputDir
     };
 
