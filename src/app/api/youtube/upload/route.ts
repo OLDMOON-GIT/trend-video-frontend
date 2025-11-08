@@ -101,8 +101,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // 업로드 실행
     return new Promise((resolve) => {
       const credentialsPath = COMMON_CREDENTIALS_PATH;
-      // tokenFile 필드가 제거되었으므로 channelId 기반 파일명 사용
-      const tokenPath = path.join(CREDENTIALS_DIR, `token_${selectedChannel.channelId}.json`);
+      // 채널 추가 시와 동일한 토큰 경로 사용
+      const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}_${selectedChannel.channelId}.json`);
 
       const args = [
         YOUTUBE_CLI,
