@@ -32,6 +32,10 @@ export default function YouTubeUploadButton({
 }: YouTubeUploadButtonProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [uploadLogs, setUploadLogs] = useState<string[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<'uploading' | 'success' | 'error' | ''>('');
   const [title, setTitle] = useState(defaultTitle);
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
@@ -78,6 +82,10 @@ export default function YouTubeUploadButton({
     await loadChannels();
   };
 
+  const addLog = (log: string) => {
+    setUploadLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${log}`]);
+  };
+
   const handleUpload = async () => {
     if (!title.trim()) {
       toast.error('제목을 입력해주세요');
@@ -92,6 +100,12 @@ export default function YouTubeUploadButton({
     try {
       setIsUploading(true);
       setShowModal(false);
+      setShowProgressModal(true);
+      setUploadLogs([]);
+      setUploadProgress(0);
+      setUploadStatus('uploading');
+
+      addLog('YouTube 업로드 시작');
 
       // 업로드 시작 콜백 호출
       if (onUploadStart) {
@@ -99,6 +113,10 @@ export default function YouTubeUploadButton({
       }
 
       const tagList = tags.split(',').map(t => t.trim()).filter(t => t);
+
+      addLog('업로드 요청 준비 중...');
+      addLog(`제목: ${title}`);
+      addLog(`공개 설정: ${privacy}`);
 
       const res = await fetch('/api/youtube/upload', {
         method: 'POST',
@@ -115,19 +133,48 @@ export default function YouTubeUploadButton({
         })
       });
 
+      addLog('서버 응답 대기 중...');
+
       const data = await res.json();
 
       console.log('📥 Upload API Response:', { status: res.status, data });
 
       if (data.success) {
+        setUploadStatus('success');
+        setUploadProgress(100);
+        addLog('✅ YouTube 업로드 완료!');
+        addLog(`비디오 ID: ${data.videoId}`);
+        addLog(`URL: ${data.videoUrl}`);
+
         // 성공 시 공개 설정 저장
         localStorage.setItem('youtube_privacy_setting', privacy);
 
         if (onUploadSuccess) {
           onUploadSuccess({ videoId: data.videoId, videoUrl: data.videoUrl });
         }
+
+        // 3초 후 모달 닫기
+        setTimeout(() => {
+          setShowProgressModal(false);
+        }, 3000);
       } else {
+        setUploadStatus('error');
         const errorMsg = data.error || data.details || '업로드 실패';
+        addLog(`❌ 업로드 실패: ${errorMsg}`);
+
+        if (data.stdout) {
+          addLog('Python stdout:');
+          data.stdout.split('\n').forEach((line: string) => {
+            if (line.trim()) addLog(`  ${line}`);
+          });
+        }
+        if (data.stderr) {
+          addLog('Python stderr:');
+          data.stderr.split('\n').forEach((line: string) => {
+            if (line.trim()) addLog(`  ${line}`);
+          });
+        }
+
         console.warn('❌ Upload API Error:', {
           error: errorMsg,
           fullData: data
@@ -135,10 +182,12 @@ export default function YouTubeUploadButton({
         if (onUploadError) {
           onUploadError(errorMsg);
         }
-        // throw 하지 않고 조용히 종료
       }
     } catch (error: any) {
+      setUploadStatus('error');
       const errorMessage = error?.message || error?.toString() || '알 수 없는 오류';
+      addLog(`❌ 오류 발생: ${errorMessage}`);
+
       console.warn('YouTube 업로드 실패:', {
         message: errorMessage,
         error: error
@@ -287,6 +336,75 @@ export default function YouTubeUploadButton({
     )
   ) : null;
 
+  const progressModal = showProgressModal && mounted ? (
+    createPortal(
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[99999] p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          {/* 헤더 */}
+          <div className={`p-6 border-b border-gray-200 dark:border-gray-700 ${
+            uploadStatus === 'success' ? 'bg-green-50 dark:bg-green-900/20' :
+            uploadStatus === 'error' ? 'bg-red-50 dark:bg-red-900/20' :
+            'bg-blue-50 dark:bg-blue-900/20'
+          }`}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                {uploadStatus === 'uploading' && (
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                )}
+                {uploadStatus === 'success' && '✅'}
+                {uploadStatus === 'error' && '❌'}
+                YouTube 업로드 {uploadStatus === 'uploading' ? '진행 중' : uploadStatus === 'success' ? '완료' : '실패'}
+              </h2>
+              {uploadStatus !== 'uploading' && (
+                <button
+                  onClick={() => setShowProgressModal(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 로그 영역 */}
+          <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900">
+            <div className="font-mono text-sm space-y-1">
+              {uploadLogs.map((log, idx) => (
+                <div
+                  key={idx}
+                  className={`${
+                    log.includes('✅') ? 'text-green-600 dark:text-green-400 font-semibold' :
+                    log.includes('❌') ? 'text-red-600 dark:text-red-400' :
+                    log.includes('⚠️') ? 'text-yellow-600 dark:text-yellow-400' :
+                    'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {log}
+                </div>
+              ))}
+              {uploadLogs.length === 0 && (
+                <div className="text-gray-500 dark:text-gray-400">로그 대기 중...</div>
+              )}
+            </div>
+          </div>
+
+          {/* 하단 버튼 */}
+          {uploadStatus !== 'uploading' && (
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+              <button
+                onClick={() => setShowProgressModal(false)}
+                className="w-full py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          )}
+        </div>
+      </div>,
+      document.body
+    )
+  ) : null;
+
   return (
     <>
       <button
@@ -300,6 +418,7 @@ export default function YouTubeUploadButton({
       </button>
 
       {modalContent}
+      {progressModal}
     </>
   );
 }
