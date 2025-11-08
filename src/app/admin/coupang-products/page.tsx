@@ -44,21 +44,24 @@ export default function CoupangProductsAdminPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // 탭 관리 - URL에서 초기값 읽기
-  const [activeTab, setActiveTab] = useState<'my-list' | 'pending'>(() => {
+  const [activeTab, setActiveTab] = useState<'my-list' | 'queue' | 'pending'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
       if (tab === 'pending') return 'pending';
+      if (tab === 'queue') return 'queue';
     }
     return 'my-list';
   });
 
   // 탭 변경 시 URL도 업데이트
-  const changeTab = (tab: 'my-list' | 'pending') => {
+  const changeTab = (tab: 'my-list' | 'queue' | 'pending') => {
     setActiveTab(tab);
     const params = new URLSearchParams(window.location.search);
     if (tab === 'pending') {
       params.set('tab', 'pending');
+    } else if (tab === 'queue') {
+      params.set('tab', 'queue');
     } else {
       params.delete('tab');
     }
@@ -1144,9 +1147,6 @@ export default function CoupangProductsAdminPage() {
           </div>
         </div>
 
-        {/* 크롤링 큐 모니터 */}
-        <CoupangQueueMonitor />
-
         {/* 통합 검색 */}
         <div className="mb-8 rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-6 backdrop-blur">
           <div className="flex gap-4">
@@ -1320,6 +1320,16 @@ export default function CoupangProductsAdminPage() {
               }`}
             >
               📦 내 목록 ({products.length})
+            </button>
+            <button
+              onClick={() => changeTab('queue')}
+              className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
+                activeTab === 'queue'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              ⚙️ 크롤링 큐
             </button>
             <button
               onClick={() => changeTab('pending')}
@@ -1689,6 +1699,13 @@ export default function CoupangProductsAdminPage() {
         )}
         </>
       )}
+
+        {/* 크롤링 큐 탭 */}
+        {activeTab === 'queue' && (
+          <>
+            <CoupangQueueMonitor />
+          </>
+        )}
 
         {/* 대기 목록 탭 */}
         {activeTab === 'pending' && (
