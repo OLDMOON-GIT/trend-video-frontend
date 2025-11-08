@@ -16,6 +16,7 @@ export function generateShopHtml(products: PublishedProduct[]): string {
 
   const categoryTabs = [
     '<button class="active" data-category="all">전체</button>',
+    '<button data-category="bookmarks">⭐ 북마크</button>',
     ...normalizedCategories.map(
       (category) =>
         `<button data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
@@ -29,7 +30,14 @@ export function generateShopHtml(products: PublishedProduct[]): string {
       const originalPrice = formatCurrency(product.original_price);
 
       return `
-    <div class="coupang-product-card" data-category="${categoryLabel}" style="background: #1e293b; border-radius: 12px; overflow: hidden; transition: transform 0.2s;">
+    <div class="coupang-product-card" data-category="${categoryLabel}" data-product-id="${escapeHtml(product.id)}" style="background: #1e293b; border-radius: 12px; overflow: hidden; transition: transform 0.2s; position: relative;">
+      <button
+        class="bookmark-btn"
+        data-product-id="${escapeHtml(product.id)}"
+        onclick="window.toggleBookmark && window.toggleBookmark('${escapeHtml(product.id)}'); return false;"
+        style="position: absolute; top: 12px; right: 12px; z-index: 10; background: rgba(0,0,0,0.6); border: none; color: #fbbf24; font-size: 24px; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(4px);"
+        onmouseover="this.style.background='rgba(0,0,0,0.8)'; this.style.transform='scale(1.1)';"
+        onmouseout="this.style.background='rgba(0,0,0,0.6)'; this.style.transform='scale(1)';">☆</button>
       ${product.image_url ? `
       <img
         src="${product.image_url}"
@@ -103,44 +111,127 @@ export function generateShopHtml(products: PublishedProduct[]): string {
   const script = hasProducts
     ? `
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    var container = document.querySelector('.coupang-shop-container');
-    if (!container) return;
+  (function() {
+    // Cookie helper functions
+    function getCookie(name) {
+      var value = '; ' + document.cookie;
+      var parts = value.split('; ' + name + '=');
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return '';
+    }
 
-    var tabs = container.querySelectorAll('.coupang-category-tabs button');
-    var cards = container.querySelectorAll('.coupang-product-card');
+    function setCookie(name, value, days) {
+      var expires = '';
+      if (days) {
+        var date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = '; expires=' + date.toUTCString();
+      }
+      document.cookie = name + '=' + (value || '') + expires + '; path=/';
+    }
 
-    function filterProducts(category) {
-      cards.forEach(function(card) {
-        var cardCategory = card.getAttribute('data-category');
-        if (category === 'all' || cardCategory === category) {
-          card.style.display = '';
+    function getBookmarks() {
+      var bookmarkStr = getCookie('shop_bookmarks');
+      if (!bookmarkStr) return [];
+      try {
+        return JSON.parse(decodeURIComponent(bookmarkStr));
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveBookmarks(bookmarks) {
+      setCookie('shop_bookmarks', encodeURIComponent(JSON.stringify(bookmarks)), 365);
+    }
+
+    // Global toggle function
+    window.toggleBookmark = function(productId) {
+      var bookmarks = getBookmarks();
+      var index = bookmarks.indexOf(productId);
+
+      if (index > -1) {
+        bookmarks.splice(index, 1);
+      } else {
+        bookmarks.push(productId);
+      }
+
+      saveBookmarks(bookmarks);
+      updateBookmarkButtons();
+
+      // If we're on bookmark tab, re-filter
+      var activeTab = document.querySelector('.coupang-category-tabs button.active');
+      if (activeTab && activeTab.getAttribute('data-category') === 'bookmarks') {
+        filterProducts('bookmarks');
+      }
+    };
+
+    function updateBookmarkButtons() {
+      var bookmarks = getBookmarks();
+      var buttons = document.querySelectorAll('.bookmark-btn');
+      buttons.forEach(function(btn) {
+        var productId = btn.getAttribute('data-product-id');
+        if (bookmarks.indexOf(productId) > -1) {
+          btn.textContent = '⭐';
         } else {
-          card.style.display = 'none';
+          btn.textContent = '☆';
         }
       });
     }
 
-    tabs.forEach(function(tab) {
-      tab.addEventListener('click', function() {
-        tabs.forEach(function(button) { button.classList.remove('active'); });
-        tab.classList.add('active');
-        var selected = tab.getAttribute('data-category') || 'all';
-        filterProducts(selected);
-      });
-    });
+    document.addEventListener('DOMContentLoaded', function() {
+      var container = document.querySelector('.coupang-shop-container');
+      if (!container) return;
 
-    if (tabs.length > 0) {
-      var defaultTab = Array.from(tabs).find(function(btn) {
-        return btn.getAttribute('data-category') === 'all';
-      }) || tabs[0];
-      if (defaultTab) {
-        defaultTab.classList.add('active');
-        var selected = defaultTab.getAttribute('data-category') || 'all';
-        filterProducts(selected);
+      var tabs = container.querySelectorAll('.coupang-category-tabs button');
+      var cards = container.querySelectorAll('.coupang-product-card');
+
+      function filterProducts(category) {
+        if (category === 'bookmarks') {
+          var bookmarks = getBookmarks();
+          cards.forEach(function(card) {
+            var productId = card.getAttribute('data-product-id');
+            if (bookmarks.indexOf(productId) > -1) {
+              card.style.display = '';
+            } else {
+              card.style.display = 'none';
+            }
+          });
+        } else {
+          cards.forEach(function(card) {
+            var cardCategory = card.getAttribute('data-category');
+            if (category === 'all' || cardCategory === category) {
+              card.style.display = '';
+            } else {
+              card.style.display = 'none';
+            }
+          });
+        }
       }
-    }
-  });
+
+      tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          tabs.forEach(function(button) { button.classList.remove('active'); });
+          tab.classList.add('active');
+          var selected = tab.getAttribute('data-category') || 'all';
+          filterProducts(selected);
+        });
+      });
+
+      // Initialize bookmark buttons
+      updateBookmarkButtons();
+
+      if (tabs.length > 0) {
+        var defaultTab = Array.from(tabs).find(function(btn) {
+          return btn.getAttribute('data-category') === 'all';
+        }) || tabs[0];
+        if (defaultTab) {
+          defaultTab.classList.add('active');
+          var selected = defaultTab.getAttribute('data-category') || 'all';
+          filterProducts(selected);
+        }
+      }
+    });
+  })();
 </script>`
     : '';
 

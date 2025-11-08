@@ -59,32 +59,130 @@ export default function ShopVersionPreview({ versionId, onClose }: ShopVersionPr
     const container = containerRef.current;
     if (!container) return;
 
+    // Cookie helper functions
+    const getCookie = (name: string): string => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift() || '';
+      return '';
+    };
+
+    const setCookie = (name: string, value: string, days: number) => {
+      let expires = '';
+      if (days) {
+        const date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = `; expires=${date.toUTCString()}`;
+      }
+      document.cookie = `${name}=${value || ''}${expires}; path=/`;
+    };
+
+    const getBookmarks = (): string[] => {
+      const bookmarkStr = getCookie('shop_bookmarks');
+      if (!bookmarkStr) return [];
+      try {
+        return JSON.parse(decodeURIComponent(bookmarkStr));
+      } catch (e) {
+        return [];
+      }
+    };
+
+    const saveBookmarks = (bookmarks: string[]) => {
+      setCookie('shop_bookmarks', encodeURIComponent(JSON.stringify(bookmarks)), 365);
+    };
+
+    const updateBookmarkButtons = () => {
+      const bookmarks = getBookmarks();
+      const buttons = container.querySelectorAll<HTMLButtonElement>('.bookmark-btn');
+      buttons.forEach((btn) => {
+        const productId = btn.getAttribute('data-product-id');
+        if (productId && bookmarks.includes(productId)) {
+          btn.textContent = '⭐';
+        } else {
+          btn.textContent = '☆';
+        }
+      });
+    };
+
     const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('.coupang-category-tabs button'));
     const cards = Array.from(container.querySelectorAll<HTMLElement>('.coupang-product-card'));
     if (!tabs.length) return;
+
+    const filterProducts = (category: string) => {
+      if (category === 'bookmarks') {
+        const bookmarks = getBookmarks();
+        cards.forEach((card) => {
+          const productId = card.getAttribute('data-product-id');
+          if (productId && bookmarks.includes(productId)) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      } else {
+        cards.forEach((card) => {
+          const cardCategory = card.getAttribute('data-category');
+          card.style.display = category === 'all' || cardCategory === category ? '' : 'none';
+        });
+      }
+    };
 
     const setActiveCategory = (target: HTMLButtonElement) => {
       const selected = target.getAttribute('data-category') || 'all';
       tabs.forEach((tab) => tab.classList.remove('active'));
       target.classList.add('active');
-      cards.forEach((card) => {
-        const cardCategory = card.getAttribute('data-category');
-        card.style.display = selected === 'all' || cardCategory === selected ? '' : 'none';
-      });
+      filterProducts(selected);
     };
 
-    const listeners = new Map<HTMLButtonElement, () => void>();
+    const toggleBookmark = (productId: string) => {
+      const bookmarks = getBookmarks();
+      const index = bookmarks.indexOf(productId);
+
+      if (index > -1) {
+        bookmarks.splice(index, 1);
+      } else {
+        bookmarks.push(productId);
+      }
+
+      saveBookmarks(bookmarks);
+      updateBookmarkButtons();
+
+      // If we're on bookmark tab, re-filter without changing tab
+      const activeTab = container.querySelector<HTMLButtonElement>('.coupang-category-tabs button.active');
+      if (activeTab && activeTab.getAttribute('data-category') === 'bookmarks') {
+        filterProducts('bookmarks');
+      }
+    };
+
+    // Event listeners
+    const tabListeners = new Map<HTMLButtonElement, () => void>();
     tabs.forEach((tab) => {
       const handler = () => setActiveCategory(tab);
-      listeners.set(tab, handler);
+      tabListeners.set(tab, handler);
       tab.addEventListener('click', handler);
     });
 
+    const bookmarkBtnListeners = new Map<HTMLButtonElement, () => void>();
+    const bookmarkButtons = container.querySelectorAll<HTMLButtonElement>('.bookmark-btn');
+    bookmarkButtons.forEach((btn) => {
+      const handler = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const productId = btn.getAttribute('data-product-id');
+        if (productId) toggleBookmark(productId);
+      };
+      bookmarkBtnListeners.set(btn, handler as any);
+      btn.addEventListener('click', handler);
+    });
+
+    // Initialize
+    updateBookmarkButtons();
     const defaultTab = tabs.find((tab) => tab.getAttribute('data-category') === 'all') || tabs[0];
     if (defaultTab) setActiveCategory(defaultTab);
 
     return () => {
-      listeners.forEach((handler, tab) => tab.removeEventListener('click', handler));
+      tabListeners.forEach((handler, tab) => tab.removeEventListener('click', handler));
+      bookmarkBtnListeners.forEach((handler, btn) => btn.removeEventListener('click', handler as any));
     };
   }, [htmlPreview]);
 
