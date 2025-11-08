@@ -24,6 +24,8 @@ export default function CoupangQueueMonitor() {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [autoProcess, setAutoProcess] = useState(true);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // 큐 상태 조회
   const fetchQueueStatus = async () => {
@@ -118,6 +120,33 @@ export default function CoupangQueueMonitor() {
 
   const failedItems = items.filter(item => item.status === 'failed');
 
+  // 상태별 항목 필터링
+  const getItemsByStatus = (status: string) => {
+    return items.filter(item => item.status === status);
+  };
+
+  // 상태 클릭 핸들러
+  const handleStatusClick = (status: string) => {
+    setSelectedStatus(status);
+    setIsModalOpen(true);
+  };
+
+  // 모달 닫기
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedStatus(null);
+  };
+
+  // 상태 라벨
+  const statusLabels: Record<string, string> = {
+    pending: '대기중',
+    processing: '처리중',
+    done: '완료',
+    failed: '실패'
+  };
+
+  const selectedItems = selectedStatus ? getItemsByStatus(selectedStatus) : [];
+
   return (
     <div className="mb-8 rounded-2xl border border-purple-500/20 bg-purple-950/20 p-6 backdrop-blur">
       <div className="flex items-center justify-between mb-6">
@@ -135,22 +164,34 @@ export default function CoupangQueueMonitor() {
 
       {/* 통계 */}
       <div className="grid grid-cols-4 gap-4 mb-4">
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl">
+        <button
+          onClick={() => handleStatusClick('pending')}
+          className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl hover:bg-yellow-500/20 transition-colors text-left cursor-pointer"
+        >
           <div className="text-sm text-yellow-400 mb-1">대기중</div>
           <div className="text-3xl font-bold text-yellow-300">{stats.pending}</div>
-        </div>
-        <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
+        </button>
+        <button
+          onClick={() => handleStatusClick('processing')}
+          className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl hover:bg-blue-500/20 transition-colors text-left cursor-pointer"
+        >
           <div className="text-sm text-blue-400 mb-1">처리중</div>
           <div className="text-3xl font-bold text-blue-300">{stats.processing}</div>
-        </div>
-        <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
+        </button>
+        <button
+          onClick={() => handleStatusClick('done')}
+          className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl hover:bg-emerald-500/20 transition-colors text-left cursor-pointer"
+        >
           <div className="text-sm text-emerald-400 mb-1">완료</div>
           <div className="text-3xl font-bold text-emerald-300">{stats.done}</div>
-        </div>
-        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
+        </button>
+        <button
+          onClick={() => handleStatusClick('failed')}
+          className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl hover:bg-red-500/20 transition-colors text-left cursor-pointer"
+        >
           <div className="text-sm text-red-400 mb-1">실패</div>
           <div className="text-3xl font-bold text-red-300">{stats.failed}</div>
-        </div>
+        </button>
       </div>
 
       {/* 실패한 항목 */}
@@ -177,6 +218,84 @@ export default function CoupangQueueMonitor() {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 모달 - 상태별 항목 목록 */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeModal}>
+          <div className="bg-slate-800 rounded-2xl border border-white/10 max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h3 className="text-xl font-semibold text-white">
+                {selectedStatus ? statusLabels[selectedStatus] : ''} 항목 ({selectedItems.length})
+              </h3>
+              <button
+                onClick={closeModal}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* 모달 콘텐츠 */}
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-88px)]">
+              {selectedItems.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  항목이 없습니다.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {selectedItems.map((item, index) => (
+                    <div key={item.id} className="bg-slate-700/50 border border-white/10 rounded-xl p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400 text-sm">#{index + 1}</span>
+                          <a
+                            href={item.product_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 hover:underline text-sm font-medium flex items-center gap-1"
+                          >
+                            {item.product_url}
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          {new Date(item.created_at).toLocaleString('ko-KR')}
+                        </span>
+                      </div>
+
+                      {item.error_message && (
+                        <div className="mt-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
+                          {item.error_message}
+                        </div>
+                      )}
+
+                      <div className="mt-2 flex items-center gap-4 text-xs text-slate-400">
+                        <span>재시도: {item.retry_count}/3</span>
+                        {selectedStatus === 'failed' && (
+                          <button
+                            onClick={() => {
+                              retryItem(item.id);
+                              closeModal();
+                            }}
+                            className="ml-auto px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                          >
+                            다시 시도
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
