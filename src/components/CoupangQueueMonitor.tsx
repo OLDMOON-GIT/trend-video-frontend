@@ -17,6 +17,7 @@ interface QueueItem {
   retry_count: number;
   error_message?: string;
   created_at: string;
+  source_url?: string; // 대기목록에서 온 경우 원본 URL
 }
 
 export default function CoupangQueueMonitor() {
@@ -276,8 +277,18 @@ export default function CoupangQueueMonitor() {
             {selectedItems.map((item, index) => (
               <div key={item.id} className="bg-slate-700/50 border border-white/10 rounded-xl p-4">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
                     <span className="text-slate-400 text-sm flex-shrink-0">#{index + 1}</span>
+                    {/* 출처 표시 */}
+                    {item.source_url ? (
+                      <span className="inline-block rounded-full bg-blue-600/30 px-2 py-1 text-xs font-medium text-blue-300 border border-blue-500/40 flex-shrink-0" title={`대기목록: ${item.source_url}`}>
+                        📋 대기목록
+                      </span>
+                    ) : (
+                      <span className="inline-block rounded-full bg-amber-600/30 px-2 py-1 text-xs font-medium text-amber-300 border border-amber-500/40 flex-shrink-0" title="직접 링크로 추가된 상품">
+                        🔗 직접추가
+                      </span>
+                    )}
                     <a
                       href={item.product_url}
                       target="_blank"

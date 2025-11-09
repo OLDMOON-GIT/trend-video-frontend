@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import CoupangQueueMonitor from '@/components/CoupangQueueMonitor';
+import ShopClientView from '@/components/ShopClientView';
 
 interface Product {
   id: string;
@@ -19,6 +20,8 @@ interface Product {
   view_count: number;
   click_count: number;
   created_at: string;
+  is_favorite?: number; // 0 or 1
+  queue_id?: string; // 대기목록에서 온 경우에만 존재
 }
 
 interface CrawlHistoryItem {
@@ -44,24 +47,27 @@ export default function CoupangProductsAdminPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // 탭 관리 - URL에서 초기값 읽기
-  const [activeTab, setActiveTab] = useState<'my-list' | 'queue' | 'pending'>(() => {
+  const [activeTab, setActiveTab] = useState<'my-list' | 'queue' | 'pending' | 'shop'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
       if (tab === 'pending') return 'pending';
       if (tab === 'queue') return 'queue';
+      if (tab === 'shop') return 'shop';
     }
     return 'my-list';
   });
 
   // 탭 변경 시 URL도 업데이트
-  const changeTab = (tab: 'my-list' | 'queue' | 'pending') => {
+  const changeTab = (tab: 'my-list' | 'queue' | 'pending' | 'shop') => {
     setActiveTab(tab);
     const params = new URLSearchParams(window.location.search);
     if (tab === 'pending') {
       params.set('tab', 'pending');
     } else if (tab === 'queue') {
       params.set('tab', 'queue');
+    } else if (tab === 'shop') {
+      params.set('tab', 'shop');
     } else {
       params.delete('tab');
     }
@@ -98,6 +104,14 @@ export default function CoupangProductsAdminPage() {
   const [jobPollingInterval, setJobPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  // 쇼핑몰 (퍼블리시된 상품)
+  const [shopCategories, setShopCategories] = useState<Array<{ name: string; count: number; thumbnail?: string }>>([]);
+  const [shopTotalProducts, setShopTotalProducts] = useState(0);
+  const [shopDataLoaded, setShopDataLoaded] = useState(false);
+
+  // 크롤링 큐 통계
+  const [queueTotalCount, setQueueTotalCount] = useState(0);
 
   const applyPendingCounts = (historyItems: CrawlHistoryItem[], products: any[]) => {
     if (historyItems.length === 0) return historyItems;
@@ -142,6 +156,8 @@ export default function CoupangProductsAdminPage() {
     if (isAuthenticated && activeTab === 'pending') {
       loadPendingProducts();
       loadLinkHistory();
+    } else if (isAuthenticated && activeTab === 'shop') {
+      loadPublishedProducts();
     }
   }, [isAuthenticated, activeTab]);
 
@@ -149,10 +165,14 @@ export default function CoupangProductsAdminPage() {
   useEffect(() => {
     if (selectedCategory === 'all') {
       setFilteredProducts(products);
+    } else if (selectedCategory === 'favorite') {
+      // 즐겨찾기 필터
+      setFilteredProducts(products.filter((p: Product) => p.is_favorite === 1));
     } else {
       setFilteredProducts(products.filter((p: Product) => p.category === selectedCategory));
     }
   }, [products, selectedCategory]);
+
 
   // 컴포넌트 언마운트 시 폴링 정리
   useEffect(() => {
@@ -172,6 +192,7 @@ export default function CoupangProductsAdminPage() {
         setIsAuthenticated(true);
         await loadProducts();
         await loadPendingProducts(); // 대기 목록도 초기 로드
+        await loadQueueStats(); // 크롤링 큐 통계 로드
         await loadLinkHistory();
 
         // 진행 중인 작업 복구 (새로고침 시)
@@ -271,6 +292,60 @@ export default function CoupangProductsAdminPage() {
     }
   };
 
+  const loadQueueStats = async () => {
+    try {
+      const res = await fetch('/api/coupang-crawl-queue', {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        // 전체 큐 항목 수 계산 (pending + processing + done + failed)
+        const total = data.stats.pending + data.stats.processing + data.stats.done + data.stats.failed;
+        setQueueTotalCount(total);
+      }
+    } catch (error) {
+      console.error('큐 통계 조회 실패:', error);
+    }
+  };
+
+  // 퍼블리시된 상품 조회 (쇼핑몰 데이터)
+  const loadPublishedProducts = async () => {
+    try {
+      setShopDataLoaded(false);
+      const res = await fetch('/api/shop/products/public');
+      const data = await res.json();
+
+      if (res.ok && data.products) {
+        // 카테고리별 상품 개수 계산
+        const categoryMap = new Map<string, { count: number; thumbnail?: string }>();
+
+        data.products.forEach((product: any) => {
+          const category = product.category || '기타';
+          if (!categoryMap.has(category)) {
+            categoryMap.set(category, { count: 0, thumbnail: product.image_url });
+          }
+          const catData = categoryMap.get(category)!;
+          catData.count++;
+        });
+
+        const categories = Array.from(categoryMap.entries()).map(([name, data]) => ({
+          name,
+          count: data.count,
+          thumbnail: data.thumbnail
+        }));
+
+        setShopCategories(categories);
+        setShopTotalProducts(data.products.length);
+        setShopDataLoaded(true);
+      }
+    } catch (error) {
+      console.error('쇼핑몰 데이터 조회 실패:', error);
+      setShopDataLoaded(true);
+    }
+  };
+
   const handleAddProduct = async () => {
     if (!productUrl) {
       toast.error('쿠팡 딥링크를 입력해주세요.');
@@ -301,6 +376,7 @@ export default function CoupangProductsAdminPage() {
         setCustomCategory('');
         setIsSidebarOpen(false); // 사이드바 닫기
         await loadProducts();
+        await loadQueueStats(); // 큐 통계도 업데이트
       } else {
         toast.error(data.error || '상품 추가 실패');
       }
@@ -318,15 +394,18 @@ export default function CoupangProductsAdminPage() {
     }
 
     try {
-      const res = await fetch(`/api/coupang-products/${productId}`, {
-        method: 'DELETE'
+      const res = await fetch(`/api/coupang-products?id=${productId}`, {
+        method: 'DELETE',
+        credentials: 'include'
       });
+
+      const data = await res.json();
 
       if (res.ok) {
         toast.success('상품이 삭제되었습니다.');
         await loadProducts();
       } else {
-        toast.error('상품 삭제 실패');
+        toast.error(data.error || '상품 삭제 실패');
       }
     } catch (error) {
       console.error('상품 삭제 실패:', error);
@@ -356,6 +435,37 @@ export default function CoupangProductsAdminPage() {
       setSelectedProductIds(new Set());
     } else {
       setSelectedProductIds(new Set(filteredProducts.map(p => p.id)));
+    }
+  };
+
+  // 즐겨찾기 토글
+  const toggleFavorite = async (productId: string, currentFavorite: number | undefined) => {
+    try {
+      const newFavorite = currentFavorite ? 0 : 1;
+
+      const response = await fetch('/api/coupang-products', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          productId,
+          isFavorite: newFavorite
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(newFavorite ? '⭐ 즐겨찾기 추가' : '☆ 즐겨찾기 제거');
+        // 상품 목록 새로고침
+        loadProducts();
+      } else {
+        toast.error(data.error || '즐겨찾기 업데이트 실패');
+      }
+    } catch (error) {
+      toast.error('즐겨찾기 업데이트 중 오류가 발생했습니다.');
     }
   };
 
@@ -772,16 +882,12 @@ export default function CoupangProductsAdminPage() {
       return;
     }
 
-    setIsCrawling(true);
-    setCrawlProgress(0);
-    setCrawlStatus('크롤링 시작 중...');
-    setCrawlLogs([`🔍 크롤링 시작 요청: ${crawlUrl}`]);
+    setCrawlLogs([`🔍 링크 추출 시작: ${crawlUrl}`]);
     setShowCrawlLogs(true);
 
-    console.log('🚀 크롤링 시작:', crawlUrl);
+    console.log('🚀 링크 모음 크롤링:', crawlUrl);
 
     try {
-      // Job 생성
       const res = await fetch('/api/crawl-product-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -790,35 +896,27 @@ export default function CoupangProductsAdminPage() {
 
       const data = await res.json();
 
-      if (res.ok && data.jobId) {
-        const jobId = data.jobId;
-        setCurrentJobId(jobId);
-        console.log('✅ Job 생성됨:', jobId);
+      if (res.ok) {
+        const { addedCount, duplicateCount, totalLinks } = data;
         setCrawlLogs(prev => [
           ...prev,
-          `✅ 크롤링 Job 생성: ${jobId}`,
-          '📡 서버에서 백그라운드로 크롤링 중...'
+          `✅ 쿠팡 링크 ${totalLinks}개 발견`,
+          `📝 신규 ${addedCount}개를 크롤링 큐에 추가`,
+          `⏭️ 중복 ${duplicateCount}개 제외`,
+          `🚀 백그라운드에서 크롤링이 진행됩니다.`,
+          `📊 크롤링 큐 탭에서 진행 상태를 확인하세요.`
         ]);
-
-        // Job 상태 폴링 시작 (1초마다)
-        const interval = setInterval(() => {
-          pollJobStatus(jobId);
-        }, 1000);
-        setJobPollingInterval(interval);
-
-        // 초기 상태 조회
-        setTimeout(() => pollJobStatus(jobId), 500);
+        toast.success(`${addedCount}개 링크가 크롤링 큐에 추가되었습니다.`);
         loadLinkHistory();
+        loadQueueStats(); // 큐 통계 새로고침
       } else {
-        setIsCrawling(false);
-        setCrawlLogs(prev => [...prev, `❌ 크롤링 시작 실패: ${data.error || data.message}`]);
-        toast.error(data.error || '크롤링 시작 실패');
+        setCrawlLogs(prev => [...prev, `❌ 실패: ${data.error || data.message}`]);
+        toast.error(data.error || '크롤링 실패');
       }
     } catch (error: any) {
-      setIsCrawling(false);
-      console.error('크롤링 시작 실패:', error);
-      setCrawlLogs(prev => [...prev, `❌ 크롤링 시작 오류: ${error.message}`]);
-      toast.error('크롤링 시작 중 오류가 발생했습니다.');
+      console.error('링크 추출 실패:', error);
+      setCrawlLogs(prev => [...prev, `❌ 오류: ${error.message}`]);
+      toast.error('링크 추출 중 오류가 발생했습니다.');
     }
   };
 
@@ -1139,11 +1237,6 @@ export default function CoupangProductsAdminPage() {
               <span className="text-lg font-bold">{products.length}</span>
               <span className="text-slate-300">개 상품</span>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-emerald-200">
-              <span className="text-xs uppercase tracking-widest text-emerald-300">대기</span>
-              <span className="text-base font-semibold">{pendingProducts.length}</span>
-              <span className="text-emerald-100">개 준비 중</span>
-            </span>
           </div>
         </div>
 
@@ -1329,7 +1422,7 @@ export default function CoupangProductsAdminPage() {
                   : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
-              ⚙️ 크롤링 큐
+              ⚙️ 크롤링 큐 ({queueTotalCount})
             </button>
             <button
               onClick={() => changeTab('pending')}
@@ -1340,6 +1433,16 @@ export default function CoupangProductsAdminPage() {
               }`}
             >
               ⏳ 대기 목록 ({pendingProducts.length})
+            </button>
+            <button
+              onClick={() => changeTab('shop')}
+              className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
+                activeTab === 'shop'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              📤 퍼블리시 ({products.filter(p => p.status === 'published').length})
             </button>
           </div>
 
@@ -1361,6 +1464,16 @@ export default function CoupangProductsAdminPage() {
                 }`}
               >
                 🌐 전체 ({products.length})
+              </button>
+              <button
+                onClick={() => handleCategoryFilter('favorite')}
+                className={`px-6 py-3 rounded-xl text-base font-bold transition-all ${
+                  selectedCategory === 'favorite'
+                    ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg shadow-yellow-500/50 scale-105'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
+                }`}
+              >
+                ⭐ 즐겨찾기 ({products.filter(p => p.is_favorite === 1).length})
               </button>
               {categories.map((cat) => {
                 const count = products.filter(p => p.category === cat).length;
@@ -1479,19 +1592,29 @@ export default function CoupangProductsAdminPage() {
                   : 'border-slate-600 bg-slate-800/50 hover:border-purple-500'
               }`}
             >
-              {/* 썸네일 */}
+              {/* 썸네일 with 즐겨찾기 */}
               {product.image_url && (
-                <img
-                  src={product.image_url}
-                  alt={product.title}
-                  className="w-full h-48 object-cover"
-                />
+                <div className="relative">
+                  <img
+                    src={product.image_url}
+                    alt={product.title}
+                    className="w-full h-48 object-cover"
+                  />
+                  {/* 썸네일 위 즐겨찾기 별표 */}
+                  <button
+                    onClick={() => toggleFavorite(product.id, product.is_favorite)}
+                    className="absolute top-2 right-2 text-3xl hover:scale-125 transition-transform drop-shadow-lg"
+                    title={product.is_favorite ? '즐겨찾기 제거' : '즐겨찾기 추가'}
+                  >
+                    {product.is_favorite ? '⭐' : '☆'}
+                  </button>
+                </div>
               )}
 
               <div className="p-4">
                 {/* 체크박스 + 카테고리 + 상태 */}
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <input
                       type="checkbox"
                       checked={selectedProductIds.has(product.id)}
@@ -1501,6 +1624,22 @@ export default function CoupangProductsAdminPage() {
                     <span className="inline-block rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold text-white">
                       {product.category}
                     </span>
+                    {/* 출처 표시 */}
+                    {product.queue_id ? (
+                      <span className="inline-block rounded-full bg-blue-600/30 px-2 py-1 text-xs font-medium text-blue-300 border border-blue-500/40" title="대기목록을 통해 추가된 상품">
+                        📋 대기목록
+                      </span>
+                    ) : (
+                      <span className="inline-block rounded-full bg-amber-600/30 px-2 py-1 text-xs font-medium text-amber-300 border border-amber-500/40" title="직접 링크로 추가된 상품">
+                        🔗 직접추가
+                      </span>
+                    )}
+                    {/* 크롤링 실패 경고 */}
+                    {(product.title === '상품명' || product.description === '상품 설명이 없습니다.') && (
+                      <span className="inline-block rounded-full bg-red-600/30 px-2 py-1 text-xs font-medium text-red-300 border border-red-500/40 animate-pulse" title="크롤링 실패 - 수동 수정 필요">
+                        ⚠️ 크롤링 실패
+                      </span>
+                    )}
                   </div>
                   {product.status === 'published' && (
                     <span className="text-xs px-2 py-1 rounded-full bg-green-600/20 text-green-300 border border-green-500/30">
@@ -1510,12 +1649,12 @@ export default function CoupangProductsAdminPage() {
                 </div>
 
                 {/* 제목 */}
-                <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">
+                <h3 className={`text-lg font-bold mb-2 line-clamp-2 ${product.title === '상품명' ? 'text-red-400 italic' : 'text-white'}`}>
                   {product.title}
                 </h3>
 
                 {/* 설명 */}
-                <p className="text-sm text-slate-400 mb-4 line-clamp-3">
+                <p className={`text-sm mb-4 line-clamp-3 ${product.description === '상품 설명이 없습니다.' ? 'text-red-400/60 italic' : 'text-slate-400'}`}>
                   {product.description}
                 </p>
 
@@ -1603,6 +1742,43 @@ export default function CoupangProductsAdminPage() {
 
                 {/* 액션 버튼 */}
                 <div className="flex flex-col gap-2">
+                  {/* 수정 버튼 (크롤링 실패한 경우만 표시) */}
+                  {(product.title === '상품명' || product.description === '상품 설명이 없습니다.') && (
+                    <button
+                      onClick={async () => {
+                        const newTitle = prompt('상품명을 입력하세요:', product.title);
+                        if (!newTitle || newTitle === product.title) return;
+
+                        const newDescription = prompt('상품 설명을 입력하세요:', product.description);
+                        if (!newDescription || newDescription === product.description) return;
+
+                        try {
+                          const res = await fetch(`/api/coupang-products/${product.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              title: newTitle,
+                              description: newDescription
+                            })
+                          });
+
+                          if (res.ok) {
+                            toast.success('상품 정보가 수정되었습니다!');
+                            loadMyList();
+                          } else {
+                            toast.error('수정에 실패했습니다.');
+                          }
+                        } catch (error) {
+                          console.error('수정 실패:', error);
+                          toast.error('수정 중 오류가 발생했습니다.');
+                        }
+                      }}
+                      className="w-full rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-500 transition"
+                    >
+                      ✏️ 수정하기
+                    </button>
+                  )}
+
                   {/* 영상 제작 버튼 */}
                   <button
                     onClick={() => {
@@ -1952,7 +2128,7 @@ export default function CoupangProductsAdminPage() {
                       )}
                     </h3>
                     <div className="flex items-center gap-2">
-                      {!isCrawling && crawlLogs.length > 0 && (
+                      {crawlLogs.length > 0 && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -2382,6 +2558,23 @@ export default function CoupangProductsAdminPage() {
           </div>
         </div>
       )}
+
+        {/* 퍼블리시 탭 */}
+        {activeTab === 'shop' && (
+          <>
+            {!shopDataLoaded ? (
+              <div className="py-20 text-center text-slate-300">
+                <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-purple-400" />
+                상품을 불러오는 중입니다...
+              </div>
+            ) : (
+              <ShopClientView
+                initialCategories={shopCategories}
+                initialTotalProducts={shopTotalProducts}
+              />
+            )}
+          </>
+        )}
 
     </div>
   );

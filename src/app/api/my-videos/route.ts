@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
-import { getJobsByUserId, getActiveJobsByUserId } from '@/lib/db';
+import { getJobsByUserId, getActiveJobsByUserId, deleteJob, findJobById } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,6 +73,75 @@ export async function GET(request: NextRequest) {
     console.error('Error stack:', error.stack);
     return NextResponse.json(
       { error: '영상 목록을 불러오는 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    console.log('=== 영상 삭제 요청 시작 ===');
+
+    const user = await getCurrentUser(request);
+    if (!user) {
+      console.log('❌ 인증 실패');
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const jobId = searchParams.get('jobId');
+
+    if (!jobId) {
+      return NextResponse.json(
+        { error: '작업 ID가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    console.log('삭제 요청 작업 ID:', jobId);
+
+    // 작업 존재 여부 및 권한 확인
+    const job = findJobById(jobId);
+    if (!job) {
+      console.log('❌ 작업을 찾을 수 없음:', jobId);
+      return NextResponse.json(
+        { error: '작업을 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
+    if (job.userId !== user.userId) {
+      console.log('❌ 권한 없음 - 작업 소유자:', job.userId, '요청자:', user.userId);
+      return NextResponse.json(
+        { error: '이 작업을 삭제할 권한이 없습니다.' },
+        { status: 403 }
+      );
+    }
+
+    // 작업 삭제
+    const success = deleteJob(jobId);
+    if (!success) {
+      console.log('❌ 삭제 실패:', jobId);
+      return NextResponse.json(
+        { error: '작업 삭제에 실패했습니다.' },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ 작업 삭제 성공:', jobId);
+    return NextResponse.json({
+      success: true,
+      message: '작업이 삭제되었습니다.'
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error deleting video:', error);
+    console.error('Error stack:', error.stack);
+    return NextResponse.json(
+      { error: '영상 삭제 중 오류가 발생했습니다.' },
       { status: 500 }
     );
   }
