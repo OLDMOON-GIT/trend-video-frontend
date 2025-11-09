@@ -4322,7 +4322,8 @@ export default function Home() {
                             title: title,
                             type: videoFormat, // format -> type으로 수정
                             scriptModel: scriptModel, // 대본 생성용 AI 모델
-                            useClaudeLocal: true
+                            useClaudeLocal: true,
+                            productInfo: productInfo // 상품 정보 추가 (title처럼)
                           })
                         });
 
