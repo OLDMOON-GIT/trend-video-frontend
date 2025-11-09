@@ -370,6 +370,16 @@ export default function SettingsPage() {
             👤 개인정보 수정
           </button>
           <button
+            onClick={() => setActiveTab('password')}
+            className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
+              activeTab === 'password'
+                ? 'bg-green-600 text-white'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
+          >
+            🔒 비밀번호 변경
+          </button>
+          <button
             onClick={() => setActiveTab('youtube')}
             className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
               activeTab === 'youtube'
@@ -388,16 +398,6 @@ export default function SettingsPage() {
             }`}
           >
             🌐 Google Sites 설정
-          </button>
-          <button
-            onClick={() => setActiveTab('password')}
-            className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
-              activeTab === 'password'
-                ? 'bg-green-600 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            🔒 비밀번호 변경
           </button>
         </div>
 
