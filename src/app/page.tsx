@@ -108,7 +108,7 @@ const defaultSubRange = { min: 1, max: 10_000_000 };
 const defaultDurationRange = { min: 0, max: 120 };
 
 const modelOptions = [
-  { label: 'GPT', value: 'gpt' },
+  { label: 'ChatGPT', value: 'chatgpt' },
   { label: 'Gemini', value: 'gemini' },
   { label: 'Claude', value: 'claude' },
   { label: 'Groq', value: 'groq' },
@@ -132,12 +132,28 @@ export default function Home() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [titleQuery, setTitleQuery] = useState("");
   const [durationRange, setDurationRange] = useState(defaultDurationRange);
-  const [selectedModel, setSelectedModel] = useState<ModelOption>('gpt'); // 소재찾기(LLM으로 이동)용
+  const [selectedModel, setSelectedModel] = useState<ModelOption>(() => {
+    // localStorage에서 저장된 소재찾기 LLM 모델 불러오기 (기본값: chatgpt)
+    if (typeof window !== 'undefined') {
+      try {
+        const filters = localStorage.getItem('trend-video-filters');
+        if (filters) {
+          const parsed = JSON.parse(filters);
+          if (parsed.selectedModel && ['chatgpt', 'gemini', 'claude', 'groq'].includes(parsed.selectedModel)) {
+            return parsed.selectedModel as ModelOption;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load selectedModel from localStorage:', e);
+      }
+    }
+    return 'chatgpt'; // 기본값: ChatGPT
+  });
   const [scriptModel, setScriptModel] = useState<ModelOption>(() => {
     // localStorage에서 저장된 AI 모델 불러오기 (기본값: claude)
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('scriptModel');
-      if (saved === 'gpt' || saved === 'gemini' || saved === 'claude') {
+      if (saved === 'chatgpt' || saved === 'gemini' || saved === 'claude') {
         return saved as ModelOption;
       }
     }
@@ -211,6 +227,7 @@ export default function Home() {
   const [scriptProgress, setScriptProgress] = useState<{current: number; total: number; content?: string} | null>(null);
   const [showScriptConfirmModal, setShowScriptConfirmModal] = useState(false);
   const [scriptConfirmCallback, setScriptConfirmCallback] = useState<(() => void) | null>(null);
+  const [productInfo, setProductInfo] = useState<{title: string; thumbnail: string; product_link: string; description: string} | null>(null);
   const [scriptConfirmData, setScriptConfirmData] = useState<{cost: number; currentCredits: number; title: string; mode: 'generate' | 'generate-api'} | null>(null);
   const [completedScript, setCompletedScript] = useState<{title: string; content: string; scriptId: string} | null>(null);
   const [user, setUser] = useState<{id: string; email: string; credits: number; isAdmin: boolean} | null>(null);
@@ -340,18 +357,19 @@ export default function Home() {
         const productInfoStr = localStorage.getItem('product_video_info');
         if (productInfoStr) {
           try {
-            const productInfo = JSON.parse(productInfoStr);
+            const loadedProductInfo = JSON.parse(productInfoStr);
 
             // 제목 자동 입력
-            if (productInfo.title) {
-              setManualTitle(productInfo.title);
-              console.log('🛍️ 상품 제목 로드:', productInfo.title);
+            if (loadedProductInfo.title) {
+              setManualTitle(loadedProductInfo.title);
+              console.log('🛍️ 상품 제목 로드:', loadedProductInfo.title);
             }
 
-            // 상품 정보를 state나 localStorage에 저장 (프롬프트 생성 시 사용)
+            // 상품 정보를 state에 저장 (UI 표시 및 프롬프트 생성 시 사용)
+            setProductInfo(loadedProductInfo);
             localStorage.setItem('current_product_info', productInfoStr);
 
-            console.log('🛍️ 상품 정보 로드 완료:', productInfo);
+            console.log('🛍️ 상품 정보 로드 완료:', loadedProductInfo);
 
             // AI 대본 생성 섹션 열기 및 스크롤
             setShowTitleInput(true);
@@ -1393,7 +1411,7 @@ export default function Home() {
 
         // 모델 홈페이지 열기
         const modelUrls: Record<string, string> = {
-          'gpt': 'https://chatgpt.com',
+          'chatgpt': 'https://chatgpt.com',
           'gemini': 'https://gemini.google.com',
           'claude': 'https://claude.ai',
           'groq': 'https://groq.com'
@@ -1656,9 +1674,9 @@ export default function Home() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setScriptModel('gpt')}
+                    onClick={() => setScriptModel('chatgpt')}
                     className={`flex-1 rounded-lg border-2 p-2 transition ${
-                      scriptModel === 'gpt'
+                      scriptModel === 'chatgpt'
                         ? 'border-green-500 bg-green-500/20 text-white'
                         : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
                     }`}
@@ -1881,10 +1899,10 @@ export default function Home() {
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setScriptModel('gpt')}
+                onClick={() => setScriptModel('chatgpt')}
                 disabled={isGeneratingScript}
                 className={`flex-1 rounded-lg border-2 p-3 transition ${
-                  scriptModel === 'gpt'
+                  scriptModel === 'chatgpt'
                     ? 'border-green-500 bg-green-500/20 text-white'
                     : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
                 } disabled:opacity-50`}
@@ -2298,6 +2316,47 @@ export default function Home() {
                 {isGeneratingScript ? '⏳ 생성 중...' : titleInputMode === 'copy' ? '🚀 열기' : '🤖 생성'}
               </button>
             </div>
+
+            {/* 상품 정보 표시 (product 모드일 때만) */}
+            {videoFormat === 'product' && productInfo && (
+              <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+                <h4 className="text-sm font-semibold text-amber-300 mb-3">📦 상품 추가 정보</h4>
+                <div className="space-y-3">
+                  {/* 썸네일 */}
+                  {productInfo.thumbnail && (
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">썸네일:</label>
+                      <img
+                        src={productInfo.thumbnail}
+                        alt={productInfo.title}
+                        className="w-32 h-32 object-cover rounded-lg border border-white/10"
+                      />
+                    </div>
+                  )}
+                  {/* 상품링크 */}
+                  {productInfo.product_link && (
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">상품링크:</label>
+                      <a
+                        href={productInfo.product_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-400 hover:text-blue-300 hover:underline break-all"
+                      >
+                        {productInfo.product_link}
+                      </a>
+                    </div>
+                  )}
+                  {/* 상품설명 */}
+                  {productInfo.description && (
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">상품설명:</label>
+                      <p className="text-xs text-slate-300 line-clamp-3">{productInfo.description}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* 제목 히스토리 - 디버깅 */}
             <div className="mt-4">
