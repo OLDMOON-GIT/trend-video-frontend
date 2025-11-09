@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, videoFormat, useClaudeLocal, scriptModel } = body;
+    const { title, type, videoFormat, useClaudeLocal, scriptModel, productInfo } = body;
 
     console.log('🚀 [Scripts Generate] 요청 받음');
     console.log('  📝 제목:', title);
@@ -301,6 +301,19 @@ export async function POST(request: NextRequest) {
       // 상품: 상품 소개 전용 프롬프트 사용
       const productPromptTemplate = await getProductPrompt();
       prompt = productPromptTemplate.replace(/{title}/g, title);
+
+      // productInfo가 있으면 플레이스홀더 치환
+      if (productInfo) {
+        console.log('🛍️ 상품 정보 치환 시작:', productInfo);
+        prompt = prompt
+          .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+          .replace(/{product_link}/g, productInfo.product_link || '')
+          .replace(/{product_description}/g, productInfo.description || '');
+        console.log('✅ 상품 정보 플레이스홀더 치환 완료');
+      } else {
+        console.warn('⚠️ productInfo가 없습니다! 플레이스홀더가 그대로 남아있을 수 있습니다.');
+      }
+
       console.log('✅ 상품 프롬프트 사용');
     } else {
       // 롱폼: 파일에서 읽어온 상세 프롬프트 사용
