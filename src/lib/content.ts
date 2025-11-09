@@ -2,6 +2,14 @@
 import crypto from 'crypto';
 import db from './sqlite';
 
+try {
+  db.exec(`ALTER TABLE contents ADD COLUMN model TEXT`);
+} catch (error: any) {
+  if (!error?.message?.includes('duplicate column')) {
+    console.error('Failed to ensure contents.model column:', error);
+  }
+}
+
 // 통합 Content 타입
 export interface Content {
   id: string;
@@ -9,7 +17,7 @@ export interface Content {
 
   // 타입 구분
   type: 'script' | 'video';  // 컨텐츠 타입
-  format?: 'longform' | 'shortform' | 'sora2';  // 포맷
+  format?: 'longform' | 'shortform' | 'sora2' | 'product';  // 포맷
 
   // 내용
   title: string;
@@ -41,6 +49,7 @@ export interface Content {
     output_tokens: number;
   };
   useClaudeLocal?: boolean;  // 로컬 Claude 사용 여부
+  model?: string;
 
   // 로그
   logs?: string[];
@@ -57,7 +66,7 @@ export function createContent(
   type: 'script' | 'video',
   title: string,
   options?: {
-    format?: 'longform' | 'shortform' | 'sora2';
+    format?: 'longform' | 'shortform' | 'sora2' | 'product';
     originalTitle?: string;
     content?: string;
     tokenUsage?: { input_tokens: number; output_tokens: number };
@@ -65,6 +74,7 @@ export function createContent(
     sourceContentId?: string;  // 원본 컨텐츠 ID
     conversionType?: string;   // 변환 타입
     isRegenerated?: boolean;   // 재생성 여부
+    model?: string;
   }
 ): Content {
   const contentId = crypto.randomUUID();
@@ -73,10 +83,10 @@ export function createContent(
   const stmt = db.prepare(`
     INSERT INTO contents (
       id, user_id, type, format, title, original_title, content,
-      status, progress, input_tokens, output_tokens, use_claude_local,
+      status, progress, input_tokens, output_tokens, use_claude_local, model,
       source_content_id, conversion_type, is_regenerated,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
@@ -92,6 +102,7 @@ export function createContent(
     options?.tokenUsage?.input_tokens || null,
     options?.tokenUsage?.output_tokens || null,
     options?.useClaudeLocal ? 1 : 0,
+    options?.model || null,
     options?.sourceContentId || null,
     options?.conversionType || null,
     options?.isRegenerated ? 1 : 0,
@@ -111,6 +122,7 @@ export function createContent(
     progress: options?.content ? 100 : 0,
     tokenUsage: options?.tokenUsage,
     useClaudeLocal: options?.useClaudeLocal,
+    model: options?.model,
     sourceContentId: options?.sourceContentId,
     conversionType: options?.conversionType,
     isRegenerated: options?.isRegenerated,
@@ -202,7 +214,7 @@ export function updateContent(
   contentId: string,
   updates: Partial<Pick<Content,
     'status' | 'progress' | 'error' | 'content' | 'videoPath' |
-    'thumbnailPath' | 'pid' | 'published' | 'publishedAt' | 'tokenUsage'
+    'thumbnailPath' | 'pid' | 'published' | 'publishedAt' | 'tokenUsage' | 'model'
   >>
 ): Content | null {
   const now = new Date().toISOString();
@@ -256,6 +268,10 @@ export function updateContent(
       values.push(updates.tokenUsage.output_tokens);
     }
   }
+  if (updates.model !== undefined) {
+    fields.push('model = ?');
+    values.push(updates.model);
+  }
 
   fields.push('updated_at = ?');
   values.push(now);
@@ -277,6 +293,17 @@ export function updateContent(
 // ==================== Content 삭제 ====================
 
 // ID와 userId로 삭제 (소유자 확인)
+export function updateContentStatus(
+  contentId: string,
+  status: 'pending' | 'processing' | 'completed' | 'failed',
+  progress?: number
+): Content | null {
+  return updateContent(contentId, {
+    status,
+    progress: progress !== undefined ? progress : (status === 'completed' ? 100 : undefined)
+  });
+}
+
 export function deleteContent(contentId: string, userId?: string): boolean {
   let stmt;
   let result;
@@ -354,6 +381,7 @@ function rowToContent(row: any): Content {
       output_tokens: row.output_tokens || 0
     } : undefined,
     useClaudeLocal: row.use_claude_local === 1,
+    model: row.model || undefined,
     sourceContentId: row.source_content_id,
     conversionType: row.conversion_type,
     isRegenerated: row.is_regenerated === 1,

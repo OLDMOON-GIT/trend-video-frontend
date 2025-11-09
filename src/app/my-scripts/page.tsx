@@ -11,6 +11,8 @@ interface Script {
   status?: string;
   progress?: number;
   type?: 'longform' | 'shortform' | 'sora2';
+  useClaudeLocal?: boolean;
+  model?: string;
   tokenUsage?: {
     input_tokens: number;
     output_tokens: number;
@@ -331,6 +333,16 @@ export default function MyScriptsPage() {
 
                     <div className="mb-3 space-y-1 text-sm text-slate-400">
                       <p>생성 시간: {formatDate(script.createdAt)}</p>
+                      {script.model && (
+                        <p>
+                          AI 모델: {
+                            script.model === 'claude' ? '🤖 Claude' :
+                            script.model === 'gpt' ? '💬 ChatGPT' :
+                            script.model === 'gemini' ? '✨ Gemini' :
+                            `🤖 ${script.model}`
+                          }
+                        </p>
+                      )}
                       {script.tokenUsage && (
                         <p>
                           토큰 사용: {script.tokenUsage.input_tokens.toLocaleString()} (입력) + {script.tokenUsage.output_tokens.toLocaleString()} (출력)

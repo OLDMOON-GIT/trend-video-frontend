@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getCurrentUser } from '@/lib/session';
 import { createScript, updateScript } from '@/lib/db';
 import { parseJsonSafely } from '@/lib/json-utils';
+
+const SUPPORTED_MODELS = ['claude', 'chatgpt', 'gemini'] as const;
+type AIModel = (typeof SUPPORTED_MODELS)[number];
 
 export async function POST(request: NextRequest) {
   // 사용자 인증
@@ -16,7 +21,23 @@ export async function POST(request: NextRequest) {
 
 
   try {
-    const { prompt, topic, suggestTitles, format, productInfo } = await request.json();
+    const { prompt, topic, suggestTitles, format, productInfo, model } = await request.json();
+
+    // 모델 선택 (기본값: claude)
+    let selectedModel: AIModel = 'claude';
+    if (typeof model === 'string') {
+      const normalizedModel = model.trim().toLowerCase();
+      // 'gpt' -> 'chatgpt' 매핑
+      const mappedModel = normalizedModel === 'gpt' ? 'chatgpt' : normalizedModel;
+      if ((SUPPORTED_MODELS as readonly string[]).includes(mappedModel)) {
+        selectedModel = mappedModel as AIModel;
+      } else {
+        console.warn(`⚠️ 지원하지 않는 모델: ${model}, Claude로 폴백`);
+      }
+    }
+
+    console.log('🤖 선택된 AI 모델:', selectedModel);
+    const modelDisplay = selectedModel === 'claude' ? 'Claude' : selectedModel === 'chatgpt' ? 'ChatGPT' : 'Gemini';
 
     console.log('📝 대본 생성 요청:', {
       hasPrompt: !!prompt,
@@ -33,26 +54,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // API 키 확인
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      console.error('❌ ANTHROPIC_API_KEY가 설정되지 않음');
-      return NextResponse.json(
-        { error: 'ANTHROPIC_API_KEY가 설정되지 않았습니다. .env.local 파일을 확인하세요.' },
-        { status: 500 }
-      );
-    }
-
-    const anthropic = new Anthropic({
-      apiKey: apiKey,
-      baseURL: 'https://api.anthropic.com',
-      timeout: 60 * 60 * 1000, // 1시간 타임아웃
-      maxRetries: 0 // 재시도 없음
-    });
-
     // 제목 제안 모드
     if (suggestTitles && topic) {
-      console.log('💡 제목 제안 모드:', topic);
+      console.log(`💡 제목 제안 모드 (${modelDisplay}):`, topic);
 
       // 입력된 주제의 길이 계산 (공백 제외)
       const topicLength = topic.replace(/\s/g, '').length;
@@ -74,36 +78,71 @@ export async function POST(request: NextRequest) {
 2. [제목2]
 3. [제목3]`;
 
-      console.log('🤖 Claude API 호출 중 (제목 제안)...');
-      const titleMessage = await anthropic.messages.create({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 500,
-        messages: [
-          {
+      console.log(`🤖 ${modelDisplay} API 호출 중 (제목 제안)...`);
+
+      let titleContent = '';
+      let usage = { input_tokens: 0, output_tokens: 0 };
+
+      if (selectedModel === 'claude') {
+        // Claude API
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) {
+          return NextResponse.json({ error: 'ANTHROPIC_API_KEY가 설정되지 않았습니다.' }, { status: 500 });
+        }
+        const anthropic = new Anthropic({ apiKey });
+        const titleMessage = await anthropic.messages.create({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 500,
+          messages: [{
             role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: titlePrompt,
-                cache_control: { type: 'ephemeral' }
-              }
-            ]
-          }
-        ]
-      });
+            content: [{
+              type: 'text',
+              text: titlePrompt,
+              cache_control: { type: 'ephemeral' }
+            }]
+          }]
+        });
+        titleContent = titleMessage.content[0].type === 'text' ? titleMessage.content[0].text : '';
+        usage = {
+          input_tokens: titleMessage.usage.input_tokens,
+          output_tokens: titleMessage.usage.output_tokens
+        };
+      } else if (selectedModel === 'chatgpt') {
+        // ChatGPT API
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+          return NextResponse.json({ error: 'OPENAI_API_KEY가 설정되지 않았습니다.' }, { status: 500 });
+        }
+        const openai = new OpenAI({ apiKey });
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: titlePrompt }],
+          max_tokens: 500
+        });
+        titleContent = completion.choices[0]?.message?.content || '';
+        usage = {
+          input_tokens: completion.usage?.prompt_tokens || 0,
+          output_tokens: completion.usage?.completion_tokens || 0
+        };
+      } else if (selectedModel === 'gemini') {
+        // Gemini API
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          return NextResponse.json({ error: 'GEMINI_API_KEY가 설정되지 않았습니다.' }, { status: 500 });
+        }
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+        const result = await model.generateContent(titlePrompt);
+        const response = result.response;
+        titleContent = response.text();
+        usage = {
+          input_tokens: result.response.usageMetadata?.promptTokenCount || 0,
+          output_tokens: result.response.usageMetadata?.candidatesTokenCount || 0
+        };
+      }
 
       console.log('✅ 제목 제안 완료');
-      console.log('📊 토큰 사용량:', {
-        입력_토큰: titleMessage.usage.input_tokens,
-        출력_토큰: titleMessage.usage.output_tokens,
-        캐시_읽기: titleMessage.usage.cache_read_input_tokens || 0,
-        캐시_생성: titleMessage.usage.cache_creation_input_tokens || 0
-      });
-
-      const titleContent = titleMessage.content[0].type === 'text'
-        ? titleMessage.content[0].text
-        : '';
-
+      console.log('📊 토큰 사용량:', usage);
       console.log('💡 제안된 제목:', titleContent);
 
       // 제목 파싱 (1. 2. 3. 형식)
@@ -115,14 +154,15 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         suggestedTitles,
-        usage: {
-          input_tokens: titleMessage.usage.input_tokens,
-          output_tokens: titleMessage.usage.output_tokens
-        }
+        usage
       });
     }
 
     // 일반 대본 생성 모드 - 백그라운드 작업으로 변경
+
+    console.log('🔍🔍🔍 === createScript 호출 준비 ===');
+    console.log('🔍 format 파라미터:', format);
+    console.log('🔍 format 타입:', typeof format);
 
     // 1. 먼저 pending 상태로 대본 생성
     const script = await createScript(
@@ -130,10 +170,12 @@ export async function POST(request: NextRequest) {
       topic || '제목 없음',
       '', // 초기에는 빈 내용
       undefined, // tokenUsage
-      topic // 사용자가 입력한 원본 제목
+      topic, // 사용자가 입력한 원본 제목
+      format || 'longform' // 포맷 전달 (기본값: longform)
     );
 
     console.log('📝 대본 생성 작업 시작:', script.id);
+    console.log('📝 저장된 format:', format || 'longform');
 
     // 2. 백그라운드에서 실제 생성 작업 수행
     (async () => {
@@ -149,25 +191,65 @@ export async function POST(request: NextRequest) {
         let combinedPrompt = topic ? `${prompt}\n\n주제: ${topic}` : prompt;
 
         // 상품 정보 추가 (product 포맷인 경우)
-        if (format === 'product' && productInfo) {
-          console.log('🛍️ 상품 정보 포함:', productInfo);
+        console.log('🔍🔍🔍 백엔드 - 상품 정보 체크');
+        console.log('  - format:', format);
+        console.log('  - productInfo:', productInfo);
 
-          // 프롬프트의 {title}, {thumbnail}, {product_link}, {product_description} 플레이스홀더 치환
-          combinedPrompt = combinedPrompt
-            .replace(/{title}/g, productInfo.title || '')
-            .replace(/{thumbnail}/g, productInfo.thumbnail || '')
-            .replace(/{product_link}/g, productInfo.product_link || '')
-            .replace(/{product_description}/g, productInfo.description || '');
+        if (format === 'product') {
+          if (!productInfo) {
+            console.error('❌❌❌ 상품 포맷인데 productInfo가 없습니다!');
+            console.error('❌ 프롬프트의 플레이스홀더가 치환되지 않을 것입니다!');
+          } else {
+            console.log('🛍️🛍️🛍️ 상품 정보 포함:', productInfo);
+            console.log('  - title:', productInfo.title);
+            console.log('  - thumbnail:', productInfo.thumbnail);
+            console.log('  - product_link:', productInfo.product_link);
+            console.log('  - description:', productInfo.description);
 
-          console.log('✅ 상품 정보 치환 완료');
+            // 프롬프트에 플레이스홀더가 있는지 확인
+            const hasTitle = combinedPrompt.includes('{title}');
+            const hasThumbnail = combinedPrompt.includes('{thumbnail}');
+            const hasProductLink = combinedPrompt.includes('{product_link}');
+            const hasProductDescription = combinedPrompt.includes('{product_description}');
+
+            console.log('🔍 프롬프트 플레이스홀더 존재 여부:');
+            console.log('  - {title}:', hasTitle);
+            console.log('  - {thumbnail}:', hasThumbnail);
+            console.log('  - {product_link}:', hasProductLink);
+            console.log('  - {product_description}:', hasProductDescription);
+
+            // 치환 전 프롬프트 일부 확인
+            console.log('🔍 치환 전 프롬프트 샘플 (처음 800자):', combinedPrompt.substring(0, 800));
+
+            // 프롬프트의 {title}, {thumbnail}, {product_link}, {product_description} 플레이스홀더 치환
+            const beforeReplace = combinedPrompt;
+            combinedPrompt = combinedPrompt
+              .replace(/{title}/g, productInfo.title || '')
+              .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+              .replace(/{product_link}/g, productInfo.product_link || '')
+              .replace(/{product_description}/g, productInfo.description || '');
+
+            // 치환 후 확인
+            console.log('🔍 치환 후 프롬프트 샘플 (처음 800자):', combinedPrompt.substring(0, 800));
+
+            // 치환 여부 확인
+            const wasReplaced = beforeReplace !== combinedPrompt;
+            console.log(wasReplaced ? '✅ 상품 정보 치환 완료 (프롬프트가 변경됨)' : '⚠️ 프롬프트가 변경되지 않음 (플레이스홀더 없음?)');
+
+            // 치환 후에도 플레이스홀더가 남아있는지 확인
+            if (combinedPrompt.includes('{title}') || combinedPrompt.includes('{thumbnail}') ||
+                combinedPrompt.includes('{product_link}') || combinedPrompt.includes('{product_description}')) {
+              console.warn('⚠️⚠️⚠️ 치환 후에도 플레이스홀더가 남아있습니다!');
+            }
+          }
         }
 
-        console.log('🤖 Claude API 호출 중 (대본 생성)...');
+        console.log(`🤖 ${modelDisplay} API 호출 중 (대본 생성)...`);
         console.log('📄 프롬프트 길이:', combinedPrompt.length);
 
         await updateScript(script.id, {
           progress: 30,
-          logs: ['🤖 Claude API 호출 시작...', '📝 스트리밍 시작...']
+          logs: [`🤖 ${modelDisplay} API 호출 시작...`, '📝 스트리밍 시작...']
         });
 
         // 스트리밍으로 대본 생성
@@ -177,7 +259,7 @@ export async function POST(request: NextRequest) {
 
         // 비디오 타입별 예상 대본 길이 (프롬프트 기준)
         const estimatedLengths: Record<string, number> = {
-          'longform': 33000,  // 씨당 3,800~4,200자 × 8개 + 폭탄/구독 씬 700자 = 약 31,000~34,000자
+          'longform': 33000,  // 씬당 3,800~4,200자 × 8개 + 폭탄/구독 씬 700자 = 약 31,000~34,000자
           'shortform': 3000,  // 숏폼은 훨씬 짧음 (200~300자 × 10씬 정도)
           'sora2': 500,       // SORA2는 영어 프롬프트로 매우 짧음
           'product': 600      // 상품 프롬프트는 SORA2와 유사 (4씬, 영어 프롬프트)
@@ -209,34 +291,96 @@ YOU ARE A JSON PRINTER. NOTHING ELSE.
 START YOUR RESPONSE WITH { NOW.`
           : undefined;
 
-        const stream = await anthropic.messages.stream({
-          model: 'claude-sonnet-4-5-20250929',
-          max_tokens: 64000, // Claude Sonnet 4.5 최대 출력 토큰
-          system: systemPrompt,
-          messages: [
-            {
+        let tokenUsage = { input_tokens: 0, output_tokens: 0 };
+
+        // 모델별 스트리밍 처리
+        if (selectedModel === 'claude') {
+          // Claude API
+          const apiKey = process.env.ANTHROPIC_API_KEY;
+          if (!apiKey) {
+            throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
+          }
+          const anthropic = new Anthropic({ apiKey, timeout: 60 * 60 * 1000, maxRetries: 0 });
+
+          const stream = await anthropic.messages.stream({
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 64000,
+            system: systemPrompt,
+            messages: [{
               role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: combinedPrompt,
-                  cache_control: { type: 'ephemeral' }
-                }
-              ]
+              content: [{
+                type: 'text',
+                text: combinedPrompt,
+                cache_control: { type: 'ephemeral' }
+              }]
+            }]
+          });
+
+          // 스트리밍 데이터 처리
+          for await (const chunk of stream) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              scriptContent += chunk.delta.text;
+
+              const now = Date.now();
+              if (now - lastUpdateTime >= updateInterval) {
+                const rawProgress = (scriptContent.length / estimatedTotalChars) * 100;
+                const progress = Math.min(Math.floor(rawProgress), 90);
+
+                await updateScript(script.id, {
+                  progress,
+                  content: scriptContent,
+                  logs: [
+                    `🤖 ${modelDisplay} API 호출 시작...`,
+                    '📝 스트리밍 시작...',
+                    `📊 생성 중... (${scriptContent.length.toLocaleString()} / ~${estimatedTotalChars.toLocaleString()}자)`
+                  ]
+                });
+                lastUpdateTime = now;
+                console.log(`📝 생성 중: ${scriptContent.length}자 (${progress}%)`);
+              }
             }
-          ]
-        });
+          }
 
-        // 스트리밍 데이터 처리
-        for await (const chunk of stream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            scriptContent += chunk.delta.text;
+          const message = await stream.finalMessage();
+          tokenUsage = {
+            input_tokens: message.usage.input_tokens,
+            output_tokens: message.usage.output_tokens
+          };
 
-            // 일정 간격마다 DB 업데이트 (너무 자주 업데이트하면 DB 부하)
+          if (message.usage.cache_read_input_tokens) {
+            console.log(`💰 캐시 히트: ${message.usage.cache_read_input_tokens} 토큰 (90% 절감)`);
+          }
+          if (message.usage.cache_creation_input_tokens) {
+            console.log(`🔄 신규 캐시: ${message.usage.cache_creation_input_tokens} 토큰`);
+          }
+
+        } else if (selectedModel === 'chatgpt') {
+          // ChatGPT API
+          const apiKey = process.env.OPENAI_API_KEY;
+          if (!apiKey) {
+            throw new Error('OPENAI_API_KEY가 설정되지 않았습니다.');
+          }
+          const openai = new OpenAI({ apiKey });
+
+          const messages: Array<{role: 'system' | 'user'; content: string}> = [];
+          if (systemPrompt) {
+            messages.push({ role: 'system', content: systemPrompt });
+          }
+          messages.push({ role: 'user', content: combinedPrompt });
+
+          const stream = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages,
+            max_tokens: 16000,
+            stream: true
+          });
+
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || '';
+            scriptContent += content;
+
             const now = Date.now();
             if (now - lastUpdateTime >= updateInterval) {
-              // 예상 길이 기준으로 진행률 계산 (최대 90%까지)
-              // 실제 길이가 예상보다 길어질 수 있으므로 최대치를 90%로 제한
               const rawProgress = (scriptContent.length / estimatedTotalChars) * 100;
               const progress = Math.min(Math.floor(rawProgress), 90);
 
@@ -244,7 +388,7 @@ START YOUR RESPONSE WITH { NOW.`
                 progress,
                 content: scriptContent,
                 logs: [
-                  '🤖 Claude API 호출 시작...',
+                  `🤖 ${modelDisplay} API 호출 시작...`,
                   '📝 스트리밍 시작...',
                   `📊 생성 중... (${scriptContent.length.toLocaleString()} / ~${estimatedTotalChars.toLocaleString()}자)`
                 ]
@@ -253,26 +397,59 @@ START YOUR RESPONSE WITH { NOW.`
               console.log(`📝 생성 중: ${scriptContent.length}자 (${progress}%)`);
             }
           }
-        }
 
-        // 최종 메시지 가져오기
-        const message = await stream.finalMessage();
+          // ChatGPT는 스트리밍에서 토큰 사용량을 제공하지 않으므로 추정
+          tokenUsage = {
+            input_tokens: Math.ceil(combinedPrompt.length / 4),
+            output_tokens: Math.ceil(scriptContent.length / 4)
+          };
+
+        } else if (selectedModel === 'gemini') {
+          // Gemini API
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) {
+            throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+          }
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const model = genAI.getGenerativeModel({
+            model: 'gemini-2.0-flash-exp',
+            systemInstruction: systemPrompt
+          });
+
+          const result = await model.generateContentStream(combinedPrompt);
+
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            scriptContent += chunkText;
+
+            const now = Date.now();
+            if (now - lastUpdateTime >= updateInterval) {
+              const rawProgress = (scriptContent.length / estimatedTotalChars) * 100;
+              const progress = Math.min(Math.floor(rawProgress), 90);
+
+              await updateScript(script.id, {
+                progress,
+                content: scriptContent,
+                logs: [
+                  `🤖 ${modelDisplay} API 호출 시작...`,
+                  '📝 스트리밍 시작...',
+                  `📊 생성 중... (${scriptContent.length.toLocaleString()} / ~${estimatedTotalChars.toLocaleString()}자)`
+                ]
+              });
+              lastUpdateTime = now;
+              console.log(`📝 생성 중: ${scriptContent.length}자 (${progress}%)`);
+            }
+          }
+
+          const response = await result.response;
+          tokenUsage = {
+            input_tokens: response.usageMetadata?.promptTokenCount || 0,
+            output_tokens: response.usageMetadata?.candidatesTokenCount || 0
+          };
+        }
 
         console.log('✅ 대본 생성 완료');
-        console.log('📊 토큰 사용량:', {
-          입력_토큰: message.usage.input_tokens,
-          출력_토큰: message.usage.output_tokens,
-          캐시_읽기: message.usage.cache_read_input_tokens || 0,
-          캐시_생성: message.usage.cache_creation_input_tokens || 0
-        });
-
-        if (message.usage.cache_read_input_tokens) {
-          console.log(`💰 캐시 히트: ${message.usage.cache_read_input_tokens} 토큰 (90% 절감)`);
-        }
-        if (message.usage.cache_creation_input_tokens) {
-          console.log(`🔄 신규 캐시: ${message.usage.cache_creation_input_tokens} 토큰`);
-        }
-
+        console.log('📊 토큰 사용량:', tokenUsage);
         console.log('📝 생성된 대본:', scriptContent.substring(0, 500) + '...');
 
         // JSON 형식인 경우 정리 및 포맷팅 (모든 타입)
@@ -371,15 +548,11 @@ START YOUR RESPONSE WITH { NOW.`
           content: finalContent,
           logs: [
             '✅ 대본 생성 완료!',
-            `📊 입력: ${message.usage.input_tokens} 토큰`,
-            `📊 출력: ${message.usage.output_tokens} 토큰`,
-            message.usage.cache_read_input_tokens ? `💰 캐시 절감: ${message.usage.cache_read_input_tokens} 토큰` : '',
+            `📊 입력: ${tokenUsage.input_tokens} 토큰`,
+            `📊 출력: ${tokenUsage.output_tokens} 토큰`,
             `📝 대본 길이: ${scriptContent.length}자`
           ].filter(Boolean),
-          tokenUsage: {
-            input_tokens: message.usage.input_tokens,
-            output_tokens: message.usage.output_tokens
-          }
+          tokenUsage
         });
 
         console.log('💾 대본 저장 완료:', script.id);

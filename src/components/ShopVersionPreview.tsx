@@ -24,7 +24,10 @@ export default function ShopVersionPreview({ versionId, onClose, showHeader = fa
         setLoading(true);
         setErrorMessage(null);
 
-        const url = `/api/shop/products/public?versionId=${versionId}`;
+        // 'live' versionId는 실시간 상품을 의미하므로 versionId 파라미터 없이 호출
+        const url = versionId === 'live'
+          ? `/api/shop/products/public`
+          : `/api/shop/products/public?versionId=${versionId}`;
         const res = await fetch(url);
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
@@ -354,7 +357,7 @@ export default function ShopVersionPreview({ versionId, onClose, showHeader = fa
   }, [htmlPreview]);
 
   return (
-    <div className="my-12">
+    <div className="my-0">
         {showHeader && (
           <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 text-amber-100 p-4 mb-6">
               <div className="flex flex-wrap items-center justify-between gap-3">

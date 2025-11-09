@@ -1,0 +1,682 @@
+import { NextRequest, NextResponse } from 'next/server';
+import Database from 'better-sqlite3';
+import path from 'path';
+import { exec, spawn } from 'child_process';
+import { promisify } from 'util';
+import { getCurrentUser } from '@/lib/session';
+import { promises as fs } from 'fs';
+import { createBackup } from '@/lib/backup';
+import { sendErrorEmail } from '@/lib/email';
+
+const execAsync = promisify(exec);
+const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
+
+const SUPPORTED_MODELS = ['claude', 'chatgpt', 'gemini'] as const;
+type ScriptModel = (typeof SUPPORTED_MODELS)[number];
+
+// ?¤í–‰ ì¤‘ì¸ ?„ë¡œ?¸ìŠ¤ë¥?ì¶”ì ?˜ëŠ” Map (ë¡œì»¬ ì°¸ì¡°??
+const runningProcesses = new Map<string, any>();
+
+// ?í¼ ?„ë¡¬?„íŠ¸ë¥??Œì¼?ì„œ ?½ì–´?¤ëŠ” ?¨ìˆ˜
+async function getShortFormPrompt(): Promise<string> {
+  try {
+    // frontend/prompts ê²½ë¡œ?ì„œ ì°¾ê¸°
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_shortform.txt ?ëŠ” prompt.txt ê²€??
+    let promptFile: string | undefined = files.find(file => file === 'prompt_shortform.txt');
+    if (!promptFile) {
+      promptFile = files.find(file => file === 'prompt.txt');
+    }
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('???í¼ ?„ë¡¬?„íŠ¸ ?Œì¼ ?½ê¸° ?„ë£Œ:', promptFile);
+      return content;
+    }
+
+    // ?Œì¼???†ìœ¼ë©?ê¸°ë³¸ ?„ë¡¬?„íŠ¸ ë°˜í™˜
+    console.warn('? ï¸ ?í¼ ?„ë¡¬?„íŠ¸ ?Œì¼??ì°¾ì„ ???†ì–´ ê¸°ë³¸ ?„ë¡¬?„íŠ¸ ?¬ìš©');
+    return `?¹ì‹ ?€ ? íŠœë¸??¼ì¸  ?ìƒ ?€ë³??‘ê??…ë‹ˆ??
+
+?¤ìŒ ?œëª©???€??1ë¶??´ë‚´??ì§§ê³  ?„íŒ©???ˆëŠ” ?ìƒ ?€ë³¸ì„ ì¦‰ì‹œ ?‘ì„±?´ì£¼?¸ìš”.
+
+?œëª©: {title}
+
+ì¤‘ìš”: ì§ˆë¬¸?˜ì? ë§ê³ , ë°”ë¡œ ?€ë³¸ì„ ?‘ì„±?´ì£¼?¸ìš”. ì¶”ê? ?•ë³´ ?”ì²­ ?†ì´ ?œëª©ë§Œìœ¼ë¡??„ì„±???€ë³¸ì„ ë§Œë“¤?´ì£¼?¸ìš”.
+
+?€ë³??‘ì„± ê°€?´ë“œ:
+1. ì²?3ì´??ˆì— ?œì²­?ì˜ ê´€?¬ì„ ?????ˆëŠ” ??Hook) ë¬¸ì¥?¼ë¡œ ?œì‘
+2. ?µì‹¬ ë©”ì‹œì§€ë¥?ëª…í™•?˜ê³  ê°„ê²°?˜ê²Œ ?„ë‹¬
+3. êµ¬ì–´ì²´ë? ?¬ìš©?˜ì—¬ ì¹œê·¼?˜ê²Œ ?‘ì„±
+4. ?œì²­?ì—ê²??‰ë™??? ë„?˜ëŠ” CTA(Call To Action)ë¡?ë§ˆë¬´ë¦?
+5. ??200-300???•ë„??ë¶„ëŸ‰?¼ë¡œ ?‘ì„±
+
+ì§€ê¸?ë°”ë¡œ ?€ë³¸ë§Œ ?‘ì„±?´ì£¼?¸ìš”:`;
+  } catch (error) {
+    console.error('???í¼ ?„ë¡¬?„íŠ¸ ?Œì¼ ?½ê¸° ?¤íŒ¨:', error);
+    throw error;
+  }
+}
+
+// ë¡±í¼ ?„ë¡¬?„íŠ¸ë¥??Œì¼?ì„œ ?½ì–´?¤ëŠ” ?¨ìˆ˜
+async function getLongFormPrompt(): Promise<string> {
+  try {
+    // frontend/prompts ê²½ë¡œ?ì„œ ì°¾ê¸°
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_longform.txt ?°ì„  ê²€??
+    let promptFile = files.find(file => file === 'prompt_longform.txt');
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('??ë¡±í¼ ?„ë¡¬?„íŠ¸ ?Œì¼ ?½ê¸° ?„ë£Œ:', promptFile);
+      return content;
+    }
+
+    // ?Œì¼???†ìœ¼ë©?ê¸°ë³¸ ?„ë¡¬?„íŠ¸ ë°˜í™˜
+    console.warn('? ï¸ ?„ë¡¬?„íŠ¸ ?Œì¼??ì°¾ì„ ???†ì–´ ê¸°ë³¸ ?„ë¡¬?„íŠ¸ ?¬ìš©');
+    return `?¹ì‹ ?€ ? íŠœë¸??¼ì¸  ?ìƒ ?€ë³??‘ê??…ë‹ˆ??
+
+?¤ìŒ ?œëª©???€??1ë¶??´ë‚´??ì§§ê³  ?„íŒ©???ˆëŠ” ?ìƒ ?€ë³¸ì„ ì¦‰ì‹œ ?‘ì„±?´ì£¼?¸ìš”.
+
+?œëª©: {title}
+
+ì¤‘ìš”: ì§ˆë¬¸?˜ì? ë§ê³ , ë°”ë¡œ ?€ë³¸ì„ ?‘ì„±?´ì£¼?¸ìš”. ì¶”ê? ?•ë³´ ?”ì²­ ?†ì´ ?œëª©ë§Œìœ¼ë¡??„ì„±???€ë³¸ì„ ë§Œë“¤?´ì£¼?¸ìš”.
+
+?€ë³??‘ì„± ê°€?´ë“œ:
+1. ì²?3ì´??ˆì— ?œì²­?ì˜ ê´€?¬ì„ ?????ˆëŠ” ??Hook) ë¬¸ì¥?¼ë¡œ ?œì‘
+2. ?µì‹¬ ë©”ì‹œì§€ë¥?ëª…í™•?˜ê³  ê°„ê²°?˜ê²Œ ?„ë‹¬
+3. êµ¬ì–´ì²´ë? ?¬ìš©?˜ì—¬ ì¹œê·¼?˜ê²Œ ?‘ì„±
+4. ?œì²­?ì—ê²??‰ë™??? ë„?˜ëŠ” CTA(Call To Action)ë¡?ë§ˆë¬´ë¦?
+5. ??200-300???•ë„??ë¶„ëŸ‰?¼ë¡œ ?‘ì„±
+
+ì§€ê¸?ë°”ë¡œ ?€ë³¸ë§Œ ?‘ì„±?´ì£¼?¸ìš”:`;
+  } catch (error) {
+    console.error('???„ë¡¬?„íŠ¸ ?Œì¼ ?½ê¸° ?¤íŒ¨:', error);
+    throw error;
+  }
+}
+
+// SORA2 ?„ë¡¬?„íŠ¸ë¥??Œì¼?ì„œ ?½ì–´?¤ëŠ” ?¨ìˆ˜
+async function getSora2Prompt(): Promise<string> {
+  try {
+    // frontend/prompts ê²½ë¡œ?ì„œ ì°¾ê¸°
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_sora2.txt ê²€??
+    let promptFile = files.find(file => file === 'prompt_sora2.txt');
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('??SORA2 ?„ë¡¬?„íŠ¸ ?Œì¼ ?½ê¸° ?„ë£Œ:', promptFile);
+      return content;
+    }
+
+    // ?Œì¼???†ìœ¼ë©?ê¸°ë³¸ SORA2 ?„ë¡¬?„íŠ¸ ë°˜í™˜
+    console.warn('? ï¸ SORA2 ?„ë¡¬?„íŠ¸ ?Œì¼??ì°¾ì„ ???†ì–´ ê¸°ë³¸ ?„ë¡¬?„íŠ¸ ?¬ìš©');
+    return `?¹ì‹ ?€ SORA2 AI ë¹„ë””???ì„±???„í•œ ?„ë¡¬?„íŠ¸ ?‘ì„± ?„ë¬¸ê°€?…ë‹ˆ??
+
+?¤ìŒ ?œëª©???€??SORA2 ?ìƒ ?ì„±???„ë¡¬?„íŠ¸ë¥??‘ì„±?´ì£¼?¸ìš”.
+
+?œëª©: {title}
+
+ì¤‘ìš”: ì§ˆë¬¸?˜ì? ë§ê³ , ë°”ë¡œ ?„ë¡¬?„íŠ¸ë¥??‘ì„±?´ì£¼?¸ìš”. ì¶”ê? ?•ë³´ ?”ì²­ ?†ì´ ?œëª©ë§Œìœ¼ë¡??„ì„±???„ë¡¬?„íŠ¸ë¥?ë§Œë“¤?´ì£¼?¸ìš”.
+
+SORA2 ?„ë¡¬?„íŠ¸ ?‘ì„± ê°€?´ë“œ:
+1. ?œê°???”ì†Œë¥?êµ¬ì²´?ìœ¼ë¡?ë¬˜ì‚¬ (?¥ë©´, ?‰ê°, ì¡°ëª…, ì¹´ë©”???€ì§ì„)
+2. 8ì´?ê¸¸ì´???í•©???¨ì¼ ?¥ë©´ ?ëŠ” ë§¤ë„?¬ìš´ ?„í™˜
+3. ?ì–´ë¡??‘ì„± (SORA2???ì–´ ?„ë¡¬?„íŠ¸ë¥?? í˜¸)
+4. ê°ì •ê³?ë¶„ìœ„ê¸°ë? ëª…í™•?˜ê²Œ ?œí˜„
+5. 100-200 ?¨ì–´ ?•ë„???ì„¸??ë¬˜ì‚¬
+
+?ˆì‹œ ?•ì‹:
+"A cinematic shot of [ì£¼ìš” ì£¼ì œ], [?œê°???”í…Œ??, [ì¡°ëª…ê³??‰ê°], [ì¹´ë©”???€ì§ì„], [ë¶„ìœ„ê¸°ì? ê°ì •]"
+
+ì§€ê¸?ë°”ë¡œ SORA2 ?„ë¡¬?„íŠ¸ë§??‘ì„±?´ì£¼?¸ìš”:`;
+  } catch (error) {
+    console.error('??SORA2 ?„ë¡¬?„íŠ¸ ?Œì¼ ?½ê¸° ?¤íŒ¨:', error);
+    throw error;
+  }
+}
+
+// ?í’ˆ ?„ë¡¬?„íŠ¸ë¥??Œì¼?ì„œ ?½ì–´?¤ëŠ” ?¨ìˆ˜
+async function getProductPrompt(): Promise<string> {
+  try {
+    // frontend/prompts ê²½ë¡œ?ì„œ ì°¾ê¸°
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_product.txt ê²€??
+    let promptFile = files.find(file => file === 'prompt_product.txt');
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('???í’ˆ ?„ë¡¬?„íŠ¸ ?Œì¼ ?½ê¸° ?„ë£Œ:', promptFile);
+      return content;
+    }
+
+    // ?Œì¼???†ìœ¼ë©?ê¸°ë³¸ ?í’ˆ ?„ë¡¬?„íŠ¸ ë°˜í™˜
+    console.warn('? ï¸ ?í’ˆ ?„ë¡¬?„íŠ¸ ?Œì¼??ì°¾ì„ ???†ì–´ ê¸°ë³¸ ?„ë¡¬?„íŠ¸ ?¬ìš©');
+    return `?¹ì‹ ?€ ?í’ˆ ë§ˆì????ìƒ ?€ë³??‘ì„± ?„ë¬¸ê°€?…ë‹ˆ??
+
+?¤ìŒ ?í’ˆ ?•ë³´ë¥?ë°”íƒ•?¼ë¡œ ?œë„¤ë§ˆí‹± ?í’ˆ ?Œê°œ ?ìƒ ?€ë³¸ì„ ?‘ì„±?´ì£¼?¸ìš”.
+
+?“¦ ?í’ˆ ?•ë³´:
+- ?œëª©: {title}
+- ?¸ë„¤?? {thumbnail}
+- ?í’ˆë§í¬: {product_link}
+- ?í’ˆ?ì„¸: {product_description}
+
+ì¤‘ìš”: ì§ˆë¬¸?˜ì? ë§ê³ , ë°”ë¡œ ?€ë³¸ì„ ?‘ì„±?´ì£¼?¸ìš”.
+
+ì§€ê¸?ë°”ë¡œ ?í’ˆ ?ìƒ ?€ë³¸ì„ JSON ?•ì‹?¼ë¡œ ?‘ì„±?´ì£¼?¸ìš”.`;
+  } catch (error) {
+    console.error('???í’ˆ ?„ë¡¬?„íŠ¸ ?Œì¼ ?½ê¸° ?¤íŒ¨:', error);
+    throw error;
+  }
+}
+
+// ë¡œê·¸ ì¶”ê? ?¬í¼ ?¨ìˆ˜
+function addLog(taskId: string, message: string) {
+        addLog(taskId, `Model: ${selectedModel.toUpperCase()}`);
+
+  try {
+    const db = new Database(dbPath);
+
+    // ?„ì¬ ë¡œê·¸ ê°€?¸ì˜¤ê¸?
+    const row: any = db.prepare('SELECT logs FROM scripts_temp WHERE id = ?').get(taskId);
+    const logs = row?.logs ? JSON.parse(row.logs) : [];
+
+    // ??ë¡œê·¸ ì¶”ê?
+    const newLog = {
+      timestamp: new Date().toISOString(),
+      message
+    };
+    logs.push(newLog);
+
+    // ?…ë°?´íŠ¸
+    db.prepare('UPDATE scripts_temp SET logs = ? WHERE id = ?').run(JSON.stringify(logs), taskId);
+    db.close();
+
+    // ?”ë²„ê¹? ë¡œê·¸ê°€ ?œë?ë¡?ì¶”ê??˜ì—ˆ?”ì? ?•ì¸
+    console.log(`[LOG ${taskId}] ${message}`);
+  } catch (error) {
+    console.error('Failed to add log:', error);
+    console.error('TaskId:', taskId);
+    console.error('Message:', message);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // ?¬ìš©???¸ì¦ ?•ì¸
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'ë¡œê·¸?¸ì´ ?„ìš”?©ë‹ˆ??' },
+        { status: 401 }
+      );
+    }
+
+    // ?€ë³??ì„± ???ë™ ë°±ì—… (ë§?10ë²ˆì§¸ ?”ì²­ë§ˆë‹¤)
+    if (Math.random() < 0.1) { // 10% ?•ë¥ 
+      try {
+        await createBackup('auto_before_script');
+        console.log('???ë™ ë°±ì—… ?„ë£Œ');
+      } catch (error) {
+        console.error('? ï¸ ?ë™ ë°±ì—… ?¤íŒ¨ (ë¬´ì‹œ?˜ê³  ì§„í–‰):', error);
+      }
+    }
+
+    const body = await request.json();
+    const { title, type, videoFormat, useClaudeLocal, productInfo, model } = body;
+
+    let selectedModel: ScriptModel = 'claude';
+    if (typeof model === 'string') {
+      const normalizedModel = model.trim().toLowerCase();
+      if (normalizedModel) {
+        if ((SUPPORTED_MODELS as readonly string[]).includes(normalizedModel)) {
+          selectedModel = normalizedModel as ScriptModel;
+        } else {
+          return NextResponse.json(
+            { error: `Unsupported model. Available options: ${SUPPORTED_MODELS.join(', ')}` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    console.log('Selected AI model:', selectedModel);
+    const modelDisplay = selectedModel === 'claude' ? 'Claude' : selectedModel === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+
+    if (!title || typeof title !== 'string') {
+      return NextResponse.json(
+        { error: 'Title is required' },
+        { status: 400 }
+      );
+    }
+
+    // type ?ëŠ” videoFormat?ì„œ ?¤í¬ë¦½íŠ¸ ?€??ê²°ì •
+    // ?…ë ¥: 'longform', 'shortform', 'sora2', 'product' (?µì¼???•ì‹)
+    const inputType = type || videoFormat || 'longform';
+
+    console.log(`?“Œ useClaudeLocal: ${useClaudeLocal} (?€?? ${typeof useClaudeLocal})`);
+
+    // ?´ë? ì²˜ë¦¬???€??(?„ë¡¬?„íŠ¸ ? íƒ??
+    let scriptType: 'longform' | 'shortform' | 'sora2' | 'product' = 'longform';
+    if (inputType === 'sora2') {
+      scriptType = 'sora2';
+    } else if (inputType === 'shortform') {
+      scriptType = 'shortform';
+    } else if (inputType === 'product') {
+      scriptType = 'product';
+      console.log('?…âœ…???í’ˆ ?€??ê°ì??? ?…âœ…??);
+    } else if (inputType === 'longform') {
+      scriptType = 'longform';
+    }
+
+    console.log(`?“Œ ?€ë³??€?? ${scriptType} (?…ë ¥: ${inputType})`);
+
+    const db = new Database(dbPath);
+
+    // scripts_temp ?Œì´ë¸??ì„± (admin/titles ?˜ì´ì§€??
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS scripts_temp (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        status TEXT DEFAULT 'PENDING',
+        message TEXT,
+        createdAt TEXT NOT NULL,
+        scriptId TEXT,
+        type TEXT,
+        pid INTEGER,
+        logs TEXT DEFAULT '[]'
+      )
+    `);
+
+    // type, pid ì»¬ëŸ¼???†ìœ¼ë©?ì¶”ê? (ê¸°ì¡´ ?°ì´??ë³´ì¡´)
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN type TEXT`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp type ì»¬ëŸ¼ ì¶”ê? ?¤íŒ¨:', e);
+      }
+    }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN pid INTEGER`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp pid ì»¬ëŸ¼ ì¶”ê? ?¤íŒ¨:', e);
+      }
+    }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN useClaudeLocal INTEGER DEFAULT 1`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp useClaudeLocal ì»¬ëŸ¼ ì¶”ê? ?¤íŒ¨:', e);
+      }
+    }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN originalTitle TEXT`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp originalTitle ì»¬ëŸ¼ ì¶”ê? ?¤íŒ¨:', e);
+      }
+    }
+
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN model TEXT DEFAULT 'claude'`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp model ì»¬ëŸ¼ ì¶”ê? ?¤íŒ¨:', e);
+      }
+    }
+
+    // ???¤í¬ë¦½íŠ¸ ?‘ì—… ?ì„±
+    const taskId = `task_${Date.now()}`;
+    const createdAt = new Date().toISOString();
+
+    const insert = db.prepare(`
+      INSERT INTO scripts_temp (id, title, originalTitle, status, message, createdAt, type, useClaudeLocal, model)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // scriptType??ê·¸ë?ë¡??€??(?´ë? 'longform', 'shortform', 'sora2' ?•ì‹)
+    insert.run(taskId, title, title, 'PENDING', '?€ë³??ì„± ?€ê¸?ì¤?..', createdAt, scriptType, useClaudeLocal ? 1 : 0, selectedModel);
+
+    db.close();
+
+    // ë°±ê·¸?¼ìš´?œì—???€ë³??ì„± ?¤í–‰
+    // ?€?…ì— ?°ë¼ ?¤ë¥¸ ?„ë¡¬?„íŠ¸ ?¬ìš©
+    let prompt: string;
+    if (scriptType === 'shortform') {
+      // ?í¼: ?Œì¼?ì„œ ?½ì–´??ì§§ì? ?„ë¡¬?„íŠ¸ ?¬ìš© (ë¹ ë¦„)
+      const shortFormPromptTemplate = await getShortFormPrompt();
+      prompt = shortFormPromptTemplate.replace(/{title}/g, title);
+      console.log('???í¼ ?„ë¡¬?„íŠ¸ ?¬ìš©');
+    } else if (scriptType === 'sora2') {
+      // SORA2: SORA2 ?„ìš© ?„ë¡¬?„íŠ¸ ?¬ìš©
+      const sora2PromptTemplate = await getSora2Prompt();
+      prompt = sora2PromptTemplate.replace(/{title}/g, title);
+      console.log('??SORA2 ?„ë¡¬?„íŠ¸ ?¬ìš©');
+    } else if (scriptType === 'product') {
+      // ?í’ˆ: ?í’ˆ ?„ìš© ?„ë¡¬?„íŠ¸ ?¬ìš©
+      const productPromptTemplate = await getProductPrompt();
+      prompt = productPromptTemplate
+        .replace(/{title}/g, productInfo?.title || title)
+        .replace(/{thumbnail}/g, productInfo?.thumbnail || '')
+        .replace(/{product_link}/g, productInfo?.product_link || '')
+        .replace(/{product_description}/g, productInfo?.description || '');
+      console.log('?…âœ…???í’ˆ ?„ë¡¬?„íŠ¸ ?¬ìš©! ?…âœ…??);
+      console.log('?“¦ ?í’ˆ ?•ë³´:', {
+        title: productInfo?.title || title,
+        thumbnail: productInfo?.thumbnail ? '?ˆìŒ' : '?†ìŒ',
+        link: productInfo?.product_link ? '?ˆìŒ' : '?†ìŒ',
+        description: productInfo?.description ? `${productInfo.description.substring(0, 50)}...` : '?†ìŒ'
+      });
+    } else {
+      // ë¡±í¼: ?Œì¼?ì„œ ?½ì–´???ì„¸ ?„ë¡¬?„íŠ¸ ?¬ìš©
+      const longFormPromptTemplate = await getLongFormPrompt();
+      prompt = longFormPromptTemplate.replace(/{title}/g, title);  // ?„ì—­ ì¹˜í™˜ (?¬ëŸ¬ ê°??ˆì„ ???ˆìŒ)
+      console.log('??ë¡±í¼ ?„ë¡¬?„íŠ¸ ?¬ìš©');
+    }
+
+    const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+
+    // ?„ë¡¬?„íŠ¸ ?´ìš© ?•ì¸ ë¡œê·¸
+    console.log('\n' + '='.repeat(80));
+    console.log('?“ ?ì„±???„ë¡¬?„íŠ¸ ?´ìš©:');
+    console.log('  ?€??', scriptType === 'shortform' ? '???í¼' : scriptType === 'sora2' ? '?¥ SORA2' : scriptType === 'product' ? '?›ï¸??í’ˆ' : '?“ ë¡±í¼');
+    console.log('  ?œëª©:', title);
+    console.log('  ?„ë¡¬?„íŠ¸ ê¸¸ì´:', prompt.length, '??);
+    console.log('  ?„ë¡¬?„íŠ¸ ë¯¸ë¦¬ë³´ê¸°:', prompt.substring(0, 200) + '...');
+    console.log('  ?œëª© ?¬í•¨ ?¬ë?:', prompt.includes(title) ? '???¬í•¨?? : '??ë¯¸í¬??);
+    console.log('='.repeat(80) + '\n');
+
+    // userIdë¥??´ë¡œ?€???€??
+    const userId = user.userId;
+
+    // ë¹„ë™ê¸°ë¡œ ?¤í–‰
+    setTimeout(async () => {
+      let stdout = '';
+      let stderr = '';
+      let promptFileName = '';
+      let promptFilePath = '';
+      try {
+        addLog(taskId, '?‘ì—… ?œì‘??);
+
+        const db2 = new Database(dbPath);
+
+        // ?íƒœë¥?INGë¡??…ë°?´íŠ¸
+        const message = scriptType === 'shortform'
+          ? `??${modelDisplay}ê°€ ?í¼ ?€ë³¸ì„ ?ì„±?˜ê³  ?ˆìŠµ?ˆë‹¤...`
+          : scriptType === 'sora2'
+          ? `?¥ ${modelDisplay}ê°€ SORA2 ?„ë¡¬?„íŠ¸ë¥??ì„±?˜ê³  ?ˆìŠµ?ˆë‹¤...`
+          : scriptType === 'product'
+          ? `?›ï¸?${modelDisplay}ê°€ ?í’ˆ ?ìƒ ?€ë³¸ì„ ?ì„±?˜ê³  ?ˆìŠµ?ˆë‹¤...`
+          : `?“ ${modelDisplay}ê°€ ë¡±í¼ ?€ë³¸ì„ ?ì„±?˜ê³  ?ˆìŠµ?ˆë‹¤...`;
+        db2.prepare(`
+          UPDATE scripts_temp
+          SET status = ?, message = ?
+          WHERE id = ?
+        `).run('ING', message, taskId);
+
+        db2.close();
+
+        // ?„ë¡¬?„íŠ¸ë¥??„ì‹œ ?Œì¼ë¡??€??(ëª…ë ¹ì¤?ê¸¸ì´ ?œí•œ ë°??¹ìˆ˜ë¬¸ì ë¬¸ì œ ?Œí”¼)
+        promptFileName = `prompt_${Date.now()}.txt`;
+        promptFilePath = path.join(backendPath, promptFileName);
+
+        const fsSync = require('fs');
+        fsSync.writeFileSync(promptFilePath, prompt, 'utf-8');
+        addLog(taskId, `?„ë¡¬?„íŠ¸ ?Œì¼ ?ì„±: ${promptFileName}`);
+        const typeEmoji = scriptType === 'shortform' ? '?? : scriptType === 'sora2' ? '?¥' : scriptType === 'product' ? '?›ï¸? : '?“';
+        const typeName = scriptType === 'shortform' ? '?í¼' : scriptType === 'sora2' ? 'SORA2' : scriptType === 'product' ? '?í’ˆ' : 'ë¡±í¼';
+        addLog(taskId, `${typeEmoji} ?€?? ${typeName}`);
+        addLog(taskId, `?“ ?œëª©: "${title}"`);
+        addLog(taskId, `?“„ ?„ë¡¬?„íŠ¸ ê¸¸ì´: ${prompt.length}??);
+        addLog(taskId, `???„ë¡¬?„íŠ¸???œëª© ?¬í•¨: ${prompt.includes(title) ? 'Yes' : 'No'}`);
+
+        // ?¤í–‰??ëª…ë ¹??êµ¬ì„± (backend??ai_aggregator ëª¨ë“ˆ ?¬ìš©)
+        // headless ?œê±°: ë¡œê·¸???„ìš” ??ë¸Œë¼?°ì?ê°€ ?œì‹œ?˜ì–´????
+        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', selectedModel, '--auto-close'];
+        const commandStr = `python ${pythonArgs.join(' ')}`;
+
+        addLog(taskId, '?“Œ Python ?¤í¬ë¦½íŠ¸ ?¤í–‰ ?œì‘');
+        addLog(taskId, `?’» ?¤í–‰ ëª…ë ¹?? ${commandStr}`);
+        addLog(taskId, `Checking response directory: ${backendPath}`)
+
+        let scriptContent = '';
+        if (aiResponseFiles.length > 0) {
+          addLog(taskId, `Response file found: ${aiResponseFiles[0].name}`);
+          const fullContent = fs.readFileSync(aiResponseFiles[0].path, 'utf-8');
+
+          const sectionRegex = new RegExp(`--- ${modelDisplay} ---\s+([\s\S]*?)(?=\n-{80}|\n--- |$)`);
+          const modelResponseMatch = fullContent.match(sectionRegex);
+          if (modelResponseMatch && modelResponseMatch[1]) {
+            scriptContent = modelResponseMatch[1].trim();
+            addLog(taskId, `${modelDisplay} section extracted (${scriptContent.length} chars)`);
+          } else {
+            scriptContent = fullContent;
+            addLog(taskId, `Falling back to full response (${scriptContent.length} chars)`);
+          }
+        } else {
+          addLog(taskId, 'Warning: response file not found.');
+        }
+
+
+        // SORA2 ?•ì‹??ê²½ìš° JSON ?•ë¦¬
+        if (scriptType === 'sora2' && scriptContent) {
+          addLog(taskId, '?”§ SORA2 JSON ?•ë¦¬ ì¤?..');
+          console.log('?”§ SORA2 JSON ?•ë¦¬ ?œì‘ - ?ë³¸ ê¸¸ì´:', scriptContent.length);
+
+          // 1. ì½”ë“œ?œìŠ¤ ?œê±° (```json ?ëŠ” ```)
+          let cleanedContent = scriptContent.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+          // 2. ì²?ë²ˆì§¸ { ì°¾ê¸° ë°?ë§ˆì?ë§?} ì°¾ê¸°
+          const jsonStart = cleanedContent.indexOf('{');
+          const jsonEnd = cleanedContent.lastIndexOf('}');
+
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            // { ?´ì „ê³?} ?´í›„???ìŠ¤???œê±°
+            cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
+            addLog(taskId, `??JSON ì¶”ì¶œ ?„ë£Œ (${cleanedContent.length}??`);
+            console.log('??JSON ì¶”ì¶œ ?„ë£Œ:', cleanedContent.substring(0, 200) + '...');
+
+            // 3. JSON ? íš¨??ê²€ì¦?ë°??¬ë§·??
+            try {
+              const parsed = JSON.parse(cleanedContent);
+              addLog(taskId, '??JSON ?Œì‹± ?±ê³µ');
+              console.log('??JSON ?Œì‹± ?±ê³µ - ê°ì²´ ??', Object.keys(parsed).join(', '));
+
+              // 4. JSON ?¬ë§·??(?ˆì˜ê²??•ë¦¬)
+              scriptContent = JSON.stringify(parsed, null, 2);
+              addLog(taskId, '??JSON ?¬ë§·???„ë£Œ');
+              console.log('??JSON ?¬ë§·???„ë£Œ - ìµœì¢… ê¸¸ì´:', scriptContent.length);
+            } catch (jsonError: any) {
+              addLog(taskId, `? ï¸ JSON ?Œì‹± ?¤íŒ¨: ${jsonError.message}`);
+              console.error('??JSON ?Œì‹± ?¤íŒ¨:', jsonError);
+              console.log('?Œì‹± ?œë„???´ìš© (ì²˜ìŒ 500??:', cleanedContent.substring(0, 500));
+              // ?Œì‹± ?¤íŒ¨?´ë„ ?•ë¦¬???´ìš© ?¬ìš©
+              scriptContent = cleanedContent;
+            }
+          } else {
+            addLog(taskId, '? ï¸ JSON êµ¬ì¡°ë¥?ì°¾ì„ ???†ìŒ (?ë³¸ ?¬ìš©)');
+            console.warn('? ï¸ JSON êµ¬ì¡°ë¥?ì°¾ì„ ???†ìŒ');
+          }
+        }
+
+        addLog(taskId, '?’¾ contents ?Œì´ë¸”ì— ?€??ì¤?..');
+
+        // contents ?Œì´ë¸”ì— ?€??(?µí•© Content ?œìŠ¤??
+        const { createContent } = require('@/lib/content');
+
+        try {
+          const content = createContent(
+            userId,
+            'script',
+            title,
+            {
+              format: scriptType as 'longform' | 'shortform' | 'sora2' | 'product',
+              originalTitle: title,
+              content: scriptContent,
+              useClaudeLocal: useClaudeLocal
+            }
+          );
+
+          const contentId = content.id;
+          addLog(taskId, `??contents ?Œì´ë¸??€???„ë£Œ! (ID: ${contentId})`);
+          addLog(taskId, '?‰ ëª¨ë“  ?‘ì—… ?„ë£Œ!');
+          console.log(`??${modelDisplay} ?€ë³¸ì´ contents ?Œì´ë¸”ì— ?€?¥ë¨:`, {
+            contentId,
+            userId,
+            title,
+            format: scriptType,
+            contentLength: scriptContent.length
+          });
+
+          // ?„ì‹œ scripts ?íƒœ ?Œì´ë¸??…ë°?´íŠ¸ (admin/titles ?˜ì´ì§€??
+          const db4 = new Database(dbPath);
+
+          // ?„ì‹œ ?Œì´ë¸”ì´ ?ˆìœ¼ë©??…ë°?´íŠ¸ (?†ìœ¼ë©?ë¬´ì‹œ)
+          try {
+            db4.prepare(`
+              UPDATE scripts_temp
+              SET status = ?, message = ?, scriptId = ?
+              WHERE id = ?
+            `).run('DONE', '?€ë³??ì„± ?„ë£Œ!', contentId, taskId);
+          } catch (e) {
+            // ?Œì´ë¸”ì´ ?†ìœ¼ë©?ë¬´ì‹œ
+          }
+
+          db4.close();
+        } catch (saveError: any) {
+          console.error('??contents ?€???¤íŒ¨:', saveError);
+          addLog(taskId, `???€???¤íŒ¨: ${saveError.message}`);
+          throw saveError;
+        }
+      } catch (error: any) {
+        console.error('Error generating script:', error);
+
+        const errorMsg = error.message || error.toString() || '';
+        const isLoginError = errorMsg.includes('login') ||
+                            errorMsg.includes('Login') ||
+                            errorMsg.includes('session expired') ||
+                            stdout.includes('Login page detected') ||
+                            stdout.includes('login required');
+
+        // ë¡œê·¸???ëŸ¬ ê°ì? ???ˆë‚´ ë©”ì‹œì§€
+        if (isLoginError) {
+          addLog(taskId, '?” ë¡œê·¸???„ìš” ê°ì?!');
+        addLog(taskId, `? ï¸ ë¸Œë¼?°ì? ì°½ì—??${modelDisplay}??ë¡œê·¸?¸í•´ì£¼ì„¸??);
+          addLog(taskId, '?’¡ ë¡œê·¸???„ì—???ë™?¼ë¡œ ì²˜ë¦¬?©ë‹ˆ??);
+          console.log(`\n${'='.repeat(80)}`);
+          console.log('?” ë¡œê·¸???„ìš” - ?¬ìš©?ê? ë¸Œë¼?°ì??ì„œ ë¡œê·¸?¸í•´????);
+          console.log(`${'='.repeat(80)}\n`);
+
+          try {
+            // headful ëª¨ë“œë¡??¬ì‹¤??(ë¸Œë¼?°ì? ì°??œì‹œ)
+            const pythonArgsHeadful = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', selectedModel, '--auto-close'];
+            const commandStrHeadful = `python ${pythonArgsHeadful.join(' ')}`;
+
+            addLog(taskId, '?Œ ??CMD ì°½ì´ ?´ë¦½?ˆë‹¤ - ë¸Œë¼?°ì??ì„œ ë¡œê·¸?¸í•˜?¸ìš”!');
+            addLog(taskId, `?’» ?¬ì‹¤??ëª…ë ¹?? ${commandStrHeadful}`);
+            addLog(taskId, '??ë¡œê·¸?????ë™?¼ë¡œ ?€ë³??ì„±??ê³„ì†?©ë‹ˆ??..');
+            addLog(taskId, '?’¡ ë¡œê·¸?¸ì? ??ë²ˆë§Œ ?˜ë©´ ?©ë‹ˆ?? ?¤ìŒë¶€?°ëŠ” ?ë™?¼ë¡œ ë¡œê·¸?¸ë©?ˆë‹¤.');
+
+            // Windows: ??CMD ì°½ì—???¤í–‰ (ë¡œê·¸??UI ?œì‹œ)
+            const startCmd = `start "${modelDisplay} ?€ë³??ì„± - ë¡œê·¸???„ìš”" cmd /k "cd /d ${backendPath} && python ${pythonArgsHeadful.join(' ')}"`;
+            const pythonProcessRetry = spawn('cmd', ['/c', startCmd], {
+              detached: true,
+              stdio: 'ignore',
+              env: {
+                ...process.env,
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUNBUFFERED: '1'
+              },
+              shell: true
+            });
+            pythonProcessRetry.unref();
+
+            addLog(taskId, '????CMD ì°½ì´ ?´ë ¸?µë‹ˆ??);
+            addLog(taskId, '?‘ï¸?ë¸Œë¼?°ì?ê°€ ?œì‹œ?˜ë©°, ë¡œê·¸?¸ì´ ?„ìš”?˜ë©´ ?˜ë™?¼ë¡œ ì§„í–‰?´ì£¼?¸ìš”');
+            addLog(taskId, '?±ï¸ ë¡œê·¸???„ë£Œ ???ë™?¼ë¡œ ?€ë³¸ì´ ?ì„±?©ë‹ˆ??);
+            addLog(taskId, '?“ ?ì„±???€ë³¸ì? ?ë™?¼ë¡œ ?€?¥ë©?ˆë‹¤');
+
+            // ?„ë¡œ?¸ìŠ¤ ?„ë£Œë¥?ê¸°ë‹¤ë¦¬ì? ?Šê³  ì¦‰ì‹œ ë°˜í™˜ (detached ëª¨ë“œ)
+            // ?¬ìš©?ëŠ” CMD ì°½ì—??ì§„í–‰ ?í™©???•ì¸?????ˆìŒ
+            // ?€ë³¸ì´ ?„ì„±?˜ë©´ ?ë™?¼ë¡œ ?€?¥ë˜ê³? ?¬ìš©?ëŠ” "??ì½˜í…ì¸??ì„œ ?•ì¸ ê°€??
+            const db4 = new Database(dbPath);
+            db4.prepare(`
+              UPDATE scripts_temp SET status = ?, message = ? WHERE id = ?
+            `).run('WAITING_LOGIN', 'ë¡œê·¸???„ìš” - ??ì°½ì—??ë¡œê·¸?????ë™ ì§„í–‰??, taskId);
+            db4.close();
+
+            return;
+          } catch (retryError: any) {
+            console.error('Headful ?¬ì‹œ???¤íŒ¨:', retryError);
+            addLog(taskId, `???¬ì‹œ???¤íŒ¨: ${retryError.message}`);
+            // ?¬ì‹œ?„ë„ ?¤íŒ¨?˜ë©´ ?„ë˜ ?ëŸ¬ ì²˜ë¦¬ ê³„ì†
+          }
+        }
+
+        addLog(taskId, `???¤ë¥˜ ë°œìƒ: ${errorMsg}`);
+
+        // ?ëŸ¬ ë°œìƒ ???´ë©”???„ì†¡
+        try {
+          await sendErrorEmail({
+            taskId,
+            title,
+            errorMessage: errorMsg,
+            stdout: stdout || '(ì¶œë ¥ ?†ìŒ)',
+            stderr: stderr || '(ì¶œë ¥ ?†ìŒ)',
+            timestamp: new Date().toISOString(),
+          });
+          console.log('???ëŸ¬ ?Œë¦¼ ?´ë©”???„ì†¡ ?„ë£Œ');
+        } catch (emailError) {
+          console.error('???ëŸ¬ ?´ë©”???„ì†¡ ?¤íŒ¨:', emailError);
+        }
+
+        // ?ëŸ¬ ë°œìƒ ?œì—???„ë¡¬?„íŠ¸ ?Œì¼ ?•ë¦¬
+        try {
+          const fsSync = require('fs');
+          if (promptFilePath && fsSync.existsSync(promptFilePath)) {
+            fsSync.unlinkSync(promptFilePath);
+            console.log('?„ë¡¬?„íŠ¸ ?Œì¼ ?•ë¦¬ ?„ë£Œ (?ëŸ¬ ??');
+          }
+        } catch (e) {
+          console.error('?„ë¡¬?„íŠ¸ ?Œì¼ ?? œ ?¤íŒ¨:', e);
+        }
+
+        const db5 = new Database(dbPath);
+        db5.prepare(`
+          UPDATE scripts_temp
+          SET status = ?, message = ?
+          WHERE id = ?
+        `).run('ERROR', `?¤ë¥˜: ${error.message}`, taskId);
+
+        db5.close();
+      }
+    }, 100);
+
+    return NextResponse.json({
+      success: true,
+      taskId,
+      message: '?€ë³??ì„±???œì‘?˜ì—ˆ?µë‹ˆ??
+    });
+  } catch (error: any) {
+    console.error('Error creating script task:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to create script task' },
+      { status: 500 }
+    );
+  }
+}

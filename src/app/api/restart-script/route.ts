@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     let scriptTitle = title;
     let scriptType = 'longform';
     let useClaudeLocal = false;
+    let model: string | undefined = undefined;
 
     if (scriptId) {
       tempScript = await findScriptTempById(scriptId);
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
         scriptTitle = tempScript.originalTitle || tempScript.title;
         scriptType = tempScript.type || 'longform';
         useClaudeLocal = tempScript.useClaudeLocal === 1 || tempScript.useClaudeLocal === true;
+        model = tempScript.model || model;
       } else {
         console.log(`⚠️ scripts_temp에서 대본을 찾을 수 없습니다: ${scriptId}, title로 생성 시도`);
         // scriptId가 있지만 temp를 찾을 수 없으면 script 테이블에서 정보 가져오기
@@ -89,6 +91,7 @@ export async function POST(request: NextRequest) {
           scriptTitle = script.originalTitle || script.title;
           scriptType = script.type || 'longform';
           useClaudeLocal = script.useClaudeLocal === true;
+          model = (script as any).model || model;
         }
       }
     }
@@ -103,7 +106,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         title: `${scriptTitle} (재생성)`,
         format: scriptType,
-        useClaudeLocal: useClaudeLocal
+        useClaudeLocal: useClaudeLocal,
+        model: model || 'claude'
       })
     });
 

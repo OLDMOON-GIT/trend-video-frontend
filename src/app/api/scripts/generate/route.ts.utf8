@@ -1,0 +1,28 @@
+import { NextRequest, NextResponse } from 'next/server';
+import Database from 'better-sqlite3';
+import path from 'path';
+import { exec, spawn } from 'child_process';
+import { promisify } from 'util';
+import { getCurrentUser } from '@/lib/session';
+import { promises as fs } from 'fs';
+import { createBackup } from '@/lib/backup';
+import { sendErrorEmail } from '@/lib/email';
+
+const execAsync = promisify(exec);
+const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
+const unifiedAgentScript = path.join('src', 'ai_aggregator', 'agents', 'agent.py');
+
+const SUPPORTED_MODELS = ['claude', 'chatgpt', 'gemini'] as const;
+type ScriptModel = (typeof SUPPORTED_MODELS)[number];
+
+// ?ㅽ뻾 以묒씤 ?꾨줈?몄뒪瑜?異붿쟻?섎뒗 Map (濡쒖뺄 李몄“??
+const runningProcesses = new Map<string, any>();
+
+// ?륂뤌 ?꾨＼?꾪듃瑜??뚯씪?먯꽌 ?쎌뼱?ㅻ뒗 ?⑥닔
+async function getShortFormPrompt(): Promise<string> {
+  try {
+    // frontend/prompts 寃쎈줈?먯꽌 李얘린
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_shortform.txt ?먮뒗 prompt.txt 寃

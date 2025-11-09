@@ -4067,19 +4067,9 @@ export default function Home() {
                         }]);
 
                         // 상품 정보 준비 (상품 포맷인 경우)
-                        let productInfo = null;
+                        // 상품 정보 체크 (state에 이미 있음)
                         console.log('🔍 상품 정보 체크 - videoFormat:', videoFormat);
-                        if (videoFormat === 'product') {
-                          const productInfoStr = localStorage.getItem('current_product_info');
-                          if (productInfoStr) {
-                            try {
-                              productInfo = JSON.parse(productInfoStr);
-                              console.log('🛍️ 상품 정보 포함:', productInfo);
-                            } catch (e) {
-                              console.error('❌ 상품 정보 파싱 실패:', e);
-                            }
-                          }
-                        }
+                        console.log('🔍 productInfo state:', productInfo);
 
                         const response = await fetch('/api/generate-script', {
                           method: 'POST',
@@ -4089,7 +4079,7 @@ export default function Home() {
                             topic: title,
                             format: videoFormat,
                             model: scriptModel, // 대본 생성용 AI 모델
-                            productInfo: productInfo // 상품 정보 추가
+                            productInfo: productInfo // state의 상품 정보 사용
                           })
                         });
                         const data = await response.json();

@@ -167,16 +167,16 @@ export async function DELETE(
 
     console.log(`🛑 작업 중지 요청: ${taskId}`);
 
-    // DB에서 PID 가져오기
+    // DB에서 PID 가져오기 (contents 테이블 사용)
     const db = new Database(dbPath);
-    const row: any = db.prepare('SELECT pid FROM scripts_temp WHERE id = ?').get(taskId);
+    const row: any = db.prepare('SELECT pid FROM contents WHERE id = ?').get(taskId);
 
     if (!row || !row.pid) {
       console.log(`⚠️ PID를 찾을 수 없음: ${taskId}`);
       // PID가 없어도 상태는 업데이트
       db.prepare(`
-        UPDATE scripts_temp
-        SET status = 'ERROR', message = '사용자에 의해 중지됨', pid = NULL
+        UPDATE contents
+        SET status = 'failed', error = '사용자에 의해 중지됨', pid = NULL, updated_at = datetime('now')
         WHERE id = ?
       `).run(taskId);
       db.close();
@@ -200,10 +200,48 @@ export async function DELETE(
         // Windows: taskkill로 프로세스 트리 전체 종료
         await execAsync(`taskkill /F /T /PID ${pid}`);
         console.log(`✅ Windows 프로세스 종료 완료: PID ${pid}`);
+
+        // Chrome 브라우저도 함께 종료 (.chrome-automation-profile 사용 중인 프로세스)
+        try {
+          // PowerShell로 명령줄에 .chrome-automation-profile이 포함된 Chrome 프로세스 찾아서 종료
+          const psCommand = `
+            Get-Process chrome -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -like '*chrome-automation-profile*' } |
+            ForEach-Object { Stop-Process -Id $_.Id -Force }
+          `.replace(/\n/g, ' ').trim();
+
+          await execAsync(`powershell -Command "${psCommand}"`);
+          console.log(`✅ Chrome 자동화 브라우저 종료 완료`);
+        } catch (chromeError: any) {
+          // Chrome이 없거나 이미 종료된 경우 무시
+          console.log(`⚠️ Chrome 종료 실패 또는 이미 종료됨: ${chromeError.message}`);
+        }
+
+        // CMD 창도 종료 (Python 스크립트 실행 중인 창)
+        try {
+          const cmdCommand = `
+            Get-Process cmd -ErrorAction SilentlyContinue |
+            Where-Object { $_.MainWindowTitle -like '*자동 열기*' } |
+            ForEach-Object { Stop-Process -Id $_.Id -Force }
+          `.replace(/\n/g, ' ').trim();
+
+          await execAsync(`powershell -Command "${cmdCommand}"`);
+          console.log(`✅ CMD 창 종료 완료`);
+        } catch (cmdError: any) {
+          console.log(`⚠️ CMD 창 종료 실패 또는 이미 종료됨: ${cmdError.message}`);
+        }
       } else {
         // Unix: kill 명령 사용
         await execAsync(`kill -9 ${pid}`);
         console.log(`✅ Unix 프로세스 종료 완료: PID ${pid}`);
+
+        // Chrome 브라우저도 함께 종료
+        try {
+          await execAsync(`pkill -f "chrome-automation-profile"`);
+          console.log(`✅ Chrome 자동화 브라우저 종료 완료`);
+        } catch (chromeError: any) {
+          console.log(`⚠️ Chrome 종료 실패 또는 이미 종료됨: ${chromeError.message}`);
+        }
       }
       killed = true;
     } catch (error: any) {
@@ -212,22 +250,19 @@ export async function DELETE(
       killed = false;
     }
 
-    // DB 상태 업데이트
+    // DB 상태 업데이트 (contents 테이블 사용)
     try {
       db.prepare(`
-        UPDATE scripts_temp
-        SET status = 'ERROR', message = '사용자에 의해 중지됨', pid = NULL
+        UPDATE contents
+        SET status = 'failed', error = '사용자에 의해 중지됨', pid = NULL, updated_at = datetime('now')
         WHERE id = ?
       `).run(taskId);
 
-      // 로그 추가
-      const logsRow: any = db.prepare('SELECT logs FROM scripts_temp WHERE id = ?').get(taskId);
-      const logs = logsRow?.logs ? JSON.parse(logsRow.logs) : [];
-      logs.push({
-        timestamp: new Date().toISOString(),
-        message: '🛑 사용자에 의해 작업이 중지되었습니다.'
-      });
-      db.prepare('UPDATE scripts_temp SET logs = ? WHERE id = ?').run(JSON.stringify(logs), taskId);
+      // 로그 추가 (content_logs 테이블 사용)
+      db.prepare(`
+        INSERT INTO content_logs (content_id, log_message)
+        VALUES (?, ?)
+      `).run(taskId, '🛑 사용자에 의해 작업이 중지되었습니다.');
 
       console.log(`✅ DB 상태 업데이트 완료: ${taskId}`);
     } catch (dbError) {

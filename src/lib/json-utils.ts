@@ -100,7 +100,11 @@ export function parseJsonSafely<T = any>(
         // 최종 실패
         const errorMessage = `JSON 자동 수정 실패: ${thirdError.message}`;
 
-        if (logErrors) {
+        // JSON이 아닌 것으로 판명된 경우 로그 최소화
+        const isNotJson = thirdError.message.includes('Not a JSON') ||
+                          thirdError.message.includes('No JSON object found');
+
+        if (logErrors && !isNotJson) {
           console.error('❌', errorMessage);
           console.log('파싱 시도한 내용 (처음 1000자):', jsonString.substring(0, 1000));
           console.log('파싱 시도한 내용 (마지막 500자):', jsonString.substring(Math.max(0, jsonString.length - 500)));
@@ -114,6 +118,9 @@ export function parseJsonSafely<T = any>(
             console.log(`에러 위치 주변 (${start}-${end}):`, jsonString.substring(start, end));
             console.log(`에러 위치 문자: "${jsonString[errorPos]}" (코드: ${jsonString.charCodeAt(errorPos)})`);
           }
+        } else if (logErrors && isNotJson) {
+          // JSON이 아닌 경우 간단한 경고만
+          console.warn('⚠️ JSON이 아닌 데이터:', jsonString.substring(0, 100) + (jsonString.length > 100 ? '...' : ''));
         }
 
         return {
@@ -135,6 +142,17 @@ export function parseJsonSafely<T = any>(
 function fixJsonString(jsonString: string, log: boolean = false): string {
   let fixed = jsonString;
 
+  // Step -1: JSON이 아닌 에러 메시지 감지 (에러를 던져서 상위에서 처리하도록)
+  // "Error", "error", "오류", "실패" 등으로 시작하고 { 가 없으면 JSON이 아님
+  const trimmed = fixed.trim();
+  const hasOpenBrace = trimmed.includes('{');
+  const looksLikeError = /^(Error|error|오류|실패|Warning|경고)/i.test(trimmed);
+
+  if (looksLikeError && !hasOpenBrace) {
+    // JSON이 아닌 에러 메시지임
+    throw new Error(`Not a JSON: ${trimmed.substring(0, 100)}`);
+  }
+
   // Step 0: 코드 블록 마커 및 설명 텍스트 제거
   fixed = fixed.replace(/^```json?\s*/i, '');
   fixed = fixed.replace(/```\s*$/i, '');
@@ -148,6 +166,9 @@ function fixJsonString(jsonString: string, log: boolean = false): string {
     const firstBrace = fixed.indexOf('{');
     if (firstBrace > 0) {
       fixed = fixed.substring(firstBrace);
+    } else if (firstBrace === -1) {
+      // { 가 아예 없으면 JSON이 아님
+      throw new Error('No JSON object found in string');
     }
   }
 

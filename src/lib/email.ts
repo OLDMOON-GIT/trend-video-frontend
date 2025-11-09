@@ -43,7 +43,7 @@ export async function sendErrorEmail(errorInfo: {
 
     // Python 스크립트 경로 - 절대 경로 사용
     const workspaceRoot = 'C:\\Users\\oldmoon\\workspace';
-    const pythonScript = path.join(workspaceRoot, 'multi-ai-aggregator', 'send_error_email.py');
+    const pythonScript = path.join(workspaceRoot, 'trend-video-backend', 'src', 'ai_aggregator', 'send_error_email.py');
 
     // JSON 데이터 준비
     const jsonData = JSON.stringify(errorInfo);

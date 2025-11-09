@@ -338,6 +338,74 @@ function runMigrations() {
       console.error('❌ coupang_crawl_queue.source_url 컬럼 추가 실패:', e.message);
     }
   }
+
+  // coupang_products 테이블에 is_favorite 컬럼 추가 (즐겨찾기)
+  try {
+    db.exec(`ALTER TABLE coupang_products ADD COLUMN is_favorite INTEGER DEFAULT 0`);
+    console.log('✅ coupang_products.is_favorite 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ coupang_products.is_favorite 컬럼 추가 실패:', e.message);
+    }
+  }
+
+  // social_media_accounts 테이블 생성 (TikTok, Instagram, Facebook 계정 관리)
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS social_media_accounts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        platform TEXT NOT NULL CHECK(platform IN ('tiktok', 'instagram', 'facebook')),
+        account_id TEXT NOT NULL,
+        username TEXT,
+        display_name TEXT,
+        profile_picture TEXT,
+        follower_count INTEGER DEFAULT 0,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT,
+        token_expires_at TEXT,
+        is_default INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id, platform, account_id)
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_social_media_accounts_user_id ON social_media_accounts(user_id)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_social_media_accounts_platform ON social_media_accounts(platform)`);
+    console.log('✅ social_media_accounts 테이블 생성 완료');
+  } catch (e: any) {
+    console.error('❌ social_media_accounts 테이블 생성 실패:', e.message);
+  }
+
+  // social_media_uploads 테이블 생성 (소셜미디어 업로드 기록)
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS social_media_uploads (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        job_id TEXT,
+        platform TEXT NOT NULL CHECK(platform IN ('tiktok', 'instagram', 'facebook')),
+        post_id TEXT NOT NULL,
+        post_url TEXT,
+        title TEXT,
+        description TEXT,
+        thumbnail_url TEXT,
+        account_id TEXT NOT NULL,
+        account_username TEXT,
+        privacy_status TEXT,
+        published_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (account_id) REFERENCES social_media_accounts(id) ON DELETE CASCADE
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_social_media_uploads_user_id ON social_media_uploads(user_id)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_social_media_uploads_platform ON social_media_uploads(platform)`);
+    console.log('✅ social_media_uploads 테이블 생성 완료');
+  } catch (e: any) {
+    console.error('❌ social_media_uploads 테이블 생성 실패:', e.message);
+  }
 }
 
 // 초기화 실행

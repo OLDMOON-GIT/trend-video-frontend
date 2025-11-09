@@ -21,30 +21,12 @@ interface ExportState {
 }
 
 export default function ShopClientView({ initialCategories, initialTotalProducts }: ShopClientViewProps) {
-  const [publishedVersionId, setPublishedVersionId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [publishedVersionId, setPublishedVersionId] = useState<string>('live'); // 'live'는 실시간 상품을 의미
+  const [loading, setLoading] = useState(false); // 로딩 불필요
   const [exportState, setExportState] = useState<ExportState>({ busy: false });
 
-  useEffect(() => {
-    // 퍼블리시된 버전 ID 가져오기 (versionId 없이 호출하면 자동으로 is_published=1인 버전 반환)
-    const fetchPublishedVersion = async () => {
-      try {
-        const res = await fetch('/api/shop/products/public');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.version?.id) {
-            setPublishedVersionId(data.version.id);
-          }
-        }
-      } catch (error) {
-        console.error('퍼블리시된 버전 조회 실패:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPublishedVersion();
-  }, []);
+  // 퍼블리시 탭은 항상 실시간 상품을 표시하므로 API 호출 불필요
+  // versionId를 'live'로 설정하여 ShopVersionPreview에서 versionId 없이 API 호출하도록 함
 
   const downloadHtml = async () => {
     if (!publishedVersionId) return;
@@ -120,29 +102,11 @@ export default function ShopClientView({ initialCategories, initialTotalProducts
     }
   };
 
-  if (loading) {
-    return (
-      <div className="py-20 text-center text-slate-300">
-        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-purple-400" />
-        상품을 불러오는 중입니다...
-      </div>
-    );
-  }
-
-  if (!publishedVersionId) {
-    return (
-      <div className="text-center py-20">
-        <div className="text-6xl mb-4">🛍️</div>
-        <p className="text-xl text-slate-400">아직 퍼블리시된 상품이 없습니다.</p>
-        <p className="text-sm text-slate-500 mt-2">관리자가 곧 멋진 상품을 추가할 예정입니다!</p>
-      </div>
-    );
-  }
 
   return (
     <>
       {/* HTML 내보내기 버튼 */}
-      <div className="mb-6 flex flex-wrap justify-end gap-2">
+      <div className="mb-3 flex flex-wrap justify-end gap-2">
         <button
           onClick={downloadHtml}
           disabled={exportState.busy}

@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
           type: row.type as 'longform' | 'shortform' | 'sora2',
           logs: logs.map((log: any) => typeof log === 'object' ? log.message : log),
           useClaudeLocal: row.useClaudeLocal === 1,
+          model: row.model || 'claude',
           createdAt: row.createdAt,
           updatedAt: row.createdAt
         };
@@ -121,6 +122,7 @@ export async function GET(request: NextRequest) {
             output_tokens: row.output_tokens || 0
           } : undefined,
           useClaudeLocal: row.use_claude_local === 1,
+          model: row.model || 'claude',  // AI 모델 정보
           sourceContentId: row.source_content_id,  // 원본 컨텐츠 ID
           conversionType: row.conversion_type,      // 변환 타입
           isRegenerated: row.is_regenerated === 1,  // 재생성 여부
@@ -215,7 +217,7 @@ export async function DELETE(request: NextRequest) {
     try {
       db = new Database(dbPath);
 
-      // contents 테이블에서 삭제 (소유자 확인 포함)
+      // 1. contents 테이블에서 삭제 시도 (소유자 확인 포함)
       const deleteQuery = 'DELETE FROM contents WHERE id = ? AND user_id = ?';
       console.log('🔍 실행할 쿼리:', deleteQuery);
       console.log('🔍 파라미터:', { id: scriptId, user_id: user.userId });
@@ -223,7 +225,7 @@ export async function DELETE(request: NextRequest) {
       const stmt = db.prepare(deleteQuery);
       const result = stmt.run(scriptId, user.userId);
 
-      console.log('📊 삭제 결과:', { changes: result.changes });
+      console.log('📊 contents 삭제 결과:', { changes: result.changes });
 
       if (result.changes > 0) {
         console.log('✅ contents 테이블에서 삭제 성공');
@@ -231,21 +233,43 @@ export async function DELETE(request: NextRequest) {
           success: true,
           message: '대본이 삭제되었습니다.'
         });
-      } else {
-        console.log('❌ 삭제 실패: 데이터를 찾을 수 없거나 권한 없음');
-
-        // 디버깅: 해당 ID가 존재하는지 확인
-        const checkQuery = 'SELECT id, user_id, type, title FROM contents WHERE id = ?';
-        console.log('🔍 존재 확인 쿼리:', checkQuery);
-        const checkStmt = db.prepare(checkQuery);
-        const existing = checkStmt.get(scriptId);
-        console.log('📊 존재 확인 결과:', existing);
-
-        return NextResponse.json(
-          { error: '컨텐츠를 찾을 수 없거나 권한이 없습니다.' },
-          { status: 404 }
-        );
       }
+
+      // 2. contents에 없으면 scripts_temp에서 삭제 시도
+      console.log('⏭️ contents에 없음. scripts_temp에서 시도...');
+      const deleteTempQuery = 'DELETE FROM scripts_temp WHERE id = ?';
+      const tempStmt = db.prepare(deleteTempQuery);
+      const tempResult = tempStmt.run(scriptId);
+
+      console.log('📊 scripts_temp 삭제 결과:', { changes: tempResult.changes });
+
+      if (tempResult.changes > 0) {
+        console.log('✅ scripts_temp 테이블에서 삭제 성공');
+        return NextResponse.json({
+          success: true,
+          message: '대본이 삭제되었습니다.'
+        });
+      }
+
+      // 3. 둘 다 없으면 404
+      console.log('❌ 삭제 실패: 어느 테이블에도 없음');
+
+      // 디버깅: 해당 ID가 존재하는지 확인
+      const checkQuery = 'SELECT id, user_id, type, title FROM contents WHERE id = ?';
+      console.log('🔍 존재 확인 쿼리:', checkQuery);
+      const checkStmt = db.prepare(checkQuery);
+      const existing = checkStmt.get(scriptId);
+      console.log('📊 contents 존재 확인:', existing);
+
+      const checkTempQuery = 'SELECT id, title, status FROM scripts_temp WHERE id = ?';
+      const checkTempStmt = db.prepare(checkTempQuery);
+      const existingTemp = checkTempStmt.get(scriptId);
+      console.log('📊 scripts_temp 존재 확인:', existingTemp);
+
+      return NextResponse.json(
+        { error: '컨텐츠를 찾을 수 없거나 권한이 없습니다.' },
+        { status: 404 }
+      );
 
     } finally {
       if (db) {

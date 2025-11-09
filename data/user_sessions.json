@@ -158,5 +158,25 @@
     "ipAddress": "::ffff:192.168.0.1",
     "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
     "isActive": true
+  },
+  {
+    "id": "05694e4f-ae3e-43cc-a898-1da970a1841a",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-11-04T15:40:41.538Z",
+    "lastActivityAt": "2025-11-04T15:40:41.538Z",
+    "ipAddress": "::ffff:192.168.0.1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "isActive": true
+  },
+  {
+    "id": "da769dd5-ee0b-484c-a0c9-f209f7691f8b",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-11-07T00:30:28.789Z",
+    "lastActivityAt": "2025-11-07T00:30:28.789Z",
+    "ipAddress": "::ffff:118.235.15.152",
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36",
+    "isActive": true
   }
 ]

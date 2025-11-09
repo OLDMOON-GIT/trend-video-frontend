@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
+import { findChineseConverterJobById } from '@/lib/db-chinese-converter';
 
 /**
  * GET /api/chinese-converter/status?jobId=xxx
@@ -20,15 +21,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'jobId가 필요합니다' }, { status: 400 });
     }
 
-    // TODO: 실제 작업 상태 조회 로직
-    // DB 또는 파일 시스템에서 상태 확인
+    // 데이터베이스에서 작업 상태 조회
+    const job = findChineseConverterJobById(jobId);
 
-    // 임시 응답
+    if (!job) {
+      return NextResponse.json({ error: '작업을 찾을 수 없습니다' }, { status: 404 });
+    }
+
+    // 권한 확인
+    if (job.userId !== user.userId) {
+      return NextResponse.json({ error: '권한이 없습니다' }, { status: 403 });
+    }
+
+    // 상태 반환 (영상제작과 동일한 형식)
     return NextResponse.json({
-      jobId,
-      status: 'processing', // pending, processing, completed, failed
-      progress: 50,
-      message: '🔄 자막 추출 중...'
+      jobId: job.id,
+      status: job.status,
+      progress: job.progress,
+      logs: job.logs || [], // 로그 배열 전체 반환
+      error: job.error,
+      videoPath: job.videoPath,
+      outputPath: job.outputPath
     });
 
   } catch (error: any) {

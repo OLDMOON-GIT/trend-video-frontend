@@ -16,21 +16,35 @@ export async function GET(request: NextRequest) {
 
     const db = new Database(dbPath);
 
-    // 최근 4개의 대본 제목만 가져오기 (contents 테이블에서)
+    // 최근 4개의 제목 가져오기 (contents와 jobs 모두에서, 실패한 것도 포함)
     const scriptTitles = db.prepare(`
-      SELECT DISTINCT title
-      FROM contents
-      WHERE user_id = ? AND type = 'script' AND title IS NOT NULL AND title != ''
+      SELECT DISTINCT title, created_at
+      FROM (
+        SELECT title, created_at
+        FROM contents
+        WHERE user_id = ?
+          AND type = 'script'
+          AND title IS NOT NULL
+          AND title != ''
+
+        UNION
+
+        SELECT title, created_at
+        FROM jobs
+        WHERE user_id = ?
+          AND title IS NOT NULL
+          AND title != ''
+      )
       ORDER BY created_at DESC
       LIMIT 4
-    `).all(user.userId) as Array<{title: string}>;
+    `).all(user.userId, user.userId) as Array<{title: string; created_at: string}>;
 
     db.close();
 
     // 제목만 배열로 추출
     const titles = scriptTitles.map(row => row.title);
 
-    console.log(`✅ 최근 대본 제목 ${titles.length}개 조회됨:`, titles);
+    console.log(`✅ 최근 제목 ${titles.length}개 조회됨 (contents + jobs):`, titles);
 
     return NextResponse.json({ titles });
   } catch (error) {

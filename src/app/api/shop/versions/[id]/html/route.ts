@@ -19,19 +19,43 @@ export async function GET(
 
     const { id: versionId } = await params;
 
-    const versionRow = db.prepare(`
-      SELECT data, name FROM shop_versions WHERE id = ?
-    `).get(versionId) as { data: string; name: string } | undefined;
+    let products: PublishedProduct[] = [];
 
-    if (!versionRow) {
-      return NextResponse.json(
-        { error: '해당 버전을 찾을 수 없습니다.', errorCode: 'VERSION_NOT_FOUND' },
-        { status: 404 }
-      );
+    // 'live'는 실시간 published 상품을 의미
+    if (versionId === 'live') {
+      const liveProducts = db.prepare(`
+        SELECT
+          id,
+          title,
+          description,
+          category,
+          original_price,
+          discount_price,
+          image_url,
+          deep_link,
+          created_at
+        FROM coupang_products
+        WHERE status IN ('active', 'published')
+        ORDER BY datetime(created_at) DESC
+      `).all() as PublishedProduct[];
+
+      products = liveProducts;
+    } else {
+      // 특정 버전의 스냅샷에서 상품 가져오기
+      const versionRow = db.prepare(`
+        SELECT data, name FROM shop_versions WHERE id = ?
+      `).get(versionId) as { data: string; name: string } | undefined;
+
+      if (!versionRow) {
+        return NextResponse.json(
+          { error: '해당 버전을 찾을 수 없습니다.', errorCode: 'VERSION_NOT_FOUND' },
+          { status: 404 }
+        );
+      }
+
+      const versionData = JSON.parse(versionRow.data);
+      products = versionData.products || [];
     }
-
-    const versionData = JSON.parse(versionRow.data);
-    const products: PublishedProduct[] = versionData.products || [];
 
     const html = generateShopHtml(products);
 

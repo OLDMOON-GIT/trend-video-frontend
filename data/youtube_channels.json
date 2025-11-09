@@ -24,5 +24,18 @@
     "isDefault": false,
     "createdAt": "2025-11-03T18:15:40.601Z",
     "updatedAt": "2025-11-03T18:15:40.601Z"
+  },
+  {
+    "id": "06968894-3434-4b90-84f1-52898dd1c231",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "channelId": "UCCP9WVj65HZWREdG9yHQN-g",
+    "channelTitle": "상사맨",
+    "thumbnailUrl": "https://yt3.ggpht.com/ytc/AIdro_nxVsg2YYziQ9V-yCVAEH_nxaFMNy2IQL09WwXX0TsTNrq88oE=s88-c-k-c0x00ffffff-no-rj",
+    "subscriberCount": 0,
+    "description": "",
+    "tokenFile": "youtube_token_b5d1f064-60b9-45ab-9bcd-d36948196459_UCCP9WVj65HZWREdG9yHQN-g.json",
+    "isDefault": false,
+    "createdAt": "2025-11-04T15:46:16.733Z",
+    "updatedAt": "2025-11-04T15:46:16.733Z"
   }
 ]

@@ -92,11 +92,11 @@ YOUR ENTIRE RESPONSE = ONE JSON OBJECT
 
 【필수 구조】
 - 씬 0: **3초 폭탄 씬** (독립 제작, 300~400자)
-- 씬 1~8: 본 서사 (씬당 2,000자 정확히) 🆕 출력 제한 최적화
+- 씬 1~8: 본 서사 (씬당 1,750자 정확히) 🆕 출력 제한 최적화
 - 씬 9: **구독 유도 씬** (마지막, 300~400자) 🆕 위치 변경
 
 총 씬 수: 10개 (폭탄 + 본편 8개 + 구독 유도)
-총 글자수: 약 22,000자 타겟 (Claude 출력 제한 대응)
+총 글자수: 약 20,000자 타겟 (Claude 출력 제한 대응)
 
 🔥 **제작 순서 (v9.5 필수):**
 1️⃣ **제공된 제목 확인** - {title}을 그대로 사용 (변경 절대 금지)
@@ -379,7 +379,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 - 행동 패턴 3회 이상 반복 시 변주 ("손을 잡다" → "손을 움켜쥐다" / "손가락 끼우다")
 - 의미 변주는 허용 (같은 오브제 다른 맥락)
 
-**TTS 분량:** 씬당 2,000자 = 6.5-8분 → 실제 편집 시 60초 내 축약 권장
+**TTS 분량:** 씬당 1,750자 = 5.5-7분 → 실제 편집 시 60초 내 축약 권장
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -465,7 +465,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 
 【필수 구조】
 - [ ] 씬 0: 3초 폭탄 (300-400자) 완성
-- [ ] 씬 1~8: 본편 (각 2,000자 정확히) 완성 🆕 출력 제한 최적화
+- [ ] 씬 1~8: 본편 (각 1,750자 정확히) 완성 🆕 출력 제한 최적화
 - [ ] 씬 9: 구독 유도 (300-400자, 마지막 위치) 완성 🆕
 - [ ] 제목: 킬러 제목 (단정형+숫자+감정동사) 작성
 
@@ -573,7 +573,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 
 3️⃣ **대본/내레이션 작성**
    - 씬 0: 3초 폭탄 (300-400자, 단정형 선언)
-   - 씬 1~8: 본편 (각 2,000자 정확히) 🆕 출력 제한 최적화
+   - 씬 1~8: 본편 (각 1,750자 정확히) 🆕 출력 제한 최적화
    - 씬 9: 구독 유도 (300-400자, 3가지 템플릿 활용, 마지막) 🆕
 
 4️⃣ **SceneMemory 교차검사**
@@ -643,7 +643,7 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 **형식 검증:**
 - `{`로 시작 `}`로 끝남
 - scenes 정확히 10개 (scene_00_bomb … scene_09_subscribe)
-- 씬 1-8: 정확히 2,000자
+- 씬 1-8: 정확히 1,750자
 - ImageFX 프롬프트: 50-70 단어
 - 모든 씬 완전한 문장 마무리 (마침표/물음표/느낌표)
 - **대사/내레이션: 작은따옴표(')만 사용, 큰따옴표(") 금지** (이스케이프 방지)
@@ -651,12 +651,12 @@ Clean modern YouTube interface design, bright welcoming community atmosphere, su
 
 **출력 길이 제한 (CRITICAL):**
 - Claude 제한: 20,000자 (안전 마진)
-- 씬 1-8: 2,000자씩 = 16,000자
+- 씬 1-8: 1,750자씩 = 14,000자
 - ImageFX: 50-70 단어 = ~2,000자
 - JSON 구조: ~1,200자
 - ❌ JSON 닫지 않고 끝남 = 파싱 실패
 
-**긴급 대응:** 출력 길어지면 즉시 1,800자/씬 + ImageFX 40단어로 감축
+**긴급 대응:** 출력 길어지면 즉시 1,500자/씬 + ImageFX 40단어로 감축
 
 🚨 **SELF-CHECK:**
 □ 첫 글자 `{`?

@@ -12,6 +12,7 @@ function AuthContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [kakaoId, setKakaoId] = useState('');
@@ -61,7 +62,7 @@ function AuthContent() {
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/signup';
       const body = mode === 'login'
         ? { email, password, rememberMe }
-        : { email, password, name, phone, address, kakaoId: kakaoId || undefined, rememberMe };
+        : { email, password, name, nickname: nickname || undefined, phone, address, kakaoId: kakaoId || undefined, rememberMe };
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -148,6 +149,20 @@ function AuthContent() {
                   className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-white placeholder-slate-400 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/20"
                   placeholder="홍길동"
                 />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  별명 (선택)
+                </label>
+                <input
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-white placeholder-slate-400 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/20"
+                  placeholder="닉네임을 입력하세요"
+                />
+                <p className="mt-1 text-xs text-slate-400">쇼핑몰/HTML 내보내기에 표시될 이름입니다. 미입력 시 이메일을 사용합니다.</p>
               </div>
 
               <div>

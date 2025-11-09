@@ -1,0 +1,683 @@
+import { NextRequest, NextResponse } from 'next/server';
+import Database from 'better-sqlite3';
+import path from 'path';
+import { exec, spawn } from 'child_process';
+import { promisify } from 'util';
+import { getCurrentUser } from '@/lib/session';
+import { promises as fs } from 'fs';
+import { createBackup } from '@/lib/backup';
+import { sendErrorEmail } from '@/lib/email';
+
+const execAsync = promisify(exec);
+const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
+const unifiedAgentScript = path.join('src', 'ai_aggregator', 'agents', 'agent.py');
+
+const SUPPORTED_MODELS = ['claude', 'chatgpt', 'gemini'] as const;
+type ScriptModel = (typeof SUPPORTED_MODELS)[number];
+
+// ?�행 중인 ?�로?�스�?추적?�는 Map (로컬 참조??
+const runningProcesses = new Map<string, any>();
+
+// ?�폼 ?�롬?�트�??�일?�서 ?�어?�는 ?�수
+async function getShortFormPrompt(): Promise<string> {
+  try {
+    // frontend/prompts 경로?�서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_shortform.txt ?�는 prompt.txt 검??
+    let promptFile: string | undefined = files.find(file => file === 'prompt_shortform.txt');
+    if (!promptFile) {
+      promptFile = files.find(file => file === 'prompt.txt');
+    }
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('???�폼 ?�롬?�트 ?�일 ?�기 ?�료:', promptFile);
+      return content;
+    }
+
+    // ?�일???�으�?기본 ?�롬?�트 반환
+    console.warn('?�️ ?�폼 ?�롬?�트 ?�일??찾을 ???�어 기본 ?�롬?�트 ?�용');
+    return `?�신?� ?�튜�??�츠 ?�상 ?��??��??�니??
+
+?�음 ?�목???�??1�??�내??짧고 ?�팩???�는 ?�상 ?�본을 즉시 ?�성?�주?�요.
+
+?�목: {title}
+
+중요: 질문?��? 말고, 바로 ?�본을 ?�성?�주?�요. 추�? ?�보 ?�청 ?�이 ?�목만으�??�성???�본을 만들?�주?�요.
+
+?��??�성 가?�드:
+1. �?3�??�에 ?�청?�의 관?�을 ?????�는 ??Hook) 문장?�로 ?�작
+2. ?�심 메시지�?명확?�고 간결?�게 ?�달
+3. 구어체�? ?�용?�여 친근?�게 ?�성
+4. ?�청?�에�??�동???�도?�는 CTA(Call To Action)�?마무�?
+5. ??200-300???�도??분량?�로 ?�성
+
+지�?바로 ?�본만 ?�성?�주?�요:`;
+  } catch (error) {
+    console.error('???�폼 ?�롬?�트 ?�일 ?�기 ?�패:', error);
+    throw error;
+  }
+}
+
+// 롱폼 ?�롬?�트�??�일?�서 ?�어?�는 ?�수
+async function getLongFormPrompt(): Promise<string> {
+  try {
+    // frontend/prompts 경로?�서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_longform.txt ?�선 검??
+    let promptFile = files.find(file => file === 'prompt_longform.txt');
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('??롱폼 ?�롬?�트 ?�일 ?�기 ?�료:', promptFile);
+      return content;
+    }
+
+    // ?�일???�으�?기본 ?�롬?�트 반환
+    console.warn('?�️ ?�롬?�트 ?�일??찾을 ???�어 기본 ?�롬?�트 ?�용');
+    return `?�신?� ?�튜�??�츠 ?�상 ?��??��??�니??
+
+?�음 ?�목???�??1�??�내??짧고 ?�팩???�는 ?�상 ?�본을 즉시 ?�성?�주?�요.
+
+?�목: {title}
+
+중요: 질문?��? 말고, 바로 ?�본을 ?�성?�주?�요. 추�? ?�보 ?�청 ?�이 ?�목만으�??�성???�본을 만들?�주?�요.
+
+?��??�성 가?�드:
+1. �?3�??�에 ?�청?�의 관?�을 ?????�는 ??Hook) 문장?�로 ?�작
+2. ?�심 메시지�?명확?�고 간결?�게 ?�달
+3. 구어체�? ?�용?�여 친근?�게 ?�성
+4. ?�청?�에�??�동???�도?�는 CTA(Call To Action)�?마무�?
+5. ??200-300???�도??분량?�로 ?�성
+
+지�?바로 ?�본만 ?�성?�주?�요:`;
+  } catch (error) {
+    console.error('???�롬?�트 ?�일 ?�기 ?�패:', error);
+    throw error;
+  }
+}
+
+// SORA2 ?�롬?�트�??�일?�서 ?�어?�는 ?�수
+async function getSora2Prompt(): Promise<string> {
+  try {
+    // frontend/prompts 경로?�서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_sora2.txt 검??
+    let promptFile = files.find(file => file === 'prompt_sora2.txt');
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('??SORA2 ?�롬?�트 ?�일 ?�기 ?�료:', promptFile);
+      return content;
+    }
+
+    // ?�일???�으�?기본 SORA2 ?�롬?�트 반환
+    console.warn('?�️ SORA2 ?�롬?�트 ?�일??찾을 ???�어 기본 ?�롬?�트 ?�용');
+    return `?�신?� SORA2 AI 비디???�성???�한 ?�롬?�트 ?�성 ?�문가?�니??
+
+?�음 ?�목???�??SORA2 ?�상 ?�성???�롬?�트�??�성?�주?�요.
+
+?�목: {title}
+
+중요: 질문?��? 말고, 바로 ?�롬?�트�??�성?�주?�요. 추�? ?�보 ?�청 ?�이 ?�목만으�??�성???�롬?�트�?만들?�주?�요.
+
+SORA2 ?�롬?�트 ?�성 가?�드:
+1. ?�각???�소�?구체?�으�?묘사 (?�면, ?�감, 조명, 카메???�직임)
+2. 8�?길이???�합???�일 ?�면 ?�는 매끄?�운 ?�환
+3. ?�어�??�성 (SORA2???�어 ?�롬?�트�??�호)
+4. 감정�?분위기�? 명확?�게 ?�현
+5. 100-200 ?�어 ?�도???�세??묘사
+
+?�시 ?�식:
+"A cinematic shot of [주요 주제], [?�각???�테??, [조명�??�감], [카메???�직임], [분위기�? 감정]"
+
+지�?바로 SORA2 ?�롬?�트�??�성?�주?�요:`;
+  } catch (error) {
+    console.error('??SORA2 ?�롬?�트 ?�일 ?�기 ?�패:', error);
+    throw error;
+  }
+}
+
+// ?�품 ?�롬?�트�??�일?�서 ?�어?�는 ?�수
+async function getProductPrompt(): Promise<string> {
+  try {
+    // frontend/prompts 경로?�서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_product.txt 검??
+    let promptFile = files.find(file => file === 'prompt_product.txt');
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('???�품 ?�롬?�트 ?�일 ?�기 ?�료:', promptFile);
+      return content;
+    }
+
+    // ?�일???�으�?기본 ?�품 ?�롬?�트 반환
+    console.warn('?�️ ?�품 ?�롬?�트 ?�일??찾을 ???�어 기본 ?�롬?�트 ?�용');
+    return `?�신?� ?�품 마�????�상 ?��??�성 ?�문가?�니??
+
+?�음 ?�품 ?�보�?바탕?�로 ?�네마틱 ?�품 ?�개 ?�상 ?�본을 ?�성?�주?�요.
+
+?�� ?�품 ?�보:
+- ?�목: {title}
+- ?�네?? {thumbnail}
+- ?�품링크: {product_link}
+- ?�품?�세: {product_description}
+
+중요: 질문?��? 말고, 바로 ?�본을 ?�성?�주?�요.
+
+지�?바로 ?�품 ?�상 ?�본을 JSON ?�식?�로 ?�성?�주?�요.`;
+  } catch (error) {
+    console.error('???�품 ?�롬?�트 ?�일 ?�기 ?�패:', error);
+    throw error;
+  }
+}
+
+// 로그 추�? ?�퍼 ?�수
+function addLog(taskId: string, message: string) {
+        addLog(taskId, `Model: ${selectedModel.toUpperCase()}`);
+
+  try {
+    const db = new Database(dbPath);
+
+    // ?�재 로그 가?�오�?
+    const row: any = db.prepare('SELECT logs FROM scripts_temp WHERE id = ?').get(taskId);
+    const logs = row?.logs ? JSON.parse(row.logs) : [];
+
+    // ??로그 추�?
+    const newLog = {
+      timestamp: new Date().toISOString(),
+      message
+    };
+    logs.push(newLog);
+
+    // ?�데?�트
+    db.prepare('UPDATE scripts_temp SET logs = ? WHERE id = ?').run(JSON.stringify(logs), taskId);
+    db.close();
+
+    // ?�버�? 로그가 ?��?�?추�??�었?��? ?�인
+    console.log(`[LOG ${taskId}] ${message}`);
+  } catch (error) {
+    console.error('Failed to add log:', error);
+    console.error('TaskId:', taskId);
+    console.error('Message:', message);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // ?�용???�증 ?�인
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: '로그?�이 ?�요?�니??' },
+        { status: 401 }
+      );
+    }
+
+    // ?��??�성 ???�동 백업 (�?10번째 ?�청마다)
+    if (Math.random() < 0.1) { // 10% ?�률
+      try {
+        await createBackup('auto_before_script');
+        console.log('???�동 백업 ?�료');
+      } catch (error) {
+        console.error('?�️ ?�동 백업 ?�패 (무시?�고 진행):', error);
+      }
+    }
+
+    const body = await request.json();
+    const { title, type, videoFormat, useClaudeLocal, productInfo, model } = body;
+
+    let selectedModel: ScriptModel = 'claude';
+    if (typeof model === 'string') {
+      const normalizedModel = model.trim().toLowerCase();
+      if (normalizedModel) {
+        if ((SUPPORTED_MODELS as readonly string[]).includes(normalizedModel)) {
+          selectedModel = normalizedModel as ScriptModel;
+        } else {
+          return NextResponse.json(
+            { error: `Unsupported model. Available options: ${SUPPORTED_MODELS.join(', ')}` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    console.log('Selected AI model:', selectedModel);
+    const modelDisplay = selectedModel === 'claude' ? 'Claude' : selectedModel === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+
+    if (!title || typeof title !== 'string') {
+      return NextResponse.json(
+        { error: 'Title is required' },
+        { status: 400 }
+      );
+    }
+
+    // type ?�는 videoFormat?�서 ?�크립트 ?�??결정
+    // ?�력: 'longform', 'shortform', 'sora2', 'product' (?�일???�식)
+    const inputType = type || videoFormat || 'longform';
+
+    console.log(`?�� useClaudeLocal: ${useClaudeLocal} (?�?? ${typeof useClaudeLocal})`);
+
+    // ?��? 처리???�??(?�롬?�트 ?�택??
+    let scriptType: 'longform' | 'shortform' | 'sora2' | 'product' = 'longform';
+    if (inputType === 'sora2') {
+      scriptType = 'sora2';
+    } else if (inputType === 'shortform') {
+      scriptType = 'shortform';
+    } else if (inputType === 'product') {
+      scriptType = 'product';
+      console.log('?�✅???�품 ?�??감�??? ?�✅??);
+    } else if (inputType === 'longform') {
+      scriptType = 'longform';
+    }
+
+    console.log(`?�� ?��??�?? ${scriptType} (?�력: ${inputType})`);
+
+    const db = new Database(dbPath);
+
+    // scripts_temp ?�이�??�성 (admin/titles ?�이지??
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS scripts_temp (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        status TEXT DEFAULT 'PENDING',
+        message TEXT,
+        createdAt TEXT NOT NULL,
+        scriptId TEXT,
+        type TEXT,
+        pid INTEGER,
+        logs TEXT DEFAULT '[]'
+      )
+    `);
+
+    // type, pid 컬럼???�으�?추�? (기존 ?�이??보존)
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN type TEXT`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp type 컬럼 추�? ?�패:', e);
+      }
+    }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN pid INTEGER`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp pid 컬럼 추�? ?�패:', e);
+      }
+    }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN useClaudeLocal INTEGER DEFAULT 1`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp useClaudeLocal 컬럼 추�? ?�패:', e);
+      }
+    }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN originalTitle TEXT`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp originalTitle 컬럼 추�? ?�패:', e);
+      }
+    }
+
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN model TEXT DEFAULT 'claude'`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('scripts_temp model 컬럼 추�? ?�패:', e);
+      }
+    }
+
+    // ???�크립트 ?�업 ?�성
+    const taskId = `task_${Date.now()}`;
+    const createdAt = new Date().toISOString();
+
+    const insert = db.prepare(`
+      INSERT INTO scripts_temp (id, title, originalTitle, status, message, createdAt, type, useClaudeLocal, model)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // scriptType??그�?�??�??(?��? 'longform', 'shortform', 'sora2' ?�식)
+    insert.run(taskId, title, title, 'PENDING', '?��??�성 ?��?�?..', createdAt, scriptType, useClaudeLocal ? 1 : 0, selectedModel);
+
+    db.close();
+
+    // 백그?�운?�에???��??�성 ?�행
+    // ?�?�에 ?�라 ?�른 ?�롬?�트 ?�용
+    let prompt: string;
+    if (scriptType === 'shortform') {
+      // ?�폼: ?�일?�서 ?�어??짧�? ?�롬?�트 ?�용 (빠름)
+      const shortFormPromptTemplate = await getShortFormPrompt();
+      prompt = shortFormPromptTemplate.replace(/{title}/g, title);
+      console.log('???�폼 ?�롬?�트 ?�용');
+    } else if (scriptType === 'sora2') {
+      // SORA2: SORA2 ?�용 ?�롬?�트 ?�용
+      const sora2PromptTemplate = await getSora2Prompt();
+      prompt = sora2PromptTemplate.replace(/{title}/g, title);
+      console.log('??SORA2 ?�롬?�트 ?�용');
+    } else if (scriptType === 'product') {
+      // ?�품: ?�품 ?�용 ?�롬?�트 ?�용
+      const productPromptTemplate = await getProductPrompt();
+      prompt = productPromptTemplate
+        .replace(/{title}/g, productInfo?.title || title)
+        .replace(/{thumbnail}/g, productInfo?.thumbnail || '')
+        .replace(/{product_link}/g, productInfo?.product_link || '')
+        .replace(/{product_description}/g, productInfo?.description || '');
+      console.log('?�✅???�품 ?�롬?�트 ?�용! ?�✅??);
+      console.log('?�� ?�품 ?�보:', {
+        title: productInfo?.title || title,
+        thumbnail: productInfo?.thumbnail ? '?�음' : '?�음',
+        link: productInfo?.product_link ? '?�음' : '?�음',
+        description: productInfo?.description ? `${productInfo.description.substring(0, 50)}...` : '?�음'
+      });
+    } else {
+      // 롱폼: ?�일?�서 ?�어???�세 ?�롬?�트 ?�용
+      const longFormPromptTemplate = await getLongFormPrompt();
+      prompt = longFormPromptTemplate.replace(/{title}/g, title);  // ?�역 치환 (?�러 �??�을 ???�음)
+      console.log('??롱폼 ?�롬?�트 ?�용');
+    }
+
+    const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+
+    // ?�롬?�트 ?�용 ?�인 로그
+    console.log('\n' + '='.repeat(80));
+    console.log('?�� ?�성???�롬?�트 ?�용:');
+    console.log('  ?�??', scriptType === 'shortform' ? '???�폼' : scriptType === 'sora2' ? '?�� SORA2' : scriptType === 'product' ? '?���??�품' : '?�� 롱폼');
+    console.log('  ?�목:', title);
+    console.log('  ?�롬?�트 길이:', prompt.length, '??);
+    console.log('  ?�롬?�트 미리보기:', prompt.substring(0, 200) + '...');
+    console.log('  ?�목 ?�함 ?��?:', prompt.includes(title) ? '???�함?? : '??미포??);
+    console.log('='.repeat(80) + '\n');
+
+    // userId�??�로?�???�??
+    const userId = user.userId;
+
+    // 비동기로 ?�행
+    setTimeout(async () => {
+      let stdout = '';
+      let stderr = '';
+      let promptFileName = '';
+      let promptFilePath = '';
+      try {
+        addLog(taskId, '?�업 ?�작??);
+
+        const db2 = new Database(dbPath);
+
+        // ?�태�?ING�??�데?�트
+        const message = scriptType === 'shortform'
+          ? `??${modelDisplay}가 ?�폼 ?�본을 ?�성?�고 ?�습?�다...`
+          : scriptType === 'sora2'
+          ? `?�� ${modelDisplay}가 SORA2 ?�롬?�트�??�성?�고 ?�습?�다...`
+          : scriptType === 'product'
+          ? `?���?${modelDisplay}가 ?�품 ?�상 ?�본을 ?�성?�고 ?�습?�다...`
+          : `?�� ${modelDisplay}가 롱폼 ?�본을 ?�성?�고 ?�습?�다...`;
+        db2.prepare(`
+          UPDATE scripts_temp
+          SET status = ?, message = ?
+          WHERE id = ?
+        `).run('ING', message, taskId);
+
+        db2.close();
+
+        // ?�롬?�트�??�시 ?�일�??�??(명령�?길이 ?�한 �??�수문자 문제 ?�피)
+        promptFileName = `prompt_${Date.now()}.txt`;
+        promptFilePath = path.join(backendPath, promptFileName);
+
+        const fsSync = require('fs');
+        fsSync.writeFileSync(promptFilePath, prompt, 'utf-8');
+        addLog(taskId, `?�롬?�트 ?�일 ?�성: ${promptFileName}`);
+        const typeEmoji = scriptType === 'shortform' ? '?? : scriptType === 'sora2' ? '?��' : scriptType === 'product' ? '?���? : '?��';
+        const typeName = scriptType === 'shortform' ? '?�폼' : scriptType === 'sora2' ? 'SORA2' : scriptType === 'product' ? '?�품' : '롱폼';
+        addLog(taskId, `${typeEmoji} ?�?? ${typeName}`);
+        addLog(taskId, `?�� ?�목: "${title}"`);
+        addLog(taskId, `?�� ?�롬?�트 길이: ${prompt.length}??);
+        addLog(taskId, `???�롬?�트???�목 ?�함: ${prompt.includes(title) ? 'Yes' : 'No'}`);
+
+        // ?�행??명령??구성 (backend??ai_aggregator 모듈 ?�용)
+        // headless ?�거: 로그???�요 ??브라?��?가 ?�시?�어????
+        const pythonArgs = [unifiedAgentScript, '-f', promptFileName, '-a', selectedModel, '--auto-close'];
+        const commandStr = `python ${pythonArgs.join(' ')}`;
+
+        addLog(taskId, '?�� Python ?�크립트 ?�행 ?�작');
+        addLog(taskId, `?�� ?�행 명령?? ${commandStr}`);
+        addLog(taskId, `Checking response directory: ${backendPath}`)
+
+        let scriptContent = '';
+        if (aiResponseFiles.length > 0) {
+          addLog(taskId, `Response file found: ${aiResponseFiles[0].name}`);
+          const fullContent = fs.readFileSync(aiResponseFiles[0].path, 'utf-8');
+
+          const sectionRegex = new RegExp(`--- ${modelDisplay} ---\s+([\s\S]*?)(?=\n-{80}|\n--- |$)`);
+          const modelResponseMatch = fullContent.match(sectionRegex);
+          if (modelResponseMatch && modelResponseMatch[1]) {
+            scriptContent = modelResponseMatch[1].trim();
+            addLog(taskId, `${modelDisplay} section extracted (${scriptContent.length} chars)`);
+          } else {
+            scriptContent = fullContent;
+            addLog(taskId, `Falling back to full response (${scriptContent.length} chars)`);
+          }
+        } else {
+          addLog(taskId, 'Warning: response file not found.');
+        }
+
+
+        // SORA2 ?�식??경우 JSON ?�리
+        if (scriptType === 'sora2' && scriptContent) {
+          addLog(taskId, '?�� SORA2 JSON ?�리 �?..');
+          console.log('?�� SORA2 JSON ?�리 ?�작 - ?�본 길이:', scriptContent.length);
+
+          // 1. 코드?�스 ?�거 (```json ?�는 ```)
+          let cleanedContent = scriptContent.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+          // 2. �?번째 { 찾기 �?마�?�?} 찾기
+          const jsonStart = cleanedContent.indexOf('{');
+          const jsonEnd = cleanedContent.lastIndexOf('}');
+
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            // { ?�전�?} ?�후???�스???�거
+            cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
+            addLog(taskId, `??JSON 추출 ?�료 (${cleanedContent.length}??`);
+            console.log('??JSON 추출 ?�료:', cleanedContent.substring(0, 200) + '...');
+
+            // 3. JSON ?�효??검�?�??�맷??
+            try {
+              const parsed = JSON.parse(cleanedContent);
+              addLog(taskId, '??JSON ?�싱 ?�공');
+              console.log('??JSON ?�싱 ?�공 - 객체 ??', Object.keys(parsed).join(', '));
+
+              // 4. JSON ?�맷??(?�쁘�??�리)
+              scriptContent = JSON.stringify(parsed, null, 2);
+              addLog(taskId, '??JSON ?�맷???�료');
+              console.log('??JSON ?�맷???�료 - 최종 길이:', scriptContent.length);
+            } catch (jsonError: any) {
+              addLog(taskId, `?�️ JSON ?�싱 ?�패: ${jsonError.message}`);
+              console.error('??JSON ?�싱 ?�패:', jsonError);
+              console.log('?�싱 ?�도???�용 (처음 500??:', cleanedContent.substring(0, 500));
+              // ?�싱 ?�패?�도 ?�리???�용 ?�용
+              scriptContent = cleanedContent;
+            }
+          } else {
+            addLog(taskId, '?�️ JSON 구조�?찾을 ???�음 (?�본 ?�용)');
+            console.warn('?�️ JSON 구조�?찾을 ???�음');
+          }
+        }
+
+        addLog(taskId, '?�� contents ?�이블에 ?�??�?..');
+
+        // contents ?�이블에 ?�??(?�합 Content ?�스??
+        const { createContent } = require('@/lib/content');
+
+        try {
+          const content = createContent(
+            userId,
+            'script',
+            title,
+            {
+              format: scriptType as 'longform' | 'shortform' | 'sora2' | 'product',
+              originalTitle: title,
+              content: scriptContent,
+              useClaudeLocal: useClaudeLocal
+            }
+          );
+
+          const contentId = content.id;
+          addLog(taskId, `??contents ?�이�??�???�료! (ID: ${contentId})`);
+          addLog(taskId, '?�� 모든 ?�업 ?�료!');
+          console.log(`??${modelDisplay} ?�본이 contents ?�이블에 ?�?�됨:`, {
+            contentId,
+            userId,
+            title,
+            format: scriptType,
+            contentLength: scriptContent.length
+          });
+
+          // ?�시 scripts ?�태 ?�이�??�데?�트 (admin/titles ?�이지??
+          const db4 = new Database(dbPath);
+
+          // ?�시 ?�이블이 ?�으�??�데?�트 (?�으�?무시)
+          try {
+            db4.prepare(`
+              UPDATE scripts_temp
+              SET status = ?, message = ?, scriptId = ?
+              WHERE id = ?
+            `).run('DONE', '?��??�성 ?�료!', contentId, taskId);
+          } catch (e) {
+            // ?�이블이 ?�으�?무시
+          }
+
+          db4.close();
+        } catch (saveError: any) {
+          console.error('??contents ?�???�패:', saveError);
+          addLog(taskId, `???�???�패: ${saveError.message}`);
+          throw saveError;
+        }
+      } catch (error: any) {
+        console.error('Error generating script:', error);
+
+        const errorMsg = error.message || error.toString() || '';
+        const isLoginError = errorMsg.includes('login') ||
+                            errorMsg.includes('Login') ||
+                            errorMsg.includes('session expired') ||
+                            stdout.includes('Login page detected') ||
+                            stdout.includes('login required');
+
+        // 로그???�러 감�? ???�내 메시지
+        if (isLoginError) {
+          addLog(taskId, '?�� 로그???�요 감�?!');
+        addLog(taskId, `?�️ 브라?��? 창에??${modelDisplay}??로그?�해주세??);
+          addLog(taskId, '?�� 로그???�에???�동?�로 처리?�니??);
+          console.log(`\n${'='.repeat(80)}`);
+          console.log('?�� 로그???�요 - ?�용?��? 브라?��??�서 로그?�해????);
+          console.log(`${'='.repeat(80)}\n`);
+
+          try {
+            // headful 모드�??�실??(브라?��? �??�시)
+            const pythonArgsHeadful = [unifiedAgentScript, '-f', promptFileName, '-a', selectedModel, '--auto-close'];
+            const commandStrHeadful = `python ${pythonArgsHeadful.join(' ')}`;
+
+            addLog(taskId, '?�� ??CMD 창이 ?�립?�다 - 브라?��??�서 로그?�하?�요!');
+            addLog(taskId, `?�� ?�실??명령?? ${commandStrHeadful}`);
+            addLog(taskId, '??로그?????�동?�로 ?��??�성??계속?�니??..');
+            addLog(taskId, '?�� 로그?��? ??번만 ?�면 ?�니?? ?�음부?�는 ?�동?�로 로그?�됩?�다.');
+
+            // Windows: ??CMD 창에???�행 (로그??UI ?�시)
+            const startCmd = `start "${modelDisplay} ?��??�성 - 로그???�요" cmd /k "cd /d ${backendPath} && python ${pythonArgsHeadful.join(' ')}"`;
+            const pythonProcessRetry = spawn('cmd', ['/c', startCmd], {
+              detached: true,
+              stdio: 'ignore',
+              env: {
+                ...process.env,
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUNBUFFERED: '1'
+              },
+              shell: true
+            });
+            pythonProcessRetry.unref();
+
+            addLog(taskId, '????CMD 창이 ?�렸?�니??);
+            addLog(taskId, '?���?브라?��?가 ?�시?�며, 로그?�이 ?�요?�면 ?�동?�로 진행?�주?�요');
+            addLog(taskId, '?�️ 로그???�료 ???�동?�로 ?�본이 ?�성?�니??);
+            addLog(taskId, '?�� ?�성???�본�? ?�동?�로 ?�?�됩?�다');
+
+            // ?�로?�스 ?�료�?기다리�? ?�고 즉시 반환 (detached 모드)
+            // ?�용?�는 CMD 창에??진행 ?�황???�인?????�음
+            // ?�본이 ?�성?�면 ?�동?�로 ?�?�되�? ?�용?�는 "??콘텐�??�서 ?�인 가??
+            const db4 = new Database(dbPath);
+            db4.prepare(`
+              UPDATE scripts_temp SET status = ?, message = ? WHERE id = ?
+            `).run('WAITING_LOGIN', '로그???�요 - ??창에??로그?????�동 진행??, taskId);
+            db4.close();
+
+            return;
+          } catch (retryError: any) {
+            console.error('Headful ?�시???�패:', retryError);
+            addLog(taskId, `???�시???�패: ${retryError.message}`);
+            // ?�시?�도 ?�패?�면 ?�래 ?�러 처리 계속
+          }
+        }
+
+        addLog(taskId, `???�류 발생: ${errorMsg}`);
+
+        // ?�러 발생 ???�메???�송
+        try {
+          await sendErrorEmail({
+            taskId,
+            title,
+            errorMessage: errorMsg,
+            stdout: stdout || '(출력 ?�음)',
+            stderr: stderr || '(출력 ?�음)',
+            timestamp: new Date().toISOString(),
+          });
+          console.log('???�러 ?�림 ?�메???�송 ?�료');
+        } catch (emailError) {
+          console.error('???�러 ?�메???�송 ?�패:', emailError);
+        }
+
+        // ?�러 발생 ?�에???�롬?�트 ?�일 ?�리
+        try {
+          const fsSync = require('fs');
+          if (promptFilePath && fsSync.existsSync(promptFilePath)) {
+            fsSync.unlinkSync(promptFilePath);
+            console.log('?�롬?�트 ?�일 ?�리 ?�료 (?�러 ??');
+          }
+        } catch (e) {
+          console.error('?�롬?�트 ?�일 ??�� ?�패:', e);
+        }
+
+        const db5 = new Database(dbPath);
+        db5.prepare(`
+          UPDATE scripts_temp
+          SET status = ?, message = ?
+          WHERE id = ?
+        `).run('ERROR', `?�류: ${error.message}`, taskId);
+
+        db5.close();
+      }
+    }, 100);
+
+    return NextResponse.json({
+      success: true,
+      taskId,
+      message: '?��??�성???�작?�었?�니??
+    });
+  } catch (error: any) {
+    console.error('Error creating script task:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to create script task' },
+      { status: 500 }
+    );
+  }
+}

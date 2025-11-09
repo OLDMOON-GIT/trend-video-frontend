@@ -1,0 +1,7 @@
+﻿from pathlib import Path
+path = Path("src/app/api/scripts/generate/route.ts")
+text = path.read_text(encoding="utf-8")
+start = text.index("async function getSora2Prompt()")
+end = text.index("async function getProductPrompt()", start)
+new_func = "async function getSora2Prompt(): Promise<string> {\n  try {\n    const promptsPath = path.join(process.cwd(), 'prompts');\n    const files = await fs.readdir(promptsPath);\n    const promptFile = files.find(file => file === 'prompt_sora2.txt');\n    if (promptFile) {\n      const filePath = path.join(promptsPath, promptFile);\n      const content = await fs.readFile(filePath, 'utf-8');\n      console.log('✅ SORA2 프롬프트 파일 읽기 완료:', promptFile);\n      return content;\n    }\n    console.warn('⚠️ SORA2 프롬프트 파일을 찾을 수 없어 기본 프롬프트 사용');\n    return `You are a SORA2 video prompt specialist.\n\nPlease craft a cinematic prompt for the following title:\nTitle: {title}\n\nGuidelines:\n1. Describe the scene, lighting, colors, and key details vividly.\n2. Keep it as one smooth 8-second shot.\n3. Write in English with a cinematic tone.\n4. Mention camera movement and atmosphere clearly.\n5. Limit the prompt to roughly 120-150 words.\n\nExample format:\n\"A cinematic shot of [subject], [visual detail], [lighting and color], [camera move], [mood and emotion].\"\n\nReturn only the final SORA2 prompt.`;\n  } catch (error) {\n    console.error('❌ SORA2 프롬프트 파일 읽기 실패:', error);\n    throw error;\n  }\n}\n\n"\ntext = text[:start] + new_func + text[end:]
+path.write_text(text, encoding="utf-8")

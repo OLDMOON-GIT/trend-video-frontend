@@ -137,6 +137,7 @@ export default function MyContentPage() {
   const scriptContentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scriptLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scriptLastLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [formattingScriptIds, setFormattingScriptIds] = useState<Set<string>>(() => new Set());
 
   // Scripts pagination
   const [scriptsOffset, setScriptsOffset] = useState(0);
@@ -1136,6 +1137,184 @@ export default function MyContentPage() {
   }, []);
 
   // 이미지크롤링 핸들러 (Python 자동화)
+  const isScriptFormatting = (scriptId: string) => formattingScriptIds.has(scriptId);
+
+  const updateFormattingState = (scriptId: string, isProcessing: boolean) => {
+    setFormattingScriptIds(prev => {
+      const next = new Set(prev);
+      if (isProcessing) {
+        next.add(scriptId);
+      } else {
+        next.delete(scriptId);
+      }
+      return next;
+    });
+  };
+
+
+  const tryFormatScriptLocally = (rawContent: string): { formatted: string; scriptJson: any } | null => {
+    try {
+      if (!rawContent || rawContent.trim().length === 0) {
+        return null;
+      }
+
+      const normalizeContent = (content: string) => {
+        let cleaned = content
+          .replace(/^```json\s*/i, '')
+          .replace(/\s*```\s*$/i, '')
+          .trim();
+
+        const jsonStart = cleaned.indexOf('{');
+        if (jsonStart > 0) {
+          console.log('⚠️ JSON 시작 전 텍스트 발견, 제거 중...', jsonStart);
+          cleaned = cleaned.substring(jsonStart);
+        }
+        return cleaned;
+      };
+
+      let content = normalizeContent(rawContent);
+      let scriptJson: any;
+
+      try {
+        scriptJson = JSON.parse(content);
+        console.log('✅ JSON 파싱 성공 (로컬 포맷팅)');
+      } catch (firstError) {
+        console.warn('⚠️ JSON 파싱 실패, 자동 수정 시도 중...', firstError);
+        try {
+          let fixed = content;
+
+          // ```json 같은 코드 블록 마커 제거
+          fixed = fixed.replace(/^[\s\S]*?```json\s*/i, '');
+          fixed = fixed.replace(/^[\s\S]*?```\s*/i, '');
+
+          const titleMatch = fixed.match(/\{\s*"title"/);
+          if (titleMatch && typeof titleMatch.index !== 'undefined' && titleMatch.index > 0) {
+            fixed = fixed.substring(titleMatch.index);
+            console.log('✅ {"title" 패턴으로 JSON 시작점 발견 (위치:', titleMatch.index, ')');
+          } else {
+            const firstBrace = fixed.indexOf('{');
+            if (firstBrace > 0) {
+              fixed = fixed.substring(firstBrace);
+              console.log('⚠️ fallback: { 로 JSON 시작 (위치:', firstBrace, ')');
+            }
+          }
+
+          const lastBrace = fixed.lastIndexOf('}');
+          if (lastBrace > 0 && lastBrace < fixed.length - 1) {
+            fixed = fixed.substring(0, lastBrace + 1);
+          }
+
+          fixed = fixed.replace(/\\"/g, '__ESC_QUOTE__');
+
+          fixed = fixed.replace(
+            /"title"\s*:\s*"([^]*?)"\s*,/g,
+            (_match, value) => {
+              const fixedValue = value.replace(/"/g, '\\"');
+              return `"title": "${fixedValue}",`;
+            }
+          );
+
+          fixed = fixed.replace(
+            /"narration"\s*:\s*"([^]*?)"\s*([,}\]])/g,
+            (_match, value, ending) => {
+              const fixedValue = value.replace(/"/g, '\\"');
+              return `"narration": "${fixedValue}"${ending}`;
+            }
+          );
+
+          fixed = fixed.replace(
+            /"image_prompt"\s*:\s*"([^]*?)"\s*,/g,
+            (_match, value) => {
+              const fixedValue = value.replace(/"/g, '\\"');
+              return `"image_prompt": "${fixedValue}",`;
+            }
+          );
+
+          fixed = fixed.replace(/__ESC_QUOTE__/g, '\\"');
+          fixed = fixed.replace(/,(\s*})/g, '$1');
+          fixed = fixed.replace(/,(\s*\])/g, '$1');
+
+          scriptJson = JSON.parse(fixed);
+          console.log('✅ JSON 자동 수정 후 파싱 성공');
+          content = fixed;
+        } catch (secondError) {
+          console.error('JSON 자동 수정 실패:', secondError);
+          return null;
+        }
+      }
+
+      const formatted = JSON.stringify(scriptJson, null, 2);
+      return { formatted, scriptJson };
+    } catch (error) {
+      console.error('로컬 JSON 포맷팅 실패:', error);
+      return null;
+    }
+  };
+
+  const formatScriptContent = async (
+    scriptId: string,
+    currentContent: string,
+    options: { showToast?: boolean } = {}
+  ): Promise<string> => {
+    const { showToast = true } = options;
+    const toastId = showToast ? `format-${scriptId}` : undefined;
+
+    updateFormattingState(scriptId, true);
+
+    if (toastId) {
+      toast.loading('JSON 포멧팅 중...', { id: toastId });
+    }
+
+    const localFormatResult = tryFormatScriptLocally(currentContent);
+    const payload: Record<string, any> = { scriptId };
+
+    if (localFormatResult?.formatted) {
+      payload.formattedContent = localFormatResult.formatted;
+    }
+
+    try {
+      const response = await fetch('/api/scripts/format', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'JSON 포멧팅에 실패했습니다.');
+      }
+
+      const formattedContent =
+        data.formattedContent || localFormatResult?.formatted || currentContent;
+
+      setScripts(prev =>
+        prev.map(script =>
+          script.id === scriptId ? { ...script, content: formattedContent } : script
+        )
+      );
+
+      if (toastId) {
+        toast.success('JSON 포맷팅 완료!', { id: toastId });
+      }
+
+      return formattedContent;
+    } catch (error) {
+      console.error('포멧팅 실패:', error);
+      if (toastId) {
+        toast.error(`포멧팅 실패: ${(error as Error).message}`, { id: toastId });
+      }
+      throw error;
+    } finally {
+      updateFormattingState(scriptId, false);
+    }
+  };
+
+
   const handleImageCrawling = async (scriptId: string, jobId?: string) => {
     try {
       // scriptId로 대본 가져오기
@@ -2221,14 +2400,15 @@ export default function MyContentPage() {
                                   🎨 이미지크롤링
                                 </button>
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
                                     console.log('🎬 [내 콘텐츠] 영상 제작 버튼 클릭됨');
                                     console.log('📝 대본 제목:', item.data.title);
 
                                     // JSON 파싱 후 메인 페이지로 이동하며 파이프라인 시작
                                     try {
                                       // 마크다운 코드 블록 제거
-                                      let content = item.data.content
+                                      const formattedContent = await formatScriptContent(item.data.id, item.data.content, { showToast: false });
+                                      let content = formattedContent
                                         .replace(/^```json\s*/i, '')
                                         .replace(/\s*```\s*$/i, '')
                                         .trim();
@@ -2283,6 +2463,19 @@ export default function MyContentPage() {
                                 >
                                   🎬 영상
                                 </button>
+                                <button
+                                  onClick={() => formatScriptContent(item.data.id, item.data.content)}
+                                  disabled={isScriptFormatting(item.data.id)}
+                                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition whitespace-nowrap ${
+                                    isScriptFormatting(item.data.id)
+                                      ? 'bg-pink-600/60 cursor-not-allowed'
+                                      : 'bg-pink-600 hover:bg-pink-500 cursor-pointer'
+                                  }`}
+                                  title="JSON 포멧팅"
+                                >
+                                  {isScriptFormatting(item.data.id) ? '포멧팅 중...' : '포멧팅'}
+                                </button>
+
                                 <button
                                   onClick={() => handleCopyScript(item.data.content, item.data.title)}
                                   className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
@@ -2871,14 +3064,15 @@ export default function MyContentPage() {
                               🎨 이미지크롤링
                             </button>
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 console.log('🎬 [대본 탭] 영상 제작 버튼 클릭됨');
                                 console.log('📝 대본 제목:', script.title);
 
                                 // JSON 파싱 후 메인 페이지로 이동하며 파이프라인 시작
                                 try {
                                   // 마크다운 코드 블록 제거
-                                  let content = script.content
+                                  const formattedContent = await formatScriptContent(script.id, script.content, { showToast: false });
+                                  let content = formattedContent
                                     .replace(/^```json\s*/i, '')
                                     .replace(/\s*```\s*$/i, '')
                                     .trim();
@@ -3002,6 +3196,19 @@ export default function MyContentPage() {
                             >
                               🎬 영상
                             </button>
+                            <button
+                              onClick={() => formatScriptContent(script.id, script.content)}
+                              disabled={isScriptFormatting(script.id)}
+                              className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition whitespace-nowrap ${
+                                isScriptFormatting(script.id)
+                                  ? 'bg-pink-600/60 cursor-not-allowed'
+                                  : 'bg-pink-600 hover:bg-pink-500 cursor-pointer'
+                              }`}
+                              title="JSON 포멧팅"
+                            >
+                              {isScriptFormatting(script.id) ? '포멧팅 중...' : '포멧팅'}
+                            </button>
+
                             <button
                               onClick={() => handleCopyScript(script.content, script.title)}
                               className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"

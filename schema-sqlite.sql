@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
+  nickname TEXT,
   is_admin INTEGER DEFAULT 0,
   credits INTEGER DEFAULT 0,
   is_email_verified INTEGER DEFAULT 0,
@@ -219,6 +220,75 @@ CREATE TABLE IF NOT EXISTS youtube_uploads (
 CREATE INDEX IF NOT EXISTS idx_youtube_uploads_user_id ON youtube_uploads(user_id);
 CREATE INDEX IF NOT EXISTS idx_youtube_uploads_video_id ON youtube_uploads(video_id);
 CREATE INDEX IF NOT EXISTS idx_youtube_uploads_published_at ON youtube_uploads(published_at);
+
+-- Chinese converter jobs table
+CREATE TABLE IF NOT EXISTS chinese_converter_jobs (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT,
+  status TEXT DEFAULT 'pending',
+  progress INTEGER DEFAULT 0,
+  video_path TEXT,
+  output_path TEXT,
+  error TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_chinese_converter_jobs_user_id ON chinese_converter_jobs(user_id);
+CREATE INDEX IF NOT EXISTS idx_chinese_converter_jobs_status ON chinese_converter_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_chinese_converter_jobs_created_at ON chinese_converter_jobs(created_at);
+
+-- Chinese converter job logs table
+CREATE TABLE IF NOT EXISTS chinese_converter_job_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id TEXT NOT NULL,
+  log_message TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (job_id) REFERENCES chinese_converter_jobs(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_chinese_converter_job_logs_job_id ON chinese_converter_job_logs(job_id);
+
+-- Crawl link history table (링크 모음 크롤링 최근 기록)
+CREATE TABLE IF NOT EXISTS crawl_link_history (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  hostname TEXT,
+  last_result_count INTEGER DEFAULT 0,
+  last_duplicate_count INTEGER DEFAULT 0,
+  last_error_count INTEGER DEFAULT 0,
+  last_total_links INTEGER DEFAULT 0,
+  last_status TEXT DEFAULT 'pending',
+  last_message TEXT,
+  last_job_id TEXT,
+  last_crawled_at TEXT DEFAULT (datetime('now')),
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crawl_link_history_user_source ON crawl_link_history(user_id, source_url);
+CREATE INDEX IF NOT EXISTS idx_crawl_link_history_last_crawled ON crawl_link_history(last_crawled_at);
+
+-- Shop versions table (Google Sites 배포 스냅샷 기록)
+CREATE TABLE IF NOT EXISTS shop_versions (
+  id TEXT PRIMARY KEY,
+  version_number INTEGER,
+  name TEXT,
+  description TEXT,
+  data TEXT NOT NULL,
+  total_products INTEGER DEFAULT 0,
+  is_published INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  published_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_shop_versions_created_at ON shop_versions(created_at);
+CREATE INDEX IF NOT EXISTS idx_shop_versions_published ON shop_versions(is_published, published_at);
 
 -- Insert default settings if not exists
 INSERT OR IGNORE INTO settings (id, ai_script_cost, video_generation_cost)

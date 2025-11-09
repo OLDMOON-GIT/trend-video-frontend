@@ -43,6 +43,7 @@ export interface User {
   email: string;
   password: string; // 해시된 비밀번호
   name: string; // 이름 (필수)
+  nickname?: string; // 별명 (선택)
   phone: string; // 핸드폰번호 (필수)
   address: string; // 주소 (필수)
   kakaoId?: string; // 카카오톡 ID (선택)
@@ -68,7 +69,7 @@ export interface Job {
   createdAt: string;
   updatedAt: string;
   title?: string;
-  type?: 'longform' | 'shortform' | 'sora2';
+  type?: 'longform' | 'shortform' | 'sora2' | 'product';
 }
 
 // 대본 타입
@@ -88,8 +89,9 @@ export interface Script {
   };
   createdAt: string;
   updatedAt: string;
-  type?: 'longform' | 'shortform' | 'sora2'; // 대본 타입
+  type?: 'longform' | 'shortform' | 'sora2' | 'product'; // 대본 타입
   useClaudeLocal?: boolean; // 로컬 Claude 사용 여부 (true: 로컬, false/undefined: API)
+  model?: string;
 }
 
 // 비밀번호 해시
@@ -122,6 +124,7 @@ export async function createUser(
   email: string,
   password: string,
   name: string,
+  nickname: string | undefined,
   phone: string,
   address: string,
   kakaoId?: string
@@ -144,6 +147,7 @@ export async function createUser(
     email,
     password: hashPassword(password),
     name,
+    nickname: nickname?.trim() || undefined,
     phone,
     address,
     kakaoId,
@@ -158,6 +162,11 @@ export async function createUser(
   await saveUsers(users);
 
   return user;
+}
+
+export async function findUserById(userId: string): Promise<User | null> {
+  const users = await getUsers();
+  return users.find(u => u.id === userId) || null;
 }
 
 // 이메일 인증
@@ -896,16 +905,20 @@ export async function createScript(
   title: string,
   content: string = '', // 초기에는 빈 문자열
   tokenUsage?: { input_tokens: number; output_tokens: number },
-  originalTitle?: string // 사용자가 입력한 원본 제목
+  originalTitle?: string, // 사용자가 입력한 원본 제목
+  format?: 'longform' | 'shortform' | 'sora2' | 'product' // 포맷 타입
 ): Promise<Script> {
   // contents 테이블의 createContent 사용
   const { createContent } = require('./content');
+
+  console.log('📝 createScript 호출 - format:', format);
 
   const contentRecord = createContent(
     userId,
     'script',
     title,
     {
+      format: format || 'longform', // 포맷 전달
       originalTitle: originalTitle || title,
       content: content,
       tokenUsage: tokenUsage,
@@ -923,9 +936,12 @@ export async function createScript(
     status: contentRecord.status,
     progress: contentRecord.progress,
     tokenUsage: contentRecord.tokenUsage,
+    type: contentRecord.format, // format을 type으로 매핑
     createdAt: contentRecord.createdAt,
     updatedAt: contentRecord.updatedAt
   };
+
+  console.log('📝 createScript 반환 - script.type:', script.type);
 
   return script;
 }
@@ -1047,7 +1063,7 @@ export async function findScriptTempById(scriptId: string): Promise<any | null> 
   const stmt = db.prepare(`
     SELECT
       id, title, originalTitle,
-      useClaudeLocal, type,
+      useClaudeLocal, type, model,
       createdAt, scriptId
     FROM scripts_temp
     WHERE id = ? OR scriptId = ?
@@ -1063,6 +1079,7 @@ export async function findScriptTempById(scriptId: string): Promise<any | null> 
     originalTitle: row.originalTitle || row.title,
     useClaudeLocal: row.useClaudeLocal === 1,
     type: row.type,
+    model: row.model || 'claude',
     createdAt: row.createdAt
   };
 }
@@ -1478,6 +1495,333 @@ export function getUserYouTubeUploads(userId: string): YouTubeUpload[] {
 // YouTube 업로드 기록 삭제
 export function deleteYouTubeUpload(uploadId: string): boolean {
   const stmt = db.prepare('DELETE FROM youtube_uploads WHERE id = ?');
+  const result = stmt.run(uploadId);
+  return result.changes > 0;
+}
+
+// ============================================
+// 소셜미디어 계정 관리 (TikTok, Instagram, Facebook)
+// ============================================
+
+export type SocialMediaPlatform = 'tiktok' | 'instagram' | 'facebook';
+
+export interface SocialMediaAccount {
+  id: string;
+  userId: string;
+  platform: SocialMediaPlatform;
+  accountId: string;
+  username?: string;
+  displayName?: string;
+  profilePicture?: string;
+  followerCount?: number;
+  accessToken: string;
+  refreshToken?: string;
+  tokenExpiresAt?: string;
+  isDefault?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 소셜미디어 계정 추가
+export function createSocialMediaAccount(account: Omit<SocialMediaAccount, 'id' | 'createdAt' | 'updatedAt'>): SocialMediaAccount {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  // 같은 사용자의 같은 플랫폼 계정이 이미 있는지 확인
+  const existingStmt = db.prepare(`
+    SELECT id FROM social_media_accounts
+    WHERE user_id = ? AND platform = ? AND account_id = ?
+  `);
+  const existing = existingStmt.get(account.userId, account.platform, account.accountId);
+
+  if (existing) {
+    throw new Error('이미 연결된 계정입니다.');
+  }
+
+  // 첫 번째 계정이면 자동으로 기본 계정으로 설정
+  const countStmt = db.prepare(`
+    SELECT COUNT(*) as count FROM social_media_accounts
+    WHERE user_id = ? AND platform = ?
+  `);
+  const countResult = countStmt.get(account.userId, account.platform) as any;
+  const isFirstAccount = countResult.count === 0;
+
+  const stmt = db.prepare(`
+    INSERT INTO social_media_accounts (
+      id, user_id, platform, account_id, username, display_name,
+      profile_picture, follower_count, access_token, refresh_token,
+      token_expires_at, is_default, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    id,
+    account.userId,
+    account.platform,
+    account.accountId,
+    account.username || null,
+    account.displayName || null,
+    account.profilePicture || null,
+    account.followerCount || 0,
+    account.accessToken,
+    account.refreshToken || null,
+    account.tokenExpiresAt || null,
+    isFirstAccount || account.isDefault ? 1 : 0,
+    now,
+    now
+  );
+
+  return {
+    id,
+    ...account,
+    isDefault: isFirstAccount || account.isDefault,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+// 사용자의 소셜미디어 계정 목록 가져오기
+export function getUserSocialMediaAccounts(userId: string, platform?: SocialMediaPlatform): SocialMediaAccount[] {
+  const query = platform
+    ? `SELECT * FROM social_media_accounts WHERE user_id = ? AND platform = ? ORDER BY is_default DESC, created_at DESC`
+    : `SELECT * FROM social_media_accounts WHERE user_id = ? ORDER BY platform, is_default DESC, created_at DESC`;
+
+  const stmt = db.prepare(query);
+  const rows = platform
+    ? stmt.all(userId, platform) as any[]
+    : stmt.all(userId) as any[];
+
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    platform: row.platform,
+    accountId: row.account_id,
+    username: row.username,
+    displayName: row.display_name,
+    profilePicture: row.profile_picture,
+    followerCount: row.follower_count,
+    accessToken: row.access_token,
+    refreshToken: row.refresh_token,
+    tokenExpiresAt: row.token_expires_at,
+    isDefault: row.is_default === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }));
+}
+
+// ID로 소셜미디어 계정 찾기
+export function getSocialMediaAccountById(id: string): SocialMediaAccount | null {
+  const stmt = db.prepare('SELECT * FROM social_media_accounts WHERE id = ?');
+  const row = stmt.get(id) as any;
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    platform: row.platform,
+    accountId: row.account_id,
+    username: row.username,
+    displayName: row.display_name,
+    profilePicture: row.profile_picture,
+    followerCount: row.follower_count,
+    accessToken: row.access_token,
+    refreshToken: row.refresh_token,
+    tokenExpiresAt: row.token_expires_at,
+    isDefault: row.is_default === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+// 기본 소셜미디어 계정 가져오기
+export function getDefaultSocialMediaAccount(userId: string, platform: SocialMediaPlatform): SocialMediaAccount | null {
+  const accounts = getUserSocialMediaAccounts(userId, platform);
+  return accounts.find(acc => acc.isDefault) || accounts[0] || null;
+}
+
+// 기본 계정 설정
+export function setDefaultSocialMediaAccount(userId: string, platform: SocialMediaPlatform, accountId: string): boolean {
+  const now = new Date().toISOString();
+
+  // 해당 사용자의 해당 플랫폼 모든 계정의 isDefault를 false로
+  const resetStmt = db.prepare(`
+    UPDATE social_media_accounts
+    SET is_default = 0, updated_at = ?
+    WHERE user_id = ? AND platform = ?
+  `);
+  resetStmt.run(now, userId, platform);
+
+  // 선택한 계정만 isDefault = true
+  const setStmt = db.prepare(`
+    UPDATE social_media_accounts
+    SET is_default = 1, updated_at = ?
+    WHERE id = ? AND user_id = ? AND platform = ?
+  `);
+  const result = setStmt.run(now, accountId, userId, platform);
+
+  return result.changes > 0;
+}
+
+// 소셜미디어 계정 업데이트
+export function updateSocialMediaAccount(accountId: string, updates: Partial<SocialMediaAccount>): SocialMediaAccount | null {
+  const now = new Date().toISOString();
+
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (updates.username !== undefined) {
+    fields.push('username = ?');
+    values.push(updates.username);
+  }
+  if (updates.displayName !== undefined) {
+    fields.push('display_name = ?');
+    values.push(updates.displayName);
+  }
+  if (updates.profilePicture !== undefined) {
+    fields.push('profile_picture = ?');
+    values.push(updates.profilePicture);
+  }
+  if (updates.followerCount !== undefined) {
+    fields.push('follower_count = ?');
+    values.push(updates.followerCount);
+  }
+  if (updates.accessToken !== undefined) {
+    fields.push('access_token = ?');
+    values.push(updates.accessToken);
+  }
+  if (updates.refreshToken !== undefined) {
+    fields.push('refresh_token = ?');
+    values.push(updates.refreshToken);
+  }
+  if (updates.tokenExpiresAt !== undefined) {
+    fields.push('token_expires_at = ?');
+    values.push(updates.tokenExpiresAt);
+  }
+
+  fields.push('updated_at = ?');
+  values.push(now);
+  values.push(accountId);
+
+  const stmt = db.prepare(`
+    UPDATE social_media_accounts
+    SET ${fields.join(', ')}
+    WHERE id = ?
+  `);
+
+  stmt.run(...values);
+  return getSocialMediaAccountById(accountId);
+}
+
+// 소셜미디어 계정 삭제
+export function deleteSocialMediaAccount(accountId: string): boolean {
+  const account = getSocialMediaAccountById(accountId);
+  if (!account) return false;
+
+  const stmt = db.prepare('DELETE FROM social_media_accounts WHERE id = ?');
+  const result = stmt.run(accountId);
+
+  // 삭제된 계정이 기본 계정이었다면, 같은 사용자의 같은 플랫폼 첫 번째 계정을 기본으로 설정
+  if (account.isDefault && result.changes > 0) {
+    const remainingAccounts = getUserSocialMediaAccounts(account.userId, account.platform);
+    if (remainingAccounts.length > 0) {
+      setDefaultSocialMediaAccount(account.userId, account.platform, remainingAccounts[0].id);
+    }
+  }
+
+  return result.changes > 0;
+}
+
+// ============================================
+// 소셜미디어 업로드 기록
+// ============================================
+
+export interface SocialMediaUpload {
+  id: string;
+  userId: string;
+  jobId?: string;
+  platform: SocialMediaPlatform;
+  postId: string;
+  postUrl?: string;
+  title: string;
+  description?: string;
+  thumbnailUrl?: string;
+  accountId: string;
+  accountUsername?: string;
+  privacyStatus?: string;
+  publishedAt: string;
+  createdAt: string;
+}
+
+// 소셜미디어 업로드 기록 추가
+export function createSocialMediaUpload(upload: Omit<SocialMediaUpload, 'id' | 'createdAt' | 'publishedAt'>): SocialMediaUpload {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const stmt = db.prepare(`
+    INSERT INTO social_media_uploads (
+      id, user_id, job_id, platform, post_id, post_url, title, description,
+      thumbnail_url, account_id, account_username, privacy_status, published_at, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    id,
+    upload.userId,
+    upload.jobId || null,
+    upload.platform,
+    upload.postId,
+    upload.postUrl || null,
+    upload.title,
+    upload.description || null,
+    upload.thumbnailUrl || null,
+    upload.accountId,
+    upload.accountUsername || null,
+    upload.privacyStatus || null,
+    now,
+    now
+  );
+
+  return {
+    id,
+    ...upload,
+    publishedAt: now,
+    createdAt: now
+  };
+}
+
+// 사용자의 소셜미디어 업로드 기록 조회
+export function getUserSocialMediaUploads(userId: string, platform?: SocialMediaPlatform): SocialMediaUpload[] {
+  const query = platform
+    ? `SELECT * FROM social_media_uploads WHERE user_id = ? AND platform = ? ORDER BY published_at DESC`
+    : `SELECT * FROM social_media_uploads WHERE user_id = ? ORDER BY published_at DESC`;
+
+  const stmt = db.prepare(query);
+  const rows = platform
+    ? stmt.all(userId, platform) as any[]
+    : stmt.all(userId) as any[];
+
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    jobId: row.job_id,
+    platform: row.platform,
+    postId: row.post_id,
+    postUrl: row.post_url,
+    title: row.title,
+    description: row.description,
+    thumbnailUrl: row.thumbnail_url,
+    accountId: row.account_id,
+    accountUsername: row.account_username,
+    privacyStatus: row.privacy_status,
+    publishedAt: row.published_at,
+    createdAt: row.created_at
+  }));
+}
+
+// 소셜미디어 업로드 기록 삭제
+export function deleteSocialMediaUpload(uploadId: string): boolean {
+  const stmt = db.prepare('DELETE FROM social_media_uploads WHERE id = ?');
   const result = stmt.run(uploadId);
   return result.changes > 0;
 }

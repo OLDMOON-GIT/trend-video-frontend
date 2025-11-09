@@ -448,13 +448,13 @@ export async function PUT(request: NextRequest) {
     // 파일 저장
     await fs.writeFile(filePath, content, 'utf-8');
 
-    // multi-ai-aggregator 폴더에도 동시 저장 (실제 스크립트 생성용)
+    // ai_aggregator 폴더에도 동시 저장 (실제 스크립트 생성용)
     try {
-      const multiAiPath = path.join(projectRoot, '..', 'multi-ai-aggregator', 'prompt_product.txt');
+      const multiAiPath = path.join(projectRoot, '..', 'trend-video-backend', 'src', 'ai_aggregator', 'prompt_product.txt');
       await fs.writeFile(multiAiPath, content, 'utf-8');
-      console.log('✅ multi-ai-aggregator 상품 프롬프트 동기화 완료');
+      console.log('✅ ai_aggregator 상품 프롬프트 동기화 완료');
     } catch (error) {
-      console.warn('⚠️ multi-ai-aggregator 동기화 실패 (계속 진행):', error);
+      console.warn('⚠️ ai_aggregator 동기화 실패 (계속 진행):', error);
     }
 
     // 캐시 무효화
