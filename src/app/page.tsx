@@ -1954,7 +1954,7 @@ export default function Home() {
                   ? 'Claude.ai를 새 탭으로 열고 프롬프트를 클립보드에 복사합니다 (Ctrl+V로 붙여넣기)'
                   : titleInputMode === 'generate-api'
                   ? 'Claude API를 직접 호출합니다 (테스트용, 비용 발생)'
-                  : `로컬 ${scriptModel === 'gpt' ? 'ChatGPT' : scriptModel === 'gemini' ? 'Gemini' : 'Claude'}로 대본을 생성합니다 (실패 시 API 사용)`}
+                  : `로컬 ${scriptModel === 'chatgpt' ? 'ChatGPT' : scriptModel === 'gemini' ? 'Gemini' : 'Claude'}로 대본을 생성합니다 (실패 시 API 사용)`}
               </div>
             </div>
           </div>
@@ -3984,7 +3984,7 @@ export default function Home() {
                   <p className="text-white">📝 주제: {scriptConfirmData.title}</p>
                   <p className="text-white">
                     🤖 생성 방식: {scriptConfirmData.mode === 'generate-api' ? 'API 호출' : '로컬'} {
-                      scriptModel === 'gpt' ? 'ChatGPT' :
+                      scriptModel === 'chatgpt' ? 'ChatGPT' :
                       scriptModel === 'gemini' ? 'Gemini' :
                       scriptModel === 'claude' ? 'Claude' : scriptModel
                     }
@@ -4034,7 +4034,7 @@ export default function Home() {
                         // API 사용
                         const modelNames: Record<string, string> = {
                           'claude': 'Claude',
-                          'gpt': 'ChatGPT',
+                          'chatgpt': 'ChatGPT',
                           'gemini': 'Gemini',
                           'groq': 'Groq'
                         };
@@ -4066,21 +4066,39 @@ export default function Home() {
                           message: '📝 프롬프트 로드 완료'
                         }]);
 
-                        // 상품 정보 준비 (상품 포맷인 경우)
                         // 상품 정보 체크 (state에 이미 있음)
-                        console.log('🔍 상품 정보 체크 - videoFormat:', videoFormat);
+                        console.log('🔍🔍🔍 === API 호출 직전 상품 정보 체크 ===');
+                        console.log('🔍 videoFormat:', videoFormat);
                         console.log('🔍 productInfo state:', productInfo);
+                        console.log('🔍 productInfo null 여부:', productInfo === null);
+                        if (productInfo) {
+                          console.log('🔍 productInfo.title:', productInfo.title);
+                          console.log('🔍 productInfo.thumbnail:', productInfo.thumbnail);
+                          console.log('🔍 productInfo.product_link:', productInfo.product_link);
+                          console.log('🔍 productInfo.description:', productInfo.description);
+                        }
+
+                        // 프롬프트 내용에 플레이스홀더가 있는지 확인
+                        console.log('🔍 프롬프트 처음 500자:', promptData.content.substring(0, 500));
+                        console.log('🔍 프롬프트에 {title} 포함:', promptData.content.includes('{title}'));
+                        console.log('🔍 프롬프트에 {thumbnail} 포함:', promptData.content.includes('{thumbnail}'));
+                        console.log('🔍 프롬프트에 {product_link} 포함:', promptData.content.includes('{product_link}'));
+                        console.log('🔍 프롬프트에 {product_description} 포함:', promptData.content.includes('{product_description}'));
+
+                        const requestBody = {
+                          prompt: promptData.content,
+                          topic: title,
+                          format: videoFormat,
+                          model: scriptModel, // 대본 생성용 AI 모델
+                          productInfo: productInfo // state의 상품 정보 사용
+                        };
+
+                        console.log('🔍 API 요청 본문 (prompt 제외):', JSON.stringify({...requestBody, prompt: `[${requestBody.prompt.length}자 생략]`}, null, 2));
 
                         const response = await fetch('/api/generate-script', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-                          body: JSON.stringify({
-                            prompt: promptData.content,
-                            topic: title,
-                            format: videoFormat,
-                            model: scriptModel, // 대본 생성용 AI 모델
-                            productInfo: productInfo // state의 상품 정보 사용
-                          })
+                          body: JSON.stringify(requestBody)
                         });
                         const data = await response.json();
 
@@ -4286,7 +4304,7 @@ export default function Home() {
                       setScriptProgress({ current: 0, total: 100 });
                       const modelNames: Record<string, string> = {
                         'claude': 'Claude',
-                        'gpt': 'ChatGPT',
+                        'chatgpt': 'ChatGPT',
                         'gemini': 'Gemini',
                         'groq': 'Groq'
                       };
@@ -5731,7 +5749,7 @@ ${script}`;
 
 function normalizeModel(value: string | undefined): ModelOption {
   const found = modelOptions.find((option) => option.value === value);
-  return found ? found.value : 'gpt';
+  return found ? found.value : 'chatgpt';
 }
 
 function matchesDateFilterLocal(publishedAt: string, filter: DateFilter) {
