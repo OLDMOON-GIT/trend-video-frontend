@@ -128,10 +128,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         console.log('📝 제목에 #Shorts 추가:', finalTitle);
       }
 
-      // 설명에 Shorts 관련 내용 추가
-      if (!finalDescription.includes('#Shorts')) {
-        finalDescription = `${finalDescription}\n\n#Shorts`;
-        console.log('📝 설명에 #Shorts 추가');
+      // 설명 맨 앞에 #Shorts 추가 (YouTube가 더 잘 인식함)
+      if (!finalDescription.includes('#Shorts') && !finalDescription.includes('#shorts')) {
+        finalDescription = `#Shorts\n\n${finalDescription}`;
+        console.log('📝 설명 맨 앞에 #Shorts 추가');
       }
     }
 
