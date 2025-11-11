@@ -1976,7 +1976,7 @@ export default function CoupangProductsAdminPage() {
                       onClick={() => handleReclassifyProduct(product.id)}
                       className="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white hover:bg-cyan-500 transition"
                     >
-                      🔄 재분류
+                      🔄 카테고리 재분류
                     </button>
                   </div>
 
@@ -2417,7 +2417,7 @@ export default function CoupangProductsAdminPage() {
                           className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white transition"
                           title="카테고리 재분류"
                         >
-                          🔄 재분류
+                          🔄 카테고리 재분류
                         </button>
                       </div>
                       <button
