@@ -2257,7 +2257,8 @@ export default function Home() {
                         body: JSON.stringify({
                           title: manualTitle.trim(),
                           type: promptFormat,
-                          scriptModel: scriptModel // AI 모델 선택
+                          scriptModel: scriptModel, // AI 모델 선택
+                          productInfo: productInfo // 상품 정보 추가
                         })
                       });
 
