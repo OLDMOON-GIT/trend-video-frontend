@@ -2348,26 +2348,12 @@ export default function MyContentPage() {
                           </div>
                         </div>
                       ) : (
-                        // 대본 카드 - 영상과 동일한 수평 레이아웃
-                        <div className="flex flex-col md:flex-row gap-4 p-4">
-                          {/* 아이콘 영역 - 왼쪽 (영상의 썸네일 위치와 동일) */}
-                          <div className="relative w-full md:w-64 h-36 flex-shrink-0 bg-slate-800/50 rounded-lg overflow-hidden flex items-center justify-center">
-                            <span className="text-6xl">📝</span>
-                            {/* 진행 중 오버레이 */}
-                            {item.data.status === 'processing' && (
-                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                <div className="text-center">
-                                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mx-auto mb-1"></div>
-                                  <p className="text-xs text-white font-semibold">{item.data.progress}%</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* 메타데이터 영역 - 중앙 (영상과 동일한 구조) */}
+                        // 대본 카드 - 대본 탭과 동일한 레이아웃
+                        <div className="p-4">
                           <div className="flex-1 min-w-0 flex flex-col justify-between">
                             <div>
                               <div className="flex items-start gap-2 mb-2">
+                                <span className="text-2xl flex-shrink-0">📝</span>
                                 <h3 className="text-lg font-semibold text-white break-words line-clamp-2 flex-1">
                                   {item.data.title}
                                 </h3>
