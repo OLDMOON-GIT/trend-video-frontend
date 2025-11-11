@@ -258,16 +258,13 @@ export async function POST(
 - 씬1-3: **각 정확히 285자** (상세한 상황, 감정, 배경 포함)
 
 **image_prompt 작성 규칙:**
-- 반드시 "VERTICAL PORTRAIT 9:16, full height composition, NOT rotated landscape"로 시작
-- **중요: 피사체를 위에서 아래로 세로로 배치 (가로로 배치 후 회전 절대 금지)**
-- **필수: "Photorealistic photography, cinematic lighting" 추가 (실사 사진 스타일)**
-- **금지: cartoon, anime, illustration, drawing, sketch 등 만화/툰 스타일 단어 절대 사용 금지**
+- **필수: "Photorealistic photography, cinematic lighting" 으로 시작 (실사 사진 스타일)**
+- **금지: cartoon, anime, illustration, drawing, sketch, VERTICAL, PORTRAIT, 9:16, landscape 등 방향/비율 관련 단어 절대 사용 금지 (시스템이 자동으로 세로 9:16으로 생성함)**
 - **인물이 등장하는 경우 반드시 "Korean person", "Korean man/woman", "Korean elderly", "Korean employee" 등 한국인임을 명시**
 - **씬 간 일관성 유지: 같은 인물은 동일한 외모/옷차림으로 묘사 (나이, 머리 스타일, 의상 등)**
-- **세로 구도 강조: "vertical framing", "portrait mode", "tall composition", "mobile screen format" 등의 단어 포함**
 - 구체적인 피사체와 상황 묘사 (최소 2-3문장)
 - 인물의 표정, 자세, 배경, 조명 등 디테일 포함
-- 예시: "VERTICAL PORTRAIT 9:16, full height composition, NOT rotated landscape. Photorealistic photography, cinematic lighting. Vertical framing showing a Korean elderly man from head to waist in portrait mode..."
+- 예시: "Photorealistic photography, cinematic lighting. A Korean elderly man with warm expression, wearing traditional hanbok, standing in a sunlit traditional Korean house courtyard..."
 
 **출력 형식:**
 - 순수 JSON만 출력 (코드펜스 없음)
