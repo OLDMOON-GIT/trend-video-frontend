@@ -39,11 +39,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       thumbnailPath,
       captionsPath,
       publishAt,
-      channelId // 업로드할 YouTube 채널 ID (선택사항, 없으면 기본 채널 사용)
+      channelId, // 업로드할 YouTube 채널 ID (선택사항, 없으면 기본 채널 사용)
+      jobId
     } = body;
 
     if (!videoPath || !title) {
       return NextResponse.json({ error: 'videoPath와 title은 필수입니다' }, { status: 400 });
+    }
+
+    // Job 데이터에서 aspect_ratio 확인하여 Shorts 여부 판단
+    let isShorts = false;
+    if (jobId) {
+      try {
+        const { findJobById } = await import('@/lib/db');
+        const job = await findJobById(jobId);
+        if (job && job.aspectRatio === '9:16') {
+          isShorts = true;
+          console.log('✅ 숏폼(9:16) 감지 - YouTube Shorts로 업로드');
+        }
+      } catch (error) {
+        console.warn('⚠️ Job 조회 실패, aspect_ratio 확인 불가:', error);
+      }
     }
 
     // 사용할 채널 결정
@@ -88,33 +104,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!fs.existsSync(fullVideoPath)) {
       console.error('❌ 비디오 파일을 찾을 수 없음:', fullVideoPath);
       return NextResponse.json({ error: '비디오 파일을 찾을 수 없습니다' }, { status: 404 });
-    }
-
-    // 비디오 해상도 확인하여 Shorts 자동 감지
-    let isShorts = false;
-    try {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-
-      const { stdout } = await execAsync(
-        `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${fullVideoPath}"`
-      );
-
-      const [width, height] = stdout.trim().split(',').map(Number);
-      console.log(`📐 비디오 해상도: ${width}x${height}`);
-
-      // 세로 비율 (높이 > 너비)이면 Shorts로 간주
-      if (height > width) {
-        const ratio = height / width;
-        // 9:16 = 1.77, 실제로는 1.5~2.0 사이면 세로 영상으로 간주
-        if (ratio >= 1.5 && ratio <= 2.0) {
-          isShorts = true;
-          console.log('✅ YouTube Shorts 형식 감지 (세로 비율)');
-        }
-      }
-    } catch (error) {
-      console.warn('⚠️ 비디오 해상도 확인 실패 (계속 진행):', error);
     }
 
     // Shorts인 경우 제목과 설명 자동 수정
