@@ -751,7 +751,25 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 실행 중인 프로세스 찾기
+    // 1. 취소 플래그 파일 생성 (Python이 체크하도록)
+    try {
+      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+      const inputFolders = await fs.readdir(path.join(backendPath, 'input'));
+      const jobFolder = inputFolders.find(f => f.includes(jobId.replace('upload_', '')));
+
+      if (jobFolder) {
+        const cancelFilePath = path.join(backendPath, 'input', jobFolder, '.cancel');
+        await fs.writeFile(cancelFilePath, 'cancelled by user');
+        console.log(`✅ 취소 플래그 파일 생성: ${cancelFilePath}`);
+        await addJobLog(jobId, '\n🚫 취소 플래그 설정됨 - Python 프로세스가 감지하면 중단됩니다.');
+      } else {
+        console.warn(`⚠️ Job 폴더를 찾을 수 없음: ${jobId}`);
+      }
+    } catch (error: any) {
+      console.error(`❌ 취소 플래그 파일 생성 실패: ${error.message}`);
+    }
+
+    // 2. 프로세스 강제 종료
     const process = runningProcesses.get(jobId);
 
     if (process && process.pid) {
