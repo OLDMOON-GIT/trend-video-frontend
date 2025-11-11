@@ -283,11 +283,15 @@ export async function POST(request: NextRequest) {
     // scenes 배열 추출 (비디오 배치용) - 이미 파싱한 jsonData 사용
     let scenes = null;
     if (jsonData && jsonData.scenes && Array.isArray(jsonData.scenes)) {
-      scenes = jsonData.scenes.map((s: any) => ({
+      scenes = jsonData.scenes.map((s: any, index: number) => ({
         narration: normalizeNarration(s.narration || s.text || ''), // 콤마 정규화 + 제어 명령 제거
-        duration: s.duration || s.duration_seconds || 0
+        duration: s.duration || s.duration_seconds || 0,
+        // seq가 있으면 사용, 없으면 null
+        seq: s.seq !== undefined && s.seq !== null ? s.seq : null,
+        // created_at이 있으면 사용, 없으면 파일의 lastModified 기반으로 생성
+        created_at: s.created_at || (videoFiles[index] ? new Date(videoFiles[index].lastModified).toISOString() : null)
       }));
-      console.log(`✅ ${scenes.length}개 씬의 나레이션 콤마 정규화 완료`);
+      console.log(`✅ ${scenes.length}개 씬의 나레이션 콤마 정규화 + 정렬 필드 추가 완료`);
     }
 
     // 설정 파일 생성

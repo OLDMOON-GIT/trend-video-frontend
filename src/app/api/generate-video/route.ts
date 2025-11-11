@@ -97,7 +97,8 @@ async function generateVideoAsync(
           scene_number: 1,
           title: config.title,
           narration: config.script,
-          image_prompt: config.title
+          image_prompt: config.title,
+          created_at: new Date().toISOString() // 생성 시간 추가
         }
       ]
     };
