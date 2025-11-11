@@ -117,7 +117,8 @@ async function handleOpenFolder(request: NextRequest) {
           absoluteFolderPath = path.resolve(folderPath);
         } else {
           // 기본값
-          const projectName = `uploaded_${jobId}`;
+          // jobId가 이미 upload_로 시작하면 그대로 사용, 아니면 uploaded_ prefix 추가
+          const projectName = jobId.startsWith('upload_') ? jobId : `uploaded_${jobId}`;
           const folderPath = path.join(backendPath, 'uploads', projectName);
           absoluteFolderPath = path.resolve(folderPath);
         }
@@ -135,13 +136,14 @@ async function handleOpenFolder(request: NextRequest) {
             console.log(`📂 쇼츠 작업 폴더 추정: ${absoluteFolderPath}`);
           } else {
             // timestamp 추출 실패 시 기본값
-            const projectName = `uploaded_${jobId}`;
+            const projectName = jobId.startsWith('upload_') ? jobId : `uploaded_${jobId}`;
             const folderPath = path.join(backendPath, 'uploads', projectName);
             absoluteFolderPath = path.resolve(folderPath);
           }
         } else {
           // 일반 작업은 uploads/uploaded_* 패턴
-          const projectName = `uploaded_${jobId}`;
+          // jobId가 이미 upload_로 시작하면 그대로 사용, 아니면 uploaded_ prefix 추가
+          const projectName = jobId.startsWith('upload_') ? jobId : `uploaded_${jobId}`;
           const folderPath = path.join(backendPath, 'uploads', projectName);
           absoluteFolderPath = path.resolve(folderPath);
         }
