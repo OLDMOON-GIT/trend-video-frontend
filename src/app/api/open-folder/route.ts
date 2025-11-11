@@ -101,9 +101,10 @@ async function handleOpenFolder(request: NextRequest) {
         const normalizedPath = job.videoPath.replace(/\\/g, '/');
         const pathParts = normalizedPath.split('/');
 
-        // uploads 또는 input 폴더 찾기
+        // uploads, input, output 폴더 찾기
         const uploadsIndex = pathParts.findIndex(p => p === 'uploads');
         const inputIndex = pathParts.findIndex(p => p === 'input');
+        const outputIndex = pathParts.findIndex(p => p === 'output');
 
         if (uploadsIndex !== -1 && uploadsIndex + 1 < pathParts.length) {
           // uploads 폴더에 있는 경우
@@ -114,6 +115,11 @@ async function handleOpenFolder(request: NextRequest) {
           // input 폴더에 있는 경우 (쇼츠 변환)
           const projectName = pathParts[inputIndex + 1];
           const folderPath = path.join(backendPath, 'input', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
+        } else if (outputIndex !== -1 && outputIndex + 1 < pathParts.length) {
+          // output 폴더에 있는 경우 (merge 작업 등)
+          const projectName = pathParts[outputIndex + 1];
+          const folderPath = path.join(backendPath, 'output', projectName);
           absoluteFolderPath = path.resolve(folderPath);
         } else {
           // 기본값
