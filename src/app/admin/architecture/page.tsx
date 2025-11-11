@@ -28,6 +28,16 @@ function ArchitectureContent() {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
+  // AI 자동 업데이트 관련 상태
+  const [updateInfo, setUpdateInfo] = useState<{
+    lastUpdate: string | null;
+    daysSinceLastCommit: number;
+    needsUpdate: boolean;
+    updateCount: number;
+  } | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
   const getAuthHeaders = (): HeadersInit => {
     return {};
   };
@@ -298,11 +308,71 @@ function ArchitectureContent() {
       }
 
       setUser(data.user);
+
+      // 인증 성공 후 업데이트 정보 로드
+      loadUpdateInfo();
     } catch (error) {
       console.error('Auth check error:', error);
       router.push('/auth');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadUpdateInfo = async () => {
+    try {
+      const response = await fetch('/api/admin/architecture/auto-update', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUpdateInfo({
+          lastUpdate: data.lastUpdate,
+          daysSinceLastCommit: data.daysSinceLastCommit,
+          needsUpdate: data.needsUpdate,
+          updateCount: data.updateCount
+        });
+      }
+    } catch (error) {
+      console.error('업데이트 정보 로드 실패:', error);
+    }
+  };
+
+  const handleAIUpdate = async () => {
+    if (!confirm('AI를 사용하여 아키텍처 문서를 자동 업데이트하시겠습니까?\n\n이 작업은 1-2분 정도 소요될 수 있습니다.')) {
+      return;
+    }
+
+    setIsUpdating(true);
+    setUpdateError(null);
+
+    try {
+      const response = await fetch('/api/admin/architecture/auto-update', {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert('✅ AI 아키텍처 업데이트가 완료되었습니다!\n\n페이지를 새로고침하여 업데이트된 내용을 확인하세요.');
+
+        // 업데이트 정보 다시 로드
+        await loadUpdateInfo();
+
+        // 페이지 새로고침
+        window.location.reload();
+      } else {
+        setUpdateError(data.error || '업데이트 실패');
+        alert('❌ 업데이트 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    } catch (error: any) {
+      console.error('AI 업데이트 오류:', error);
+      setUpdateError(error.message || '알 수 없는 오류');
+      alert('❌ 업데이트 중 오류가 발생했습니다.');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -381,6 +451,69 @@ function ArchitectureContent() {
           >
             ← 관리자 대시보드
           </Link>
+        </div>
+
+        {/* AI 자동 업데이트 */}
+        <div className={`mb-6 rounded-xl border p-4 backdrop-blur transition ${
+          updateInfo?.needsUpdate
+            ? 'border-yellow-500/50 bg-yellow-500/10'
+            : 'border-green-500/30 bg-slate-800/30'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">
+                  {updateInfo?.needsUpdate ? '⚠️' : '🤖'}
+                </span>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">
+                    AI 자동 업데이트
+                  </h3>
+                  <div className="mt-1 space-y-1 text-xs text-slate-400">
+                    {updateInfo?.lastUpdate ? (
+                      <>
+                        <p>마지막 업데이트: {new Date(updateInfo.lastUpdate).toLocaleString('ko-KR')}</p>
+                        <p>마지막 커밋 이후 {updateInfo.daysSinceLastCommit}일 경과</p>
+                        <p>총 업데이트 횟수: {updateInfo.updateCount}회</p>
+                      </>
+                    ) : (
+                      <p>아직 AI 업데이트를 실행하지 않았습니다.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {updateInfo?.needsUpdate && (
+                <div className="mt-2 text-sm text-yellow-300">
+                  💡 2일 이상 커밋이 없습니다. 아키텍처 문서 업데이트를 권장합니다.
+                </div>
+              )}
+              {updateError && (
+                <div className="mt-2 text-sm text-red-400">
+                  ❌ {updateError}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleAIUpdate}
+              disabled={isUpdating}
+              className={`ml-4 rounded-lg px-6 py-3 font-semibold text-white transition ${
+                isUpdating
+                  ? 'bg-slate-600 cursor-not-allowed'
+                  : updateInfo?.needsUpdate
+                  ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500'
+                  : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500'
+              }`}
+            >
+              {isUpdating ? (
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  <span>업데이트 중...</span>
+                </div>
+              ) : (
+                <>🤖 AI 업데이트 실행</>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* 탭 버튼 */}
