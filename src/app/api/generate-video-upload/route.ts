@@ -111,6 +111,13 @@ export async function POST(request: NextRequest) {
       if (img) imageFiles.push(img);
     }
 
+    // 비디오 파일들 수집
+    const videoFiles: File[] = [];
+    for (let i = 0; i < 50; i++) { // 최대 50개까지 확인
+      const vid = formData.get(`video_${i}`) as File;
+      if (vid) videoFiles.push(vid);
+    }
+
     // ⚠️ 중요: 시퀀스 번호 우선, 그 다음 lastModified 오래된 순 정렬
     // 1. 파일명에서 시퀀스 번호 추출 (01.jpg, image_02.png, scene-03.jpg 등)
     // 2. 시퀀스 번호가 있으면 시퀀스 순으로 정렬
@@ -162,10 +169,10 @@ export async function POST(request: NextRequest) {
       console.log(`  ${sceneNum}: ${f.name}${originalName}${seqInfo} (lastModified: ${timeStr})`);
     });
 
-    // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
-    if (videoFormat !== 'sora2' && imageSource === 'none' && imageFiles.length === 0) {
+    // 직접 업로드 모드일 때만 이미지 또는 비디오 필수 체크 (SORA2는 불필요)
+    if (videoFormat !== 'sora2' && imageSource === 'none' && imageFiles.length === 0 && videoFiles.length === 0) {
       return NextResponse.json(
-        { error: '최소 1개 이상의 이미지가 필요합니다.' },
+        { error: '최소 1개 이상의 이미지 또는 비디오가 필요합니다.' },
         { status: 400 }
       );
     }
@@ -210,6 +217,7 @@ export async function POST(request: NextRequest) {
       projectName,
       jsonFile,
       imageFiles,
+      videoFiles,
       imageSource,
       isAdmin: user.isAdmin || false,
       videoFormat, // 롱폼/숏폼 정보 전달
@@ -242,6 +250,7 @@ async function generateVideoFromUpload(
     projectName: string;
     jsonFile: File;
     imageFiles: File[];
+    videoFiles: File[];
     imageSource: string;
     isAdmin: boolean;
     videoFormat: string; // 'longform', 'shortform', 'sora2'
@@ -325,6 +334,28 @@ async function generateVideoFromUpload(
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
     } else if (config.imageSource === 'dalle') {
       await addJobLog(jobId, `\n🎨 DALL-E 3를 사용하여 이미지 자동 생성 예정`);
+    }
+
+    // 비디오 파일 저장 (직접 업로드 모드일 때)
+    if (config.imageSource === 'none' && config.videoFiles.length > 0) {
+      await updateJob(jobId, {
+        progress: 35,
+        step: '비디오 저장 중...'
+      });
+
+      await addJobLog(jobId, `\n🎬 비디오 ${config.videoFiles.length}개를 저장`);
+
+      for (let i = 0; i < config.videoFiles.length; i++) {
+        const vidFile = config.videoFiles[i];
+        const vidBuffer = Buffer.from(await vidFile.arrayBuffer());
+        const ext = vidFile.name.split('.').pop() || 'mp4';
+
+        // video_01.mp4, video_02.mp4 형식으로 저장 (1부터 시작)
+        const finalPath = path.join(config.inputPath, `video_${String(i + 1).padStart(2, '0')}.${ext}`);
+        await fs.writeFile(finalPath, vidBuffer);
+
+        await addJobLog(jobId, `  비디오 ${i + 1}: ${vidFile.name} → video_${String(i + 1).padStart(2, '0')}.${ext} (${(vidFile.size / 1024 / 1024).toFixed(1)}MB)`);
+      }
     }
 
     // 4. Python 스크립트 실행 (영상 생성) - 실시간 로그

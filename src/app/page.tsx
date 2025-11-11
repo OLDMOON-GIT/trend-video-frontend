@@ -183,7 +183,23 @@ export default function Home() {
   const [uploadedJson, setUploadedJson] = useState<File | null>(null);
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
-  const [selectedTtsVoice, setSelectedTtsVoice] = useState<string>('ko-KR-SoonBokNeural'); // TTS 음성 선택 (기본값: SoonBok)
+  const [selectedTtsVoice, setSelectedTtsVoice] = useState<string>(() => {
+    // localStorage에서 이전 선택 불러오기
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('selected_tts_voice');
+      return saved || 'ko-KR-SoonBokNeural';
+    }
+    return 'ko-KR-SoonBokNeural';
+  });
+  const [ttsSpeed, setTtsSpeed] = useState<number>(() => {
+    // localStorage에서 이전 속도 불러오기
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('tts_speed');
+      return saved ? parseFloat(saved) : 1.0;
+    }
+    return 1.0;
+  });
+  const [preloadedAudio, setPreloadedAudio] = useState<Map<string, string>>(new Map());
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [showJsonTextarea, setShowJsonTextarea] = useState(false);
   const [jsonTextareaValue, setJsonTextareaValue] = useState('');
@@ -375,6 +391,53 @@ export default function Home() {
         setPromptFormat('product-info');
       }
     }
+  }, []); // 컴포넌트 마운트 시 한 번만 실행
+
+  // TTS 미리듣기 오디오 미리 로딩 (1.0x 속도만)
+  useEffect(() => {
+    const voices = [
+      'ko-KR-SunHiNeural', 'ko-KR-JiMinNeural', 'ko-KR-SeoHyeonNeural',
+      'ko-KR-SoonBokNeural', 'ko-KR-YuJinNeural', 'ko-KR-InJoonNeural',
+      'ko-KR-HyunsuMultilingualNeural', 'ko-KR-BongJinNeural',
+      'ko-KR-GookMinNeural', 'ko-KR-HyunsuNeural'
+    ];
+
+    const preloadAudioSamples = async () => {
+      const newMap = new Map<string, string>();
+
+      console.log('🎤 TTS 미리듣기 샘플 로딩 시작...');
+
+      for (const voice of voices) {
+        try {
+          // 1.0x 속도 샘플만 로딩 (재생 시 playbackRate로 속도 조절)
+          const response = await fetch(`/api/tts-preview?voice=${voice}&speed=1.0`);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            newMap.set(voice, url);
+            console.log(`  ✓ ${voice} 로딩 완료`);
+          } else {
+            console.error(`  ✗ ${voice} 로딩 실패: ${response.status}`);
+          }
+        } catch (error) {
+          console.error(`  ✗ ${voice} 로딩 에러:`, error);
+        }
+      }
+
+      console.log(`🎤 TTS 미리듣기 샘플 로딩 완료: ${newMap.size}/${voices.length}개`);
+      setPreloadedAudio(newMap);
+    };
+
+    // 이전 URL 정리
+    preloadedAudio.forEach(url => URL.revokeObjectURL(url));
+
+    // 1.0x 속도로 미리 로딩
+    preloadAudioSamples();
+
+    // 클린업: 컴포넌트 언마운트 시 URL 정리
+    return () => {
+      preloadedAudio.forEach(url => URL.revokeObjectURL(url));
+    };
   }, []); // 컴포넌트 마운트 시 한 번만 실행
 
   // localStorage에서 필터 로드 (클라이언트에서만)
@@ -1812,7 +1875,7 @@ export default function Home() {
           </div>
           <div className="mb-4 h-px bg-white/10"></div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             {/* Flow 1: AI 대본 생성 */}
             <div data-ai-script-section className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 backdrop-blur">
               <div className="mb-3 flex items-start justify-between">
@@ -1978,6 +2041,193 @@ export default function Home() {
                 >
                   {isConvertingChinese ? '⏳ 변환 중...' : '🇨🇳 중국영상변환'}
                 </button>
+              </div>
+            </div>
+
+            {/* Flow 3: TTS 음성 선택 */}
+            <div className="rounded-2xl border border-blue-500/30 bg-blue-950/20 p-4 backdrop-blur">
+              <div className="mb-3 flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white">3</span>
+                    <h4 className="text-sm font-semibold text-blue-300">TTS 음성</h4>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    음성을 선택하세요
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {/* 여성 음성 */}
+                {[
+                  { id: 'ko-KR-SunHiNeural', name: '선희', gender: '여성', emoji: '👩‍🦰', recommended: true },
+                  { id: 'ko-KR-JiMinNeural', name: '지민', gender: '여성', emoji: '👩‍🦰' },
+                  { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩‍🦰' },
+                  { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩‍🦰', recommended: true },
+                  { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩‍🦰' },
+                ].map((voice) => (
+                  <div key={voice.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTtsVoice(voice.id);
+                        localStorage.setItem('selected_tts_voice', voice.id);
+                        showToast(`✅ ${voice.name} 음성 선택`, 'success');
+                      }}
+                      className={`w-full group relative flex items-center gap-2 rounded-lg border p-2 transition-all ${
+                        selectedTtsVoice === voice.id
+                          ? 'border-pink-500 bg-pink-500/20'
+                          : 'border-slate-700 bg-slate-800/50 hover:border-pink-400'
+                      }`}
+                    >
+                      <span className="text-xl">{voice.emoji}</span>
+                      <div className="flex-1 text-left">
+                        <div className={`text-xs ${selectedTtsVoice === voice.id ? 'text-pink-300' : 'text-slate-300'}`}>
+                          <span className={voice.recommended ? 'font-extrabold' : 'font-bold'}>{voice.name}</span>
+                          {voice.recommended && <span className="ml-1 text-[10px] text-slate-400">(추천)</span>}
+                        </div>
+                      </div>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const audioUrl = preloadedAudio.get(voice.id);
+
+                            if (!audioUrl) {
+                              showToast('⏳ 미리듣기 준비 중...', 'info');
+                              return;
+                            }
+
+                            const audio = new Audio(audioUrl);
+                            audio.playbackRate = ttsSpeed; // 속도 조절
+                            await audio.play();
+                            showToast(`🔊 ${voice.name} 음성 재생 중 (${ttsSpeed}x)`, 'success');
+                          } catch (error) {
+                            console.error('미리듣기 에러:', error);
+                            showToast('❌ 미리듣기 실패', 'error');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            (e.currentTarget as HTMLElement).click();
+                          }
+                        }}
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-700 text-xs hover:bg-slate-600 transition cursor-pointer"
+                        title="미리듣기"
+                      >
+                        🔊
+                      </div>
+                      {selectedTtsVoice === voice.id && (
+                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-pink-500 text-xs text-white">
+                          ✓
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                ))}
+
+                {/* 남성 음성 */}
+                {[
+                  { id: 'ko-KR-InJoonNeural', name: '인준', gender: '남성', emoji: '👨‍💼' },
+                  { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', gender: '남성', emoji: '👨‍💼' },
+                  { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨‍💼' },
+                  { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨‍💼' },
+                  { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨‍💼' },
+                ].map((voice) => (
+                  <div key={voice.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTtsVoice(voice.id);
+                        localStorage.setItem('selected_tts_voice', voice.id);
+                        showToast(`✅ ${voice.name} 음성 선택`, 'success');
+                      }}
+                      className={`w-full group relative flex items-center gap-2 rounded-lg border p-2 transition-all ${
+                        selectedTtsVoice === voice.id
+                          ? 'border-blue-500 bg-blue-500/20'
+                          : 'border-slate-700 bg-slate-800/50 hover:border-blue-400'
+                      }`}
+                    >
+                      <span className="text-xl">{voice.emoji}</span>
+                      <div className="flex-1 text-left">
+                        <div className={`text-xs font-bold ${selectedTtsVoice === voice.id ? 'text-blue-300' : 'text-slate-300'}`}>
+                          {voice.name}
+                        </div>
+                      </div>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const audioUrl = preloadedAudio.get(voice.id);
+
+                            if (!audioUrl) {
+                              showToast('⏳ 미리듣기 준비 중...', 'info');
+                              return;
+                            }
+
+                            const audio = new Audio(audioUrl);
+                            audio.playbackRate = ttsSpeed; // 속도 조절
+                            await audio.play();
+                            showToast(`🔊 ${voice.name} 음성 재생 중 (${ttsSpeed}x)`, 'success');
+                          } catch (error) {
+                            console.error('미리듣기 에러:', error);
+                            showToast('❌ 미리듣기 실패', 'error');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            (e.currentTarget as HTMLElement).click();
+                          }
+                        }}
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-700 text-xs hover:bg-slate-600 transition cursor-pointer"
+                        title="미리듣기"
+                      >
+                        🔊
+                      </div>
+                      {selectedTtsVoice === voice.id && (
+                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">
+                          ✓
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* 음성 속도 조절 */}
+              <div className="mt-3 rounded-lg bg-slate-800/50 border border-slate-700 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-300">🎚️ 음성 속도</label>
+                  <span className="text-xs text-slate-400">{ttsSpeed.toFixed(1)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={ttsSpeed}
+                  onChange={(e) => {
+                    const newSpeed = parseFloat(e.target.value);
+                    setTtsSpeed(newSpeed);
+                    localStorage.setItem('tts_speed', newSpeed.toString());
+                  }}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+                <div className="flex justify-between mt-1">
+                  <span className="text-[10px] text-slate-500">0.5x</span>
+                  <span className="text-[10px] text-slate-500 font-semibold">1.0x</span>
+                  <span className="text-[10px] text-slate-500">1.5x</span>
+                  <span className="text-[10px] text-slate-500">2.0x</span>
+                </div>
               </div>
             </div>
           </div>
@@ -3048,6 +3298,7 @@ export default function Home() {
 
                   const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
                   const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                  const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                   if (jsonFile) setUploadedJson(jsonFile);
                   if (imageFiles.length > 0) {
@@ -3077,9 +3328,26 @@ export default function Home() {
                       return [...prev, ...newFiles].slice(0, 50);
                     });
                   }
+                  if (videoFiles.length > 0) {
+                    console.log('\n' + '='.repeat(70));
+                    console.log('🎬 드래그앤드롭으로 비디오 업로드됨 (' + videoFiles.length + '개)');
+                    console.log('='.repeat(70));
+                    videoFiles.forEach((file, i) => {
+                      console.log(`  [${i}] ${file.name} | ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+                    });
+                    console.log('='.repeat(70) + '\n');
+                    setUploadedVideos(prev => {
+                      const existingNames = new Set(prev.map(f => f.name));
+                      const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                      if (newFiles.length < videoFiles.length) {
+                        showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                      }
+                      return [...prev, ...newFiles];
+                    });
+                  }
 
-                  if (!jsonFile && imageFiles.length === 0) {
-                    showToast('JSON 또는 이미지 파일을 업로드해주세요.', 'error');
+                  if (!jsonFile && imageFiles.length === 0 && videoFiles.length === 0) {
+                    showToast('JSON, 이미지 또는 비디오 파일을 업로드해주세요.', 'error');
                   }
                 }}
                 onPaste={async (e) => {
@@ -3135,20 +3403,20 @@ export default function Home() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="text-4xl">📁</div>
                   <div>
-                    <p className="text-sm text-slate-300">JSON/TXT 파일과 이미지를 한번에 드래그하세요</p>
+                    <p className="text-sm text-slate-300">JSON/TXT 파일, 이미지, 비디오를 한번에 드래그하세요</p>
                     <p className="mt-1 text-xs text-slate-400">또는 파일을 선택하세요</p>
                     <p className="mt-1 text-xs text-purple-400">💡 이미지를 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능</p>
                     <div className="mt-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded">
                       <p className="text-xs text-blue-300">
-                        📌 <strong>이미지 정렬 규칙:</strong><br/>
-                        • 파일명에 숫자가 있으면 숫자 순서대로 정렬 (예: image_01.jpg, image_02.jpg)<br/>
+                        📌 <strong>이미지/비디오 정렬 규칙:</strong><br/>
+                        • 파일명에 숫자가 있으면 숫자 순서대로 정렬 (예: image_01.jpg, video_02.mp4)<br/>
                         • 숫자가 없으면 생성/수정 시간 순서대로 정렬 (오래된 것부터 씬 0)
                       </p>
                     </div>
                   </div>
 
                   {/* 업로드된 파일 표시 */}
-                  {(uploadedJson || uploadedImages.length > 0) && (
+                  {(uploadedJson || uploadedImages.length > 0 || uploadedVideos.length > 0) && (
                     <div className="w-full space-y-3 rounded-lg bg-white/5 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-xs text-slate-400">업로드된 파일</span>
@@ -3199,6 +3467,34 @@ export default function Home() {
                           </div>
                         </div>
                       )}
+                      {uploadedVideos.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-emerald-400">
+                              ✓ 비디오: {uploadedVideos.length}개
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {uploadedVideos.map((vid, idx) => (
+                              <span
+                                key={idx}
+                                className="group flex items-center gap-1 rounded bg-white/10 px-2 py-1 text-xs text-slate-400"
+                              >
+                                {vid.name}
+                                <button
+                                  onClick={() => {
+                                    setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="ml-1 flex h-3 w-3 items-center justify-center rounded text-xs opacity-60 transition hover:bg-red-500/30 hover:text-red-400 hover:opacity-100"
+                                  aria-label={`${vid.name} 삭제`}
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="flex gap-2 pt-2">
                         <label className={`flex-1 rounded-lg bg-purple-600 px-4 py-2 text-center text-sm font-semibold text-white transition ${
                           isGeneratingVideo
@@ -3209,7 +3505,7 @@ export default function Home() {
                           <input
                             type="file"
                             multiple
-                            accept=".json,.txt,image/*"
+                            accept=".json,.txt,image/*,video/*"
                             disabled={isGeneratingVideo}
                             onChange={(e) => {
                               const files = Array.from(e.target.files || []);
@@ -3222,6 +3518,7 @@ export default function Home() {
 
                   const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
                               const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                              const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                               if (jsonFile) setUploadedJson(jsonFile);
                               if (imageFiles.length > 0) {
@@ -3252,6 +3549,24 @@ export default function Home() {
                                 });
                                 showToast(`✅ ${imageFiles.length}개 이미지 추가 완료!`, 'success');
                               }
+                              if (videoFiles.length > 0) {
+                                console.log('\n' + '='.repeat(70));
+                                console.log('🎬 추가 파일 선택으로 비디오 업로드됨 (' + videoFiles.length + '개)');
+                                console.log('='.repeat(70));
+                                videoFiles.forEach((file, i) => {
+                                  console.log(`  [${i}] ${file.name} | ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+                                });
+                                console.log('='.repeat(70) + '\n');
+                                setUploadedVideos(prev => {
+                                  const existingNames = new Set(prev.map(f => f.name));
+                                  const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                                  if (newFiles.length < videoFiles.length) {
+                                    showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                  }
+                                  return [...prev, ...newFiles];
+                                });
+                                showToast(`✅ ${videoFiles.length}개 비디오 추가 완료!`, 'success');
+                              }
                             }}
                             className="hidden"
                           />
@@ -3260,6 +3575,7 @@ export default function Home() {
                           onClick={() => {
                             setUploadedJson(null);
                             setUploadedImages([]);
+                            setUploadedVideos([]);
                           }}
                           className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
                         >
@@ -3278,12 +3594,13 @@ export default function Home() {
                     <input
                       type="file"
                       multiple
-                      accept=".json,.txt,image/*"
+                      accept=".json,.txt,image/*,video/*"
                       disabled={isGeneratingVideo}
                       onChange={(e) => {
                         const files = Array.from(e.target.files || []);
                         const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
                         const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                        const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                         if (jsonFile) setUploadedJson(jsonFile);
                         if (imageFiles.length > 0) {
@@ -3305,6 +3622,16 @@ export default function Home() {
                           });
                           console.log('='.repeat(70) + '\n');
                           setUploadedImages(imageFiles.slice(0, 50));
+                        }
+                        if (videoFiles.length > 0) {
+                          console.log('\n' + '='.repeat(70));
+                          console.log('🎬 파일 선택으로 비디오 업로드됨 (' + videoFiles.length + '개)');
+                          console.log('='.repeat(70));
+                          videoFiles.forEach((file, i) => {
+                            console.log(`  [${i}] ${file.name} | ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+                          });
+                          console.log('='.repeat(70) + '\n');
+                          setUploadedVideos(videoFiles);
                         }
                       }}
                       className="hidden"
@@ -3605,36 +3932,6 @@ export default function Home() {
             </div>
             )}
 
-            {/* TTS 음성 선택 (Step 3) */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-300">
-                🎤 TTS 음성 선택 (Step 3)
-              </label>
-              <select
-                value={selectedTtsVoice}
-                onChange={(e) => setSelectedTtsVoice(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-3 text-white transition focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-              >
-                <optgroup label="여성 음성 👩">
-                  <option value="ko-KR-SunHiNeural">SunHi (선희) - 여성</option>
-                  <option value="ko-KR-JiMinNeural">JiMin (지민) - 여성</option>
-                  <option value="ko-KR-SeoHyeonNeural">SeoHyeon (서현) - 여성</option>
-                  <option value="ko-KR-SoonBokNeural">SoonBok (순복) - 여성 [기본]</option>
-                  <option value="ko-KR-YuJinNeural">YuJin (유진) - 여성</option>
-                </optgroup>
-                <optgroup label="남성 음성 👨">
-                  <option value="ko-KR-InJoonNeural">InJoon (인준) - 남성</option>
-                  <option value="ko-KR-HyunsuMultilingualNeural">Hyunsu Multilingual (현수) - 남성, 다국어</option>
-                  <option value="ko-KR-BongJinNeural">BongJin (봉진) - 남성</option>
-                  <option value="ko-KR-GookMinNeural">GookMin (국민) - 남성</option>
-                  <option value="ko-KR-HyunsuNeural">Hyunsu (현수) - 남성</option>
-                </optgroup>
-              </select>
-              <p className="mt-2 text-xs text-slate-400">
-                💡 모든 음성은 Microsoft Edge TTS(무료)로 제공됩니다
-              </p>
-            </div>
-
             {/* 영상 생성 버튼 */}
             <button
               data-video-generate-btn
@@ -3896,6 +4193,10 @@ export default function Home() {
                   formData.append('title', chineseVideoTitle.trim());
                 }
 
+                // TTS 음성 추가
+                formData.append('ttsVoice', selectedTtsVoice);
+                formData.append('ttsSpeed', ttsSpeed.toString());
+
                 const response = await fetch('/api/chinese-converter/convert', {
                   method: 'POST',
                   body: formData,
@@ -4108,6 +4409,7 @@ export default function Home() {
 
                         // TTS 음성 선택 추가
                         mergeFormData.append('ttsVoice', selectedTtsVoice);
+                        mergeFormData.append('ttsSpeed', ttsSpeed.toString());
 
                         // API 호출 (디버깅 로그 추가)
                         console.log('📤 비디오 병합 요청 시작...');
@@ -4230,6 +4532,7 @@ export default function Home() {
                       formData.append('imageSource', imageSource);
                       formData.append('promptFormat', promptFormat); // 롱폼/숏폼 정보 추가
                       formData.append('ttsVoice', selectedTtsVoice); // TTS 음성 선택 추가
+                      formData.append('ttsSpeed', ttsSpeed.toString()); // TTS 속도 추가
 
                       // 직접 업로드 모드일 때만 이미지 추가
                       if (imageSource === 'none') {
@@ -4337,6 +4640,25 @@ export default function Home() {
 
                         console.log('\n' + '='.repeat(70));
                         console.log('✅ 이미지 정렬 및 FormData 추가 완료');
+                        console.log('='.repeat(70) + '\n');
+                      }
+
+                      // 비디오 파일 처리
+                      if (uploadedVideos.length > 0) {
+                        console.log('\n' + '='.repeat(70));
+                        console.log('🎬 비디오 파일 FormData 추가 시작');
+                        console.log('='.repeat(70));
+
+                        uploadedVideos.forEach((vid, idx) => {
+                          const ext = vid.name.split('.').pop() || 'mp4';
+                          const newFileName = `video_${String(idx).padStart(2, '0')}.${ext}`;
+                          const renamedFile = new File([vid], newFileName, { type: vid.type });
+                          formData.append(`video_${idx}`, renamedFile);
+                          console.log(`  FormData.append('video_${idx}', ${newFileName}) - 원본: ${vid.name}`);
+                        });
+
+                        console.log('\n' + '='.repeat(70));
+                        console.log('✅ 비디오 FormData 추가 완료');
                         console.log('='.repeat(70) + '\n');
                       }
 
