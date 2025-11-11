@@ -199,25 +199,47 @@ export default function Home() {
     return false; // 기본값 false (접힌 상태)
   });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product'>(() => {
+
+  // 초기 promptFormat을 기억 (URL 파라미터로 설정된 경우 localStorage 복원 방지용)
+  const initialVideoFormatRef = useRef<string | null>(null);
+
+  const [promptFormat, setPromptFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product' | 'product-info'>(() => {
     // 상품 프롬프트 타입인 경우 초기값을 product로 설정
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
+
+      // generateProductInfo 파라미터가 있으면 무조건 product-info 모드
+      const generateProductInfo = params.get('generateProductInfo');
+      if (generateProductInfo) {
+        console.log('🛍️ 초기 로드: generateProductInfo 감지 → product-info 모드');
+        initialVideoFormatRef.current = 'product-info-from-url';
+        return 'product-info';
+      }
+
       const promptType = params.get('promptType');
-      console.log('🔍 초기 URL promptType:', promptType);
       if (promptType === 'product') {
-        console.log('✅ videoFormat 초기값: product');
+        initialVideoFormatRef.current = 'product-from-url';
         return 'product';
+      }
+      if (promptType === 'product-info') {
+        initialVideoFormatRef.current = 'product-info-from-url';
+        return 'product-info';
+      }
+
+      // localStorage 마이그레이션: videoFormat -> promptFormat
+      const oldFormat = localStorage.getItem('videoFormat');
+      if (oldFormat) {
+        console.log('🔄 localStorage 마이그레이션: videoFormat -> promptFormat');
+        localStorage.setItem('promptFormat', oldFormat);
+        localStorage.removeItem('videoFormat');
       }
 
       // localStorage에서 저장된 포맷 불러오기
-      const savedFormat = localStorage.getItem('videoFormat');
-      if (savedFormat === 'longform' || savedFormat === 'shortform' || savedFormat === 'sora2' || savedFormat === 'product') {
-        console.log('✅ videoFormat 초기값 (저장됨):', savedFormat);
-        return savedFormat as 'longform' | 'shortform' | 'sora2' | 'product';
+      const savedFormat = localStorage.getItem('promptFormat');
+      if (savedFormat === 'longform' || savedFormat === 'shortform' || savedFormat === 'sora2' || savedFormat === 'product' || savedFormat === 'product-info') {
+        return savedFormat as 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info';
       }
     }
-    console.log('✅ videoFormat 초기값: longform');
     return 'longform';
   });
   const [productionMode, setProductionMode] = useState<'create' | 'merge'>('create'); // 영상제작 vs 영상병합
@@ -233,7 +255,7 @@ export default function Home() {
   const [user, setUser] = useState<{id: string; email: string; credits: number; isAdmin: boolean} | null>(null);
   const [settings, setSettings] = useState<{aiScriptCost: number; videoGenerationCost: number} | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [confirmModalData, setConfirmModalData] = useState<{cost: number; currentCredits: number; jsonName: string; imageCount: number} | null>(null);
+  const [confirmModalData, setConfirmModalData] = useState<{cost: number; currentCredits: number; jsonName: string; imageCount: number; videoCount?: number} | null>(null);
   const [suggestedTitles, setSuggestedTitles] = useState<string[]>([]);
   const [isSuggestingTitles, setIsSuggestingTitles] = useState(false);
   const [selectedSuggestedTitle, setSelectedSuggestedTitle] = useState<string | null>(null);
@@ -280,16 +302,15 @@ export default function Home() {
 
   // 프롬프트 API URL 헬퍼 함수
   const getPromptApiUrl = () => {
-    console.log('🔍 getPromptApiUrl - 현재 videoFormat:', videoFormat);
-    if (videoFormat === 'shortform') {
-      console.log('✅ 숏폼 프롬프트 URL 반환');
+    if (promptFormat === 'shortform') {
       return '/api/shortform-prompt';
     }
-    if (videoFormat === 'product') {
-      console.log('✅ 상품 프롬프트 URL 반환');
+    if (promptFormat === 'product') {
       return '/api/product-prompt';
     }
-    console.log('✅ 롱폼 프롬프트 URL 반환');
+    if (promptFormat === 'product-info') {
+      return '/api/product-info-prompt';
+    }
     return '/api/prompt';
   };
 
@@ -300,28 +321,47 @@ export default function Home() {
   };
 
   // 포맷 변경 핸들러 (대본이 로드된 경우 경고)
-  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2' | 'product') => {
+  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info') => {
     // 대본이 로드되어 있고, 원본 포맷과 다른 경우 경고
     if (originalFormat && originalFormat !== newFormat && uploadedJson) {
       const formatNames = {
         longform: '롱폼 (16:9 가로)',
         shortform: '숏폼 (9:16 세로)',
         sora2: 'Sora2 (AI 시네마틱)',
-        product: '상품 (AI 마케팅)'
+        product: '상품 (AI 마케팅)',
+        'product-info': '상품정보 (상세 설명)'
       };
 
       if (confirm(`⚠️ 포맷 변경 경고\n\n현재 불러온 대본은 ${formatNames[originalFormat]} 형식입니다.\n${formatNames[newFormat]}(으)로 변경하시겠습니까?\n\n대본 내용이 형식에 맞지 않을 수 있습니다.`)) {
-        setVideoFormat(newFormat);
+        setPromptFormat(newFormat);
         console.log(`📝 포맷 변경: ${originalFormat} → ${newFormat}`);
       } else {
         console.log('📝 포맷 변경 취소됨');
       }
     } else {
       // 대본이 없거나 같은 포맷이면 바로 변경
-      setVideoFormat(newFormat);
+      setPromptFormat(newFormat);
       console.log(`📝 포맷 변경: ${newFormat}`);
     }
   };
+
+  // URL 파라미터에서 promptType 감지 및 promptFormat 설정
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const promptType = params.get('promptType');
+
+      if (promptType === 'product' && promptFormat !== 'product') {
+        console.log('🛍️ URL에서 상품 모드 감지, 포맷 변경');
+        initialVideoFormatRef.current = 'product-from-url'; // URL 파라미터로 설정됨을 표시
+        setPromptFormat('product');
+      } else if (promptType === 'product-info' && promptFormat !== 'product-info') {
+        console.log('📝 URL에서 상품정보 모드 감지, 포맷 변경');
+        initialVideoFormatRef.current = 'product-info-from-url'; // URL 파라미터로 설정됨을 표시
+        setPromptFormat('product-info');
+      }
+    }
+  }, []); // 컴포넌트 마운트 시 한 번만 실행
 
   // localStorage에서 필터 로드 (클라이언트에서만)
   useEffect(() => {
@@ -351,7 +391,8 @@ export default function Home() {
       if (promptType === 'product') {
         // 확실하게 상품 포맷으로 설정
         console.log('🛍️ 상품 모드 강제 설정');
-        setVideoFormat('product');
+        initialVideoFormatRef.current = 'product-from-url'; // URL 파라미터로 설정됨을 표시
+        setPromptFormat('product');
 
         // localStorage에서 상품 정보 로드
         const productInfoStr = localStorage.getItem('product_video_info');
@@ -376,8 +417,14 @@ export default function Home() {
 
             // 약간의 딜레이 후 스크롤 (DOM 렌더링 대기)
             setTimeout(() => {
+              // 상품 정보 섹션으로 스크롤 (없으면 AI 섹션으로)
+              const productInfoSection = document.querySelector('[data-product-info-section]');
               const aiSection = document.querySelector('[data-ai-script-section]');
-              if (aiSection) {
+
+              if (productInfoSection) {
+                productInfoSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                console.log('📜 상품 정보 섹션으로 이동');
+              } else if (aiSection) {
                 aiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 console.log('📜 AI 대본 생성 섹션으로 이동');
               }
@@ -389,6 +436,135 @@ export default function Home() {
             console.error('❌ 상품 정보 로드 실패:', e);
           }
         }
+      }
+    }
+  }, []);
+
+  // 상품정보 대본 생성 파라미터 감지
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const scriptId = urlParams.get('generateProductInfo');
+
+      if (scriptId) {
+        console.log('🛍️ 상품정보 생성 요청 감지:', scriptId);
+
+        // 상품정보 포맷으로 강제 설정
+        initialVideoFormatRef.current = 'product-info-from-url'; // URL 파라미터로 설정됨을 표시
+        setPromptFormat('product-info');
+        setProductionMode('create'); // 영상 생성 모드로 설정 (병합 아님)
+        console.log('📝 상품정보 모드 강제 설정 (영상 생성)');
+
+        // 대본 내용 로드
+        fetch(`/api/scripts/${scriptId}`)
+          .then(res => {
+            if (!res.ok) {
+              throw new Error('대본을 찾을 수 없습니다.');
+            }
+            return res.json();
+          })
+          .then(async data => {
+            if (data.script) {
+              const script = data.script;
+              console.log('✅ 상품 대본 로드 완료:', script.title);
+
+              // 상품정보 제목 설정
+              const productInfoTitle = `${script.title} - 상품 기입 정보`;
+              setManualTitle(productInfoTitle);
+
+              // API에서 상품정보 프롬프트 템플릿 가져오기
+              try {
+                const promptRes = await fetch('/api/product-info-prompt');
+                if (!promptRes.ok) {
+                  throw new Error('프롬프트 템플릿을 불러올 수 없습니다.');
+                }
+                const promptData = await promptRes.json();
+                let promptTemplate = promptData.content;
+
+                // 상품 대본 내용에서 product_info 추출 (JSON 형식으로 저장되어 있을 수 있음)
+                let extractedProductInfo = null;
+                try {
+                  // 대본이 JSON인지 확인
+                  const scriptData = JSON.parse(script.content);
+                  if (scriptData.product_info) {
+                    extractedProductInfo = scriptData.product_info;
+                  }
+                } catch (e) {
+                  // JSON이 아니면 그냥 텍스트로 처리
+                  console.log('대본이 JSON 형식이 아님, 텍스트로 처리');
+                }
+
+                // product_info가 있으면 state에 저장 (backend에서 플레이스홀더 치환)
+                if (extractedProductInfo) {
+                  console.log('✅ product_info 추출 완료:');
+                  console.log('  📌 제목:', script.title);
+                  console.log('  📌 상품 링크:', extractedProductInfo.product_link?.trim() || '없음');
+                  console.log('  📌 썸네일:', extractedProductInfo.thumbnail?.trim() || '없음');
+                  console.log('  📌 설명:', extractedProductInfo.description?.trim() || '없음');
+
+                  // ⭐ STATE + localStorage에 저장 - API 호출 시 backend에서 치환하도록
+                  const productInfoData = {
+                    title: script.title,
+                    thumbnail: extractedProductInfo.thumbnail || '',
+                    product_link: extractedProductInfo.product_link || '',
+                    description: extractedProductInfo.description || ''
+                  };
+                  setProductInfo(productInfoData);
+                  localStorage.setItem('pendingProductInfoData', JSON.stringify(productInfoData));
+                  localStorage.setItem('current_product_info', JSON.stringify(productInfoData));
+                  console.log('✅ productInfo state + localStorage 저장 완료! (backend에서 치환 예정)');
+                } else {
+                  // product_info가 없으면 경고
+                  console.log('⚠️ product_info 없음');
+                }
+
+                // 프롬프트 템플릿은 치환하지 않고 그대로 사용 (backend에서 치환)
+                const finalPrompt = promptTemplate;
+                console.log('✅ 상품정보 프롬프트 템플릿 로드 완료');
+
+                // AI 대본 생성 섹션 표시
+                setShowTitleInput(true);
+                setTitleInputMode('generate');
+
+                // localStorage에 프롬프트 저장 및 UI 업데이트
+                localStorage.setItem('pendingProductInfoPrompt', finalPrompt);
+
+                setTimeout(() => {
+                  // 상품 정보 섹션으로 스크롤 (없으면 AI 섹션으로)
+                  const productInfoSection = document.querySelector('[data-product-info-section]');
+                  const aiSection = document.querySelector('[data-ai-script-section]');
+
+                  if (productInfoSection) {
+                    productInfoSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    console.log('📜 상품 정보 섹션으로 이동');
+                  } else if (aiSection) {
+                    aiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    console.log('📜 AI 대본 생성 섹션으로 이동');
+                  }
+
+                  console.log('✅ 상품정보 프롬프트 준비 완료');
+                  console.log('📝 제목:', productInfoTitle);
+                  console.log('📝 프롬프트 길이:', finalPrompt.length);
+
+                  // 토스트 메시지
+                  showToast(`🛍️ "${productInfoTitle}" - 상품 기입 정보 생성 준비 완료! 아래 "🤖 AI 대본 생성" 버튼을 클릭하세요.`, 'success');
+                }, 500);
+              } catch (promptError) {
+                console.error('❌ 프롬프트 로드 실패:', promptError);
+                showToast('상품정보 프롬프트를 불러오지 못했습니다.', 'error');
+              }
+            } else {
+              console.error('❌ 대본 로드 실패:', data.error);
+              showToast('상품 대본을 찾을 수 없습니다.', 'error');
+            }
+          })
+          .catch(error => {
+            console.error('❌ 대본 로드 에러:', error);
+            showToast('상품 대본 로드에 실패했습니다.', 'error');
+          });
+
+        // URL 파라미터 제거 (히스토리 오염 방지)
+        window.history.replaceState({}, '', '/');
       }
     }
   }, []);
@@ -441,21 +617,6 @@ export default function Home() {
     }
   }, [chineseConvertLogs]);
 
-  // videoFormat이 변경될 때마다 localStorage에 저장 (상품 모드는 제외)
-  useEffect(() => {
-    if (typeof window !== 'undefined' && isMounted) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const isProductMode = urlParams.get('promptType') === 'product';
-
-      if (!isProductMode && videoFormat !== 'product') {
-        console.log('💾 videoFormat 저장:', videoFormat);
-        localStorage.setItem('videoFormat', videoFormat);
-      } else {
-        console.log('🛍️ 상품 모드: localStorage 저장 건너뛰기');
-      }
-    }
-  }, [videoFormat, isMounted]);
-
   // 컴포넌트 언마운트 시 폴링 인터벌 정리
   useEffect(() => {
     return () => {
@@ -469,22 +630,20 @@ export default function Home() {
     setIsMounted(true);
     checkAuth();
 
-    // localStorage에서 videoFormat 복원 (클라이언트에서만)
-    // 단, promptType=product인 경우는 제외 (이미 초기값으로 설정됨)
-    const urlParams = new URLSearchParams(window.location.search);
-    const isProductMode = urlParams.get('promptType') === 'product';
+    // localStorage에서 promptFormat 복원 (클라이언트에서만)
+    // 단, URL 파라미터로 설정된 경우는 절대 복원하지 않음
+    console.log('🔍 초기 promptFormat 출처:', initialVideoFormatRef.current);
+    console.log('🔍 현재 promptFormat:', promptFormat);
 
-    if (!isProductMode) {
-      const savedVideoFormat = localStorage.getItem('videoFormat');
-      console.log('📂 localStorage에서 videoFormat 불러오기:', savedVideoFormat);
-      if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2' || savedVideoFormat === 'product') {
-        console.log('✅ videoFormat 복원:', savedVideoFormat);
-        setVideoFormat(savedVideoFormat as any);
-      } else {
-        console.log('⚠️ 저장된 videoFormat 없음, 기본값 유지');
+    if (!initialVideoFormatRef.current || !initialVideoFormatRef.current.includes('-from-url')) {
+      const savedVideoFormat = localStorage.getItem('promptFormat');
+      console.log('💾 localStorage에서 promptFormat 복원 시도:', savedVideoFormat);
+      if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2' || savedVideoFormat === 'product' || savedVideoFormat === 'product-info') {
+        console.log('✅ promptFormat 복원:', savedVideoFormat);
+        setPromptFormat(savedVideoFormat as any);
       }
     } else {
-      console.log('🛍️ 상품 모드: localStorage 복원 건너뛰기');
+      console.log('🚫 URL 파라미터로 설정된 포맷 - localStorage 복원 완전 차단!');
     }
 
     // localStorage에서 selectedModel 복원 (isFilterExpanded는 useState lazy init에서 이미 처리됨)
@@ -542,7 +701,11 @@ export default function Home() {
     // }
 
     // 파이프라인 스크립트 로드 (내 콘텐츠에서 실행 버튼 눌렀을 때)
-    const pipelineScript = localStorage.getItem('pipelineScript');
+    // 단, URL 파라미터가 있으면 스킵 (상품정보 생성 등)
+    const urlParams2 = new URLSearchParams(window.location.search);
+    const hasFormatParam2 = urlParams2.get('promptType') || urlParams2.get('generateProductInfo');
+
+    const pipelineScript = !hasFormatParam2 ? localStorage.getItem('pipelineScript') : null;
     console.log('🔍 파이프라인 스크립트 체크:', pipelineScript ? '있음' : '없음');
 
     if (pipelineScript) {
@@ -580,9 +743,9 @@ export default function Home() {
 
         // 포맷 타입 설정 (기본값: longform)
         const formatType = type || 'longform';
-        setVideoFormat(formatType);
+        setPromptFormat(formatType);
         setOriginalFormat(formatType); // 원본 포맷 저장
-        console.log('  ✓ videoFormat 설정:', formatType);
+        console.log('  ✓ promptFormat 설정:', formatType);
         console.log('  ✓ originalFormat 저장:', formatType);
 
         setShowUploadSection(true);
@@ -592,15 +755,22 @@ export default function Home() {
         console.log('  ✓ pipelineScript localStorage 제거');
 
         // 업로드 섹션으로 스크롤 (섹션이 렌더링된 후)
-        setTimeout(() => {
-          if (uploadSectionRef.current) {
-            uploadSectionRef.current.scrollIntoView({
-              behavior: 'smooth',
-              block: 'start'
-            });
-            console.log('  ✓ 업로드 섹션으로 스크롤 완료');
-          }
-        }, 100);
+        // requestAnimationFrame 2번 사용하여 렌더링 완료 보장
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              if (uploadSectionRef.current) {
+                uploadSectionRef.current.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'start'
+                });
+                console.log('  ✓ 업로드 섹션으로 스크롤 완료');
+              } else {
+                console.warn('  ⚠️ uploadSectionRef.current가 null입니다');
+              }
+            }, 100);
+          });
+        });
 
         // Sora2 타입인 경우 자동으로 영상 생성 시작
         if (formatType === 'sora2') {
@@ -839,7 +1009,6 @@ export default function Home() {
 
       if (data.user) {
         setUser(data.user);
-        console.log('✅ 사용자 인증됨:', data.user.email);
 
         // 2. 크레딧, 설정, 최근 제목 동시에 가져오기
         const [creditsRes, settingsRes, titlesRes] = await Promise.all([
@@ -854,28 +1023,15 @@ export default function Home() {
           titlesRes.json()
         ]);
 
-        console.log('📊 API 응답 상태:', {
-          credits: creditsRes.status,
-          settings: settingsRes.status,
-          titles: titlesRes.status
-        });
-
         // 에러 응답 확인
         if (!titlesRes.ok) {
-          console.error('❌ 최근 제목 API 호출 실패:', {
-            status: titlesRes.status,
-            statusText: titlesRes.statusText,
-            data: titlesData
-          });
+          console.error('최근 제목 API 호출 실패:', titlesRes.status);
           setTitleHistory([]);
         } else {
-          console.log('📦 titlesData 전체:', titlesData);
-
           if (titlesData && titlesData.titles && Array.isArray(titlesData.titles)) {
             setTitleHistory(titlesData.titles);
-            console.log('✅ 최근 제목 로드됨:', titlesData.titles.length, '개', titlesData.titles);
           } else {
-            console.warn('⚠️ 제목 데이터가 올바르지 않습니다:', titlesData);
+            console.warn('제목 데이터가 올바르지 않습니다:', titlesData);
             setTitleHistory([]); // 빈 배열로 초기화
           }
         }
@@ -1061,7 +1217,7 @@ export default function Home() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           topic: manualTitle.trim(),
-          videoFormat: 'sora2', // SORA2 전용 프롬프트 사용
+          promptFormat: 'sora2', // SORA2 전용 프롬프트 사용
           scriptModel: scriptModel // AI 모델 선택
         })
       });
@@ -1140,13 +1296,16 @@ export default function Home() {
     }
   }, [scriptModel]);
 
-  // videoFormat을 localStorage에 저장 (포맷 선택 기억)
+  // promptFormat을 localStorage에 저장 (포맷 선택 기억)
+  // 단, product-info는 임시 모드이므로 저장하지 않음
   useEffect(() => {
-    if (typeof window !== 'undefined' && videoFormat) {
-      window.localStorage.setItem('videoFormat', videoFormat);
-      console.log('💾 비디오 포맷 저장:', videoFormat);
+    if (typeof window !== 'undefined' && promptFormat && promptFormat !== 'product-info') {
+      window.localStorage.setItem('promptFormat', promptFormat);
+      console.log('💾 프롬프트 포맷 저장:', promptFormat);
+    } else if (promptFormat === 'product-info') {
+      console.log('🚫 product-info는 임시 모드 - localStorage 저장 스킵');
     }
-  }, [videoFormat]);
+  }, [promptFormat]);
 
   const pushLog = useCallback((message: string) => {
     setLogs((prev) => {
@@ -1346,7 +1505,7 @@ export default function Home() {
 
     // 조건에 따라 토스트 메시지 변경
     let message = '';
-    if (videoFormat === 'sora2') {
+    if (promptFormat === 'sora2') {
       message = '📤 JSON 대본을 업로드해주세요. (이미지 불필요)';
     } else if (productionMode === 'merge') {
       message = '📤 JSON 대본과 비디오 파일들을 업로드해주세요.';
@@ -1364,19 +1523,20 @@ export default function Home() {
     setTimeout(() => {
       uploadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
-  }, [videoFormat, imageSource]);
+  }, [promptFormat, imageSource]);
 
   const handleMoveToLLM = useCallback(async () => {
     // 영상이 선택되지 않았으면 프롬프트만 복사하고 모델 홈페이지로 이동
     if (!selectedIds.length) {
       try {
-        // 프롬프트 파일 가져오기 - videoFormat에 따라 결정
+        // 프롬프트 파일 가져오기 - promptFormat에 따라 결정
         let promptUrl = '/api/prompt';
-        if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
-        else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
-        else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+        if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+        else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+        else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+        else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
 
-        console.log('🔍 LLM 이동 - videoFormat:', videoFormat, 'URL:', promptUrl);
+        console.log('🔍 LLM 이동 - promptFormat:', promptFormat, 'URL:', promptUrl);
         const response = await fetch(promptUrl);
 
         if (!response.ok) {
@@ -1459,7 +1619,7 @@ export default function Home() {
 
     pushLog(`LLM 이동 완료 (${results.length}건)`);
     alert(`✅ 모델: ${pipelineModel.toUpperCase()}로 ${results.length}개 탭을 열었습니다.\n\n📋 각 탭의 프롬프트가 클립보드에 복사되었습니다.\n(마지막 탭의 내용이 클립보드에 남아있습니다)\n\n이제 LLM 사이트에서 Ctrl+V로 붙여넣으세요.`);
-  }, [runPipeline, pushLog, selectedIds, videoFormat, selectedModel]);
+  }, [runPipeline, pushLog, selectedIds, promptFormat, selectedModel]);
 
   const handleGenerateSubtitle = useCallback(async () => {
     if (!selectedIds.length) {
@@ -1610,7 +1770,7 @@ export default function Home() {
               <button
                 onClick={() => handleFormatChange('longform')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  videoFormat === 'longform'
+                  promptFormat === 'longform'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-slate-300 hover:bg-white/20'
                 }`}
@@ -1620,7 +1780,7 @@ export default function Home() {
               <button
                 onClick={() => handleFormatChange('shortform')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  videoFormat === 'shortform'
+                  promptFormat === 'shortform'
                     ? 'bg-pink-600 text-white'
                     : 'bg-white/10 text-slate-300 hover:bg-white/20'
                 }`}
@@ -1630,7 +1790,7 @@ export default function Home() {
               <button
                 onClick={() => handleFormatChange('sora2')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  videoFormat === 'sora2'
+                  promptFormat === 'sora2'
                     ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
                     : 'bg-white/10 text-slate-300 hover:bg-white/20'
                 }`}
@@ -1640,12 +1800,22 @@ export default function Home() {
               <button
                 onClick={() => handleFormatChange('product')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  videoFormat === 'product'
+                  promptFormat === 'product'
                     ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white'
                     : 'bg-white/10 text-slate-300 hover:bg-white/20'
                 }`}
               >
                 🛍️ 상품
+              </button>
+              <button
+                onClick={() => handleFormatChange('product-info')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  promptFormat === 'product-info'
+                    ? 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                📝 상품정보
               </button>
             </div>
           </div>
@@ -1709,24 +1879,6 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-3">
-                {user?.isAdmin && (
-                  <button
-                    onClick={async () => {
-                      setShowTitleInput(true);
-                      setTitleInputMode('copy');
-                      setManualTitle('');
-                      setSuggestedTitles([]);
-                      setSelectedSuggestedTitle(null);
-                    }}
-                    className={`w-full rounded-xl px-5 py-3.5 text-base font-semibold text-white transition ${
-                      titleInputMode === 'copy' && showTitleInput
-                        ? 'bg-slate-600 ring-2 ring-slate-400'
-                        : 'bg-slate-700 hover:bg-slate-600'
-                    }`}
-                  >
-                    🚀 Claude로 열기
-                  </button>
-                )}
                 {user?.isAdmin && (
                   <button
                     onClick={async () => {
@@ -2005,11 +2157,12 @@ export default function Home() {
                     // Claude로 프롬프트 열기 - 포맷에 따른 프롬프트 파일 가져오기
                     try {
                       let promptUrl = '/api/prompt';
-                      if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
-                      else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
-                      else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+                      if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                      else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                      else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+                      else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
 
-                      console.log('🔍 Claude.ai 자동실행 - videoFormat:', videoFormat, 'URL:', promptUrl);
+                      console.log('🔍 Claude.ai 자동실행 - promptFormat:', promptFormat, 'URL:', promptUrl);
                       const response = await fetch(promptUrl);
 
                       if (!response.ok) {
@@ -2143,7 +2296,7 @@ export default function Home() {
                         headers: getAuthHeaders(),
                         body: JSON.stringify({
                           title: manualTitle.trim(),
-                          type: videoFormat,
+                          type: promptFormat,
                           scriptModel: scriptModel // AI 모델 선택
                         })
                       });
@@ -2317,9 +2470,9 @@ export default function Home() {
               </button>
             </div>
 
-            {/* 상품 정보 표시 (product 모드일 때만) */}
-            {videoFormat === 'product' && productInfo && (
-              <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+            {/* 상품 정보 표시 (product 또는 product-info 모드일 때) */}
+            {(promptFormat === 'product' || promptFormat === 'product-info') && productInfo && (
+              <div data-product-info-section className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
                 <h4 className="text-sm font-semibold text-amber-300 mb-3">📦 상품 추가 정보</h4>
                 <div className="space-y-3">
                   {/* 썸네일 */}
@@ -2480,7 +2633,7 @@ export default function Home() {
             </button>
           </div>
           <p className="mb-4 text-sm text-slate-300">
-            {videoFormat === 'sora2'
+            {promptFormat === 'sora2'
               ? 'JSON 대본을 업로드하여 AI 시네마틱 영상을 생성하세요. (이미지 불필요)'
               : productionMode === 'merge'
               ? '여러 개의 비디오 파일을 업로드하여 하나로 병합하세요. TTS 나레이션 추가 가능'
@@ -2506,7 +2659,7 @@ export default function Home() {
             )}
 
             {/* SORA2 안내 메시지 */}
-            {productionMode !== 'merge' && videoFormat === 'sora2' && (
+            {productionMode !== 'merge' && promptFormat === 'sora2' && (
             <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-4">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">🎬</span>
@@ -2543,6 +2696,13 @@ export default function Home() {
 
                   const files = Array.from(e.dataTransfer.files);
 
+                  // .gdoc 파일 차단
+                  const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                  if (gdocFile) {
+                    showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                    return;
+                  }
+
                   // JSON/TXT 파일 분류
                   const jsonFile = files.find(f =>
                     f.type === 'application/json' ||
@@ -2559,7 +2719,14 @@ export default function Home() {
                   }
 
                   if (videoFiles.length > 0) {
-                    setUploadedVideos(prev => [...prev, ...videoFiles]);
+                    setUploadedVideos(prev => {
+                      const existingNames = new Set(prev.map(f => f.name));
+                      const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                      if (newFiles.length < videoFiles.length) {
+                        showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                      }
+                      return [...prev, ...newFiles];
+                    });
                     showToast(`✅ ${videoFiles.length}개 비디오를 업로드했습니다!`, 'success');
                   }
 
@@ -2576,16 +2743,20 @@ export default function Home() {
                       return;
                     }
 
-                    // JSON 파싱 시도
-                    try {
-                      const text = stripMarkdownCodeBlock(rawText);
-                      const jsonData = JSON.parse(text);
+                    // JSON 파싱 시도 (유연한 파싱)
+                    const result = parseJsonSafely(rawText);
+                    if (result.success) {
+                      const text = JSON.stringify(result.data, null, 2);
                       const blob = new Blob([text], { type: 'application/json' });
                       const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                       setUploadedJson(file);
                       showToast('✅ 클립보드에서 JSON을 가져왔습니다!', 'success');
-                    } catch (e) {
+                      if (result.fixed) {
+                        showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                      }
+                    } else {
                       showToast('클립보드 내용이 올바른 JSON 형식이 아닙니다.', 'error');
+                      console.error('JSON 파싱 실패:', result.error);
                     }
                   } catch (error) {
                     console.error('클립보드 읽기 실패:', error);
@@ -2642,15 +2813,69 @@ export default function Home() {
                         </div>
                       )}
 
-                      <button
-                        onClick={() => {
-                          setUploadedJson(null);
-                          setUploadedVideos([]);
-                        }}
-                        className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
-                      >
-                        전체 삭제
-                      </button>
+                      <div className="flex gap-2">
+                        <label className={`rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition ${
+                          isGeneratingVideo
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'cursor-pointer hover:from-purple-500 hover:to-orange-500'
+                        }`}>
+                          추가 파일 선택
+                          <input
+                            type="file"
+                            multiple
+                            accept=".json,.txt,video/*"
+                            disabled={isGeneratingVideo}
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []);
+
+                              // .gdoc 파일 차단
+                              const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                              if (gdocFile) {
+                                showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                                e.target.value = ''; // input 초기화
+                                return;
+                              }
+
+                              const jsonFile = files.find(f =>
+                                f.type === 'application/json' ||
+                                f.name.endsWith('.json') ||
+                                f.name.endsWith('.txt')
+                              );
+
+                              const videoFiles = files.filter(f => f.type.startsWith('video/'));
+
+                              if (jsonFile) {
+                                setUploadedJson(jsonFile);
+                              }
+
+                              if (videoFiles.length > 0) {
+                                setUploadedVideos(prev => {
+                                  const existingNames = new Set(prev.map(f => f.name));
+                                  const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                                  if (newFiles.length < videoFiles.length) {
+                                    showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                  }
+                                  return [...prev, ...newFiles];
+                                });
+                              }
+
+                              if (jsonFile || videoFiles.length > 0) {
+                                showToast('✅ 파일 추가 완료!', 'success');
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          onClick={() => {
+                            setUploadedJson(null);
+                            setUploadedVideos([]);
+                          }}
+                          className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
+                        >
+                          전체 삭제
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -2677,6 +2902,14 @@ export default function Home() {
                           onChange={(e) => {
                             const files = Array.from(e.target.files || []);
 
+                            // .gdoc 파일 차단
+                            const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                            if (gdocFile) {
+                              showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                              e.target.value = ''; // input 초기화
+                              return;
+                            }
+
                             const jsonFile = files.find(f =>
                               f.type === 'application/json' ||
                               f.name.endsWith('.json') ||
@@ -2690,7 +2923,14 @@ export default function Home() {
                             }
 
                             if (videoFiles.length > 0) {
-                              setUploadedVideos(prev => [...prev, ...videoFiles]);
+                              setUploadedVideos(prev => {
+                                const existingNames = new Set(prev.map(f => f.name));
+                                const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                                if (newFiles.length < videoFiles.length) {
+                                  showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                }
+                                return [...prev, ...newFiles];
+                              });
                             }
 
                             if (jsonFile || videoFiles.length > 0) {
@@ -2732,7 +2972,7 @@ export default function Home() {
             )}
 
             {/* 이미지 소스 선택 (SORA2, VIDEO-MERGE 제외) */}
-            {videoFormat !== 'sora2' && productionMode !== 'merge' && (
+            {promptFormat !== 'sora2' && productionMode !== 'merge' && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-300">
                 🎨 이미지 소스 선택
@@ -2784,7 +3024,7 @@ export default function Home() {
                 </button>
               </div>
               <p className="mt-2 text-xs text-slate-400">
-                {imageSource === 'none' && '💡 이미지를 직접 업로드합니다 (8컷 권장)'}
+                {imageSource === 'none' && '💡 이미지를 직접 업로드합니다 (최대 50개)'}
                 {imageSource === 'dalle' && '💡 DALL-E가 자동으로 이미지를 생성합니다'}
                 {imageSource === 'google' && '💡 Google에서 관련 이미지를 검색합니다'}
               </p>
@@ -2792,7 +3032,7 @@ export default function Home() {
             )}
 
             {/* 파일 업로드 (JSON + 이미지) */}
-            {videoFormat !== 'sora2' && productionMode !== 'merge' && imageSource === 'none' && (
+            {promptFormat !== 'sora2' && productionMode !== 'merge' && imageSource === 'none' && (
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-sm font-medium text-slate-300">
@@ -2825,6 +3065,13 @@ export default function Home() {
                   setIsDraggingFiles(false);
 
                   const files = Array.from(e.dataTransfer.files);
+                  // .gdoc 파일 차단
+                  const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                  if (gdocFile) {
+                    showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                    return;
+                  }
+
                   const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
                   const imageFiles = files.filter(f => f.type.startsWith('image/'));
 
@@ -2847,7 +3094,14 @@ export default function Home() {
                       console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
                     });
                     console.log('='.repeat(70) + '\n');
-                    setUploadedImages(imageFiles.slice(0, 50)); // 최대 50개
+                    setUploadedImages(prev => {
+                      const existingNames = new Set(prev.map(f => f.name));
+                      const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                      if (newFiles.length < imageFiles.length) {
+                        showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                      }
+                      return [...prev, ...newFiles].slice(0, 50);
+                    });
                   }
 
                   if (!jsonFile && imageFiles.length === 0) {
@@ -2924,15 +3178,6 @@ export default function Home() {
                     <div className="w-full space-y-3 rounded-lg bg-white/5 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-xs text-slate-400">업로드된 파일</span>
-                        <button
-                          onClick={() => {
-                            setUploadedJson(null);
-                            setUploadedImages([]);
-                          }}
-                          className="rounded bg-red-500/20 px-3 py-1 text-xs text-red-400 transition hover:bg-red-500/30"
-                        >
-                          전체 취소
-                        </button>
                       </div>
                       {uploadedJson && (
                         <div className="flex items-center gap-2">
@@ -2955,8 +3200,8 @@ export default function Home() {
                             <span className="text-sm text-emerald-400">
                               ✓ 이미지: {uploadedImages.length}개
                             </span>
-                            {uploadedImages.length < 8 && (
-                              <span className="text-xs text-amber-400">(8개 권장)</span>
+                            {uploadedImages.length < 50 && (
+                              <span className="text-xs text-amber-400">(최대 50개)</span>
                             )}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1">
@@ -2980,6 +3225,73 @@ export default function Home() {
                           </div>
                         </div>
                       )}
+                      <div className="flex gap-2 pt-2">
+                        <label className={`flex-1 rounded-lg bg-purple-600 px-4 py-2 text-center text-sm font-semibold text-white transition ${
+                          isGeneratingVideo
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'cursor-pointer hover:bg-purple-500'
+                        }`}>
+                          추가 파일 선택
+                          <input
+                            type="file"
+                            multiple
+                            accept=".json,.txt,image/*"
+                            disabled={isGeneratingVideo}
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []);
+                              // .gdoc 파일 차단
+                  const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                  if (gdocFile) {
+                    showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                    return;
+                  }
+
+                  const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
+                              const imageFiles = files.filter(f => f.type.startsWith('image/'));
+
+                              if (jsonFile) setUploadedJson(jsonFile);
+                              if (imageFiles.length > 0) {
+                                console.log('\n' + '='.repeat(70));
+                                console.log('📁 추가 파일 선택으로 이미지 업로드됨 (' + imageFiles.length + '개)');
+                                console.log('='.repeat(70));
+                                imageFiles.slice(0, 50).forEach((file, i) => {
+                                  const date = new Date(file.lastModified);
+                                  const timeStr = date.toLocaleString('ko-KR', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                    fractionalSecondDigits: 3
+                                  });
+                                  console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
+                                });
+                                console.log('='.repeat(70) + '\n');
+                                setUploadedImages(prev => {
+                                  const existingNames = new Set(prev.map(f => f.name));
+                                  const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                                  if (newFiles.length < imageFiles.length) {
+                                    showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                  }
+                                  return [...prev, ...newFiles].slice(0, 50);
+                                });
+                                showToast(`✅ ${imageFiles.length}개 이미지 추가 완료!`, 'success');
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          onClick={() => {
+                            setUploadedJson(null);
+                            setUploadedImages([]);
+                          }}
+                          className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
+                        >
+                          전체 취소
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -3004,7 +3316,7 @@ export default function Home() {
                           console.log('\n' + '='.repeat(70));
                           console.log('📁 파일 선택으로 이미지 업로드됨 (' + imageFiles.length + '개)');
                           console.log('='.repeat(70));
-                          imageFiles.slice(0, 8).forEach((file, i) => {
+                          imageFiles.slice(0, 50).forEach((file, i) => {
                             const date = new Date(file.lastModified);
                             const timeStr = date.toLocaleString('ko-KR', {
                               year: 'numeric',
@@ -3018,7 +3330,7 @@ export default function Home() {
                             console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
                           });
                           console.log('='.repeat(70) + '\n');
-                          setUploadedImages(imageFiles.slice(0, 8));
+                          setUploadedImages(imageFiles.slice(0, 50));
                         }
                       }}
                       className="hidden"
@@ -3044,18 +3356,22 @@ export default function Home() {
                         const rawText = jsonTextareaValue.trim();
                         if (!rawText) return;
 
-                        try {
-                          // 마크다운 코드 블록 제거
-                          const text = stripMarkdownCodeBlock(rawText);
-                          const jsonData = JSON.parse(text);
+                        // 유연한 JSON 파싱
+                        const result = parseJsonSafely(rawText);
+                        if (result.success) {
+                          const text = JSON.stringify(result.data, null, 2);
                           const blob = new Blob([text], { type: 'application/json' });
                           const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                           setUploadedJson(file);
                           showToast('✅ JSON을 가져왔습니다!', 'success');
+                          if (result.fixed) {
+                            showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                          }
                           setJsonTextareaValue('');
                           setShowJsonTextarea(false);
-                        } catch (e) {
+                        } else {
                           showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                          console.error('JSON 파싱 실패:', result.error);
                         }
                       }
                     }}
@@ -3078,18 +3394,22 @@ export default function Home() {
                           return;
                         }
 
-                        try {
-                          // 마크다운 코드 블록 제거
-                          const text = stripMarkdownCodeBlock(rawText);
-                          const jsonData = JSON.parse(text);
+                        // 유연한 JSON 파싱
+                        const result = parseJsonSafely(rawText);
+                        if (result.success) {
+                          const text = JSON.stringify(result.data, null, 2);
                           const blob = new Blob([text], { type: 'application/json' });
                           const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                           setUploadedJson(file);
                           showToast('✅ JSON을 가져왔습니다!', 'success');
+                          if (result.fixed) {
+                            showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                          }
                           setJsonTextareaValue('');
                           setShowJsonTextarea(false);
-                        } catch (e) {
+                        } else {
                           showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                          console.error('JSON 파싱 실패:', result.error);
                         }
                       }}
                       className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
@@ -3103,7 +3423,7 @@ export default function Home() {
             )}
 
             {/* JSON 파일만 업로드 (DALL-E, Google 검색, 또는 SORA2) */}
-            {productionMode !== 'merge' && (videoFormat === 'sora2' || imageSource !== 'none') && (
+            {productionMode !== 'merge' && (promptFormat === 'sora2' || imageSource !== 'none') && (
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-sm font-medium text-slate-300">
@@ -3136,10 +3456,10 @@ export default function Home() {
                   setIsDraggingFiles(false);
 
                   const file = e.dataTransfer.files[0];
-                  if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt'))) {
+                  if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt') || file.name.endsWith('.gdoc'))) {
                     setUploadedJson(file);
                   } else {
-                    showToast('JSON 또는 TXT 파일만 업로드 가능합니다.', 'error');
+                    showToast('JSON, TXT, GDOC 파일만 업로드 가능합니다.', 'error');
                   }
                 }}
                 onPaste={async (e) => {
@@ -3151,18 +3471,21 @@ export default function Home() {
                       return;
                     }
 
-                    // JSON 파싱 시도
-                    try {
-                      // 마크다운 코드 블록 제거
-                      const text = stripMarkdownCodeBlock(rawText);
-                      const jsonData = JSON.parse(text);
+                    // JSON 파싱 시도 (유연한 파싱)
+                    const result = parseJsonSafely(rawText);
+                    if (result.success) {
+                      const text = JSON.stringify(result.data, null, 2);
                       // JSON을 Blob으로 변환
                       const blob = new Blob([text], { type: 'application/json' });
                       const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                       setUploadedJson(file);
                       showToast('✅ 클립보드에서 JSON을 가져왔습니다!', 'success');
-                    } catch (e) {
+                      if (result.fixed) {
+                        showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                      }
+                    } else {
                       showToast('클립보드 내용이 올바른 JSON 형식이 아닙니다.', 'error');
+                      console.error('JSON 파싱 실패:', result.error);
                     }
                   } catch (error) {
                     console.error('클립보드 읽기 실패:', error);
@@ -3206,10 +3529,16 @@ export default function Home() {
                         disabled={isGeneratingVideo}
                         onChange={(e) => {
                           const file = e.target.files?.[0];
+                          // .gdoc 파일 차단
+                          if (file && file.name.endsWith('.gdoc')) {
+                            showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                            return;
+                          }
+
                           if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt'))) {
                             setUploadedJson(file);
                           } else {
-                            showToast('JSON 또는 TXT 파일만 업로드 가능합니다.', 'error');
+                            showToast('JSON, TXT, GDOC 파일만 업로드 가능합니다.', 'error');
                           }
                         }}
                         className="hidden"
@@ -3236,18 +3565,22 @@ export default function Home() {
                         const rawText = jsonTextareaValue.trim();
                         if (!rawText) return;
 
-                        try {
-                          // 마크다운 코드 블록 제거
-                          const text = stripMarkdownCodeBlock(rawText);
-                          const jsonData = JSON.parse(text);
+                        // 유연한 JSON 파싱
+                        const result = parseJsonSafely(rawText);
+                        if (result.success) {
+                          const text = JSON.stringify(result.data, null, 2);
                           const blob = new Blob([text], { type: 'application/json' });
                           const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                           setUploadedJson(file);
                           showToast('✅ JSON을 가져왔습니다!', 'success');
+                          if (result.fixed) {
+                            showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                          }
                           setJsonTextareaValue('');
                           setShowJsonTextarea(false);
-                        } catch (e) {
+                        } else {
                           showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                          console.error('JSON 파싱 실패:', result.error);
                         }
                       }
                     }}
@@ -3270,18 +3603,22 @@ export default function Home() {
                           return;
                         }
 
-                        try {
-                          // 마크다운 코드 블록 제거
-                          const text = stripMarkdownCodeBlock(rawText);
-                          const jsonData = JSON.parse(text);
+                        // 유연한 JSON 파싱
+                        const result = parseJsonSafely(rawText);
+                        if (result.success) {
+                          const text = JSON.stringify(result.data, null, 2);
                           const blob = new Blob([text], { type: 'application/json' });
                           const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                           setUploadedJson(file);
                           showToast('✅ JSON을 가져왔습니다!', 'success');
+                          if (result.fixed) {
+                            showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                          }
                           setJsonTextareaValue('');
                           setShowJsonTextarea(false);
-                        } catch (e) {
+                        } else {
                           showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                          console.error('JSON 파싱 실패:', result.error);
                         }
                       }}
                       className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
@@ -3310,125 +3647,18 @@ export default function Home() {
                     return;
                   }
 
-                  // 영상 병합 시작
-                  setIsGeneratingVideo(true);
-                  setVideoLogs([]);
-                  setGeneratedVideoUrl(null);
+                  const cost = settings?.videoGenerationCost || 40;
+                  const currentCredits = user.credits || 0;
 
-                  try {
-                    showToast('비디오 병합을 시작합니다...', 'info');
-
-                    // FormData 생성
-                    const mergeFormData = new FormData();
-
-                    // 비디오 정렬: 시퀀스 번호가 있으면 시퀀스 우선, 없으면 시간 순서
-                    const sortedVideos = [...uploadedVideos].sort((a, b) => {
-                      // 파일명에서 숫자 추출 (예: clip_01.mp4 → 1, scene_5.mp4 → 5)
-                      const extractNumber = (filename: string): number | null => {
-                        const match = filename.match(/(\d+)/);
-                        return match ? parseInt(match[1], 10) : null;
-                      };
-
-                      const numA = extractNumber(a.name);
-                      const numB = extractNumber(b.name);
-
-                      // 둘 다 시퀀스 번호가 있으면 시퀀스로 정렬
-                      if (numA !== null && numB !== null) {
-                        return numA - numB;
-                      }
-
-                      // 시퀀스 번호가 없으면 생성/수정 시간으로 정렬 (오래된 것부터)
-                      return a.lastModified - b.lastModified;
-                    });
-
-                    // 정렬된 비디오 파일들 추가
-                    sortedVideos.forEach((video, index) => {
-                      mergeFormData.append(`video_${index}`, video);
-                    });
-
-                    // JSON 파일 추가 (있으면 - TTS 나레이션용)
-                    if (uploadedJson) {
-                      mergeFormData.append('json', uploadedJson);
-                    }
-
-                    // 자막 옵션 추가 (항상 true)
-                    mergeFormData.append('addSubtitles', 'true');
-
-                    // 워터마크 제거 옵션 추가
-                    mergeFormData.append('removeWatermark', removeWatermark ? 'true' : 'false');
-
-                    // API 호출
-                    const response = await fetch('/api/video-merge', {
-                      method: 'POST',
-                      body: mergeFormData
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                      throw new Error(data.error || '비디오 병합 실패');
-                    }
-
-                    if (data.jobId) {
-                      setCurrentJobId(data.jobId);
-                      showToast('✅ 비디오 병합이 시작되었습니다!', 'success');
-
-                      // 폴링 시작
-                      const interval = setInterval(async () => {
-                        try {
-                          const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
-                          const statusData = await statusRes.json();
-
-                          // 로그를 줄 단위로 분리해서 배열로 저장
-                          if (statusData.logs) {
-                            const logLines = typeof statusData.logs === 'string'
-                              ? statusData.logs.split('\n').filter((line: string) => line.trim())
-                              : statusData.logs;
-                            setVideoLogs(logLines);
-                          }
-
-                          // 진행률 업데이트
-                          if (statusData.progress !== undefined) {
-                            setVideoProgress({
-                              step: statusData.status === 'processing' ? '비디오 병합 중...' : '준비 중...',
-                              progress: statusData.progress
-                            });
-                          }
-
-                          if (statusData.status === 'completed' && statusData.outputPath) {
-                            clearInterval(interval);
-                            setPollingInterval(null);
-                            setIsGeneratingVideo(false);
-                            setVideoProgress({
-                              step: '완료!',
-                              progress: 100
-                            });
-
-                            const videoUrl = `/api/video-stream?path=${encodeURIComponent(statusData.outputPath)}`;
-                            setGeneratedVideoUrl(videoUrl);
-                            showToast('✅ 비디오 병합 완료!', 'success');
-
-                            // 사용자 정보 갱신
-                            await checkAuth();
-                          } else if (statusData.status === 'failed') {
-                            clearInterval(interval);
-                            setPollingInterval(null);
-                            setIsGeneratingVideo(false);
-                            setVideoProgress(null);
-                            showToast(`❌ 비디오 병합 실패: ${statusData.error}`, 'error');
-                          }
-                        } catch (error) {
-                          console.error('폴링 오류:', error);
-                        }
-                      }, 2000);
-
-                      setPollingInterval(interval);
-                    }
-                  } catch (error: any) {
-                    console.error('비디오 병합 오류:', error);
-                    showToast(error.message || '비디오 병합 중 오류가 발생했습니다.', 'error');
-                    setIsGeneratingVideo(false);
-                  }
+                  // 병합 모드도 확인 모달 표시
+                  setConfirmModalData({
+                    cost,
+                    currentCredits,
+                    jsonName: uploadedJson?.name || '',
+                    imageCount: 0,
+                    videoCount: uploadedVideos.length  // 비디오 개수 추가
+                  });
+                  setShowConfirmModal(true);
                   return;
                 }
 
@@ -3438,7 +3668,7 @@ export default function Home() {
                 }
 
                 // SORA2가 아니고 직접 업로드 모드일 때만 이미지 필수
-                if (videoFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0) {
+                if (promptFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0) {
                   showToast('최소 1개 이상의 이미지를 업로드해주세요.', 'error');
                   return;
                 }
@@ -3458,7 +3688,7 @@ export default function Home() {
               disabled={
                 isGeneratingVideo ||
                 (productionMode === 'merge' ? uploadedVideos.length === 0 :
-                  (!uploadedJson || (videoFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0)))
+                  (!uploadedJson || (promptFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0)))
               }
               className="w-full rounded-xl bg-purple-600 px-6 py-3 font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -3535,23 +3765,12 @@ export default function Home() {
                   alert('비디오 파일만 업로드할 수 있습니다.');
                 }
               }}
-              className={`relative rounded-lg border-2 border-dashed p-6 text-center transition ${
+              className={`rounded-lg border-2 border-dashed p-6 text-center transition ${
                 isDraggingFiles
                   ? 'border-red-400 bg-red-500/10'
                   : 'border-slate-600 bg-slate-800/50'
               }`}
             >
-              <input
-                type="file"
-                accept="video/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setChineseVideoFile(file);
-                  }
-                }}
-                className="absolute inset-0 cursor-pointer opacity-0"
-              />
               {chineseVideoFile ? (
                 <div>
                   <div className="mb-2 text-3xl">📹</div>
@@ -3564,9 +3783,33 @@ export default function Home() {
                 <div>
                   <div className="mb-2 text-4xl">🎬</div>
                   <p className="text-sm text-slate-400">
-                    클릭하거나 드래그하여 비디오 파일 업로드
+                    드래그하여 비디오 파일 업로드
                   </p>
                 </div>
+              )}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <label className="flex-1 cursor-pointer rounded-lg bg-gradient-to-r from-red-600 to-orange-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:from-red-500 hover:to-orange-500">
+                {chineseVideoFile ? '다른 파일 선택' : '파일 선택'}
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setChineseVideoFile(file);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+              {chineseVideoFile && (
+                <button
+                  onClick={() => setChineseVideoFile(null)}
+                  className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
+                >
+                  삭제
+                </button>
               )}
             </div>
           </div>
@@ -3738,24 +3981,35 @@ export default function Home() {
                 <div className="rounded-lg bg-purple-500/10 p-3 border border-purple-500/30">
                   <p className="text-sm text-purple-300 font-semibold mb-2">📹 영상 포맷</p>
                   <p className="text-white text-lg font-bold">
-                    {videoFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
-                     videoFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
-                     videoFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
-                     videoFormat === 'product' ? '🛍️ 상품 (AI 마케팅)' :
+                    {promptFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
+                     promptFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
+                     promptFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
+                     promptFormat === 'product' ? '🛍️ 상품 (AI 마케팅)' :
                      '🎞️ 영상 병합 (Concat)'}
                   </p>
                 </div>
 
                 <div className="rounded-lg bg-white/5 p-3 border border-white/10">
                   <p className="text-sm text-slate-400">파일 정보</p>
-                  <p className="text-white">📄 {confirmModalData.jsonName}</p>
-                  <p className="text-white">
-                    🖼️ 이미지: {imageSource === 'none'
-                      ? `${confirmModalData.imageCount}개 업로드됨`
-                      : imageSource === 'dalle'
-                        ? 'DALL-E 자동 생성'
-                        : 'Google 검색'}
-                  </p>
+                  {productionMode === 'merge' ? (
+                    <>
+                      <p className="text-white">🎞️ 비디오: {confirmModalData.videoCount}개</p>
+                      {confirmModalData.jsonName && (
+                        <p className="text-white">📄 {confirmModalData.jsonName}</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-white">📄 {confirmModalData.jsonName}</p>
+                      <p className="text-white">
+                        🖼️ 이미지: {imageSource === 'none'
+                          ? `${confirmModalData.imageCount}개 업로드됨`
+                          : imageSource === 'dalle'
+                            ? 'DALL-E 자동 생성'
+                            : 'Google 검색'}
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 <div className="rounded-lg bg-yellow-500/10 p-3 border border-yellow-500/30">
@@ -3787,6 +4041,159 @@ export default function Home() {
                     setShowConfirmModal(false);
                     setConfirmModalData(null);
 
+                    // 병합 모드 처리
+                    if (productionMode === 'merge') {
+                      setIsGeneratingVideo(true);
+                      setVideoLogs([]);
+                      setGeneratedVideoUrl(null);
+
+                      try {
+                        showToast('비디오 병합을 시작합니다...', 'info');
+
+                        // FormData 생성
+                        const mergeFormData = new FormData();
+
+                        // 비디오 정렬: 시퀀스 번호가 있으면 시퀀스 우선, 없으면 시간 순서
+                        const sortedVideos = [...uploadedVideos].sort((a, b) => {
+                          // 파일명에서 숫자 추출 (예: clip_01.mp4 → 1, scene_5.mp4 → 5)
+                          const extractNumber = (filename: string): number | null => {
+                            const match = filename.match(/(\d+)/);
+                            return match ? parseInt(match[1], 10) : null;
+                          };
+
+                          const numA = extractNumber(a.name);
+                          const numB = extractNumber(b.name);
+
+                          // 둘 다 시퀀스 번호가 있으면 시퀀스로 정렬
+                          if (numA !== null && numB !== null) {
+                            return numA - numB;
+                          }
+
+                          // 시퀀스 번호가 없으면 생성/수정 시간으로 정렬 (오래된 것부터)
+                          return a.lastModified - b.lastModified;
+                        });
+
+                        // 파일 크기 체크 (2GB 제한)
+                        const totalSize = sortedVideos.reduce((sum, video) => sum + video.size, 0);
+                        const maxSize = 2 * 1024 * 1024 * 1024; // 2GB
+
+                        if (totalSize > maxSize) {
+                          throw new Error(`총 파일 크기가 너무 큽니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB / 최대 2GB)`);
+                        }
+
+                        // 정렬된 비디오 파일들 추가
+                        sortedVideos.forEach((video, index) => {
+                          mergeFormData.append(`video_${index}`, video);
+                        });
+
+                        // JSON 파일 추가 (있으면 - TTS 나레이션용)
+                        if (uploadedJson) {
+                          mergeFormData.append('json', uploadedJson);
+                        }
+
+                        // 제목 추가 (사용자가 입력한 제목 우선 사용)
+                        if (titleQuery && titleQuery.trim()) {
+                          mergeFormData.append('title', titleQuery.trim());
+                        }
+
+                        // 자막 옵션 추가 (항상 true)
+                        mergeFormData.append('addSubtitles', 'true');
+
+                        // 워터마크 제거 옵션 추가
+                        mergeFormData.append('removeWatermark', removeWatermark ? 'true' : 'false');
+
+                        // API 호출 (디버깅 로그 추가)
+                        console.log('📤 비디오 병합 요청 시작...');
+                        console.log('📦 업로드 파일 개수:', sortedVideos.length);
+                        console.log('📦 총 파일 크기:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
+
+                        const response = await fetch('/api/video-merge', {
+                          method: 'POST',
+                          body: mergeFormData
+                        });
+
+                        console.log('✅ 응답 받음:', response.status, response.statusText);
+
+                        // 응답 텍스트 먼저 읽기 (에러 디버깅용)
+                        const responseText = await response.text();
+                        console.log('📄 응답 내용 (처음 500자):', responseText.substring(0, 500));
+
+                        let data;
+                        try {
+                          data = JSON.parse(responseText);
+                        } catch (e) {
+                          console.error('❌ JSON 파싱 실패:', e);
+                          throw new Error('서버 응답을 파싱할 수 없습니다: ' + responseText.substring(0, 100));
+                        }
+
+                        if (!response.ok) {
+                          throw new Error(data.error || '비디오 병합 실패');
+                        }
+
+                        if (data.jobId) {
+                          setCurrentJobId(data.jobId);
+                          showToast('✅ 비디오 병합이 시작되었습니다!', 'success');
+
+                          // 폴링 시작
+                          const interval = setInterval(async () => {
+                            try {
+                              const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
+                              const statusData = await statusRes.json();
+
+                              // 로그를 줄 단위로 분리해서 배열로 저장
+                              if (statusData.logs) {
+                                const logLines = typeof statusData.logs === 'string'
+                                  ? statusData.logs.split('\n').filter((line: string) => line.trim())
+                                  : statusData.logs;
+                                setVideoLogs(logLines);
+                              }
+
+                              // 진행률 업데이트
+                              if (statusData.progress !== undefined) {
+                                setVideoProgress({
+                                  step: statusData.status === 'processing' ? '비디오 병합 중...' : '준비 중...',
+                                  progress: statusData.progress
+                                });
+                              }
+
+                              if (statusData.status === 'completed' && statusData.outputPath) {
+                                clearInterval(interval);
+                                setPollingInterval(null);
+                                setIsGeneratingVideo(false);
+                                setVideoProgress({
+                                  step: '완료!',
+                                  progress: 100
+                                });
+
+                                const videoUrl = `/api/video-stream?path=${encodeURIComponent(statusData.outputPath)}`;
+                                setGeneratedVideoUrl(videoUrl);
+                                showToast('✅ 비디오 병합 완료!', 'success');
+
+                                // 사용자 정보 갱신
+                                await checkAuth();
+                              } else if (statusData.status === 'failed') {
+                                clearInterval(interval);
+                                setPollingInterval(null);
+                                setIsGeneratingVideo(false);
+                                setVideoProgress(null);
+                                showToast(`❌ 비디오 병합 실패: ${statusData.error}`, 'error');
+                              }
+                            } catch (error) {
+                              console.error('폴링 오류:', error);
+                            }
+                          }, 2000);
+
+                          setPollingInterval(interval);
+                        }
+                      } catch (error: any) {
+                        console.error('비디오 병합 오류:', error);
+                        showToast(error.message || '비디오 병합 중 오류가 발생했습니다.', 'error');
+                        setIsGeneratingVideo(false);
+                      }
+                      return;
+                    }
+
+                    // 영상 제작 모드 처리
                     setIsGeneratingVideo(true);
                     setVideoProgress({ step: '파일 업로드 준비 중...', progress: 0 });
                     setVideoLogs([]);
@@ -3814,7 +4221,7 @@ export default function Home() {
                       const formData = new FormData();
                       formData.append('json', uploadedJson!);
                       formData.append('imageSource', imageSource);
-                      formData.append('videoFormat', videoFormat); // 롱폼/숏폼 정보 추가
+                      formData.append('promptFormat', promptFormat); // 롱폼/숏폼 정보 추가
 
                       // 직접 업로드 모드일 때만 이미지 추가
                       if (imageSource === 'none') {
@@ -3968,17 +4375,6 @@ export default function Home() {
               <h2 className="mb-4 text-2xl font-bold text-white">⚠️ AI 대본 생성 확인</h2>
 
               <div className="mb-6 space-y-3">
-                <div className="rounded-lg bg-emerald-500/10 p-3 border border-emerald-500/30">
-                  <p className="text-sm text-emerald-300 font-semibold mb-2">📹 영상 포맷</p>
-                  <p className="text-white text-lg font-bold">
-                    {videoFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
-                     videoFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
-                     videoFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
-                     videoFormat === 'product' ? '🛍️ 상품 (AI 마케팅)' :
-                     '🎞️ 영상 병합 (Concat)'}
-                  </p>
-                </div>
-
                 <div className="rounded-lg bg-white/5 p-3 border border-white/10">
                   <p className="text-sm text-slate-400">대본 정보</p>
                   <p className="text-white">📝 주제: {scriptConfirmData.title}</p>
@@ -4048,52 +4444,92 @@ export default function Home() {
                       }]);
 
                       try {
-                        // videoFormat에 따라 프롬프트 URL 결정
-                        let promptUrl = '/api/prompt'; // 기본값: 롱폼
-                        if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
-                        else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
-                        else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+                        // 상품정보 생성 프롬프트 확인 (localStorage에서)
+                        let promptContent = '';
+                        const pendingPrompt = localStorage.getItem('pendingProductInfoPrompt');
 
-                        console.log('🔍 현재 videoFormat:', videoFormat);
-                        console.log('📥 프롬프트 fetch 시작:', promptUrl);
+                        if (pendingPrompt) {
+                          // 저장된 상품정보 프롬프트 사용
+                          console.log('🛍️ 상품정보 프롬프트 사용 (localStorage)');
+                          promptContent = pendingPrompt;
+                          localStorage.removeItem('pendingProductInfoPrompt'); // 사용 후 삭제
 
-                        const promptResponse = await fetch(promptUrl);
-                        const promptData = await promptResponse.json();
-                        console.log('📥 프롬프트 로드 완료:', promptData.filename || 'filename 없음');
+                          setScriptGenerationLogs(prev => [...prev, {
+                            timestamp: new Date().toISOString(),
+                            message: '🛍️ 상품정보 프롬프트 로드 완료'
+                          }]);
+                        } else {
+                          // promptFormat에 따라 프롬프트 URL 결정
+                          let promptUrl = '/api/prompt'; // 기본값: 롱폼
+                          if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                          else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                          else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+                          else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
 
-                        setScriptGenerationLogs(prev => [...prev, {
-                          timestamp: new Date().toISOString(),
-                          message: '📝 프롬프트 로드 완료'
-                        }]);
+                          console.log('🔍 현재 promptFormat:', promptFormat);
+                          console.log('📥 프롬프트 fetch 시작:', promptUrl);
 
-                        // 상품 정보 체크 (state에 이미 있음)
+                          const promptResponse = await fetch(promptUrl);
+                          const promptData = await promptResponse.json();
+                          console.log('📥 프롬프트 로드 완료:', promptData.filename || 'filename 없음');
+
+                          promptContent = promptData.content;
+
+                          setScriptGenerationLogs(prev => [...prev, {
+                            timestamp: new Date().toISOString(),
+                            message: '📝 프롬프트 로드 완료'
+                          }]);
+                        }
+
+                        // ⭐ localStorage에서 productInfo 불러오기 (product와 product-info 모두 동일하게)
+                        let productInfoForApi = productInfo; // 먼저 state 사용 시도
+
+                        if (!productInfoForApi && (promptFormat === 'product' || promptFormat === 'product-info')) {
+                          // current_product_info 먼저 체크 (product 모드와 동일)
+                          const currentProductInfo = localStorage.getItem('current_product_info');
+                          if (currentProductInfo) {
+                            productInfoForApi = JSON.parse(currentProductInfo);
+                            console.log('✅ current_product_info에서 productInfo 복원:', productInfoForApi);
+                          } else {
+                            // 없으면 pendingProductInfoData 체크 (product-info 전용)
+                            const storedProductInfo = localStorage.getItem('pendingProductInfoData');
+                            if (storedProductInfo) {
+                              productInfoForApi = JSON.parse(storedProductInfo);
+                              console.log('✅ pendingProductInfoData에서 productInfo 복원:', productInfoForApi);
+                              localStorage.removeItem('pendingProductInfoData'); // 사용 후 삭제
+                            }
+                          }
+                        }
+
+                        // 상품 정보 체크 (state 또는 localStorage)
                         console.log('🔍🔍🔍 === API 호출 직전 상품 정보 체크 ===');
-                        console.log('🔍 videoFormat:', videoFormat);
-                        console.log('🔍 productInfo state:', productInfo);
-                        console.log('🔍 productInfo null 여부:', productInfo === null);
-                        if (productInfo) {
-                          console.log('🔍 productInfo.title:', productInfo.title);
-                          console.log('🔍 productInfo.thumbnail:', productInfo.thumbnail);
-                          console.log('🔍 productInfo.product_link:', productInfo.product_link);
-                          console.log('🔍 productInfo.description:', productInfo.description);
+                        console.log('🔍 promptFormat:', promptFormat);
+                        console.log('🔍 productInfoForApi:', productInfoForApi);
+                        console.log('🔍 productInfo null 여부:', productInfoForApi === null);
+                        if (productInfoForApi) {
+                          console.log('🔍 productInfo.title:', productInfoForApi.title);
+                          console.log('🔍 productInfo.thumbnail:', productInfoForApi.thumbnail);
+                          console.log('🔍 productInfo.product_link:', productInfoForApi.product_link);
+                          console.log('🔍 productInfo.description:', productInfoForApi.description);
                         }
 
                         // 프롬프트 내용에 플레이스홀더가 있는지 확인
-                        console.log('🔍 프롬프트 처음 500자:', promptData.content.substring(0, 500));
-                        console.log('🔍 프롬프트에 {title} 포함:', promptData.content.includes('{title}'));
-                        console.log('🔍 프롬프트에 {thumbnail} 포함:', promptData.content.includes('{thumbnail}'));
-                        console.log('🔍 프롬프트에 {product_link} 포함:', promptData.content.includes('{product_link}'));
-                        console.log('🔍 프롬프트에 {product_description} 포함:', promptData.content.includes('{product_description}'));
+                        console.log('🔍 프롬프트 처음 500자:', promptContent.substring(0, 500));
+                        console.log('🔍 프롬프트에 {title} 포함:', promptContent.includes('{title}'));
+                        console.log('🔍 프롬프트에 {thumbnail} 포함:', promptContent.includes('{thumbnail}'));
+                        console.log('🔍 프롬프트에 {product_link} 포함:', promptContent.includes('{product_link}'));
+                        console.log('🔍 프롬프트에 {product_description} 포함:', promptContent.includes('{product_description}'));
 
                         const requestBody = {
-                          prompt: promptData.content,
+                          prompt: promptContent,
                           topic: title,
-                          format: videoFormat,
+                          format: promptFormat,
                           model: scriptModel, // 대본 생성용 AI 모델
-                          productInfo: productInfo // state의 상품 정보 사용
+                          productInfo: productInfoForApi // ⭐ localStorage에서 복원한 상품 정보 사용
                         };
 
                         console.log('🔍 API 요청 본문 (prompt 제외):', JSON.stringify({...requestBody, prompt: `[${requestBody.prompt.length}자 생략]`}, null, 2));
+                        console.log('🔍🔍🔍 productInfo 전달 확인:', requestBody.productInfo);
 
                         const response = await fetch('/api/generate-script', {
                           method: 'POST',
@@ -4173,7 +4609,7 @@ export default function Home() {
                               });
 
                               // SORA2 형식인 경우 JSON 검증 및 설정
-                              if (videoFormat === 'sora2') {
+                              if (promptFormat === 'sora2') {
                                 // JSON 파싱 (유틸리티 함수 사용)
                                 const parseResult = parseJsonSafely(scriptContent);
 
@@ -4320,7 +4756,7 @@ export default function Home() {
                           headers: getAuthHeaders(),
                           body: JSON.stringify({
                             title: title,
-                            type: videoFormat, // format -> type으로 수정
+                            type: promptFormat, // format -> type으로 수정
                             scriptModel: scriptModel, // 대본 생성용 AI 모델
                             useClaudeLocal: true,
                             productInfo: productInfo // 상품 정보 추가 (title처럼)
@@ -4359,8 +4795,34 @@ export default function Home() {
                             });
 
                             if (!statusResponse.ok) {
-                              const errorText = await statusResponse.text();
-                              console.warn(`❌ 상태 조회 실패 (${statusResponse.status}):`, errorText);
+                              let errorData: any = {};
+                              try {
+                                errorData = await statusResponse.json();
+                              } catch {
+                                const errorText = await statusResponse.text();
+                                errorData = { error: errorText };
+                              }
+
+                              console.warn(`❌ 상태 조회 실패 (${statusResponse.status}):`, errorData);
+
+                              // 410 (Gone): 오래된 ID 형식 - 즉시 중단하고 사용자에게 알림
+                              if (statusResponse.status === 410) {
+                                clearInterval(interval);
+                                setScriptPollingInterval(null);
+                                setIsGeneratingScript(false);
+                                setScriptGenerationLogs(prev => [...prev, {
+                                  timestamp: new Date().toISOString(),
+                                  message: '⚠️ 오래된 형식의 작업 ID입니다. 페이지를 새로고침해주세요.'
+                                }]);
+                                setScriptProgress({ current: 0, total: 100 });
+                                setCurrentScriptId(null);
+                                setToast({
+                                  message: errorData.suggestion || '페이지를 새로고침하고 다시 시도해주세요.',
+                                  type: 'error'
+                                });
+                                setTimeout(() => setToast(null), 8000);
+                                return;
+                              }
 
                               // 404는 아직 대본이 생성 중일 수 있으므로 계속 폴링
                               if (statusResponse.status === 404) {
@@ -4381,11 +4843,34 @@ export default function Home() {
                                 return; // 404는 에러로 처리하지 않고 계속 폴링
                               }
 
-                              throw new Error(`상태 조회 실패 (${statusResponse.status}): ${errorText}`);
+                              throw new Error(`상태 조회 실패 (${statusResponse.status}): ${errorData.error || JSON.stringify(errorData)}`);
                             }
 
                             const statusData = await statusResponse.json();
                             console.log('📊 로컬 Claude 상태:', statusData);
+
+                            // 멈춰있는 작업 감지 (경고 있으면)
+                            if (statusData._warning) {
+                              console.warn('⚠️ 멈춰있는 작업:', statusData._warning);
+                              clearInterval(interval);
+                              setScriptPollingInterval(null);
+                              setIsGeneratingScript(false);
+                              setScriptGenerationLogs(prev => [...prev, {
+                                timestamp: new Date().toISOString(),
+                                message: `⚠️ ${statusData._warning}`
+                              }, {
+                                timestamp: new Date().toISOString(),
+                                message: '💡 페이지를 새로고침하고 새로운 대본을 생성해주세요.'
+                              }]);
+                              setScriptProgress({ current: 0, total: 100 });
+                              setCurrentScriptId(null);
+                              setToast({
+                                message: '이전 작업이 완료되지 않았습니다. 새로운 대본을 생성해주세요.',
+                                type: 'error'
+                              });
+                              setTimeout(() => setToast(null), 8000);
+                              return;
+                            }
 
                             // 로그 표시 (항상 업데이트)
                             if (statusData.logs && statusData.logs.length > 0) {
@@ -4987,11 +5472,12 @@ export default function Home() {
                   onClick={async () => {
                     try {
                       let promptUrl = '/api/prompt';
-                      if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
-                      else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
-                      else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+                      if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                      else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                      else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+                      else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
 
-                      console.log('🔍 프롬프트 복사 - videoFormat:', videoFormat, 'URL:', promptUrl);
+                      console.log('🔍 프롬프트 복사 - promptFormat:', promptFormat, 'URL:', promptUrl);
                       const response = await fetch(promptUrl);
                       const data = await response.json();
                       if (data.content) {
@@ -5059,11 +5545,11 @@ export default function Home() {
                   setScriptConfirmCallback(() => async () => {
                     try {
                     let promptUrl = '/api/prompt';
-                    if (videoFormat === 'shortform') promptUrl = '/api/shortform-prompt';
-                    else if (videoFormat === 'sora2') promptUrl = '/api/sora2-prompt';
-                    else if (videoFormat === 'product') promptUrl = '/api/product-prompt';
+                    if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                    else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                    else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
 
-                    console.log('🔍 제목 제안 생성 - videoFormat:', videoFormat, 'URL:', promptUrl);
+                    console.log('🔍 제목 제안 생성 - promptFormat:', promptFormat, 'URL:', promptUrl);
                     const promptResponse = await fetch(promptUrl);
                     const promptData = await promptResponse.json();
 

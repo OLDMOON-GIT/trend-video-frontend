@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import CoupangQueueMonitor from '@/components/CoupangQueueMonitor';
 import ShopClientView from '@/components/ShopClientView';
+import { safeJsonResponse } from '@/lib/fetch-utils';
 
 interface Product {
   id: string;
@@ -46,6 +47,10 @@ export default function CoupangProductsAdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Google Sites 설정
+  const [googleSitesEditUrl, setGoogleSitesEditUrl] = useState('');
+  const [googleSitesHomeUrl, setGoogleSitesHomeUrl] = useState('');
+
   // 탭 관리 - URL에서 초기값 읽기
   const [activeTab, setActiveTab] = useState<'my-list' | 'queue' | 'pending' | 'shop'>(() => {
     if (typeof window !== 'undefined') {
@@ -80,6 +85,7 @@ export default function CoupangProductsAdminPage() {
   const [productUrl, setProductUrl] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const productUrlInputRef = useRef<HTMLInputElement>(null);
 
   // 내 목록
   const [products, setProducts] = useState<Product[]>([]); // 전체 상품
@@ -104,6 +110,17 @@ export default function CoupangProductsAdminPage() {
   const [jobPollingInterval, setJobPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  // 상품 편집 모달
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    category: '',
+    original_price: '',
+    discount_price: ''
+  });
 
   // 쇼핑몰 (퍼블리시된 상품)
   const [shopCategories, setShopCategories] = useState<Array<{ name: string; count: number; thumbnail?: string }>>([]);
@@ -173,6 +190,16 @@ export default function CoupangProductsAdminPage() {
     }
   }, [products, selectedCategory]);
 
+  // 사이드바 열릴 때 링크 입력 필드에 자동 포커스
+  useEffect(() => {
+    if (isSidebarOpen && productUrlInputRef.current) {
+      // 약간의 딜레이 후 포커스 (애니메이션 완료 대기)
+      setTimeout(() => {
+        productUrlInputRef.current?.focus();
+      }, 300);
+    }
+  }, [isSidebarOpen]);
+
 
   // 컴포넌트 언마운트 시 폴링 정리
   useEffect(() => {
@@ -186,7 +213,7 @@ export default function CoupangProductsAdminPage() {
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/session');
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (data.user) {
         setIsAuthenticated(true);
@@ -194,6 +221,18 @@ export default function CoupangProductsAdminPage() {
         await loadPendingProducts(); // 대기 목록도 초기 로드
         await loadQueueStats(); // 크롤링 큐 통계 로드
         await loadLinkHistory();
+
+        // 사용자 설정 로드 (Google Sites URL)
+        try {
+          const settingsRes = await fetch('/api/user/settings');
+          const settingsData = await safeJsonResponse(settingsRes);
+          if (settingsRes.ok) {
+            setGoogleSitesEditUrl(settingsData.googleSitesEditUrl || '');
+            setGoogleSitesHomeUrl(settingsData.googleSitesHomeUrl || '');
+          }
+        } catch (err) {
+          console.warn('설정 로드 실패:', err);
+        }
 
         // 진행 중인 작업 복구 (새로고침 시)
         await checkOngoingJob();
@@ -213,7 +252,7 @@ export default function CoupangProductsAdminPage() {
     try {
       // 가장 최근의 product_batch 작업 중 processing 상태인 것 찾기
       const res = await fetch('/api/job-status?type=product_batch&status=processing');
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (data.jobId) {
         console.log('🔄 진행 중인 작업 발견:', data.jobId);
@@ -235,7 +274,7 @@ export default function CoupangProductsAdminPage() {
         const interval = setInterval(async () => {
           try {
             const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
-            const statusData = await statusRes.json();
+            const statusData = await safeJsonResponse(statusRes);
 
             setCrawlProgress(statusData.progress || 0);
             setCrawlStatus(statusData.step || '');
@@ -276,7 +315,7 @@ export default function CoupangProductsAdminPage() {
   const loadProducts = async () => {
     try {
       const res = await fetch('/api/coupang-products');
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         setProducts(data.products);
@@ -298,7 +337,7 @@ export default function CoupangProductsAdminPage() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         // 전체 큐 항목 수 계산 (pending + processing + done + failed)
@@ -315,7 +354,7 @@ export default function CoupangProductsAdminPage() {
     try {
       setShopDataLoaded(false);
       const res = await fetch('/api/shop/products/public');
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok && data.products) {
         // 카테고리별 상품 개수 계산
@@ -368,13 +407,14 @@ export default function CoupangProductsAdminPage() {
         })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         toast.success('상품이 추가되었습니다!');
         setProductUrl('');
         setCustomCategory('');
         setIsSidebarOpen(false); // 사이드바 닫기
+        setSelectedCategory('all'); // 카테고리 필터를 'all'로 리셋하여 새 상품이 보이도록
         await loadProducts();
         await loadQueueStats(); // 큐 통계도 업데이트
       } else {
@@ -399,7 +439,7 @@ export default function CoupangProductsAdminPage() {
         credentials: 'include'
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         toast.success('상품이 삭제되었습니다.');
@@ -455,7 +495,7 @@ export default function CoupangProductsAdminPage() {
         })
       });
 
-      const data = await response.json();
+      const data = await safeJsonResponse(response);
 
       if (response.ok) {
         toast.success(newFavorite ? '⭐ 즐겨찾기 추가' : '☆ 즐겨찾기 제거');
@@ -466,6 +506,62 @@ export default function CoupangProductsAdminPage() {
       }
     } catch (error) {
       toast.error('즐겨찾기 업데이트 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 상품 편집 모달 열기
+  const handleOpenEditModal = (product: Product) => {
+    setEditingProduct(product);
+    setEditForm({
+      title: product.title,
+      description: product.description,
+      category: product.category,
+      original_price: product.original_price?.toString() || '',
+      discount_price: product.discount_price?.toString() || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  // 상품 편집 모달 닫기
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingProduct(null);
+    setEditForm({
+      title: '',
+      description: '',
+      category: '',
+      original_price: '',
+      discount_price: ''
+    });
+  };
+
+  // 상품 편집 저장
+  const handleSaveEdit = async () => {
+    if (!editingProduct) return;
+
+    try {
+      const res = await fetch(`/api/coupang-products/${editingProduct.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editForm.title,
+          description: editForm.description,
+          category: editForm.category,
+          original_price: editForm.original_price ? parseInt(editForm.original_price) : undefined,
+          discount_price: editForm.discount_price ? parseInt(editForm.discount_price) : undefined
+        })
+      });
+
+      if (res.ok) {
+        toast.success('상품 정보가 수정되었습니다!');
+        handleCloseEditModal();
+        loadProducts();
+      } else {
+        toast.error('수정에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('수정 실패:', error);
+      toast.error('수정 중 오류가 발생했습니다.');
     }
   };
 
@@ -549,6 +645,52 @@ export default function CoupangProductsAdminPage() {
     }
   };
 
+  // 일괄 카테고리 재설정
+  const handleBulkReclassify = async () => {
+    if (selectedProductIds.size === 0) {
+      toast.error('카테고리를 재설정할 상품을 선택해주세요.');
+      return;
+    }
+
+    if (!confirm(`선택한 ${selectedProductIds.size}개 상품의 카테고리를 AI로 재설정하시겠습니까?\n\n⚠️ 시간이 걸릴 수 있습니다.`)) {
+      return;
+    }
+
+    const toastId = toast.loading(`${selectedProductIds.size}개 상품 카테고리 재설정 중...`);
+
+    try {
+      const res = await fetch('/api/reclassify-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: Array.from(selectedProductIds),
+          type: 'product'
+        })
+      });
+
+      const data = await safeJsonResponse(res);
+
+      if (!res.ok) {
+        throw new Error(data.error || '카테고리 재설정 실패');
+      }
+
+      toast.success(`카테고리 재설정 완료: 성공 ${data.successCount}개, 실패 ${data.failCount}개`, { id: toastId });
+
+      // 결과 상세 표시
+      if (data.failCount > 0) {
+        const failedProducts = data.results.filter((r: any) => !r.success);
+        console.log('실패한 상품:', failedProducts);
+        toast.error(`일부 상품 재설정 실패 (${data.failCount}개). 콘솔을 확인하세요.`);
+      }
+
+      setSelectedProductIds(new Set());
+      await loadProducts();
+    } catch (error: any) {
+      console.error('일괄 카테고리 재설정 실패:', error);
+      toast.error(error?.message || '카테고리 재설정 중 오류가 발생했습니다.', { id: toastId });
+    }
+  };
+
   // 선택한 상품 퍼블리시 (쇼핑몰에 게시)
   const handlePublishSelected = async () => {
     if (selectedProductIds.size === 0) {
@@ -570,7 +712,7 @@ export default function CoupangProductsAdminPage() {
         })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         if (data.alreadyPublished) {
@@ -595,7 +737,7 @@ export default function CoupangProductsAdminPage() {
   const loadPendingProducts = async () => {
     try {
       const res = await fetch('/api/crawl-product-links');
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
       if (res.ok) {
         const products = data.products || [];
         setPendingProducts(products);
@@ -613,7 +755,7 @@ export default function CoupangProductsAdminPage() {
       setIsHistoryLoading(true);
       const offset = append ? crawlHistory.length : 0;
       const res = await fetch(`/api/crawl-link-history?limit=${limit}&offset=${offset}`);
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (!res.ok) {
         console.error('링크 히스토리 조회 실패:', data.error || data.message);
@@ -694,7 +836,7 @@ export default function CoupangProductsAdminPage() {
         method: 'DELETE'
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         addCrawlLog('✅ 크롤링이 중지되었습니다.');
@@ -746,7 +888,7 @@ export default function CoupangProductsAdminPage() {
         method: 'DELETE'
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         addCrawlLog('✅ 일괄 이동이 중지되었습니다.');
@@ -793,7 +935,7 @@ export default function CoupangProductsAdminPage() {
   const pollJobStatus = async (jobId: string) => {
     try {
       const res = await fetch(`/api/crawl-product-links?jobId=${jobId}`);
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok && data.job) {
         const job = data.job;
@@ -894,7 +1036,7 @@ export default function CoupangProductsAdminPage() {
         body: JSON.stringify({ sourceUrl: crawlUrl })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         const { addedCount, duplicateCount, totalLinks } = data;
@@ -965,7 +1107,7 @@ export default function CoupangProductsAdminPage() {
         })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok && data.jobId) {
         toast.success('백그라운드에서 처리 중입니다.');
@@ -976,7 +1118,7 @@ export default function CoupangProductsAdminPage() {
         const interval = setInterval(async () => {
           try {
             const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
-            const statusData = await statusRes.json();
+            const statusData = await safeJsonResponse(statusRes);
 
             // 진행 상태 업데이트
             setCrawlProgress(statusData.progress || 0);
@@ -1045,6 +1187,98 @@ export default function CoupangProductsAdminPage() {
     }
   };
 
+  // 대기 목록 카테고리 재분류
+  const handleReclassifyPending = async (id: string) => {
+    const loadingToast = toast.loading('🤖 AI 카테고리 재분류 중...');
+
+    try {
+      const res = await fetch(`/api/reclassify-category?id=${id}&type=pending`, {
+        method: 'PUT'
+      });
+
+      const data = await safeJsonResponse(res);
+
+      if (res.ok && data.success) {
+        toast.success(`✅ 카테고리 변경: ${data.category}`, { id: loadingToast });
+        await loadPendingProducts();
+      } else {
+        toast.error(data.error || '재분류 실패', { id: loadingToast });
+      }
+    } catch (error) {
+      console.error('재분류 실패:', error);
+      toast.error('재분류 중 오류가 발생했습니다.', { id: loadingToast });
+    }
+  };
+
+  // 내 목록 카테고리 재분류
+  const handleReclassifyProduct = async (id: string) => {
+    const loadingToast = toast.loading('🤖 AI 카테고리 재분류 중...');
+
+    try {
+      const res = await fetch(`/api/reclassify-category?id=${id}&type=product`, {
+        method: 'PUT'
+      });
+
+      const data = await safeJsonResponse(res);
+
+      if (res.ok && data.success) {
+        toast.success(`✅ 카테고리 변경: ${data.category}`, { id: loadingToast });
+        await loadProducts();
+      } else {
+        toast.error(data.error || '재분류 실패', { id: loadingToast });
+      }
+    } catch (error) {
+      console.error('재분류 실패:', error);
+      toast.error('재분류 중 오류가 발생했습니다.', { id: loadingToast });
+    }
+  };
+
+  // 대기 목록 대량 카테고리 재분류
+  const handleBulkReclassifyPending = async () => {
+    if (selectedPendingIds.size === 0) {
+      toast.error('카테고리를 재설정할 상품을 선택해주세요.');
+      return;
+    }
+
+    if (!confirm(`선택한 ${selectedPendingIds.size}개 상품의 카테고리를 AI로 재설정하시겠습니까?\n\n⚠️ 시간이 걸릴 수 있습니다.`)) {
+      return;
+    }
+
+    const toastId = toast.loading(`${selectedPendingIds.size}개 상품 카테고리 재설정 중...`);
+
+    try {
+      const res = await fetch('/api/reclassify-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: Array.from(selectedPendingIds),
+          type: 'pending'
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '카테고리 재설정 실패');
+      }
+
+      toast.success(`카테고리 재설정 완료: 성공 ${data.successCount}개, 실패 ${data.failCount}개`, { id: toastId });
+
+      // 결과 상세 표시
+      if (data.failCount > 0) {
+        const failedProducts = data.results.filter((r: any) => !r.success);
+        console.log('실패한 상품:', failedProducts);
+        toast.error(`일부 상품 재설정 실패 (${data.failCount}개). 콘솔을 확인하세요.`);
+      }
+
+      setSelectedPendingIds(new Set());
+      await loadPendingProducts();
+    } catch (error: any) {
+      console.error('일괄 카테고리 재설정 실패:', error);
+      toast.error(error?.message || '카테고리 재설정 중 오류가 발생했습니다.', { id: toastId });
+    }
+  };
+
   // 대기 목록 선택 삭제
   const handleDeleteSelected = async () => {
     if (selectedPendingIds.size === 0) {
@@ -1066,7 +1300,7 @@ export default function CoupangProductsAdminPage() {
         })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         toast.success(data.message);
@@ -1103,7 +1337,7 @@ export default function CoupangProductsAdminPage() {
         })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         toast.success(`${count}개 상품이 삭제되었습니다`, { id: 'delete-source' });
@@ -1148,7 +1382,7 @@ export default function CoupangProductsAdminPage() {
       const res = await fetch(`/api/crawl-link-history?id=${historyId}`, {
         method: 'DELETE'
       });
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
 
       if (res.ok) {
         toast.success('링크 기록이 삭제되었습니다.');
@@ -1223,23 +1457,6 @@ export default function CoupangProductsAdminPage() {
       <Toaster position="top-right" />
 
       <div className="max-w-7xl mx-auto pb-32">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">
-            🛒 쿠팡 상품 관리
-          </h1>
-          <p className="text-slate-400">
-            쿠팡 상품을 추가하고 관리하세요. 자동으로 쇼핑몰 사이트에 표시됩니다.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3 text-sm">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-white">
-              <span className="text-xs uppercase tracking-widest text-slate-400">총 보유</span>
-              <span className="text-lg font-bold">{products.length}</span>
-              <span className="text-slate-300">개 상품</span>
-            </span>
-          </div>
-        </div>
-
         {/* 통합 검색 */}
         <div className="mb-8 rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-6 backdrop-blur">
           <div className="flex gap-4">
@@ -1402,7 +1619,7 @@ export default function CoupangProductsAdminPage() {
         </div>
 
         {/* 탭 */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-1 flex items-center justify-between">
           <div className="flex gap-2">
             <button
               onClick={() => changeTab('my-list')}
@@ -1544,6 +1761,12 @@ export default function CoupangProductsAdminPage() {
                   >
                     🔒 {selectedProductIds.size}개 비공개 전환
                   </button>
+                  <button
+                    onClick={handleBulkReclassify}
+                    className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-2 text-sm font-semibold text-white hover:from-blue-500 hover:to-cyan-500 transition"
+                  >
+                    🤖 {selectedProductIds.size}개 카테고리 AI 재설정
+                  </button>
                 </>
               )}
               {/* 쇼핑몰 퍼블리시 버튼 */}
@@ -1624,6 +1847,13 @@ export default function CoupangProductsAdminPage() {
                     <span className="inline-block rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold text-white">
                       {product.category}
                     </span>
+                    <button
+                      onClick={() => handleReclassifyProduct(product.id)}
+                      className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white transition"
+                      title="카테고리 재분류"
+                    >
+                      🔄 재분류
+                    </button>
                     {/* 출처 표시 */}
                     {product.queue_id ? (
                       <span className="inline-block rounded-full bg-blue-600/30 px-2 py-1 text-xs font-medium text-blue-300 border border-blue-500/40" title="대기목록을 통해 추가된 상품">
@@ -1742,41 +1972,45 @@ export default function CoupangProductsAdminPage() {
 
                 {/* 액션 버튼 */}
                 <div className="flex flex-col gap-2">
-                  {/* 수정 버튼 (크롤링 실패한 경우만 표시) */}
+                  {/* 크롤링 실패한 경우 표시되는 버튼들 */}
                   {(product.title === '상품명' || product.description === '상품 설명이 없습니다.') && (
-                    <button
-                      onClick={async () => {
-                        const newTitle = prompt('상품명을 입력하세요:', product.title);
-                        if (!newTitle || newTitle === product.title) return;
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          if (!confirm('이 상품을 다시 크롤링하시겠습니까?')) return;
 
-                        const newDescription = prompt('상품 설명을 입력하세요:', product.description);
-                        if (!newDescription || newDescription === product.description) return;
+                          try {
+                            const res = await fetch(`/api/coupang-products/${product.id}/recrawl`, {
+                              method: 'POST'
+                            });
 
-                        try {
-                          const res = await fetch(`/api/coupang-products/${product.id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              title: newTitle,
-                              description: newDescription
-                            })
-                          });
+                            const data = await safeJsonResponse(res);
 
-                          if (res.ok) {
-                            toast.success('상품 정보가 수정되었습니다!');
-                            loadMyList();
-                          } else {
-                            toast.error('수정에 실패했습니다.');
+                            if (res.ok) {
+                              toast.success('크롤링 큐에 추가되었습니다! 잠시 후 자동으로 업데이트됩니다.');
+                              // 큐 진행 상태 확인을 위해 잠시 후 새로고침
+                              setTimeout(() => {
+                                loadProducts();
+                              }, 2000);
+                            } else {
+                              toast.error(data.error || '재크롤링에 실패했습니다.');
+                            }
+                          } catch (error) {
+                            console.error('재크롤링 실패:', error);
+                            toast.error('재크롤링 중 오류가 발생했습니다.');
                           }
-                        } catch (error) {
-                          console.error('수정 실패:', error);
-                          toast.error('수정 중 오류가 발생했습니다.');
-                        }
-                      }}
-                      className="w-full rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-500 transition"
-                    >
-                      ✏️ 수정하기
-                    </button>
+                        }}
+                        className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition"
+                      >
+                        🔄 다시 크롤링
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditModal(product)}
+                        className="flex-1 rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-500 transition"
+                      >
+                        ✏️ 수정하기
+                      </button>
+                    </div>
                   )}
 
                   {/* 영상 제작 버튼 */}
@@ -1810,7 +2044,7 @@ export default function CoupangProductsAdminPage() {
                     }}
                     className="w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:from-green-500 hover:to-emerald-500 transition"
                   >
-                    🎬 영상 제작하기
+                    📝 상품영상대본작성
                   </button>
 
                   <div className="flex gap-2">
@@ -2184,6 +2418,12 @@ export default function CoupangProductsAdminPage() {
                         {isMoving ? '이동 중...' : `✅ ${selectedPendingIds.size}개 내 목록으로 이동`}
                       </button>
                       <button
+                        onClick={handleBulkReclassifyPending}
+                        className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-2 text-sm font-semibold text-white hover:from-blue-500 hover:to-cyan-500 transition"
+                      >
+                        🤖 {selectedPendingIds.size}개 카테고리 AI 재설정
+                      </button>
+                      <button
                         onClick={handleDeleteSelected}
                         className="rounded-lg bg-gradient-to-r from-red-600 to-rose-600 px-6 py-2 text-sm font-semibold text-white hover:from-red-500 hover:to-rose-500 transition"
                       >
@@ -2244,7 +2484,7 @@ export default function CoupangProductsAdminPage() {
                   <div className="p-4">
                     {/* 체크박스 + 카테고리 */}
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <input
                           type="checkbox"
                           checked={selectedPendingIds.has(pending.id)}
@@ -2256,6 +2496,13 @@ export default function CoupangProductsAdminPage() {
                             {pending.category}
                           </span>
                         )}
+                        <button
+                          onClick={() => handleReclassifyPending(pending.id)}
+                          className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white transition"
+                          title="카테고리 재분류"
+                        >
+                          🔄 재분류
+                        </button>
                       </div>
                       <button
                         onClick={() => handleDeletePending(pending.id)}
@@ -2388,6 +2635,7 @@ export default function CoupangProductsAdminPage() {
                   쿠팡 딥링크 URL
                 </label>
                 <input
+                  ref={productUrlInputRef}
                   type="text"
                   value={productUrl}
                   onChange={(e) => setProductUrl(e.target.value)}
@@ -2571,10 +2819,128 @@ export default function CoupangProductsAdminPage() {
               <ShopClientView
                 initialCategories={shopCategories}
                 initialTotalProducts={shopTotalProducts}
+                googleSitesEditUrl={googleSitesEditUrl}
+                googleSitesHomeUrl={googleSitesHomeUrl}
               />
             )}
           </>
         )}
+
+      {/* 상품 편집 모달 */}
+      {isEditModalOpen && editingProduct && (
+        <div
+          className="fixed inset-0 z-[99999] bg-black/70 flex items-center justify-center p-4 overflow-y-auto"
+          onClick={handleCloseEditModal}
+        >
+          <div
+            className="w-full max-w-2xl bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+              <div>
+                <h3 className="text-lg font-bold text-white">✏️ 상품 정보 수정</h3>
+                <p className="text-sm text-slate-400">상품의 정보를 수정할 수 있습니다</p>
+              </div>
+              <button
+                onClick={handleCloseEditModal}
+                className="text-slate-400 hover:text-white transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 모달 본문 */}
+            <div className="p-6 space-y-4">
+              {/* 상품명 */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  상품명 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  className="w-full rounded-lg bg-slate-800 border border-slate-600 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none"
+                  placeholder="상품명을 입력하세요"
+                />
+              </div>
+
+              {/* 상품 설명 */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  상품 설명 <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={4}
+                  className="w-full rounded-lg bg-slate-800 border border-slate-600 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none resize-none"
+                  placeholder="상품 설명을 입력하세요"
+                />
+              </div>
+
+              {/* 카테고리 */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  카테고리
+                </label>
+                <input
+                  type="text"
+                  value={editForm.category}
+                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                  className="w-full rounded-lg bg-slate-800 border border-slate-600 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none"
+                  placeholder="카테고리를 입력하세요"
+                />
+              </div>
+
+              {/* 가격 정보 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    할인가 (원)
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.discount_price}
+                    onChange={(e) => setEditForm({ ...editForm, discount_price: e.target.value })}
+                    className="w-full rounded-lg bg-slate-800 border border-slate-600 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none"
+                    placeholder="할인가"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    정가 (원)
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.original_price}
+                    onChange={(e) => setEditForm({ ...editForm, original_price: e.target.value })}
+                    className="w-full rounded-lg bg-slate-800 border border-slate-600 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none"
+                    placeholder="정가"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 모달 푸터 */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-700">
+              <button
+                onClick={handleCloseEditModal}
+                className="px-6 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-600 transition"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold hover:from-purple-500 hover:to-blue-500 transition"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
