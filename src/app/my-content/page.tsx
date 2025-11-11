@@ -1840,7 +1840,7 @@ export default function MyContentPage() {
                   </div>
                   <div className="flex gap-2">
                     <a
-                      href={`https://www.youtube.com/channel/${channel.id}`}
+                      href={`https://www.youtube.com/channel/${channel.channelId || channel.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-1"
