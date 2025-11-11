@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import { getYouTubeChannelById, getDefaultYouTubeChannel, createYouTubeUpload } from '@/lib/db';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import kill from 'tree-kill';
 
 const BACKEND_PATH = path.join(process.cwd(), '..', 'trend-video-backend');
 const YOUTUBE_CLI = path.join(BACKEND_PATH, 'youtube_upload_cli.py');
 const CREDENTIALS_DIR = path.join(BACKEND_PATH, 'config');
+
+// 실행 중인 YouTube 업로드 프로세스 관리
+const runningUploads = new Map<string, ChildProcess>();
 
 const COMMON_CREDENTIALS_PATH = path.join(CREDENTIALS_DIR, 'youtube_client_secret.json');
 function getUserTokenPath(userId: string): string {
@@ -104,6 +108,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // 채널 추가 시와 동일한 토큰 경로 사용
       const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}_${selectedChannel.channelId}.json`);
 
+      // 토큰 파일 존재 여부 확인
+      console.log('🔑 토큰 파일 확인:', {
+        userId: user.userId,
+        channelId: selectedChannel.channelId,
+        tokenPath,
+        exists: fs.existsSync(tokenPath)
+      });
+
+      if (!fs.existsSync(tokenPath)) {
+        console.error('❌ 토큰 파일이 존재하지 않음:', tokenPath);
+        return resolve(NextResponse.json({
+          error: '인증 실패',
+          details: 'YouTube 토큰 파일을 찾을 수 없습니다. 채널을 다시 연결해주세요.',
+          tokenPath
+        }, { status: 401 }));
+      }
+
+      if (!fs.existsSync(credentialsPath)) {
+        console.error('❌ Credentials 파일이 존재하지 않음:', credentialsPath);
+        return resolve(NextResponse.json({
+          error: '인증 실패',
+          details: 'YouTube API Credentials가 설정되지 않았습니다.',
+          credentialsPath
+        }, { status: 401 }));
+      }
+
       const args = [
         YOUTUBE_CLI,
         '--action', 'upload',
@@ -132,6 +162,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       const python = spawn('python', args);
 
+      // jobId가 있으면 프로세스를 Map에 등록하여 취소 가능하도록 함
+      const uploadId = body.jobId || `upload_${Date.now()}`;
+      if (python.pid) {
+        runningUploads.set(uploadId, python);
+        console.log(`✅ YouTube 업로드 프로세스 등록: ${uploadId}, PID: ${python.pid}`);
+      }
+
       let output = '';
       let errorOutput = '';
 
@@ -148,6 +185,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
 
       python.on('close', (code) => {
+        // Map에서 제거
+        runningUploads.delete(uploadId);
+        console.log(`✅ YouTube 업로드 프로세스 제거: ${uploadId}`);
+
         // 메타데이터 파일 삭제
         try {
           if (fs.existsSync(metadataPath)) {
@@ -158,7 +199,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         console.log('🐍 Python 종료 코드:', code);
         console.log('📤 Python stdout:', output);
         if (errorOutput) {
-          console.error('📤 Python stderr:', errorOutput);
+          console.error('🔴 Python stderr:', errorOutput);
         }
 
         try {
@@ -196,7 +237,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               videoUrl: result.video_url
             }));
           } else {
-            resolve(NextResponse.json({ error: result.error || '업로드 실패' }, { status: 500 }));
+            resolve(NextResponse.json({
+              error: result.error || '업로드 실패',
+              details: errorOutput || '상세 정보 없음',
+              stdout: output,
+              stderr: errorOutput
+            }, { status: 500 }));
           }
         } catch (parseError) {
           console.error('❌ JSON 파싱 실패:', parseError);
@@ -204,6 +250,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           resolve(NextResponse.json({
             error: '업로드 프로세스 오류',
             details: errorOutput || output || 'No output',
+            stdout: output,
+            stderr: errorOutput,
             exitCode: code
           }, { status: 500 }));
         }
@@ -212,5 +260,95 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   } catch (error: any) {
     return NextResponse.json({ error: 'YouTube 업로드 실패' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/youtube/upload - YouTube 업로드 중지
+ */
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const uploadId = searchParams.get('uploadId') || searchParams.get('jobId');
+
+    if (!uploadId) {
+      return NextResponse.json(
+        { error: 'uploadId 또는 jobId가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`🛑 YouTube 업로드 중지 요청: ${uploadId}`);
+
+    const process = runningUploads.get(uploadId);
+
+    if (process && process.pid) {
+      const pid = process.pid;
+      console.log(`🛑 프로세스 트리 종료 시작: Upload ${uploadId}, PID ${pid}`);
+
+      try {
+        // tree-kill로 프로세스 트리 전체 강제 종료
+        await new Promise<void>((resolve, reject) => {
+          kill(pid, 'SIGKILL', (err) => {
+            if (err) {
+              console.error(`❌ tree-kill 실패: ${err.message}`);
+              reject(err);
+            } else {
+              console.log(`✅ tree-kill 성공: PID ${pid} 및 모든 자식 프로세스 종료`);
+              resolve();
+            }
+          });
+        });
+
+        // Windows 고아 Python 프로세스 정리
+        if (process.platform === 'win32') {
+          const { exec } = await import('child_process');
+          const { promisify } = await import('util');
+          const execAsync = promisify(exec);
+
+          try {
+            await execAsync('taskkill /F /FI "IMAGENAME eq python.exe" /FI "STATUS eq RUNNING" 2>nul');
+            console.log('✅ Windows 좀비 프로세스 정리 완료');
+          } catch {
+            // 프로세스가 없으면 무시
+          }
+        }
+
+        runningUploads.delete(uploadId);
+        console.log(`✅ runningUploads에서 제거: ${uploadId}`);
+
+        return NextResponse.json({
+          success: true,
+          message: 'YouTube 업로드가 중지되었습니다.',
+        });
+
+      } catch (error: any) {
+        console.error(`❌ 프로세스 종료 실패: ${error.message}`);
+        runningUploads.delete(uploadId);
+
+        return NextResponse.json({
+          error: '업로드 중지 실패',
+          details: error.message
+        }, { status: 500 });
+      }
+    } else {
+      console.log(`⚠️ 실행 중인 업로드 프로세스 없음: ${uploadId}`);
+      return NextResponse.json({
+        success: true,
+        message: '실행 중인 업로드가 없습니다.',
+      });
+    }
+
+  } catch (error: any) {
+    console.error('DELETE 핸들러 에러:', error);
+    return NextResponse.json(
+      { error: 'YouTube 업로드 중지 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
   }
 }
