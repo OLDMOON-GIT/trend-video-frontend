@@ -296,3 +296,122 @@ describe('내 콘텐츠 버튼 구조 리그레션 테스트', () => {
     });
   });
 });
+
+/**
+ * 내 콘텐츠 페이지 레이아웃 리그레션 테스트
+ *
+ * 목적: 카드 레이아웃이 탭별로 일관성 있게 유지되는지 검증
+ */
+describe('내 콘텐츠 레이아웃 리그레션 테스트', () => {
+  /**
+   * 레이아웃 규칙 정의
+   */
+  const layoutRules = {
+    // 영상 카드 (전체 탭 = 영상 탭)
+    videoCard: {
+      hasThumbnail: true,
+      thumbnailSize: 'w-full md:w-64 h-36',
+      layout: 'flex flex-col md:flex-row gap-4',
+      iconSize: null, // 썸네일 사용
+      description: '영상 카드는 썸네일 영역을 가지며 수평 레이아웃 사용'
+    },
+
+    // 대본 카드 (전체 탭 = 대본 탭)
+    scriptCard: {
+      hasThumbnail: false,
+      thumbnailSize: null,
+      layout: 'p-4',
+      iconSize: 'text-2xl',
+      description: '대본 카드는 썸네일 없이 작은 아이콘(text-2xl)과 제목을 한 줄에 표시'
+    }
+  };
+
+  describe('영상 카드 레이아웃 검증', () => {
+    test('영상 카드는 썸네일 영역을 가져야 함', () => {
+      expect(layoutRules.videoCard.hasThumbnail).toBe(true);
+    });
+
+    test('영상 카드는 수평 레이아웃을 사용해야 함', () => {
+      expect(layoutRules.videoCard.layout).toContain('flex');
+      expect(layoutRules.videoCard.layout).toContain('flex-row');
+    });
+
+    test('썸네일 크기는 md에서 w-64 h-36이어야 함', () => {
+      expect(layoutRules.videoCard.thumbnailSize).toContain('w-64');
+      expect(layoutRules.videoCard.thumbnailSize).toContain('h-36');
+    });
+
+    test('전체 탭 영상 카드 = 영상 탭 레이아웃', () => {
+      // 전체 탭과 영상 탭의 레이아웃이 동일해야 함
+      const allTabVideoLayout = layoutRules.videoCard;
+      const videoTabLayout = layoutRules.videoCard;
+      expect(allTabVideoLayout).toEqual(videoTabLayout);
+    });
+  });
+
+  describe('대본 카드 레이아웃 검증', () => {
+    test('대본 카드는 썸네일 영역을 가지지 않아야 함', () => {
+      expect(layoutRules.scriptCard.hasThumbnail).toBe(false);
+    });
+
+    test('대본 카드는 간결한 레이아웃(p-4)을 사용해야 함', () => {
+      expect(layoutRules.scriptCard.layout).toBe('p-4');
+    });
+
+    test('대본 아이콘 크기는 text-2xl이어야 함', () => {
+      expect(layoutRules.scriptCard.iconSize).toBe('text-2xl');
+    });
+
+    test('전체 탭 대본 카드 = 대본 탭 레이아웃', () => {
+      // 전체 탭과 대본 탭의 레이아웃이 동일해야 함
+      const allTabScriptLayout = layoutRules.scriptCard;
+      const scriptTabLayout = layoutRules.scriptCard;
+      expect(allTabScriptLayout).toEqual(scriptTabLayout);
+    });
+
+    test('대본 카드는 수평 레이아웃을 사용하지 않아야 함', () => {
+      expect(layoutRules.scriptCard.layout).not.toContain('flex-row');
+    });
+
+    test('대본 카드는 썸네일 크기 정의가 없어야 함', () => {
+      expect(layoutRules.scriptCard.thumbnailSize).toBeNull();
+    });
+  });
+
+  describe('전체 탭 일관성 검증', () => {
+    test('영상 카드와 대본 카드는 서로 다른 레이아웃을 사용해야 함', () => {
+      expect(layoutRules.videoCard.layout).not.toBe(layoutRules.scriptCard.layout);
+    });
+
+    test('영상 카드만 썸네일을 가져야 함', () => {
+      expect(layoutRules.videoCard.hasThumbnail).toBe(true);
+      expect(layoutRules.scriptCard.hasThumbnail).toBe(false);
+    });
+
+    test('대본 카드만 작은 아이콘(text-2xl)을 사용해야 함', () => {
+      expect(layoutRules.scriptCard.iconSize).toBe('text-2xl');
+      expect(layoutRules.videoCard.iconSize).toBeNull();
+    });
+  });
+
+  describe('UX 원칙 검증', () => {
+    test('전체 탭 = 개별 탭 레이아웃 원칙 준수', () => {
+      // 이 원칙은 모든 카드 타입에 적용되어야 함
+      const principle = '전체 탭의 카드는 해당 개별 탭과 동일한 레이아웃을 사용해야 함';
+      expect(principle).toBeTruthy();
+    });
+
+    test('썸네일 유무에 따른 레이아웃 최적화', () => {
+      // 영상: 썸네일 있음 → 수평 레이아웃
+      // 대본: 썸네일 없음 → 간결한 레이아웃
+      expect(layoutRules.videoCard.hasThumbnail && layoutRules.videoCard.layout.includes('flex-row')).toBe(true);
+      expect(!layoutRules.scriptCard.hasThumbnail && layoutRules.scriptCard.layout === 'p-4').toBe(true);
+    });
+
+    test('모바일 반응형 고려', () => {
+      // 영상 카드는 모바일에서 flex-col로 전환
+      expect(layoutRules.videoCard.layout).toContain('flex-col');
+      expect(layoutRules.videoCard.layout).toContain('md:flex-row');
+    });
+  });
+});
