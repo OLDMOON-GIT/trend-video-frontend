@@ -4273,7 +4273,15 @@ export default function MyContentPage() {
                         )}
                         {(job.status === 'failed' || job.status === 'cancelled') && (
                           <>
-                            {/* 로그는 전체 탭에서만 확인 가능 */}
+                            {job.logs && job.logs.length > 0 && (
+                              <button
+                                onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
+                                className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                title="로그 보기"
+                              >
+                                {expandedLogJobId === job.id ? '📋 닫기' : `📋 로그`}
+                              </button>
+                            )}
                             <button
                               onClick={() => handleRestartVideo(job.id)}
                               className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
@@ -4293,7 +4301,40 @@ export default function MyContentPage() {
                       </div>
                     </div>
 
-                    {/* 로그는 전체 탭의 큰 창에서 확인 - 영상 탭에서는 로그 버튼만 표시 */}
+                    {/* 로그 표시 영역 - 전체 탭과 동일한 큰 창 */}
+                    {expandedLogJobId === job.id && job.logs && job.logs.length > 0 && (
+                      <div className="mt-4 rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <span className="text-sm font-bold text-slate-300">📋 서버 로그</span>
+                          <span className="text-sm text-slate-400">{job.logs.length}개 항목</span>
+                        </div>
+                        <div
+                          ref={(el) => {
+                            if (el) {
+                              jobLogRefs.current.set(job.id, el);
+                            } else {
+                              jobLogRefs.current.delete(job.id);
+                            }
+                          }}
+                          className="h-[500px] overflow-y-auto rounded bg-black/60 p-4 font-mono text-sm leading-relaxed"
+                        >
+                          {job.logs.map((log: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="text-green-400 whitespace-pre-wrap break-all mb-2"
+                              ref={(el) => {
+                                // 마지막 로그 항목에만 ref 추가
+                                if (idx === job.logs!.length - 1 && el) {
+                                  jobLastLogRefs.current.set(job.id, el);
+                                }
+                              }}
+                            >
+                              {typeof log === 'string' ? log : log.message || JSON.stringify(log)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
 
