@@ -7,7 +7,7 @@ export async function safeJsonResponse<T = any>(response: Response): Promise<T> 
   const contentType = response.headers.get('content-type');
 
   // JSON이 아닌 경우 (HTML 에러 페이지 등)
-  if (!contentType || !contentType.includes('application/json')) {
+  if (!contentType || !contentType.toLowerCase().includes('application/json')) {
     const text = await response.text();
 
     // 에러 응답인 경우
