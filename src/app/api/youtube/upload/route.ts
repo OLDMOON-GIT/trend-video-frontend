@@ -192,9 +192,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
 
-      console.log('🐍 Python 실행 명령:', 'python', args.join(' '));
+      console.log('🐍 Python 실행 명령:', 'python -u', args.join(' '));
 
-      const python = spawn('python', args);
+      // -u 플래그: unbuffered 모드 (print가 즉시 출력됨)
+      const python = spawn('python', ['-u', ...args]);
 
       // jobId가 있으면 프로세스를 Map에 등록하여 취소 가능하도록 함
       const uploadId = body.jobId || `upload_${Date.now()}`;

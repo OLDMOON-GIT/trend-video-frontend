@@ -1458,7 +1458,7 @@ export default function CoupangProductsAdminPage() {
 
       <div className="max-w-7xl mx-auto pb-32">
         {/* 통합 검색 */}
-        <div className="mb-8 rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-6 backdrop-blur">
+        <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-5 backdrop-blur">
           <div className="flex gap-4">
             <div className="relative flex-1">
               <input
@@ -1495,7 +1495,7 @@ export default function CoupangProductsAdminPage() {
 
           {/* 검색 결과 - 개선된 디자인 */}
           {searchResults.length > 0 && (
-            <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-950/30 p-6 backdrop-blur">
+            <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/30 p-5 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-white">
                   🔍 검색 결과 <span className="text-emerald-400">({searchResults.length}개)</span>
@@ -1586,7 +1586,7 @@ export default function CoupangProductsAdminPage() {
         </div>
 
         {/* 탭 - 더 큰 스타일로 개선 */}
-        <div className="mb-6 rounded-2xl border border-purple-500/30 bg-slate-800/50 p-2 backdrop-blur">
+        <div className="mb-4 rounded-2xl border border-purple-500/30 bg-slate-800/50 p-2 backdrop-blur">
           <div className="flex gap-2">
             <button
               onClick={() => changeTab('my-list')}
@@ -1636,7 +1636,7 @@ export default function CoupangProductsAdminPage() {
           <>
         {/* 카테고리 필터 - 더 작고 깔끔하게 */}
         {products.length > 0 && (
-          <div className="mb-4">
+          <div className="mb-3">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-sm font-semibold text-slate-400">📂 카테고리:</span>
             </div>
@@ -1683,7 +1683,7 @@ export default function CoupangProductsAdminPage() {
 
         {/* 일괄 처리 버튼 */}
         {products.length > 0 && (
-          <div className="mb-6 space-y-4">
+          <div className="mb-4 space-y-3">
             {/* 선택된 상품 카테고리별 개수 표시 */}
             {selectedProductIds.size > 0 && (
               <div className="rounded-lg bg-slate-800/50 border border-purple-500/30 p-4">
@@ -1710,19 +1710,23 @@ export default function CoupangProductsAdminPage() {
             )}
 
             <div className="rounded-lg bg-slate-800/30 border border-slate-700/50 p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center justify-between gap-3">
                 <button
                   onClick={toggleSelectAllProducts}
-                  className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600 transition"
+                  className="rounded-lg bg-slate-700 px-5 py-2 text-sm font-bold text-white hover:bg-slate-600 transition"
                 >
                   {selectedProductIds.size === products.length ? '✕ 전체 해제' : '☑ 전체 선택'}
                 </button>
 
-                {selectedProductIds.size > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-slate-300">
-                    <span className="font-semibold text-purple-400">{selectedProductIds.size}개</span> 선택됨
-                  </div>
-                )}
+                <div className="flex items-center gap-2 text-sm text-slate-300">
+                  {selectedProductIds.size > 0 ? (
+                    <>
+                      <span className="font-semibold text-purple-400">{selectedProductIds.size}개</span> 선택됨
+                    </>
+                  ) : (
+                    <span className="text-slate-500">선택된 상품 없음</span>
+                  )}
+                </div>
               </div>
 
               {selectedProductIds.size > 0 && (
@@ -1759,7 +1763,7 @@ export default function CoupangProductsAdminPage() {
         )}
 
         {/* 페이지 크기 선택 */}
-        <div className="mb-6 flex items-center justify-end gap-2">
+        <div className="mb-3 flex items-center justify-end gap-2">
           <span className="text-sm text-slate-400">표시:</span>
           {[20, 50, 100].map((size) => (
             <button
@@ -1780,7 +1784,7 @@ export default function CoupangProductsAdminPage() {
         </div>
 
         {/* 상품 목록 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProducts.slice(0, myListDisplayCount).map((product) => (
             <div
               key={product.id}
@@ -1991,7 +1995,7 @@ export default function CoupangProductsAdminPage() {
 
         {/* 더보기 버튼 */}
         {myListDisplayCount < filteredProducts.length && (
-          <div className="text-center mt-8">
+          <div className="text-center mt-6">
             <button
               onClick={() => setMyListDisplayCount(myListDisplayCount + myListPageSize)}
               className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-3 text-white font-bold hover:from-purple-500 hover:to-pink-500 transition"
