@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, exec } from 'child_process';
+import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import { getCurrentUser } from '@/lib/session';
@@ -7,6 +8,8 @@ import { createJob, updateJob, addJobLog, flushJobLogs, findJobById, getSettings
 import { parseJsonSafely } from '@/lib/json-utils';
 import kill from 'tree-kill';
 import { sendProcessKillFailureEmail, sendProcessKillTimeoutEmail } from '@/utils/email';
+
+const execAsync = promisify(exec);
 
 // 실행 중인 프로세스 관리
 const runningProcesses = new Map<string, ChildProcess>();
@@ -92,17 +95,55 @@ export async function POST(request: NextRequest) {
       if (img) imageFiles.push(img);
     }
 
-    // ⚠️ 중요: FormData에서 받은 순서(image_0, image_1, image_2...)가 사용자가 선택한 순서입니다.
-    // lastModified로 재정렬하면 드래그앤드롭 시 타임스탬프가 거의 동일해서 순서가 엉킵니다.
-    // 따라서 **정렬하지 않고** FormData 순서를 그대로 유지합니다!
+    // ⚠️ 중요: 시퀀스 번호 우선, 그 다음 lastModified 오래된 순 정렬
+    // 1. 파일명에서 시퀀스 번호 추출 (01.jpg, image_02.png, scene-03.jpg 등)
+    // 2. 시퀀스 번호가 있으면 시퀀스 순으로 정렬
+    // 3. 시퀀스 번호가 없으면 lastModified 오래된 순으로 정렬
+    const extractSequenceNumber = (filename: string): number | null => {
+      // 1. 파일명이 숫자로 시작: "1.jpg", "02.png"
+      const startMatch = filename.match(/^(\d+)\./);
+      if (startMatch) return parseInt(startMatch[1], 10);
 
-    console.log('📷 업로드된 이미지 순서 (사용자 선택 순서 유지):');
+      // 2. _숫자. 또는 -숫자. 패턴: "image_01.jpg", "scene-02.png"
+      const seqMatch = filename.match(/[_-](\d{1,3})\./);
+      if (seqMatch) return parseInt(seqMatch[1], 10);
+
+      // 3. (숫자) 패턴: "Image_fx (47).jpg"
+      // 단, 랜덤 ID가 없을 때만
+      const parenMatch = filename.match(/\((\d+)\)/);
+      if (parenMatch && !filename.match(/[_-]\w{8,}/)) {
+        return parseInt(parenMatch[1], 10);
+      }
+
+      return null;
+    };
+
+    imageFiles.sort((a, b) => {
+      const numA = extractSequenceNumber(a.name);
+      const numB = extractSequenceNumber(b.name);
+
+      // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
+      if (numA !== null && numB !== null) {
+        return numA - numB;
+      }
+
+      // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+      if (numA !== null && numB === null) return -1;
+      if (numA === null && numB !== null) return 1;
+
+      // 둘 다 없으면: lastModified로 정렬 (오래된 순)
+      return a.lastModified - b.lastModified;
+    });
+
+    console.log('📷 정렬된 이미지 순서 (시퀀스 우선 → lastModified):');
     imageFiles.forEach((f, i) => {
       const sceneNum = i === 0 ? '씬 0 (폭탄)' : i === imageFiles.length - 1 ? '씬 마지막 (구독)' : `씬 ${i}`;
       const date = new Date(f.lastModified);
-      const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${String(date.getMilliseconds()).padStart(3,'0')}`;
+      const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${ String(date.getMilliseconds()).padStart(3,'0')}`;
       const originalName = originalNames[i] ? ` (원본: ${originalNames[i]})` : '';
-      console.log(`  ${sceneNum}: ${f.name}${originalName} (lastModified: ${timeStr})`);
+      const seqNum = extractSequenceNumber(f.name);
+      const seqInfo = seqNum !== null ? ` [시퀀스: ${seqNum}]` : ' [시퀀스 없음]';
+      console.log(`  ${sceneNum}: ${f.name}${originalName}${seqInfo} (lastModified: ${timeStr})`);
     });
 
     // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
@@ -665,12 +706,9 @@ export async function GET(request: NextRequest) {
 // DELETE 요청 - 작업 취소
 export async function DELETE(request: NextRequest) {
   try {
-    console.log('🛑 DELETE 요청 받음');
-
     const user = await getCurrentUser(request);
 
     if (!user) {
-      console.log('❌ 인증 실패');
       return NextResponse.json(
         { error: '로그인이 필요합니다.' },
         { status: 401 }
@@ -680,10 +718,7 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get('jobId');
 
-    console.log(`🛑 취소 요청 jobId: ${jobId}`);
-
     if (!jobId) {
-      console.log('❌ jobId 없음');
       return NextResponse.json(
         { error: 'jobId가 필요합니다.' },
         { status: 400 }
@@ -691,9 +726,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Job 확인
-    console.log(`🔍 DB에서 job 조회 중: ${jobId}`);
     const job = await findJobById(jobId);
-    console.log(`📋 Job 조회 결과:`, job ? `찾음 (userId: ${job.userId}, status: ${job.status})` : '없음');
 
     if (!job) {
       return NextResponse.json(
@@ -722,50 +755,76 @@ export async function DELETE(request: NextRequest) {
     const process = runningProcesses.get(jobId);
 
     if (process && process.pid) {
-      console.log(`🛑 작업 취소 요청 (프로세스 트리 강제 종료): ${jobId}, PID: ${process.pid}`);
-
       const pid = process.pid;
-      let killSucceeded = false;
+      console.log(`🛑 프로세스 트리 종료 시작: Job ${jobId}, PID ${pid}`);
 
-      // tree-kill로 프로세스 트리 전체 강제 종료
-      kill(pid, 'SIGKILL', async (err) => {
-        if (err) {
-          console.error(`❌ tree-kill 실패: ${err}`);
+      try {
+        // tree-kill 라이브러리로 프로세스 트리 전체 강제 종료
+        await new Promise<void>((resolve, reject) => {
+          kill(pid, 'SIGKILL', (err) => {
+            if (err) {
+              console.error(`❌ tree-kill 실패: ${err.message}`);
+              reject(err);
+            } else {
+              console.log(`✅ tree-kill 성공: PID ${pid} 및 모든 자식 프로세스 종료`);
+              resolve();
+            }
+          });
+        });
 
-          // 프로세스 종료 실패 시 관리자에게 메일 발송
-          await sendProcessKillFailureEmail(
-            jobId,
-            pid,
-            user.userId,
-            `tree-kill 실패: ${err.message || String(err)}`
-          );
-        } else {
-          console.log(`✅ tree-kill 성공: PID ${pid}`);
-          killSucceeded = true;
+        // 추가 정리 (Windows)
+        if (process.platform === 'win32') {
+          console.log('🧹 Windows 좀비 프로세스 추가 정리...');
+
+          // ShimGen 정리
+          try {
+            await execAsync('taskkill /F /IM ShimGen.exe 2>nul');
+            console.log('✅ ShimGen.exe 정리 완료');
+          } catch {
+            // ShimGen이 없으면 무시
+          }
+
+          // 고아 Python 프로세스 정리 (DALL-E 등)
+          try {
+            // 현재 작업 디렉토리 관련 python.exe 프로세스 찾아서 종료
+            await execAsync('taskkill /F /FI "IMAGENAME eq python.exe" /FI "STATUS eq RUNNING" 2>nul');
+            console.log('✅ 고아 Python 프로세스 정리 시도');
+          } catch {
+            // 프로세스가 없으면 무시
+          }
         }
-      });
 
-      // 프로세스 종료 타임아웃 체크 (5초 후)
-      setTimeout(async () => {
-        if (!killSucceeded) {
-          console.warn(`⏱️ 프로세스 종료 타임아웃: PID ${pid}`);
+        // 맵에서 제거
+        runningProcesses.delete(jobId);
+        console.log(`✅ runningProcesses에서 제거: ${jobId}`);
 
-          // 타임아웃 알림 메일 발송
-          await sendProcessKillTimeoutEmail(
-            jobId,
-            pid,
-            user.userId,
-            5
-          );
+      } catch (error: any) {
+        console.error(`❌ 프로세스 종료 실패: ${error.message}`);
+
+        // 에러 발생해도 맵에서 제거
+        runningProcesses.delete(jobId);
+
+        // 강제 종료 재시도 (Windows만)
+        if (process.platform === 'win32') {
+          console.log('🔄 강제 종료 재시도...');
+          try {
+            await execAsync(`taskkill /F /T /PID ${pid}`);
+            console.log('✅ taskkill 재시도 성공');
+          } catch (retryErr: any) {
+            console.error(`❌ taskkill 재시도도 실패: ${retryErr.message}`);
+          }
         }
-      }, 5000);
 
-      // 맵에서 즉시 제거
-      runningProcesses.delete(jobId);
-
-      console.log(`✅ 프로세스 강제 종료 명령 완료: ${jobId}`);
+        // 관리자에게 메일 발송
+        await sendProcessKillFailureEmail(
+          jobId,
+          pid,
+          user.userId,
+          `프로세스 종료 실패: ${error.message}`
+        );
+      }
     } else {
-      console.log(`🛑 작업 취소 요청 (프로세스 없음, 상태만 변경): ${jobId}`);
+      console.log(`⚠️ 실행 중인 프로세스 없음: ${jobId}`);
     }
 
     // Job 상태 업데이트 (프로세스가 없어도 실행)
