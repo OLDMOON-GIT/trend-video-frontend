@@ -2930,13 +2930,13 @@ export default function MyContentPage() {
                                 >
                                   📥 다운로드
                                 </button>
-                                {user?.isAdmin && editingScriptId !== item.data.id && (
+                                {user?.isAdmin && (
                                   <button
-                                    onClick={() => handleEditScript(item.data.id, item.data.content)}
+                                    onClick={() => editingScriptId === item.data.id ? handleCancelEdit() : handleEditScript(item.data.id, item.data.content)}
                                     className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                    title="대본 편집 (관리자 전용)"
+                                    title={editingScriptId === item.data.id ? "편집 닫기" : "대본 편집 (관리자 전용)"}
                                   >
-                                    ✏️ 편집
+                                    {editingScriptId === item.data.id ? '✕ 닫기' : '✏️ 편집'}
                                   </button>
                                 )}
                                 <button
@@ -3762,13 +3762,13 @@ export default function MyContentPage() {
                             >
                               📥 다운로드
                             </button>
-                            {user?.isAdmin && editingScriptId !== script.id && (
+                            {user?.isAdmin && (
                               <button
-                                onClick={() => handleEditScript(script.id, script.content)}
+                                onClick={() => editingScriptId === script.id ? handleCancelEdit() : handleEditScript(script.id, script.content)}
                                 className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                title="대본 편집 (관리자 전용)"
+                                title={editingScriptId === script.id ? "편집 닫기" : "대본 편집 (관리자 전용)"}
                               >
-                                ✏️ 편집
+                                {editingScriptId === script.id ? '✕ 닫기' : '✏️ 편집'}
                               </button>
                             )}
                             <button
@@ -4273,15 +4273,7 @@ export default function MyContentPage() {
                         )}
                         {(job.status === 'failed' || job.status === 'cancelled') && (
                           <>
-                            {job.logs && job.logs.length > 0 && (
-                              <button
-                                onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
-                                className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                title="로그 보기"
-                              >
-                                {expandedLogJobId === job.id ? '📋 닫기' : `📋 로그 (${job.logs.length})`}
-                              </button>
-                            )}
+                            {/* 로그는 전체 탭에서만 확인 가능 */}
                             <button
                               onClick={() => handleRestartVideo(job.id)}
                               className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
@@ -4301,31 +4293,7 @@ export default function MyContentPage() {
                       </div>
                     </div>
 
-                    {/* 로그 표시 영역 */}
-                    {expandedLogJobId === job.id && job.logs && job.logs.length > 0 && (
-                      <div className="mt-4 rounded-lg border border-slate-600 bg-slate-900/80 p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-400">📋 서버 로그</span>
-                          <span className="text-xs text-slate-500">{job.logs.length}개 항목</span>
-                        </div>
-                        <div
-                          ref={(el) => {
-                            if (el) {
-                              jobLogRefs.current.set(job.id, el);
-                            } else {
-                              jobLogRefs.current.delete(job.id);
-                            }
-                          }}
-                          className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
-                        >
-                          {job.logs.map((log: any, idx: number) => (
-                            <div key={idx} className="text-green-400 whitespace-pre-wrap break-all mb-1">
-                              {typeof log === 'string' ? log : log.message || JSON.stringify(log)}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {/* 로그는 전체 탭의 큰 창에서 확인 - 영상 탭에서는 로그 버튼만 표시 */}
                   </div>
                 ))}
 
