@@ -120,9 +120,11 @@
 
 📋 JSON 출력 스키마 (상품 버전 - 4개 씬)
 
+**🚨 중요: title은 반드시 "[광고] "로 시작해야 합니다!**
+
 ```json
 {
-  "title": "상품 제목",
+  "title": "[광고] 상품 제목",
   "version": "product-1.0",
   "product_info": {
     "thumbnail": "상품 썸네일 URL",
@@ -204,6 +206,7 @@
 
 **형식 검증(자체 점검):**
 - 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.
+- **title은 반드시 "[광고] "로 시작해야 함** (예: "[광고] 부드러운 무드등")
 - scenes는 정확히 4개 (scene_00_hook, scene_01_problem, scene_02_solution, scene_03_cta)
 - 씬 0: narration 50자, duration_seconds 3
 - 씬 1-3: narration 150자, duration_seconds 9

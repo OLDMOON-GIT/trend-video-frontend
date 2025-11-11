@@ -51,6 +51,13 @@ export interface Content {
   useClaudeLocal?: boolean;  // 로컬 Claude 사용 여부
   model?: string;
 
+  // 상품 정보 (product, product-info 타입일 때만)
+  productInfo?: {
+    thumbnail?: string;
+    product_link?: string;
+    description?: string;
+  };
+
   // 로그
   logs?: string[];
 
@@ -75,6 +82,11 @@ export function createContent(
     conversionType?: string;   // 변환 타입
     isRegenerated?: boolean;   // 재생성 여부
     model?: string;
+    productInfo?: {
+      thumbnail?: string;
+      product_link?: string;
+      description?: string;
+    };
   }
 ): Content {
   const contentId = crypto.randomUUID();
@@ -84,9 +96,9 @@ export function createContent(
     INSERT INTO contents (
       id, user_id, type, format, title, original_title, content,
       status, progress, input_tokens, output_tokens, use_claude_local, model,
-      source_content_id, conversion_type, is_regenerated,
+      source_content_id, conversion_type, is_regenerated, product_info,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
@@ -106,6 +118,7 @@ export function createContent(
     options?.sourceContentId || null,
     options?.conversionType || null,
     options?.isRegenerated ? 1 : 0,
+    options?.productInfo ? JSON.stringify(options.productInfo) : null,
     now,
     now
   );
@@ -126,6 +139,7 @@ export function createContent(
     sourceContentId: options?.sourceContentId,
     conversionType: options?.conversionType,
     isRegenerated: options?.isRegenerated,
+    productInfo: options?.productInfo,
     createdAt: now,
     updatedAt: now
   };
@@ -380,6 +394,16 @@ export function getContentLogs(contentId: string): string[] {
 // ==================== 유틸리티 ====================
 
 function rowToContent(row: any): Content {
+  // product_info 파싱
+  let productInfo: any = undefined;
+  if (row.product_info) {
+    try {
+      productInfo = JSON.parse(row.product_info);
+    } catch (error) {
+      console.error('Failed to parse product_info:', error);
+    }
+  }
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -402,6 +426,7 @@ function rowToContent(row: any): Content {
     } : undefined,
     useClaudeLocal: row.use_claude_local === 1,
     model: row.model || undefined,
+    productInfo: productInfo,
     sourceContentId: row.source_content_id,
     conversionType: row.conversion_type,
     isRegenerated: row.is_regenerated === 1,

@@ -1007,18 +1007,15 @@ export default function MyContentPage() {
       params.set('retryType', script.type);
     }
 
-    // 상품 대본인 경우 product_info 추출하여 전달
-    if (script.type === 'product' || script.type === 'product-info') {
+    // 상품 대본인 경우 DB에 저장된 productInfo를 localStorage에 저장
+    if ((script.type === 'product' || script.type === 'product-info') && (script as any).productInfo) {
       try {
-        const parseResult = parseJsonSafely(script.content);
-        if (parseResult.success && parseResult.data?.product_info) {
-          const productInfo = parseResult.data.product_info;
-          // product_info를 JSON 문자열로 인코딩하여 전달
-          params.set('productInfo', JSON.stringify(productInfo));
-          console.log('✅ 재시도 시 상품 정보 전달:', productInfo);
-        }
+        const productInfo = (script as any).productInfo;
+        localStorage.setItem('product_video_info', JSON.stringify(productInfo));
+        localStorage.setItem('current_product_info', JSON.stringify(productInfo));
+        console.log('✅ 재시도 시 DB의 상품 정보를 localStorage에 저장:', productInfo);
       } catch (error) {
-        console.warn('⚠️ 재시도 시 상품 정보 추출 실패:', error);
+        console.warn('⚠️ 재시도 시 상품 정보 저장 실패:', error);
       }
     }
 
@@ -1638,6 +1635,7 @@ export default function MyContentPage() {
   const handleEditScript = (scriptId: string, currentContent: string) => {
     setEditingScriptId(scriptId);
     setEditedContent(currentContent);
+    setExpandedScriptId(scriptId); // 편집 모드 진입 시 대본 펼치기
   };
 
   // 대본 편집 취소
@@ -3476,37 +3474,47 @@ export default function MyContentPage() {
                           </>
                         )}
 
-                        {/* 대본 미리보기 (축소 상태) 또는 편집 모드 */}
-                        {script.status === 'completed' && expandedScriptId !== script.id && (
+                        {/* 편집 모드 또는 일반 모드 */}
+                        {script.status === 'completed' && (
                           <>
-                            {editingScriptId === script.id ? (
-                              /* 편집 모드 */
-                              <div className="mt-3 space-y-2">
-                                <textarea
-                                  value={editedContent}
-                                  onChange={(e) => setEditedContent(e.target.value)}
-                                  className="w-full h-96 rounded-lg border border-purple-500 bg-slate-900 p-4 text-base text-slate-300 font-mono leading-relaxed focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y"
-                                  placeholder="대본 내용을 입력하세요..."
-                                />
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleSaveScript(script.id)}
-                                    disabled={isSavingScript}
-                                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {isSavingScript ? '⏳ 저장 중...' : '💾 저장'}
-                                  </button>
-                                  <button
-                                    onClick={handleCancelEdit}
-                                    disabled={isSavingScript}
-                                    className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    ✕ 취소
-                                  </button>
+                            {expandedScriptId === script.id ? (
+                              /* 펼친 상태: 편집 모드 또는 전체보기 */
+                              editingScriptId === script.id ? (
+                                /* 편집 모드 */
+                                <div className="mt-3 space-y-2">
+                                  <textarea
+                                    value={editedContent}
+                                    onChange={(e) => setEditedContent(e.target.value)}
+                                    className="w-full h-96 rounded-lg border border-purple-500 bg-slate-900 p-4 text-base text-slate-300 font-mono leading-relaxed focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y"
+                                    placeholder="대본 내용을 입력하세요..."
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleSaveScript(script.id)}
+                                      disabled={isSavingScript}
+                                      className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {isSavingScript ? '⏳ 저장 중...' : '💾 저장'}
+                                    </button>
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      disabled={isSavingScript}
+                                      className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      ✕ 취소
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
+                              ) : (
+                                /* 일반 전체보기 */
+                                <div className="mt-3 rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                                  <pre className="whitespace-pre-wrap text-base text-slate-300 font-mono leading-relaxed">
+                                    {script.content}
+                                  </pre>
+                                </div>
+                              )
                             ) : (
-                              /* 일반 미리보기 */
+                              /* 축소 상태: 미리보기 */
                               <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/50 p-4">
                                 <p className="text-base text-slate-300 line-clamp-3 leading-relaxed">
                                   {script.content}

@@ -320,7 +320,8 @@ export async function POST(request: NextRequest) {
         format: scriptType,
         originalTitle: title,
         useClaudeLocal: useClaudeLocal,
-        model: agentName
+        model: agentName,
+        productInfo: (scriptType === 'product' || scriptType === 'product-info') && productInfo ? productInfo : undefined
       }
     );
 

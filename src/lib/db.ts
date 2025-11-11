@@ -92,9 +92,14 @@ export interface Script {
   };
   createdAt: string;
   updatedAt: string;
-  type?: 'longform' | 'shortform' | 'sora2' | 'product'; // 대본 타입
+  type?: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info'; // 대본 타입
   useClaudeLocal?: boolean; // 로컬 Claude 사용 여부 (true: 로컬, false/undefined: API)
   model?: string;
+  productInfo?: {
+    thumbnail?: string;
+    product_link?: string;
+    description?: string;
+  }; // 상품 정보 (product, product-info 타입일 때만)
 }
 
 // 비밀번호 해시
