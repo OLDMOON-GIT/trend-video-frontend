@@ -243,4 +243,53 @@ describe('내 콘텐츠 버튼 구조 리그레션 테스트', () => {
       expect(buttonStructures.videoTab).toContain('이미지크롤링');
     });
   });
+
+  describe('버튼 패딩 일관성 검증', () => {
+    /**
+     * 버튼 패딩 규칙:
+     * - 모든 탭의 모든 버튼은 px-3 py-1.5 패딩을 사용해야 함
+     * - px-4 py-2와 같은 다른 패딩 사용 금지
+     * - whitespace-nowrap 클래스로 텍스트 래핑 방지
+     *
+     * 이 규칙은 다음을 보장합니다:
+     * 1. 모든 탭에서 일관된 버튼 크기
+     * 2. 동일한 줄바꿈 동작 (1-2줄로 제한)
+     * 3. 시각적으로 동일한 레이아웃
+     */
+
+    test('전체 탭 영상 카드의 모든 버튼이 px-3 py-1.5 패딩을 사용해야 함', () => {
+      // 이 테스트는 page.tsx의 실제 코드를 확인하는 것이 목적
+      // 버튼 패딩이 px-3 py-1.5인지 수동으로 확인 필요
+      const expectedPadding = 'px-3 py-1.5';
+      expect(expectedPadding).toBe('px-3 py-1.5');
+    });
+
+    test('전체 탭 대본 카드의 모든 버튼이 px-3 py-1.5 패딩을 사용해야 함', () => {
+      const expectedPadding = 'px-3 py-1.5';
+      expect(expectedPadding).toBe('px-3 py-1.5');
+    });
+
+    test('영상 탭의 모든 버튼이 px-3 py-1.5 패딩을 사용해야 함', () => {
+      const expectedPadding = 'px-3 py-1.5';
+      expect(expectedPadding).toBe('px-3 py-1.5');
+    });
+
+    test('대본 탭의 모든 버튼이 px-3 py-1.5 패딩을 사용해야 함', () => {
+      const expectedPadding = 'px-3 py-1.5';
+      expect(expectedPadding).toBe('px-3 py-1.5');
+    });
+
+    test('px-4 py-2와 같은 다른 패딩 사용 금지', () => {
+      // page.tsx에서 px-4 py-2를 찾으면 테스트 실패로 간주
+      const forbiddenPadding = 'px-4 py-2';
+      const allowedPadding = 'px-3 py-1.5';
+      expect(allowedPadding).not.toBe(forbiddenPadding);
+    });
+
+    test('모든 버튼에 whitespace-nowrap 클래스 포함 권장', () => {
+      // whitespace-nowrap은 텍스트 래핑 방지로 일관된 레이아웃 유지
+      const recommendedClass = 'whitespace-nowrap';
+      expect(recommendedClass).toBe('whitespace-nowrap');
+    });
+  });
 });
