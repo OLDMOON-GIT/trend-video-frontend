@@ -183,6 +183,7 @@ export default function Home() {
   const [uploadedJson, setUploadedJson] = useState<File | null>(null);
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
+  const [selectedTtsVoice, setSelectedTtsVoice] = useState<string>('ko-KR-SoonBokNeural'); // TTS 음성 선택 (기본값: SoonBok)
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [showJsonTextarea, setShowJsonTextarea] = useState(false);
   const [jsonTextareaValue, setJsonTextareaValue] = useState('');
@@ -3604,6 +3605,36 @@ export default function Home() {
             </div>
             )}
 
+            {/* TTS 음성 선택 (Step 3) */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-300">
+                🎤 TTS 음성 선택 (Step 3)
+              </label>
+              <select
+                value={selectedTtsVoice}
+                onChange={(e) => setSelectedTtsVoice(e.target.value)}
+                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-3 text-white transition focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              >
+                <optgroup label="여성 음성 👩">
+                  <option value="ko-KR-SunHiNeural">SunHi (선희) - 여성</option>
+                  <option value="ko-KR-JiMinNeural">JiMin (지민) - 여성</option>
+                  <option value="ko-KR-SeoHyeonNeural">SeoHyeon (서현) - 여성</option>
+                  <option value="ko-KR-SoonBokNeural">SoonBok (순복) - 여성 [기본]</option>
+                  <option value="ko-KR-YuJinNeural">YuJin (유진) - 여성</option>
+                </optgroup>
+                <optgroup label="남성 음성 👨">
+                  <option value="ko-KR-InJoonNeural">InJoon (인준) - 남성</option>
+                  <option value="ko-KR-HyunsuMultilingualNeural">Hyunsu Multilingual (현수) - 남성, 다국어</option>
+                  <option value="ko-KR-BongJinNeural">BongJin (봉진) - 남성</option>
+                  <option value="ko-KR-GookMinNeural">GookMin (국민) - 남성</option>
+                  <option value="ko-KR-HyunsuNeural">Hyunsu (현수) - 남성</option>
+                </optgroup>
+              </select>
+              <p className="mt-2 text-xs text-slate-400">
+                💡 모든 음성은 Microsoft Edge TTS(무료)로 제공됩니다
+              </p>
+            </div>
+
             {/* 영상 생성 버튼 */}
             <button
               data-video-generate-btn
@@ -4075,6 +4106,9 @@ export default function Home() {
                         // 워터마크 제거 옵션 추가
                         mergeFormData.append('removeWatermark', removeWatermark ? 'true' : 'false');
 
+                        // TTS 음성 선택 추가
+                        mergeFormData.append('ttsVoice', selectedTtsVoice);
+
                         // API 호출 (디버깅 로그 추가)
                         console.log('📤 비디오 병합 요청 시작...');
                         console.log('📦 업로드 파일 개수:', sortedVideos.length);
@@ -4195,6 +4229,7 @@ export default function Home() {
                       formData.append('json', uploadedJson!);
                       formData.append('imageSource', imageSource);
                       formData.append('promptFormat', promptFormat); // 롱폼/숏폼 정보 추가
+                      formData.append('ttsVoice', selectedTtsVoice); // TTS 음성 선택 추가
 
                       // 직접 업로드 모드일 때만 이미지 추가
                       if (imageSource === 'none') {

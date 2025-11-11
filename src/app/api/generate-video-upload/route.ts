@@ -76,6 +76,10 @@ export async function POST(request: NextRequest) {
     const promptFormat = formData.get('promptFormat') as string || '';
     console.log('프롬프트 포맷:', promptFormat);
 
+    // TTS 음성 선택 확인
+    const ttsVoice = formData.get('ttsVoice') as string || 'ko-KR-SoonBokNeural';
+    console.log('TTS 음성:', ttsVoice);
+
     // 상품 타입이면 title 앞에 [광고] 추가
     if (promptFormat === 'product' || promptFormat === 'product-info') {
       if (!videoTitle.startsWith('[광고]')) {
@@ -196,8 +200,8 @@ export async function POST(request: NextRequest) {
     const projectName = `uploaded_${jobId}`;
     const inputPath = path.join(backendPath, 'uploads', projectName);
 
-    // Job을 DB에 저장 (JSON의 title과 videoFormat 사용)
-    await createJob(user.userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2');
+    // Job을 DB에 저장 (JSON의 title과 videoFormat, ttsVoice 사용)
+    await createJob(user.userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2', undefined, ttsVoice);
 
     // 비동기로 영상 생성 시작
     generateVideoFromUpload(jobId, user.userId, cost, {
@@ -209,7 +213,8 @@ export async function POST(request: NextRequest) {
       imageSource,
       isAdmin: user.isAdmin || false,
       videoFormat, // 롱폼/숏폼 정보 전달
-      originalNames // 원본 파일명 매핑
+      originalNames, // 원본 파일명 매핑
+      ttsVoice // TTS 음성 선택
     });
 
     return NextResponse.json({
@@ -241,6 +246,7 @@ async function generateVideoFromUpload(
     isAdmin: boolean;
     videoFormat: string; // 'longform', 'shortform', 'sora2'
     originalNames?: Record<number, string>; // 원본 파일명 매핑
+    ttsVoice: string; // TTS 음성 선택
   }
 ) {
   try {
@@ -391,8 +397,12 @@ async function generateVideoFromUpload(
       // 자막 추가 (기본값이 True이지만 명시적으로 전달)
       const subtitlesArg = ['--add-subtitles'];
 
+      // TTS 음성 선택
+      const voiceArg = ['--voice', config.ttsVoice];
+      console.log(`🎤 TTS 음성: ${config.ttsVoice}`);
+
       // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
-      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...isAdminArg];
+      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...voiceArg, ...isAdminArg];
       console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
 
       pythonProcess = spawn('python', pythonArgs, {

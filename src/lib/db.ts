@@ -73,6 +73,7 @@ export interface Job {
   sourceContentId?: string; // 대본 ID (대본->영상)
   convertedFromJobId?: string; // 원본 영상 ID (영상->쇼츠)
   prompt?: string; // 생성 시 사용한 프롬프트
+  ttsVoice?: string; // TTS 음성 선택
 }
 
 // 대본 타입
@@ -222,15 +223,15 @@ export async function deleteUserById(userId: string): Promise<void> {
 // ==================== SQLite Job 함수들 ====================
 
 // 작업 생성
-export function createJob(userId: string, jobId: string, title?: string, type?: 'longform' | 'shortform' | 'sora2', sourceContentId?: string): Job {
+export function createJob(userId: string, jobId: string, title?: string, type?: 'longform' | 'shortform' | 'sora2', sourceContentId?: string, ttsVoice?: string): Job {
   const now = new Date().toISOString();
 
   const stmt = db.prepare(`
-    INSERT INTO jobs (id, user_id, status, progress, created_at, updated_at, title, type, source_content_id)
-    VALUES (?, ?, 'pending', 0, ?, ?, ?, ?, ?)
+    INSERT INTO jobs (id, user_id, status, progress, created_at, updated_at, title, type, source_content_id, tts_voice)
+    VALUES (?, ?, 'pending', 0, ?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(jobId, userId, now, now, title || null, type || null, sourceContentId || null);
+  stmt.run(jobId, userId, now, now, title || null, type || null, sourceContentId || null, ttsVoice || null);
 
   return {
     id: jobId,
@@ -242,7 +243,8 @@ export function createJob(userId: string, jobId: string, title?: string, type?: 
     updatedAt: now,
     title,
     type,
-    sourceContentId
+    sourceContentId,
+    ttsVoice
   };
 }
 
@@ -279,7 +281,8 @@ export function findJobById(jobId: string): Job | null {
     type: row.type,
     sourceContentId: row.source_content_id,
     convertedFromJobId: row.converted_from_job_id,
-    prompt: row.prompt
+    prompt: row.prompt,
+    ttsVoice: row.tts_voice
   };
 }
 

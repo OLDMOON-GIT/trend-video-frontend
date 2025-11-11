@@ -117,6 +117,10 @@ export async function POST(request: NextRequest) {
     // 워터마크 제거 옵션 확인
     const removeWatermark = formData.get('removeWatermark') === 'true';
 
+    // TTS 음성 선택 확인
+    const ttsVoice = formData.get('ttsVoice') as string || 'ko-KR-SoonBokNeural';
+    console.log('🎤 TTS 음성:', ttsVoice);
+
     // 사용자가 입력한 제목 우선 사용
     let userTitle = formData.get('title') as string | null;
     if (userTitle) {
@@ -236,7 +240,7 @@ export async function POST(request: NextRequest) {
     const jobTitle = userTitle || videoTitle || `비디오 병합 (${videoFiles.length}개)`;
     const jobId = `merge_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-    createJob(user.userId, jobId, jobTitle);
+    createJob(user.userId, jobId, jobTitle, undefined, undefined, ttsVoice);
 
     // 크레딧 히스토리 추가
     await addCreditHistory(
@@ -292,6 +296,7 @@ export async function POST(request: NextRequest) {
       narration_text: narrationText,
       add_subtitles: addSubtitles,
       remove_watermark: removeWatermark,
+      tts_voice: ttsVoice,  // TTS 음성 선택
       title: jobTitle,  // 사용자 입력 제목 우선
       scenes: scenes,  // scenes 배열 (비디오 배치용)
       output_dir: outputDir
