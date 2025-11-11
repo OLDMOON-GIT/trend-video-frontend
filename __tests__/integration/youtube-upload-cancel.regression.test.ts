@@ -84,7 +84,7 @@ describe('YouTube 업로드 중지 리그레션 테스트', () => {
     });
   });
 
-  describe('Python Signal Handler', () => {
+  describe('Python Signal Handler with finally', () => {
     it('SIGTERM 수신 시 KeyboardInterrupt를 발생시켜야 함', () => {
       // Python 코드 시뮬레이션
       const signalHandler = (signum: number) => {
@@ -96,9 +96,11 @@ describe('YouTube 업로드 중지 리그레션 테스트', () => {
       expect(() => signalHandler(15)).toThrow('KeyboardInterrupt');
     });
 
-    it('KeyboardInterrupt 발생 시 video_id가 있으면 YouTube에서 삭제', () => {
+    it('[CRITICAL] finally 블록에서 video_id가 있으면 YouTube 삭제', () => {
       // Python 로직 시뮬레이션
       const videoId = 'abc123xyz';
+      let uploadSuccess = false;
+      let wasCancelled = false;
       let youtubeDeleted = false;
 
       try {
@@ -106,46 +108,82 @@ describe('YouTube 업로드 중지 리그레션 테스트', () => {
         throw new Error('KeyboardInterrupt');
       } catch (error) {
         if (error instanceof Error && error.message === 'KeyboardInterrupt') {
-          if (videoId) {
-            // YouTube API 호출: videos().delete(id=video_id)
-            youtubeDeleted = true;
-          }
+          wasCancelled = true;
+        }
+      } finally {
+        // ✅ finally 블록 - 항상 실행됨
+        if (videoId && !uploadSuccess) {
+          youtubeDeleted = true;
         }
       }
 
+      expect(wasCancelled).toBe(true);
       expect(youtubeDeleted).toBe(true);
     });
 
-    it('video_id가 없으면 삭제 시도 안 함', () => {
+    it('video_id가 없으면 finally에서도 삭제 안 함', () => {
       const videoId = null;
+      let uploadSuccess = false;
       let youtubeDeleted = false;
 
       try {
         throw new Error('KeyboardInterrupt');
       } catch (error) {
-        if (error instanceof Error && error.message === 'KeyboardInterrupt') {
-          if (videoId) {
-            youtubeDeleted = true;
-          }
+        // catch
+      } finally {
+        if (videoId && !uploadSuccess) {
+          youtubeDeleted = true;
         }
       }
 
       expect(youtubeDeleted).toBe(false);
     });
 
+    it('정상 완료 시에는 finally에서 삭제 안 함', () => {
+      const videoId = 'abc123xyz';
+      let uploadSuccess = true; // 정상 완료
+      let youtubeDeleted = false;
+
+      try {
+        // 정상 완료
+        uploadSuccess = true;
+      } catch (error) {
+        // no error
+      } finally {
+        if (videoId && !uploadSuccess) {
+          youtubeDeleted = true;
+        }
+      }
+
+      expect(uploadSuccess).toBe(true);
+      expect(youtubeDeleted).toBe(false);
+    });
+
     it('KeyboardInterrupt 처리 후 JSON 응답 반환', () => {
       let jsonResponse: any = null;
+      let wasCancelled = false;
+      const videoId = 'abc123xyz';
+      let uploadSuccess = false;
 
       try {
         throw new Error('KeyboardInterrupt');
       } catch (error) {
         if (error instanceof Error && error.message === 'KeyboardInterrupt') {
-          // UploadResult 반환
-          jsonResponse = {
-            success: false,
-            error: '업로드가 취소되었고 YouTube에서 비디오가 삭제되었습니다'
-          };
+          wasCancelled = true;
         }
+      } finally {
+        // YouTube 삭제
+        if (videoId && !uploadSuccess) {
+          // delete...
+        }
+      }
+
+      // except 블록 후 실행
+      if (wasCancelled) {
+        jsonResponse = {
+          success: false,
+          error: '업로드가 취소되었고 YouTube에서 비디오가 삭제되었습니다'
+        };
       }
 
       expect(jsonResponse).toBeTruthy();

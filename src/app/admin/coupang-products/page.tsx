@@ -1493,124 +1493,91 @@ export default function CoupangProductsAdminPage() {
             )}
           </div>
 
-          {/* 검색 결과 */}
+          {/* 검색 결과 - 개선된 디자인 */}
           {searchResults.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-lg font-bold text-white mb-4">
-                🔍 검색 결과 ({searchResults.length}개)
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
+            <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-950/30 p-6 backdrop-blur">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-white">
+                  🔍 검색 결과 <span className="text-emerald-400">({searchResults.length}개)</span>
+                </h3>
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                  }}
+                  className="text-sm text-slate-400 hover:text-white transition"
+                >
+                  ✕ 닫기
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 max-h-[500px] overflow-y-auto">
                 {searchResults.map((item, idx) => (
                   <div
                     key={`${item.source}-${item.id}-${idx}`}
-                    className="rounded-xl border border-slate-600 bg-slate-800/50 p-4 hover:border-emerald-500 transition"
+                    className="rounded-lg border border-slate-600/50 bg-slate-800/40 p-3 hover:border-emerald-500 transition"
                   >
-                    {/* 출처 뱃지 */}
-                    <div className="flex items-center justify-between mb-3">
-                      <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                        item.source === 'my-list'
-                          ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-                          : 'bg-blue-600/20 text-blue-300 border border-blue-500/30'
-                      }`}>
-                        {item.source === 'my-list' ? '📦 내 목록' : '⏳ 대기 목록'}
-                      </span>
-                      {item.category && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-slate-700 text-slate-300">
-                          {item.category}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* 썸네일 */}
+                    {/* 썸네일 + 출처 뱃지 */}
                     {item.image_url && (
-                      <div className="relative w-full h-32 bg-slate-900 rounded-lg mb-3 overflow-hidden">
+                      <div className="relative w-full h-28 bg-slate-900 rounded-lg mb-2 overflow-hidden">
                         <img
                           src={item.image_url}
                           alt={item.title}
                           className="w-full h-full object-contain"
                           onError={(e) => e.currentTarget.style.display = 'none'}
                         />
+                        <span className={`absolute top-1 left-1 text-xs px-2 py-0.5 rounded font-bold ${
+                          item.source === 'my-list'
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-blue-600 text-white'
+                        }`}>
+                          {item.source === 'my-list' ? '📦' : '⏳'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 카테고리 */}
+                    {item.category && (
+                      <div className="mb-2">
+                        <span className="text-xs px-2 py-0.5 rounded bg-purple-600/80 text-white font-semibold">
+                          {item.category}
+                        </span>
                       </div>
                     )}
 
                     {/* 제목 */}
-                    <h4 className="text-sm font-semibold text-white mb-2 line-clamp-2">
+                    <h4 className="text-sm font-bold text-white mb-1 line-clamp-2">
                       {item.title || '상품명'}
                     </h4>
 
-                    {/* 설명 */}
-                    {item.description && (
-                      <p className="text-xs text-slate-400 mb-2 line-clamp-2">
-                        {item.description}
-                      </p>
-                    )}
-
-                    {/* 가격 정보 */}
-                    {(item.discount_price || item.original_price) && (
-                      <div className="flex items-center gap-2 mb-2">
-                        {item.discount_price && (
-                          <span className="text-base font-bold text-green-400">
-                            {Number(item.discount_price).toLocaleString()}원
-                          </span>
-                        )}
-                        {item.original_price && item.discount_price !== item.original_price && (
-                          <span className="text-xs text-slate-500 line-through">
-                            {Number(item.original_price).toLocaleString()}원
-                          </span>
-                        )}
+                    {/* 가격 */}
+                    {item.discount_price && (
+                      <div className="text-sm font-bold text-green-400 mb-2">
+                        {Number(item.discount_price).toLocaleString()}원
                       </div>
                     )}
 
-                    {/* 원본 URL */}
-                    {item.product_url && (
-                      <div className="mb-2">
-                        <a
-                          href={item.product_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-400 hover:text-blue-300 break-all line-clamp-1 underline"
-                        >
-                          {item.product_url}
-                        </a>
-                      </div>
+                    {/* 버튼 */}
+                    {item.source === 'my-list' ? (
+                      <a
+                        href={item.deep_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-center rounded bg-orange-600 px-2 py-1.5 text-xs font-bold text-white hover:bg-orange-500 transition"
+                      >
+                        🛒 쿠팡에서 보기
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          changeTab('pending');
+                          setSearchResults([]);
+                          setSearchQuery('');
+                        }}
+                        className="w-full rounded bg-emerald-600 px-2 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 transition"
+                      >
+                        대기 목록으로
+                      </button>
                     )}
-
-                    {/* 액션 버튼 */}
-                    <div className="flex flex-col gap-2 mt-3">
-                      {item.source === 'my-list' ? (
-                        <>
-                          <div className="flex gap-2">
-                            <a
-                              href={item.deep_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-3 py-2 text-xs font-semibold text-white hover:from-orange-500 hover:to-red-500 transition"
-                            >
-                              🛒 쿠팡에서 보기
-                            </a>
-                            <a
-                              href={`/shop/product/${item.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition"
-                            >
-                              👁️ 쇼핑몰
-                            </a>
-                          </div>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            changeTab('pending');
-                            setSearchResults([]);
-                            setSearchQuery('');
-                          }}
-                          className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition"
-                        >
-                          대기 목록으로
-                        </button>
-                      )}
-                    </div>
                   </div>
                 ))}
               </div>
@@ -1897,170 +1864,122 @@ export default function CoupangProductsAdminPage() {
                   </div>
                 )}
 
-                {/* 통계 제거 */}
-                <div className="text-xs text-slate-500 mb-3">파트너스 조회/클릭 데이터는 관리자 페이지에서만 확인합니다.</div>
-
-                {/* 원본 상품 URL */}
-                {product.product_url && (
-                  <div className="bg-slate-900/50 rounded-lg p-2 mb-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">상품 원본:</span>
-                      <a
-                        href={product.product_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-400 hover:text-blue-300 underline line-clamp-1"
-                      >
-                        {product.product_url}
-                      </a>
-                    </div>
-                  </div>
-                )}
-
-                {/* 파트너스 딥링크 */}
-                <div className="bg-slate-900/50 rounded-lg p-2 mb-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500 font-mono break-all line-clamp-1">
-                      {product.deep_link}
-                    </span>
-                    <button
-                      onClick={() => {
-                        // 안전한 클립보드 복사
-                        const copyToClipboard = async (text: string) => {
-                          try {
-                            if (navigator.clipboard && window.isSecureContext) {
-                              await navigator.clipboard.writeText(text);
-                            } else {
-                              // 폴백: 레거시 방법
-                              const textArea = document.createElement('textarea');
-                              textArea.value = text;
-                              textArea.style.position = 'fixed';
-                              textArea.style.left = '-999999px';
-                              document.body.appendChild(textArea);
-                              textArea.focus();
-                              textArea.select();
-                              try {
-                                document.execCommand('copy');
-                              } finally {
-                                document.body.removeChild(textArea);
-                              }
+                {/* 딥링크 - 더 간단하게 */}
+                <div className="bg-slate-900/50 rounded-lg p-2 mb-3 flex items-center justify-between gap-2">
+                  <span className="text-xs text-slate-500 font-mono break-all line-clamp-1 flex-1">
+                    {product.deep_link}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const copyToClipboard = async (text: string) => {
+                        try {
+                          if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(text);
+                          } else {
+                            const textArea = document.createElement('textarea');
+                            textArea.value = text;
+                            textArea.style.position = 'fixed';
+                            textArea.style.left = '-999999px';
+                            document.body.appendChild(textArea);
+                            textArea.focus();
+                            textArea.select();
+                            try {
+                              document.execCommand('copy');
+                            } finally {
+                              document.body.removeChild(textArea);
                             }
-                            alert('딥링크가 복사되었습니다!');
-                          } catch (err) {
-                            console.error('복사 실패:', err);
-                            alert('복사에 실패했습니다. 딥링크를 수동으로 복사해주세요.');
                           }
-                        };
-                        copyToClipboard(product.deep_link);
-                      }}
-                      className="ml-2 flex-shrink-0 text-slate-400 hover:text-blue-400 transition"
-                      title="딥링크 복사"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    </button>
-                  </div>
+                          toast.success('딥링크 복사됨!');
+                        } catch (err) {
+                          console.error('복사 실패:', err);
+                          toast.error('복사 실패');
+                        }
+                      };
+                      copyToClipboard(product.deep_link);
+                    }}
+                    className="flex-shrink-0 text-slate-400 hover:text-blue-400 transition"
+                    title="딥링크 복사"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
                 </div>
 
-                {/* 액션 버튼 */}
-                <div className="flex flex-col gap-2">
-                  {/* 크롤링 실패한 경우 표시되는 버튼들 */}
+                {/* 액션 버튼 - 깔끔한 정렬 */}
+                <div className="space-y-2">
+                  {/* 크롤링 실패 시 표시 */}
                   {(product.title === '상품명' || product.description === '상품 설명이 없습니다.') && (
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={async () => {
                           if (!confirm('이 상품을 다시 크롤링하시겠습니까?')) return;
-
                           try {
-                            const res = await fetch(`/api/coupang-products/${product.id}/recrawl`, {
-                              method: 'POST'
-                            });
-
+                            const res = await fetch(`/api/coupang-products/${product.id}/recrawl`, { method: 'POST' });
                             const data = await safeJsonResponse(res);
-
                             if (res.ok) {
-                              toast.success('크롤링 큐에 추가되었습니다! 잠시 후 자동으로 업데이트됩니다.');
-                              // 큐 진행 상태 확인을 위해 잠시 후 새로고침
-                              setTimeout(() => {
-                                loadProducts();
-                              }, 2000);
+                              toast.success('크롤링 큐에 추가됨!');
+                              setTimeout(() => loadProducts(), 2000);
                             } else {
-                              toast.error(data.error || '재크롤링에 실패했습니다.');
+                              toast.error(data.error || '재크롤링 실패');
                             }
                           } catch (error) {
-                            console.error('재크롤링 실패:', error);
-                            toast.error('재크롤링 중 오류가 발생했습니다.');
+                            toast.error('재크롤링 오류');
                           }
                         }}
-                        className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition"
+                        className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500 transition"
                       >
-                        🔄 다시 크롤링
+                        🔄 재크롤링
                       </button>
                       <button
                         onClick={() => handleOpenEditModal(product)}
-                        className="flex-1 rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-500 transition"
+                        className="rounded-lg bg-yellow-600 px-3 py-2 text-xs font-bold text-white hover:bg-yellow-500 transition"
                       >
-                        ✏️ 수정하기
+                        ✏️ 수정
                       </button>
                     </div>
                   )}
 
-                  {/* 영상 제작 버튼 */}
+                  {/* 주요 액션 버튼 */}
                   <button
                     onClick={() => {
-                      // 상품 정보를 로컬 스토리지에 저장
                       const productInfo = {
                         title: product.title,
                         thumbnail: product.image_url,
                         product_link: product.deep_link,
                         description: product.description
                       };
-
-                      console.log('🎬🎬🎬 영상 제작하기 클릭 - 상품 정보 저장');
-                      console.log('📦 Product 전체:', product);
-                      console.log('📝 저장할 productInfo:', productInfo);
-                      console.log('  - title:', productInfo.title);
-                      console.log('  - thumbnail:', productInfo.thumbnail);
-                      console.log('  - product_link:', productInfo.product_link);
-                      console.log('  - description:', productInfo.description);
-
                       localStorage.setItem('product_video_info', JSON.stringify(productInfo));
-
-                      // 저장 확인
-                      const saved = localStorage.getItem('product_video_info');
-                      console.log('💾 localStorage 저장 확인:', saved);
-
-                      // 메인 페이지로 이동 (상품 프롬프트 타입)
                       router.push('/?promptType=product');
-                      toast.success('상품 정보가 로드되었습니다!');
+                      toast.success('상품 정보 로드됨!');
                     }}
-                    className="w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:from-green-500 hover:to-emerald-500 transition"
+                    className="w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-lg"
                   >
                     📝 상품영상대본작성
                   </button>
 
-                  <div className="flex gap-2">
+                  {/* 보조 버튼들 */}
+                  <div className="grid grid-cols-2 gap-2">
                     <a
                       href={product.deep_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-4 py-2 text-sm font-semibold text-white text-center hover:from-orange-500 hover:to-red-500 transition"
+                      className="rounded-lg bg-orange-600 px-3 py-2 text-xs font-bold text-white text-center hover:bg-orange-500 transition"
                     >
-                      🛒 쿠팡에서 보기
+                      🛒 쿠팡
                     </a>
-                    <a
-                      href={`/shop/product/${product.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white text-center hover:bg-blue-500 transition"
+                    <button
+                      onClick={() => handleReclassifyProduct(product.id)}
+                      className="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white hover:bg-cyan-500 transition"
                     >
-                      👁️ 쇼핑몰 미리보기
-                    </a>
+                      🔄 재분류
+                    </button>
                   </div>
+
+                  {/* 삭제 버튼 */}
                   <button
                     onClick={() => handleDeleteProduct(product.id)}
-                    className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 transition"
+                    className="w-full rounded-lg bg-red-600/80 px-3 py-2 text-xs font-bold text-white hover:bg-red-600 transition"
                   >
                     🗑️ 삭제
                   </button>
