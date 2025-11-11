@@ -37,5 +37,44 @@
     "isDefault": true,
     "createdAt": "2025-11-11T06:15:10.638Z",
     "updatedAt": "2025-11-11T06:15:15.998Z"
+  },
+  {
+    "id": "01078bf4-5de6-4ee9-8500-dc0e63a6bec3",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "channelId": "UC_pW5DOf3GFn-5dYQMxGYpA",
+    "channelTitle": "6090놀이터",
+    "thumbnailUrl": "https://yt3.ggpht.com/3GtHZdsEHshz7HFaQd2yyIrBadj1ImauOyYwoydNdFLoF21N8MqXdMb9IZ993dS4FcjTn3BnkA=s88-c-k-c0x00ffffff-no-rj",
+    "subscriberCount": 3,
+    "description": "",
+    "tokenFile": "youtube_token_b5d1f064-60b9-45ab-9bcd-d36948196459_UC_pW5DOf3GFn-5dYQMxGYpA.json",
+    "isDefault": false,
+    "createdAt": "2025-11-11T08:39:46.692Z",
+    "updatedAt": "2025-11-11T08:39:46.693Z"
+  },
+  {
+    "id": "d6f1edf2-4b0f-40e7-9fc9-15a4256c1ab0",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "channelId": "UCaqTVU1mzzvYfha4DbFjcSA",
+    "channelTitle": "원사사",
+    "thumbnailUrl": "https://yt3.ggpht.com/PFmSJf2dfeqZ6JEucQ3CRK_ux8PwwMuH_GYywV3yL-dWG4lv9HEhVTFsuhZ2sXip6maMwEPxWw=s88-c-k-c0x00ffffff-no-rj",
+    "subscriberCount": 2,
+    "description": "",
+    "tokenFile": "youtube_token_b5d1f064-60b9-45ab-9bcd-d36948196459_UCaqTVU1mzzvYfha4DbFjcSA.json",
+    "isDefault": false,
+    "createdAt": "2025-11-11T15:00:10.709Z",
+    "updatedAt": "2025-11-11T15:00:10.709Z"
+  },
+  {
+    "id": "461054cb-a678-4f0c-bda7-ca6ec73309c6",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "channelId": "UCHzVmjofL7WZfcWgvSqe-UQ",
+    "channelTitle": "bossman",
+    "thumbnailUrl": "https://yt3.ggpht.com/Y_his2HSktPeUmPqNBHmLqKNZdRrjTB68vK7ajM5BRWd9ENCoo1P4ryIV0285XCWGYjdZwkk3gY=s88-c-k-c0x00ffffff-no-rj",
+    "subscriberCount": 2,
+    "description": "",
+    "tokenFile": "youtube_token_b5d1f064-60b9-45ab-9bcd-d36948196459_UCHzVmjofL7WZfcWgvSqe-UQ.json",
+    "isDefault": false,
+    "createdAt": "2025-11-11T15:01:06.016Z",
+    "updatedAt": "2025-11-11T15:01:06.016Z"
   }
 ]

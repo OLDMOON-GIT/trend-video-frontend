@@ -1696,5 +1696,41 @@
     "balance": 200119280,
     "description": "영상 생성",
     "createdAt": "2025-11-11T06:03:20.058Z"
+  },
+  {
+    "id": "b6a7df1a-10f9-4c01-8232-c3981323d91d",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200119130,
+    "description": "영상 생성",
+    "createdAt": "2025-11-11T11:33:03.765Z"
+  },
+  {
+    "id": "ee14a34b-1031-454c-91fb-672eb9d4d8be",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200118980,
+    "description": "영상 생성",
+    "createdAt": "2025-11-11T12:11:47.505Z"
+  },
+  {
+    "id": "0b3e47b2-4ece-4eb1-ae02-d8ad1e57dc9e",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": 150,
+    "balance": 200118830,
+    "description": "비디오 병합 생성 (4개 비디오)",
+    "createdAt": "2025-11-11T12:45:07.095Z"
+  },
+  {
+    "id": "cb7972d4-8dde-4144-8235-2ea002cb683a",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200118680,
+    "description": "영상 재생성",
+    "createdAt": "2025-11-11T16:27:24.272Z"
   }
 ]

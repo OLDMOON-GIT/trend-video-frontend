@@ -357,7 +357,7 @@ export default function ShopVersionPreview({ versionId, onClose, showHeader = fa
   }, [htmlPreview]);
 
   return (
-    <div className="my-0">
+    <div className="mt-0">
         {showHeader && (
           <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 text-amber-100 p-4 mb-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -389,7 +389,7 @@ export default function ShopVersionPreview({ versionId, onClose, showHeader = fa
       ) : (
         <div
           ref={containerRef}
-          className="rounded-3xl border border-white/5 bg-white/5 p-6 shadow-2xl shadow-purple-900/30"
+          className="rounded-2xl border border-white/5 bg-white/5 p-3 shadow-2xl shadow-purple-900/30"
           dangerouslySetInnerHTML={{ __html: htmlPreview }}
         />
       )}

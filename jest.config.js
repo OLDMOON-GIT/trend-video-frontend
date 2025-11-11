@@ -22,6 +22,7 @@ const customJestConfig = {
     '!src/**/*.stories.{js,jsx,ts,tsx}',
     '!src/**/_*.{js,jsx,ts,tsx}',
   ],
+  coverageReporters: ['text', 'lcov', 'json-summary'],
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

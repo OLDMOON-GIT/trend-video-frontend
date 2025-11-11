@@ -108,7 +108,7 @@ export default function ShopClientView({ initialCategories, initialTotalProducts
   return (
     <>
       {/* 상단 액션 버튼들 */}
-      <div className="mb-0 flex flex-wrap justify-between items-center gap-1">
+      <div className="mb-4 flex flex-wrap justify-between items-center gap-2">
         {/* Google Sites 버튼들 */}
         <div className="flex flex-wrap gap-1">
           {googleSitesEditUrl && (

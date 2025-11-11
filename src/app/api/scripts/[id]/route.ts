@@ -86,7 +86,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { folderId } = body;
+    const { folderId, content: newContent } = body;
 
     // 스크립트 소유권 확인
     const content = findContentById(contentId);
@@ -98,40 +98,70 @@ export async function PUT(
       );
     }
 
-    if (!user.isAdmin && content.userId !== user.userId) {
+    // 대본 내용 수정은 관리자만 가능
+    if (newContent !== undefined && !user.isAdmin) {
+      return NextResponse.json(
+        { error: '대본 수정은 관리자만 가능합니다.' },
+        { status: 403 }
+      );
+    }
+
+    // 폴더 이동은 본인만 가능
+    if (folderId !== undefined && !user.isAdmin && content.userId !== user.userId) {
       return NextResponse.json(
         { error: '권한이 없습니다.' },
         { status: 403 }
       );
     }
 
-    // folderId가 제공된 경우 폴더 소유권 확인
-    if (folderId) {
-      const db = new Database(dbPath);
-      const folder: any = db.prepare('SELECT * FROM folders WHERE id = ? AND user_id = ?').get(folderId, user.userId);
+    const db = new Database(dbPath);
+
+    try {
+      // folderId가 제공된 경우 폴더 소유권 확인
+      if (folderId !== undefined) {
+        if (folderId) {
+          const folder: any = db.prepare('SELECT * FROM folders WHERE id = ? AND user_id = ?').get(folderId, user.userId);
+          if (!folder) {
+            db.close();
+            return NextResponse.json(
+              { error: '폴더를 찾을 수 없습니다.' },
+              { status: 404 }
+            );
+          }
+        }
+
+        // folder_id 업데이트
+        db.prepare(`
+          UPDATE contents
+          SET folder_id = ?, updated_at = datetime('now')
+          WHERE id = ?
+        `).run(folderId || null, contentId);
+      }
+
+      // content가 제공된 경우 대본 내용 업데이트 (관리자 전용)
+      if (newContent !== undefined) {
+        db.prepare(`
+          UPDATE contents
+          SET content = ?, updated_at = datetime('now')
+          WHERE id = ?
+        `).run(newContent, contentId);
+      }
+
       db.close();
 
-      if (!folder) {
-        return NextResponse.json(
-          { error: '폴더를 찾을 수 없습니다.' },
-          { status: 404 }
-        );
-      }
+      const message = newContent !== undefined
+        ? '대본이 수정되었습니다.'
+        : '스크립트가 이동되었습니다.';
+
+      return NextResponse.json({
+        success: true,
+        message
+      });
+
+    } catch (error) {
+      db.close();
+      throw error;
     }
-
-    // folder_id 업데이트 (contents 테이블)
-    const db = new Database(dbPath);
-    db.prepare(`
-      UPDATE contents
-      SET folder_id = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(folderId || null, contentId);
-    db.close();
-
-    return NextResponse.json({
-      success: true,
-      message: '스크립트가 이동되었습니다.'
-    });
   } catch (error) {
     console.error('Error updating script folder:', error);
     return NextResponse.json(

@@ -1,169 +1,122 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/session';
-import { spawn } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
 
-const BACKEND_DIR = path.join(process.cwd(), '..', 'trend-video-backend');
-const OUTPUT_DIR = path.join(BACKEND_DIR, 'douyin_downloads');
-const COOKIES_FILE = path.join(OUTPUT_DIR, 'cookies.txt');
+const execAsync = promisify(exec);
 
-// POST - Douyin URL로 영상 다운로드
+/**
+ * Douyin 영상 다운로드 API
+ *
+ * POST /api/douyin/download
+ * Body: { videoUrl: string }
+ *
+ * TODO: 실제 Douyin 다운로드 구현 필요
+ * - yt-dlp 사용
+ * - 또는 Python 백엔드 연동
+ * - 또는 douyin-downloader 라이브러리 사용
+ */
 export async function POST(request: NextRequest) {
-  console.log('🎬 [Douyin Download] API 호출됨');
-
   try {
-    console.log('🔐 [Douyin Download] 사용자 인증 확인 중...');
-    const user = await getCurrentUser(request);
-    if (!user) {
-      console.log('❌ [Douyin Download] 인증 실패 - 로그인 필요');
-      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
-    }
-    console.log('✅ [Douyin Download] 사용자 인증 완료:', user.email);
-
     const body = await request.json();
     const { videoUrl } = body;
-    console.log('📋 [Douyin Download] 요청된 URL:', videoUrl);
 
     if (!videoUrl) {
-      return NextResponse.json({ error: 'videoUrl이 필요합니다.' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'videoUrl이 필요합니다.' },
+        { status: 400 }
+      );
     }
 
-    // URL 검증
+    // URL 유효성 검사
     if (!videoUrl.includes('douyin.com') && !videoUrl.includes('iesdouyin.com')) {
-      return NextResponse.json({ error: 'Douyin URL이 아닙니다.' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: '올바른 Douyin URL이 아닙니다.' },
+        { status: 400 }
+      );
     }
 
-    // 출력 디렉토리 생성
-    console.log('📁 [Douyin Download] 출력 디렉토리:', OUTPUT_DIR);
-    try {
-      await fs.mkdir(OUTPUT_DIR, { recursive: true });
-      console.log('✅ [Douyin Download] 출력 디렉토리 생성/확인 완료');
-    } catch (err) {
-      console.log('⚠️ [Douyin Download] 디렉토리 생성 실패 (이미 존재):', err);
-    }
+    // yt-dlp를 사용한 다운로드
+    const outputDir = path.join(process.cwd(), 'public', 'downloads', 'douyin');
+    await fs.mkdir(outputDir, { recursive: true });
 
-    // 쿠키 파일 확인
-    let cookiesExist = false;
-    try {
-      await fs.access(COOKIES_FILE);
-      cookiesExist = true;
-      console.log('🍪 [Douyin Download] 쿠키 파일 발견:', COOKIES_FILE);
-    } catch {
-      console.log('⚠️ [Douyin Download] 쿠키 파일 없음:', COOKIES_FILE);
-    }
-
-    // Python 다운로더 실행
-    console.log('🐍 [Douyin Download] Python 프로세스 시작...');
-    const pythonCode = `
-import sys
-sys.path.append('${BACKEND_DIR.replace(/\\/g, '\\\\')}')
-from src.douyin.downloader import DouyinDownloader
-from pathlib import Path
-
-cookies_file = Path('${COOKIES_FILE.replace(/\\/g, '\\\\')}') if ${cookiesExist ? 'True' : 'False'} else None
-downloader = DouyinDownloader(
-    output_dir=Path('${OUTPUT_DIR.replace(/\\/g, '\\\\')}'),
-    cookies_file=cookies_file
-)
-result = downloader.download(
-    video_url='${videoUrl}',
-    video_id='direct_download',
-    check_watermark=True
-)
-
-import json
-print(json.dumps({
-    'success': result.success,
-    'video_path': str(result.video_path) if result.video_path else None,
-    'error': result.error
-}))
-`;
-
-    const pythonProcess = spawn('python', ['-c', pythonCode], {
-      cwd: BACKEND_DIR,
-      env: {
-        ...process.env,
-        PYTHONIOENCODING: 'utf-8'
-      }
-    });
-
-    let output = '';
-    let errorOutput = '';
-
-    pythonProcess.stdout?.on('data', (data) => {
-      const text = data.toString();
-      output += text;
-      console.log('📤 [Douyin Download] Python stdout:', text);
-    });
-
-    pythonProcess.stderr?.on('data', (data) => {
-      const text = data.toString();
-      errorOutput += text;
-      console.error('📤 [Douyin Download] Python stderr:', text);
-    });
-
-    // 프로세스 완료 대기
-    console.log('⏳ [Douyin Download] Python 프로세스 완료 대기 중...');
-    await new Promise((resolve, reject) => {
-      pythonProcess.on('close', (code) => {
-        console.log(`🏁 [Douyin Download] Python 프로세스 종료 (코드: ${code})`);
-        if (code === 0) {
-          resolve(code);
-        } else {
-          console.error(`❌ [Douyin Download] 프로세스 실패 (코드: ${code})`);
-          console.error('Error output:', errorOutput);
-          reject(new Error(`프로세스 종료 코드: ${code}\n${errorOutput}`));
-        }
-      });
-
-      pythonProcess.on('error', (err) => {
-        console.error('❌ [Douyin Download] Python 프로세스 에러:', err);
-        reject(err);
-      });
-    });
-
-    // 결과 파싱
-    console.log('📊 [Douyin Download] 결과 파싱 시작...');
-    console.log('전체 출력:', output);
-    const lines = output.split('\n').filter(line => line.trim());
-    const lastLine = lines[lines.length - 1];
-    console.log('마지막 라인:', lastLine);
+    const timestamp = Date.now();
+    const outputPath = path.join(outputDir, `douyin_${timestamp}.mp4`);
 
     try {
-      const result = JSON.parse(lastLine);
-      console.log('✅ [Douyin Download] JSON 파싱 성공:', result);
+      console.log('🎬 Douyin 영상 다운로드 시작:', videoUrl);
 
-      if (result.success) {
-        console.log('🎉 [Douyin Download] 다운로드 성공!');
-        return NextResponse.json({
-          success: true,
-          videoPath: result.video_path,
-          message: '영상 다운로드 완료'
-        });
-      } else {
-        console.log('❌ [Douyin Download] 다운로드 실패:', result.error);
-        return NextResponse.json({
-          success: false,
-          error: result.error || '다운로드 실패'
-        }, { status: 500 });
-      }
-    } catch (parseError) {
-      console.error('❌ [Douyin Download] JSON 파싱 실패:', parseError);
-      console.error('파싱하려던 내용:', output);
+      // yt-dlp 명령어 실행
+      const { stdout, stderr } = await execAsync(
+        `yt-dlp -o "${outputPath}" "${videoUrl}"`,
+        { timeout: 120000 } // 120초 타임아웃 (2분)
+      );
+
+      console.log('✅ yt-dlp 실행 완료');
+      if (stdout) console.log('stdout:', stdout);
+      if (stderr) console.log('stderr:', stderr);
+
+      // 파일이 생성되었는지 확인
+      await fs.access(outputPath);
+
+      // 상대 경로로 변환
+      const relativePath = `/downloads/douyin/douyin_${timestamp}.mp4`;
+
+      console.log('✅ 영상 다운로드 성공:', relativePath);
+
       return NextResponse.json({
-        success: false,
-        error: '결과 파싱 실패: ' + output
-      }, { status: 500 });
+        success: true,
+        videoPath: relativePath,
+        message: '영상 다운로드 완료'
+      });
+
+    } catch (error: any) {
+      console.error('❌ yt-dlp 실행 실패:', error);
+
+      // 생성된 파일 정리
+      try {
+        await fs.unlink(outputPath);
+      } catch {}
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: `다운로드 실패: ${error.message}`
+        },
+        { status: 500 }
+      );
     }
 
   } catch (error: any) {
-    console.error('❌ [Douyin Download] 예외 발생:', error);
-    console.error('스택 트레이스:', error.stack);
-    return NextResponse.json({
-      success: false,
-      error: error.message || '다운로드 중 오류 발생'
-    }, { status: 500 });
+    console.error('Douyin download API error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || '영상 다운로드 중 오류가 발생했습니다.'
+      },
+      { status: 500 }
+    );
   }
 }
 
+/**
+ * Douyin 다운로드 구현 방법:
+ *
+ * 1. yt-dlp 사용 (권장)
+ *    - 설치: pip install yt-dlp 또는 npm install -g yt-dlp
+ *    - 명령어: yt-dlp -o "output.mp4" "douyin_url"
+ *
+ * 2. Python 스크립트 사용
+ *    - TikTok-Api 또는 douyin-downloader 라이브러리
+ *    - Node.js에서 Python 스크립트 호출
+ *
+ * 3. 외부 API 사용
+ *    - https://www.tikwm.com/api
+ *    - https://api.douyin.wtf
+ *    - 등등
+ *
+ * 4. Puppeteer 사용
+ *    - 브라우저 자동화로 영상 다운로드
+ *    - 복잡하고 느리므로 비권장
+ */

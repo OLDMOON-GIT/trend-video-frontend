@@ -431,23 +431,23 @@ export function generateShopHtml(products: PublishedProduct[], nickname?: string
   .coupang-shop-container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 0;
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   }
   .coupang-main-notice {
     background-color: #1e293b;
     color: #f1f5f9;
-    padding: 16px;
+    padding: 12px 16px;
     border-radius: 12px;
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     font-size: 14px;
     border: 1px solid #334155;
   }
   .coupang-shop-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 24px;
+    gap: 16px;
     align-items: stretch;
   }
   .coupang-product-card {
@@ -458,7 +458,7 @@ export function generateShopHtml(products: PublishedProduct[], nickname?: string
     flex-wrap: wrap;
     gap: 8px;
     justify-content: center;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
   .coupang-category-tabs button {
     background: #334155;

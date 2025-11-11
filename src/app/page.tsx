@@ -1191,7 +1191,8 @@ export default function Home() {
         body: JSON.stringify({
           topic: manualTitle.trim(),
           promptFormat: 'sora2', // SORA2 전용 프롬프트 사용
-          scriptModel: scriptModel // AI 모델 선택
+          scriptModel: scriptModel, // AI 모델 선택
+          productInfo: productInfo // 상품 정보 추가
         })
       });
 
@@ -2107,6 +2108,17 @@ export default function Home() {
                         type: 'error'
                       });
                       setTimeout(() => setToast(null), 3000);
+                      return;
+                    }
+
+                    // 상품 타입일 때 상품 URL 필수 검증
+                    if ((promptFormat === 'product' || promptFormat === 'product-info') &&
+                        (!productInfo || !productInfo.product_link || !productInfo.product_link.trim())) {
+                      setToast({
+                        message: '상품 대본 생성은 최소 상품 URL이 필요합니다.\n상품관리에서 상품을 선택하거나 직접 입력해주세요.',
+                        type: 'error'
+                      });
+                      setTimeout(() => setToast(null), 5000);
                       return;
                     }
 

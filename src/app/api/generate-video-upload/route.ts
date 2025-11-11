@@ -72,6 +72,18 @@ export async function POST(request: NextRequest) {
     const imageSource = formData.get('imageSource') as string || 'none';
     console.log('이미지 소스:', imageSource);
 
+    // 프롬프트 포맷 확인 (product, product-info)
+    const promptFormat = formData.get('promptFormat') as string || '';
+    console.log('프롬프트 포맷:', promptFormat);
+
+    // 상품 타입이면 title 앞에 [광고] 추가
+    if (promptFormat === 'product' || promptFormat === 'product-info') {
+      if (!videoTitle.startsWith('[광고]')) {
+        videoTitle = `[광고] ${videoTitle}`;
+        console.log('✅ 상품 영상 - title에 [광고] 추가:', videoTitle);
+      }
+    }
+
     // 비디오 포맷 확인 (longform, shortform, sora2)
     const videoFormat = formData.get('videoFormat') as string || 'longform';
     console.log('비디오 포맷:', videoFormat);

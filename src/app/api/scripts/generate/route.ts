@@ -419,6 +419,9 @@ export async function POST(request: NextRequest) {
     // userId를 클로저에 저장
     const userId = user.userId;
 
+    // 작업 시작 시간 기록 (응답 파일 필터링용)
+    const taskStartTime = Date.now();
+
     // 비동기로 실행
     setTimeout(async () => {
       let stdout = '';
@@ -623,9 +626,11 @@ export async function POST(request: NextRequest) {
             path: path.join(scriptsPath, f),
             time: fs.statSync(path.join(scriptsPath, f)).mtime.getTime()
           }))
+          // 작업 시작 시간 이후에 생성된 파일만 선택 (오래된 파일 제외)
+          .filter((f: any) => f.time >= taskStartTime)
           .sort((a: any, b: any) => b.time - a.time);
 
-        console.log(`📦 발견된 대본 파일 수: ${aiResponseFiles.length}`);
+        console.log(`📦 발견된 대본 파일 수: ${aiResponseFiles.length} (작업 시작 후 생성된 파일만)`);
 
         let scriptContent = '';
         if (aiResponseFiles.length > 0) {
@@ -644,7 +649,11 @@ export async function POST(request: NextRequest) {
             addLog(taskId, `✓ 대본 내용 읽기 완료 (${scriptContent.length} 글자)`);
           }
         } else {
-          addLog(taskId, '⚠️ 경고: 응답 파일을 찾을 수 없음');
+          const errorMsg = `응답 파일을 찾을 수 없음 (작업 시작: ${new Date(taskStartTime).toISOString()})`;
+          addLog(taskId, `⚠️ 경고: ${errorMsg}`);
+          console.error(`❌ ${errorMsg}`);
+          console.error('  - scripts 경로:', scriptsPath);
+          console.error('  - 전체 파일:', fs.readdirSync(scriptsPath).filter((f: string) => f.startsWith('ai_responses_')));
         }
 
         // SORA2 형식인 경우 JSON 정리

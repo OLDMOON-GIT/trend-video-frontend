@@ -130,5 +130,11 @@
     "email": "moony75@gmail.com",
     "isAdmin": true,
     "expiresAt": 1794011428781
+  },
+  "161f6a36-d3b6-499f-98aa-0f7ad3dfdbf8": {
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "email": "moony75@gmail.com",
+    "isAdmin": true,
+    "expiresAt": 1794413257112
   }
 }
