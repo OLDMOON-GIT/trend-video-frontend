@@ -5,6 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getCurrentUser } from '@/lib/session';
 import { createScript, updateScript } from '@/lib/db';
 import { parseJsonSafely } from '@/lib/json-utils';
+import { getDb } from '@/lib/sqlite';
 
 const SUPPORTED_MODELS = ['claude', 'chatgpt', 'gemini'] as const;
 type AIModel = (typeof SUPPORTED_MODELS)[number];
@@ -22,6 +23,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const { prompt, topic, suggestTitles, format, productInfo, model } = await request.json();
+
+    /**
+     * format 파라미터: 프롬프트 포맷 (구 videoFormat)
+     * - 'longform': 롱폼 영상용 프롬프트 (16:9 가로)
+     * - 'shortform': 숏폼 영상용 프롬프트 (9:16 세로)
+     * - 'sora2': SORA2 AI 생성 영상용 프롬프트
+     * - 'product': 상품 영상 제작용 프롬프트 (상품관리 → 영상제작하기)
+     * - 'product-info': 상품 설명 텍스트 생성용 프롬프트 (내 콘텐츠 → 상품정보)
+     *
+     * 참고: 이름은 format이지만 실제로는 어떤 프롬프트 템플릿을 사용할지 결정
+     *      영상 생성 시에도 이 값을 기준으로 영상 포맷이 결정됨
+     */
 
     // 모델 선택 (기본값: claude)
     let selectedModel: AIModel = 'claude';
@@ -190,12 +203,12 @@ export async function POST(request: NextRequest) {
         // 프롬프트와 주제를 하나로 합쳐서 캐시 효율 향상
         let combinedPrompt = topic ? `${prompt}\n\n주제: ${topic}` : prompt;
 
-        // 상품 정보 추가 (product 포맷인 경우)
+        // 상품 정보 추가 (product 또는 product-info 포맷인 경우)
         console.log('🔍🔍🔍 백엔드 - 상품 정보 체크');
         console.log('  - format:', format);
         console.log('  - productInfo:', productInfo);
 
-        if (format === 'product') {
+        if (format === 'product' || format === 'product-info') {
           if (!productInfo) {
             console.error('❌❌❌ 상품 포맷인데 productInfo가 없습니다!');
             console.error('❌ 프롬프트의 플레이스홀더가 치환되지 않을 것입니다!');
@@ -211,23 +224,38 @@ export async function POST(request: NextRequest) {
             const hasThumbnail = combinedPrompt.includes('{thumbnail}');
             const hasProductLink = combinedPrompt.includes('{product_link}');
             const hasProductDescription = combinedPrompt.includes('{product_description}');
+            const hasHomeUrl = combinedPrompt.includes('{home_url}');
+            const hasNickname = combinedPrompt.includes('{별명}');
 
             console.log('🔍 프롬프트 플레이스홀더 존재 여부:');
             console.log('  - {title}:', hasTitle);
             console.log('  - {thumbnail}:', hasThumbnail);
             console.log('  - {product_link}:', hasProductLink);
             console.log('  - {product_description}:', hasProductDescription);
+            console.log('  - {home_url}:', hasHomeUrl);
+            console.log('  - {별명}:', hasNickname);
 
             // 치환 전 프롬프트 일부 확인
             console.log('🔍 치환 전 프롬프트 샘플 (처음 800자):', combinedPrompt.substring(0, 800));
 
-            // 프롬프트의 {title}, {thumbnail}, {product_link}, {product_description} 플레이스홀더 치환
+            // DB에서 사용자 설정 가져오기
+            const db = getDb();
+            const userSettings = db.prepare('SELECT google_sites_home_url, nickname FROM users WHERE id = ?').get(user.id) as { google_sites_home_url?: string; nickname?: string } | undefined;
+            const homeUrl = userSettings?.google_sites_home_url || 'https://www.youtube.com/@살림남';
+            const nickname = userSettings?.nickname || '살림남';
+
+            console.log('🏠 home_url 설정:', homeUrl);
+            console.log('👤 별명 설정:', nickname);
+
+            // 프롬프트의 {title}, {thumbnail}, {product_link}, {product_description}, {home_url}, {별명} 플레이스홀더 치환
             const beforeReplace = combinedPrompt;
             combinedPrompt = combinedPrompt
               .replace(/{title}/g, productInfo.title || '')
               .replace(/{thumbnail}/g, productInfo.thumbnail || '')
               .replace(/{product_link}/g, productInfo.product_link || '')
-              .replace(/{product_description}/g, productInfo.description || '');
+              .replace(/{product_description}/g, productInfo.description || '')
+              .replace(/{home_url}/g, homeUrl) // DB에서 가져온 홈 URL
+              .replace(/{별명}/g, nickname); // DB에서 가져온 채널 별명
 
             // 치환 후 확인
             console.log('🔍 치환 후 프롬프트 샘플 (처음 800자):', combinedPrompt.substring(0, 800));
@@ -238,7 +266,8 @@ export async function POST(request: NextRequest) {
 
             // 치환 후에도 플레이스홀더가 남아있는지 확인
             if (combinedPrompt.includes('{title}') || combinedPrompt.includes('{thumbnail}') ||
-                combinedPrompt.includes('{product_link}') || combinedPrompt.includes('{product_description}')) {
+                combinedPrompt.includes('{product_link}') || combinedPrompt.includes('{product_description}') ||
+                combinedPrompt.includes('{home_url}') || combinedPrompt.includes('{별명}')) {
               console.warn('⚠️⚠️⚠️ 치환 후에도 플레이스홀더가 남아있습니다!');
             }
           }

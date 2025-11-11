@@ -143,6 +143,45 @@ SORA2 프롬프트 작성 가이드:
   }
 }
 
+// 상품정보 프롬프트를 파일에서 읽어오는 함수
+async function getProductInfoPrompt(): Promise<string> {
+  try {
+    // frontend/prompts 경로에서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_product_info.txt 검색
+    let promptFile = files.find(file => file === 'prompt_product_info.txt');
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('✅ 상품정보 프롬프트 파일 읽기 완료:', promptFile);
+      return content;
+    }
+
+    // 파일이 없으면 기본 프롬프트 반환
+    console.warn('⚠️ 상품정보 프롬프트 파일을 찾을 수 없어 기본 프롬프트 사용');
+    return `당신은 YouTube 및 소셜미디어 플랫폼용 상품 기입 정보 작성 전문가입니다.
+
+다음 상품 대본 내용을 바탕으로 YouTube/릴스/쇼츠에 업로드할 때 필요한 상세 기입 정보를 작성해주세요.
+
+중요: 질문하지 말고, 바로 작성해주세요. 추가 정보 요청 없이 제공된 대본만으로 완성된 기입 정보를 만들어주세요.
+
+작성해야 할 항목:
+1. 제목 (Title): SEO 최적화된 매력적인 제목 (60자 이내)
+2. 설명 (Description): 상세한 상품 설명 및 혜택 (5000자 이내)
+3. 태그 (Tags): 관련 검색 키워드 10-15개
+4. 해시태그: 소셜미디어용 해시태그 10-15개
+5. 썸네일 텍스트: 썸네일에 들어갈 임팩트 있는 짧은 문구
+
+지금 바로 기입 정보를 작성해주세요:`;
+  } catch (error) {
+    console.error('❌ 상품정보 프롬프트 파일 읽기 실패:', error);
+    throw error;
+  }
+}
+
 // 상품 프롬프트를 파일에서 읽어오는 함수
 async function getProductPrompt(): Promise<string> {
   try {
@@ -239,6 +278,7 @@ export async function POST(request: NextRequest) {
     // scriptModel을 agent 이름으로 매핑
     const MODEL_TO_AGENT: Record<string, string> = {
       'gpt': 'chatgpt',
+      'chatgpt': 'chatgpt',  // 프론트엔드에서 'chatgpt'로 전송
       'gemini': 'gemini',
       'claude': 'claude'
     };
@@ -250,17 +290,19 @@ export async function POST(request: NextRequest) {
     console.log('  ✅ Agent 이름:', agentName);
 
     // type 또는 videoFormat에서 스크립트 타입 결정
-    // 입력: 'longform', 'shortform', 'sora2', 'product' (통일된 형식)
+    // 입력: 'longform', 'shortform', 'sora2', 'product', 'product-info' (통일된 형식)
     const inputType = type || videoFormat || 'longform';
 
     // 내부 처리용 타입 (프롬프트 선택용)
-    let scriptType: 'longform' | 'shortform' | 'sora2' | 'product' = 'longform';
+    let scriptType: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info' = 'longform';
     if (inputType === 'sora2') {
       scriptType = 'sora2';
     } else if (inputType === 'shortform') {
       scriptType = 'shortform';
     } else if (inputType === 'product') {
       scriptType = 'product';
+    } else if (inputType === 'product-info') {
+      scriptType = 'product-info';
     } else if (inputType === 'longform') {
       scriptType = 'longform';
     }
@@ -315,6 +357,41 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('✅ 상품 프롬프트 사용');
+    } else if (scriptType === 'product-info') {
+      // 상품정보: 상품 기입 정보 전용 프롬프트 사용
+      const productInfoPromptTemplate = await getProductInfoPrompt();
+      prompt = productInfoPromptTemplate.replace(/{title}/g, title);
+
+      // productInfo가 있으면 플레이스홀더 치환
+      if (productInfo) {
+        console.log('🛍️🛍️🛍️ 상품 정보 치환 시작:', productInfo);
+        console.log('  - title:', productInfo.title);
+        console.log('  - thumbnail:', productInfo.thumbnail);
+        console.log('  - product_link:', productInfo.product_link);
+        console.log('  - description:', productInfo.description);
+
+        // DB에서 사용자 설정 가져오기
+        const db = Database(dbPath);
+        const userSettings = db.prepare('SELECT google_sites_home_url, nickname FROM users WHERE id = ?').get(user.userId) as { google_sites_home_url?: string; nickname?: string } | undefined;
+        db.close();
+        const homeUrl = userSettings?.google_sites_home_url || 'https://www.youtube.com/@살림남';
+        const nickname = userSettings?.nickname || '살림남';
+        console.log('🏠 home_url 설정:', homeUrl);
+        console.log('👤 별명 설정:', nickname);
+
+        prompt = prompt
+          .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+          .replace(/{product_link}/g, productInfo.product_link || '')
+          .replace(/{product_description}/g, productInfo.description || '')
+          .replace(/{home_url}/g, homeUrl)
+          .replace(/{별명}/g, nickname);
+
+        console.log('✅ 상품 정보 플레이스홀더 치환 완료');
+      } else {
+        console.warn('⚠️ productInfo가 없습니다! 플레이스홀더가 그대로 남아있을 수 있습니다.');
+      }
+
+      console.log('✅ 상품정보 프롬프트 사용');
     } else {
       // 롱폼: 파일에서 읽어온 상세 프롬프트 사용
       const longFormPromptTemplate = await getLongFormPrompt();
@@ -327,7 +404,12 @@ export async function POST(request: NextRequest) {
     // 프롬프트 내용 확인 로그
     console.log('\n' + '='.repeat(80));
     console.log('📝 생성된 프롬프트 내용:');
-    console.log('  타입:', scriptType === 'shortform' ? '⚡ 숏폼' : scriptType === 'sora2' ? '🎥 SORA2' : scriptType === 'product' ? '🛍️ 상품' : '📝 롱폼');
+    console.log('  타입:',
+      scriptType === 'shortform' ? '⚡ 숏폼' :
+      scriptType === 'sora2' ? '🎥 SORA2' :
+      scriptType === 'product' ? '🛍️ 상품' :
+      scriptType === 'product-info' ? '📋 상품정보' :
+      '📝 롱폼');
     console.log('  제목:', title);
     console.log('  프롬프트 길이:', prompt.length, '자');
     console.log('  프롬프트 미리보기:', prompt.substring(0, 200) + '...');
@@ -355,6 +437,8 @@ export async function POST(request: NextRequest) {
           ? '🎥 Claude가 SORA2 프롬프트를 생성하고 있습니다...'
           : scriptType === 'product'
           ? '🛍️ Claude가 상품 소개 대본을 생성하고 있습니다...'
+          : scriptType === 'product-info'
+          ? '📋 Claude가 상품 기입 정보를 생성하고 있습니다...'
           : '📝 Claude가 롱폼 대본을 생성하고 있습니다...';
 
         await addLog(taskId, message);
@@ -367,8 +451,14 @@ export async function POST(request: NextRequest) {
         const fsSync = require('fs');
         fsSync.writeFileSync(promptFilePath, prompt, 'utf-8');
         addLog(taskId, `프롬프트 파일 생성: ${promptFileName}`);
-        const typeEmoji = scriptType === 'shortform' ? '⚡' : scriptType === 'sora2' ? '🎥' : '📝';
-        const typeName = scriptType === 'shortform' ? '숏폼' : scriptType === 'sora2' ? 'SORA2' : '롱폼';
+        const typeEmoji = scriptType === 'shortform' ? '⚡' :
+                          scriptType === 'sora2' ? '🎥' :
+                          scriptType === 'product' ? '🛍️' :
+                          scriptType === 'product-info' ? '📋' : '📝';
+        const typeName = scriptType === 'shortform' ? '숏폼' :
+                         scriptType === 'sora2' ? 'SORA2' :
+                         scriptType === 'product' ? '상품' :
+                         scriptType === 'product-info' ? '상품정보' : '롱폼';
         addLog(taskId, `${typeEmoji} 타입: ${typeName}`);
         addLog(taskId, `📝 제목: "${title}"`);
         addLog(taskId, `📄 프롬프트 길이: ${prompt.length}자`);
