@@ -1618,79 +1618,81 @@ export default function CoupangProductsAdminPage() {
           )}
         </div>
 
-        {/* 탭 */}
-        <div className="mb-1 flex items-center justify-between">
+        {/* 탭 - 더 큰 스타일로 개선 */}
+        <div className="mb-6 rounded-2xl border border-purple-500/30 bg-slate-800/50 p-2 backdrop-blur">
           <div className="flex gap-2">
             <button
               onClick={() => changeTab('my-list')}
-              className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
+              className={`flex-1 px-6 py-4 rounded-xl text-base font-bold transition-all ${
                 activeTab === 'my-list'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                  : 'text-slate-300 hover:bg-slate-700/50'
               }`}
             >
-              📦 내 목록 ({products.length})
+              📦 내 목록 <span className="text-sm opacity-80">({products.length})</span>
             </button>
             <button
               onClick={() => changeTab('queue')}
-              className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
+              className={`flex-1 px-6 py-4 rounded-xl text-base font-bold transition-all ${
                 activeTab === 'queue'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                  : 'text-slate-300 hover:bg-slate-700/50'
               }`}
             >
-              ⚙️ 크롤링 큐 ({queueTotalCount})
+              ⚙️ 크롤링 큐 <span className="text-sm opacity-80">({queueTotalCount})</span>
             </button>
             <button
               onClick={() => changeTab('pending')}
-              className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
+              className={`flex-1 px-6 py-4 rounded-xl text-base font-bold transition-all ${
                 activeTab === 'pending'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                  : 'text-slate-300 hover:bg-slate-700/50'
               }`}
             >
-              ⏳ 대기 목록 ({pendingProducts.length})
+              ⏳ 대기 목록 <span className="text-sm opacity-80">({pendingProducts.length})</span>
             </button>
             <button
               onClick={() => changeTab('shop')}
-              className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
+              className={`flex-1 px-6 py-4 rounded-xl text-base font-bold transition-all ${
                 activeTab === 'shop'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                  : 'text-slate-300 hover:bg-slate-700/50'
               }`}
             >
-              📤 퍼블리시 ({products.filter(p => p.status === 'published').length})
+              📤 퍼블리시 <span className="text-sm opacity-80">({products.filter(p => p.status === 'published').length})</span>
             </button>
           </div>
-
         </div>
 
         {/* 내 목록 탭 */}
         {activeTab === 'my-list' && (
           <>
-        {/* 카테고리 필터 탭 */}
+        {/* 카테고리 필터 - 더 작고 깔끔하게 */}
         {products.length > 0 && (
-          <div className="mb-6">
-            <div className="flex flex-wrap gap-3">
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-slate-400">📂 카테고리:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => handleCategoryFilter('all')}
-                className={`px-6 py-3 rounded-xl text-base font-bold transition-all ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                   selectedCategory === 'all'
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600/50'
                 }`}
               >
-                🌐 전체 ({products.length})
+                🌐 전체 <span className="text-xs opacity-75">({products.length})</span>
               </button>
               <button
                 onClick={() => handleCategoryFilter('favorite')}
-                className={`px-6 py-3 rounded-xl text-base font-bold transition-all ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                   selectedCategory === 'favorite'
-                    ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg shadow-yellow-500/50 scale-105'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
+                    ? 'bg-yellow-500 text-white shadow-md'
+                    : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600/50'
                 }`}
               >
-                ⭐ 즐겨찾기 ({products.filter(p => p.is_favorite === 1).length})
+                ⭐ 즐겨찾기 <span className="text-xs opacity-75">({products.filter(p => p.is_favorite === 1).length})</span>
               </button>
               {categories.map((cat) => {
                 const count = products.filter(p => p.category === cat).length;
@@ -1698,13 +1700,13 @@ export default function CoupangProductsAdminPage() {
                   <button
                     key={cat}
                     onClick={() => handleCategoryFilter(cat)}
-                    className={`px-6 py-3 rounded-xl text-base font-bold transition-all ${
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                       selectedCategory === cat
-                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600/50'
                     }`}
                   >
-                    {cat} ({count})
+                    {cat} <span className="text-xs opacity-75">({count})</span>
                   </button>
                 );
               })}
@@ -1740,44 +1742,50 @@ export default function CoupangProductsAdminPage() {
               </div>
             )}
 
-            <div className="flex gap-4 flex-wrap">
-              <button
-                onClick={toggleSelectAllProducts}
-                className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600 transition"
-              >
-                {selectedProductIds.size === products.length ? '전체 해제' : '전체 선택'}
-              </button>
+            <div className="rounded-lg bg-slate-800/30 border border-slate-700/50 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <button
+                  onClick={toggleSelectAllProducts}
+                  className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600 transition"
+                >
+                  {selectedProductIds.size === products.length ? '✕ 전체 해제' : '☑ 전체 선택'}
+                </button>
+
+                {selectedProductIds.size > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-slate-300">
+                    <span className="font-semibold text-purple-400">{selectedProductIds.size}개</span> 선택됨
+                  </div>
+                )}
+              </div>
+
               {selectedProductIds.size > 0 && (
-                <>
+                <div className="flex gap-2 flex-wrap">
                   <button
-                    onClick={handleBulkPublish}
-                    className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-2 text-sm font-semibold text-white hover:from-green-500 hover:to-emerald-500 transition"
+                    onClick={handlePublishSelected}
+                    disabled={isPublishing}
+                    className="flex-1 min-w-[180px] rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-bold text-white hover:from-indigo-500 hover:to-purple-500 transition disabled:opacity-50 shadow-md"
                   >
-                    ✅ {selectedProductIds.size}개 Google Sites 퍼블리시
+                    {isPublishing ? '퍼블리시 중...' : '🏪 쇼핑몰 퍼블리시'}
                   </button>
                   <button
-                    onClick={handleBulkUnpublish}
-                    className="rounded-lg bg-gradient-to-r from-yellow-600 to-orange-600 px-6 py-2 text-sm font-semibold text-white hover:from-yellow-500 hover:to-orange-500 transition"
+                    onClick={handleBulkPublish}
+                    className="flex-1 min-w-[180px] rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-md"
                   >
-                    🔒 {selectedProductIds.size}개 비공개 전환
+                    ✅ Google Sites 퍼블리시
                   </button>
                   <button
                     onClick={handleBulkReclassify}
-                    className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-2 text-sm font-semibold text-white hover:from-blue-500 hover:to-cyan-500 transition"
+                    className="flex-1 min-w-[180px] rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-2.5 text-sm font-bold text-white hover:from-blue-500 hover:to-cyan-500 transition shadow-md"
                   >
-                    🤖 {selectedProductIds.size}개 카테고리 AI 재설정
+                    🤖 카테고리 AI 재설정
                   </button>
-                </>
-              )}
-              {/* 쇼핑몰 퍼블리시 버튼 */}
-              {selectedProductIds.size > 0 && (
-                <button
-                  onClick={handlePublishSelected}
-                  disabled={isPublishing}
-                  className="rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-2 text-sm font-semibold text-white hover:from-indigo-500 hover:to-purple-500 transition disabled:opacity-50"
-                >
-                  {isPublishing ? '퍼블리시 중...' : `🏪 ${selectedProductIds.size}개 쇼핑몰 퍼블리시`}
-                </button>
+                  <button
+                    onClick={handleBulkUnpublish}
+                    className="flex-1 min-w-[180px] rounded-lg bg-gradient-to-r from-yellow-600 to-orange-600 px-4 py-2.5 text-sm font-bold text-white hover:from-yellow-500 hover:to-orange-500 transition shadow-md"
+                  >
+                    🔒 비공개 전환
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -1835,47 +1843,32 @@ export default function CoupangProductsAdminPage() {
               )}
 
               <div className="p-4">
-                {/* 체크박스 + 카테고리 + 상태 */}
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
+                {/* 체크박스 + 카테고리 + 상태 - 간소화 */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={selectedProductIds.has(product.id)}
                       onChange={() => toggleProductSelect(product.id)}
                       className="w-5 h-5 rounded bg-slate-700 border-slate-500 text-purple-600 focus:ring-purple-500"
                     />
-                    <span className="inline-block rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold text-white">
+                    <span className="inline-block rounded-lg bg-purple-600/90 px-3 py-1 text-xs font-bold text-white">
                       {product.category}
                     </span>
-                    <button
-                      onClick={() => handleReclassifyProduct(product.id)}
-                      className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white transition"
-                      title="카테고리 재분류"
-                    >
-                      🔄 재분류
-                    </button>
-                    {/* 출처 표시 */}
-                    {product.queue_id ? (
-                      <span className="inline-block rounded-full bg-blue-600/30 px-2 py-1 text-xs font-medium text-blue-300 border border-blue-500/40" title="대기목록을 통해 추가된 상품">
-                        📋 대기목록
-                      </span>
-                    ) : (
-                      <span className="inline-block rounded-full bg-amber-600/30 px-2 py-1 text-xs font-medium text-amber-300 border border-amber-500/40" title="직접 링크로 추가된 상품">
-                        🔗 직접추가
-                      </span>
-                    )}
-                    {/* 크롤링 실패 경고 */}
+                    {/* 크롤링 실패 경고만 중요하게 표시 */}
                     {(product.title === '상품명' || product.description === '상품 설명이 없습니다.') && (
-                      <span className="inline-block rounded-full bg-red-600/30 px-2 py-1 text-xs font-medium text-red-300 border border-red-500/40 animate-pulse" title="크롤링 실패 - 수동 수정 필요">
-                        ⚠️ 크롤링 실패
+                      <span className="inline-block rounded-lg bg-red-600/90 px-2 py-1 text-xs font-bold text-white animate-pulse" title="크롤링 실패">
+                        ⚠️ 실패
                       </span>
                     )}
                   </div>
-                  {product.status === 'published' && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-green-600/20 text-green-300 border border-green-500/30">
-                      ✅ 퍼블리시됨
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {product.status === 'published' && (
+                      <span className="text-xs px-2 py-1 rounded-lg bg-green-600/20 text-green-300 border border-green-500/40 font-semibold">
+                        ✅ 퍼블리시
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* 제목 */}
