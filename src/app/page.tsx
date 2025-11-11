@@ -284,11 +284,6 @@ export default function Home() {
   const chineseLogRef = useRef<HTMLDivElement>(null);
   const chineseConverterSectionRef = useRef<HTMLDivElement>(null);
 
-  // Douyin 영상 크롤링 관련 state
-  const [douyinUrl, setDouyinUrl] = useState('');
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadedVideo, setDownloadedVideo] = useState<string | null>(null);
-
   const [removeWatermark, setRemoveWatermark] = useState(() => {
     // localStorage에서 저장된 값 불러오기 (기본값: OFF)
     if (typeof window !== 'undefined') {
@@ -1180,46 +1175,6 @@ export default function Home() {
     setToast({ message, type });
   };
 
-  // Douyin 영상 다운로드 함수
-  const downloadDouyinVideo = async () => {
-    if (!douyinUrl.trim()) {
-      showToast('Douyin URL을 입력하세요', 'error');
-      return;
-    }
-
-    if (!douyinUrl.includes('douyin.com') && !douyinUrl.includes('iesdouyin.com')) {
-      showToast('올바른 Douyin URL이 아닙니다', 'error');
-      return;
-    }
-
-    setIsDownloading(true);
-    setDownloadedVideo(null);
-
-    try {
-      const response = await fetch('/api/douyin/download', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ videoUrl: douyinUrl })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setDownloadedVideo(data.videoPath);
-        showToast('영상 다운로드 완료!', 'success');
-      } else {
-        showToast('다운로드 실패: ' + data.error, 'error');
-      }
-    } catch (error: any) {
-      showToast('다운로드 실패: ' + error.message, 'error');
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
   // SORA2 대본 생성
   const generateSora2Script = async () => {
     if (!manualTitle.trim()) {
@@ -1913,24 +1868,30 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-3">
-                {user?.isAdmin && (
-                  <button
-                    onClick={async () => {
-                      setShowTitleInput(true);
-                      setTitleInputMode('generate-api');
-                      setManualTitle('');
-                      setSuggestedTitles([]);
-                      setSelectedSuggestedTitle(null);
-                    }}
-                    className={`w-full rounded-xl px-5 py-3.5 text-base font-semibold text-white transition ${
-                      titleInputMode === 'generate-api' && showTitleInput
-                        ? 'bg-red-500 ring-2 ring-red-300'
-                        : 'bg-red-600 hover:bg-red-500'
-                    }`}
-                  >
-                    🔴 AI 대본생성(API)
-                  </button>
-                )}
+                <button
+                  onClick={async () => {
+                    if (!user) {
+                      alert('로그인이 필요합니다.\n\nAI 대본 생성 (API 호출) 기능을 사용하려면 먼저 로그인해주세요.');
+                      return;
+                    }
+                    if (!user.isAdmin) {
+                      alert('관리자 권한이 필요합니다.\n\nAI 대본 생성 (API 호출) 기능은 관리자만 사용할 수 있습니다.');
+                      return;
+                    }
+                    setShowTitleInput(true);
+                    setTitleInputMode('generate-api');
+                    setManualTitle('');
+                    setSuggestedTitles([]);
+                    setSelectedSuggestedTitle(null);
+                  }}
+                  className={`w-full rounded-xl px-5 py-3.5 text-base font-semibold text-white transition ${
+                    titleInputMode === 'generate-api' && showTitleInput
+                      ? 'bg-red-500 ring-2 ring-red-300'
+                      : 'bg-red-600 hover:bg-red-500'
+                  }`}
+                >
+                  🔴 AI 대본생성(API)
+                </button>
                 <button
                   onClick={async () => {
                     setShowTitleInput(true);
@@ -2015,41 +1976,6 @@ export default function Home() {
                 >
                   {isConvertingChinese ? '⏳ 변환 중...' : '🇨🇳 중국영상변환'}
                 </button>
-
-                {/* Douyin 영상 크롤링 버튼 */}
-                <div className="mt-4 rounded-2xl border border-cyan-500/30 bg-cyan-950/10 p-4 backdrop-blur">
-                  <h3 className="mb-2 text-sm font-semibold text-cyan-300">🎬 Douyin 영상 크롤링</h3>
-                  <p className="mb-3 text-xs text-slate-400">Douyin 링크로 워터마크 없는 영상 다운로드</p>
-
-                  <input
-                    type="text"
-                    value={douyinUrl}
-                    onChange={(e) => setDouyinUrl(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && douyinUrl.trim() && !isDownloading) {
-                        downloadDouyinVideo();
-                      }
-                    }}
-                    placeholder="https://www.douyin.com/video/..."
-                    className="mb-3 w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={downloadDouyinVideo}
-                    disabled={isDownloading || !douyinUrl.trim()}
-                    className="w-full rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:from-cyan-500 hover:to-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isDownloading ? '⏳ 다운로드 중...' : '📥 영상 다운로드'}
-                  </button>
-
-                  {downloadedVideo && (
-                    <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-900/20 p-3">
-                      <p className="text-xs font-semibold text-emerald-300">✅ 다운로드 완료</p>
-                      <p className="mt-1 break-all text-xs text-emerald-200">{downloadedVideo}</p>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>
