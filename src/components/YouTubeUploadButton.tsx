@@ -86,6 +86,33 @@ export default function YouTubeUploadButton({
     setUploadLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${log}`]);
   };
 
+  const handleCancelUpload = async () => {
+    try {
+      addLog('🛑 업로드 중지 요청 중...');
+
+      const res = await fetch(`/api/youtube/upload?jobId=${jobId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await res.json();
+
+      if (data.success || res.ok) {
+        setUploadStatus('error');
+        addLog('✅ 업로드가 중지되었습니다.');
+        toast.success('YouTube 업로드가 중지되었습니다.');
+      } else {
+        addLog(`❌ 중지 실패: ${data.error || '알 수 없는 오류'}`);
+        toast.error('중지 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || '알 수 없는 오류';
+      addLog(`❌ 중지 중 오류: ${errorMessage}`);
+      toast.error('중지 중 오류가 발생했습니다.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleUpload = async () => {
     if (!title.trim()) {
       toast.error('제목을 입력해주세요');
@@ -159,8 +186,21 @@ export default function YouTubeUploadButton({
         }, 3000);
       } else {
         setUploadStatus('error');
-        const errorMsg = data.error || data.details || '업로드 실패';
+        const errorMsg = data.error || '업로드 실패';
+        const detailsMsg = data.details || '';
+
         addLog(`❌ 업로드 실패: ${errorMsg}`);
+        if (detailsMsg) {
+          addLog(`   상세: ${detailsMsg}`);
+        }
+
+        // 토큰 경로나 credentials 경로 정보가 있으면 표시
+        if (data.tokenPath) {
+          addLog(`   토큰 경로: ${data.tokenPath}`);
+        }
+        if (data.credentialsPath) {
+          addLog(`   Credentials 경로: ${data.credentialsPath}`);
+        }
 
         if (data.stdout) {
           addLog('Python stdout:');
@@ -177,6 +217,7 @@ export default function YouTubeUploadButton({
 
         console.warn('❌ Upload API Error:', {
           error: errorMsg,
+          details: detailsMsg,
           fullData: data
         });
         if (onUploadError) {
@@ -389,16 +430,24 @@ export default function YouTubeUploadButton({
           </div>
 
           {/* 하단 버튼 */}
-          {uploadStatus !== 'uploading' && (
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            {uploadStatus === 'uploading' ? (
+              <button
+                onClick={handleCancelUpload}
+                className="w-full py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <span>🛑</span>
+                <span>업로드 중지</span>
+              </button>
+            ) : (
               <button
                 onClick={() => setShowProgressModal(false)}
                 className="w-full py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors"
               >
                 닫기
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>,
       document.body
