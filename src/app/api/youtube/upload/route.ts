@@ -47,18 +47,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'videoPath와 title은 필수입니다' }, { status: 400 });
     }
 
-    // Job 데이터에서 aspect_ratio 확인하여 Shorts 여부 판단
+    // Job 데이터에서 type 확인하여 Shorts 여부 판단
     let isShorts = false;
     if (jobId) {
       try {
         const { findJobById } = await import('@/lib/db');
         const job = await findJobById(jobId);
-        if (job && job.aspectRatio === '9:16') {
+        if (job && job.type === 'shortform') {
           isShorts = true;
-          console.log('✅ 숏폼(9:16) 감지 - YouTube Shorts로 업로드');
+          console.log('✅ 숏폼(shortform) 감지 - YouTube Shorts로 업로드');
         }
       } catch (error) {
-        console.warn('⚠️ Job 조회 실패, aspect_ratio 확인 불가:', error);
+        console.warn('⚠️ Job 조회 실패, type 확인 불가:', error);
       }
     }
 
@@ -168,13 +168,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }, { status: 401 }));
       }
 
+      // 취소 플래그 파일 경로
+      const cancelFlagPath = path.join(CREDENTIALS_DIR, `youtube_cancel_${jobId || Date.now()}.flag`);
+
       const args = [
         YOUTUBE_CLI,
         '--action', 'upload',
         '--credentials', credentialsPath,
         '--token', tokenPath,
         '--video', fullVideoPath,
-        '--metadata', metadataPath
+        '--metadata', metadataPath,
+        '--cancel-flag', cancelFlagPath
       ];
 
       if (thumbnailPath) {
@@ -324,59 +328,64 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
 
     if (process && process.pid) {
       const pid = process.pid;
-      console.log(`🛑 프로세스 트리 종료 시작: Upload ${uploadId}, PID ${pid}`);
+      console.log(`🛑 취소 플래그 파일 생성: Upload ${uploadId}, PID ${pid}`);
 
       try {
-        // 먼저 SIGTERM으로 정상 종료 시도 (Python의 KeyboardInterrupt 실행)
-        console.log(`🛑 SIGTERM 전송: PID ${pid} (정상 종료 시도)`);
-        await new Promise<void>((resolve, reject) => {
-          kill(pid, 'SIGTERM', (err) => {
-            if (err) {
-              console.error(`⚠️ SIGTERM 실패: ${err.message}`);
-              reject(err);
-            } else {
-              console.log(`✅ SIGTERM 전송 완료: PID ${pid}`);
-              resolve();
-            }
-          });
-        });
+        // 취소 플래그 파일 생성 (Python이 감지하여 KeyboardInterrupt 발생)
+        const cancelFlagPath = path.join(CREDENTIALS_DIR, `youtube_cancel_${uploadId}.flag`);
+        fs.writeFileSync(cancelFlagPath, '', 'utf8');
+        console.log(`✅ 취소 플래그 파일 생성: ${cancelFlagPath}`);
 
-        // Python 프로세스가 정리 작업을 할 시간 부여 (5초)
-        console.log('⏳ Python 정리 작업 대기 중 (5초)...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Python이 플래그를 감지하고 정리 작업을 수행할 시간 부여 (최대 10초)
+        console.log('⏳ Python 정리 작업 대기 중 (최대 10초)...');
 
-        // 프로세스가 아직 살아있으면 SIGKILL로 강제 종료
-        try {
-          process.kill(pid, 0); // 프로세스 존재 확인 (signal 0)
-          console.log(`⚠️ 프로세스 아직 실행 중, SIGKILL 전송: PID ${pid}`);
-          await new Promise<void>((resolve, reject) => {
-            kill(pid, 'SIGKILL', (err) => {
-              if (err) {
-                console.error(`❌ SIGKILL 실패: ${err.message}`);
-                reject(err);
-              } else {
-                console.log(`✅ SIGKILL 성공: PID ${pid} 강제 종료`);
-                resolve();
-              }
-            });
-          });
-        } catch {
-          // 프로세스가 이미 종료됨
-          console.log(`✅ 프로세스 정상 종료됨: PID ${pid}`);
+        let processExited = false;
+        const checkInterval = 500; // 0.5초마다 체크
+        const maxWaitTime = 10000; // 최대 10초
+        let elapsedTime = 0;
+
+        while (elapsedTime < maxWaitTime && !processExited) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          elapsedTime += checkInterval;
+
+          // 프로세스가 종료되었는지 확인
+          try {
+            process.kill(0); // signal 0: 프로세스 존재 확인
+          } catch {
+            // 프로세스가 종료됨
+            processExited = true;
+            console.log(`✅ Python 프로세스 정상 종료됨 (${elapsedTime}ms 후): PID ${pid}`);
+          }
         }
 
-        // Windows 고아 Python 프로세스 정리
-        if (process.platform === 'win32') {
-          const { exec } = await import('child_process');
-          const { promisify } = await import('util');
-          const execAsync = promisify(exec);
-
+        // 타임아웃 후에도 프로세스가 살아있으면 강제 종료
+        if (!processExited) {
+          console.log(`⚠️ 프로세스가 ${maxWaitTime}ms 내에 종료되지 않음, 강제 종료 시도: PID ${pid}`);
           try {
-            await execAsync('taskkill /F /FI "IMAGENAME eq python.exe" /FI "STATUS eq RUNNING" 2>nul');
-            console.log('✅ Windows 좀비 프로세스 정리 완료');
-          } catch {
-            // 프로세스가 없으면 무시
+            await new Promise<void>((resolve, reject) => {
+              kill(pid, 'SIGKILL', (err) => {
+                if (err) {
+                  console.error(`❌ SIGKILL 실패: ${err.message}`);
+                  reject(err);
+                } else {
+                  console.log(`✅ SIGKILL 성공: PID ${pid} 강제 종료`);
+                  resolve();
+                }
+              });
+            });
+          } catch (killError: any) {
+            console.error(`❌ 강제 종료 실패: ${killError.message}`);
           }
+        }
+
+        // 취소 플래그 파일 정리 (Python이 삭제하지 못한 경우를 대비)
+        try {
+          if (fs.existsSync(cancelFlagPath)) {
+            fs.unlinkSync(cancelFlagPath);
+            console.log(`✅ 취소 플래그 파일 정리: ${cancelFlagPath}`);
+          }
+        } catch {
+          // 무시
         }
 
         runningUploads.delete(uploadId);
@@ -388,7 +397,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
         });
 
       } catch (error: any) {
-        console.error(`❌ 프로세스 종료 실패: ${error.message}`);
+        console.error(`❌ 업로드 중지 실패: ${error.message}`);
         runningUploads.delete(uploadId);
 
         return NextResponse.json({

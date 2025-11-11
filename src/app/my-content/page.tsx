@@ -165,6 +165,7 @@ export default function MyContentPage() {
     videoUrl?: string;
     error?: string;
   }>>(new Map());
+  const [convertingJobs, setConvertingJobs] = useState<Set<string>>(new Set());
 
   // Published pagination
   const [publishedOffset, setPublishedOffset] = useState(0);
@@ -859,10 +860,22 @@ export default function MyContentPage() {
   };
 
   const handleConvertToShorts = async (jobId: string, title: string) => {
+    // 이미 변환 중이면 무시
+    if (convertingJobs.has(jobId)) {
+      toast.error('이미 변환 중입니다.');
+      return;
+    }
+
     showConfirmModal(
       '⚡ 쇼츠로 변환',
       `"${title}"\n\n━━━━━━━━━━━━━━━━━━━━━━\n💰 크레딧 차감: 200 크레딧\n━━━━━━━━━━━━━━━━━━━━━━\n\n📝 대본을 AI가 분석하여 하이라이트만 추출\n🎬 4개 씬 구성 (약 60초)\n🖼️ 9:16 세로 이미지 자동 생성\n\n영상을 1분 쇼츠로 변환하시겠습니까?`,
       async () => {
+        // 즉시 변환 중 상태로 설정
+        setConvertingJobs(prev => new Set(prev).add(jobId));
+
+        // 즉시 토스트 표시
+        const toastId = toast.loading('🎬 쇼츠 변환 시작 중...');
+
         try {
           const response = await fetch(`/api/jobs/${jobId}/convert-to-shorts`, {
             method: 'POST',
@@ -876,7 +889,7 @@ export default function MyContentPage() {
           const data = await safeJsonResponse(response);
 
           if (response.ok) {
-            toast.success('✅ 쇼츠 변환이 시작되었습니다!\n비디오 탭에서 진행 상황을 확인하세요.', { duration: 3000 });
+            toast.success('✅ 쇼츠 변환이 시작되었습니다!\n비디오 탭에서 진행 상황을 확인하세요.', { id: toastId, duration: 3000 });
             // 비디오 탭으로 전환
             setActiveTab('videos');
             // 목록 새로고침
@@ -891,6 +904,13 @@ export default function MyContentPage() {
         } catch (error) {
           console.error('Convert to shorts error:', error);
           toast.error('❌ 쇼츠 변환 중 오류가 발생했습니다.', { id: toastId });
+        } finally {
+          // 변환 중 상태 제거
+          setConvertingJobs(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(jobId);
+            return newSet;
+          });
         }
       },
       '변환 시작',
@@ -1225,6 +1245,62 @@ export default function MyContentPage() {
 
       if (!result.success) {
         console.error('JSON 파싱 실패:', result.error);
+
+        // JSON이 아닌 경우, 상품정보 텍스트인지 확인
+        // ✅로 시작하는 항목들이 여러 개 있으면 상품정보로 간주
+        const checkMarkCount = (rawContent.match(/✅/g) || []).length;
+
+        if (checkMarkCount >= 3) {
+          // 상품정보 텍스트로 판단 - 적절한 줄바꿈 추가
+          console.log('상품정보 텍스트 포맷팅 시작...');
+
+          let formatted = rawContent.trim();
+
+          // 1. 일단 모든 연속된 공백/줄바꿈을 공백 하나로 통일
+          formatted = formatted.replace(/\s+/g, ' ');
+
+          // 2. 문장 끝(!,?,.) 뒤에 줄바꿈 추가
+          formatted = formatted.replace(/([!?.])\s+/g, '$1\n');
+
+          // 3. ✅ 항목들 줄바꿈 (빈 줄 없이 바로 다음 줄)
+          formatted = formatted.replace(/\s*✅\s+/g, '\n✅ ');
+
+          // 4. 🛒 구매하기 앞에 빈 줄 하나
+          formatted = formatted.replace(/\s*(🛒\s*구매하기)/g, '\n\n$1');
+          // 구매하기 뒤 URL 앞에 줄바꿈
+          formatted = formatted.replace(/(🛒\s*구매하기)\s+(http)/g, '$1\n$2');
+
+          // 5. 🏠 홈 사이트 앞에 빈 줄 하나
+          formatted = formatted.replace(/\s*(🏠)/g, '\n\n$1');
+          // 홈 사이트 라벨과 URL 사이 줄바꿈
+          formatted = formatted.replace(/(🏠[^http\n]+?)\s+(http)/g, '$1\n$2');
+
+          // 6. 해시태그 섹션 처리
+          // 먼저 해시태그들 사이의 줄바꿈을 공백으로 변경 (여러 번 반복)
+          let prevFormatted = '';
+          while (prevFormatted !== formatted) {
+            prevFormatted = formatted;
+            formatted = formatted.replace(/(#[가-힣a-zA-Z0-9_]+)\s*\n\s*(#[가-힣a-zA-Z0-9_]+)/g, '$1 $2');
+          }
+          // 첫 번째 해시태그 앞에만 빈 줄 추가
+          formatted = formatted.replace(/([^\n])\s*(#[가-힣a-zA-Z0-9_]+)/, '$1\n\n$2');
+
+          // 7. 📢 파트너스 안내 앞에 빈 줄 하나
+          formatted = formatted.replace(/\s*(📢)/g, '\n\n$1');
+
+          // 8. 맨 앞 ✅ 앞의 줄바꿈 제거
+          formatted = formatted.replace(/^\n+✅/, '✅');
+
+          // 9. 연속된 빈 줄을 하나로 (최대 빈 줄 1개)
+          formatted = formatted.replace(/\n{3,}/g, '\n\n');
+
+          // 10. 앞뒤 공백 제거
+          formatted = formatted.trim();
+
+          console.log('상품정보 텍스트 포맷팅 완료');
+          return { formatted, scriptJson: null };
+        }
+
         return null;
       }
 
@@ -1249,8 +1325,12 @@ export default function MyContentPage() {
 
     updateFormattingState(scriptId, true);
 
+    // 상품정보 텍스트인지 확인 (✅가 3개 이상 있으면)
+    const checkMarkCount = (currentContent.match(/✅/g) || []).length;
+    const isProductInfo = checkMarkCount >= 3;
+
     if (toastId) {
-      toast.loading('JSON 포멧팅 중...', { id: toastId });
+      toast.loading(isProductInfo ? '텍스트 포맷팅 중...' : 'JSON 포맷팅 중...', { id: toastId });
     }
 
     const localFormatResult = tryFormatScriptLocally(currentContent);
@@ -1274,7 +1354,7 @@ export default function MyContentPage() {
       const data = await safeJsonResponse(response);
 
       if (!response.ok) {
-        throw new Error(data.error || 'JSON 포멧팅에 실패했습니다.');
+        throw new Error(data.error || (isProductInfo ? '텍스트 포맷팅에 실패했습니다.' : 'JSON 포맷팅에 실패했습니다.'));
       }
 
       const formattedContent =
@@ -1287,14 +1367,14 @@ export default function MyContentPage() {
       );
 
       if (toastId) {
-        toast.success('JSON 포맷팅 완료!', { id: toastId });
+        toast.success(isProductInfo ? '텍스트 포맷팅 완료!' : 'JSON 포맷팅 완료!', { id: toastId });
       }
 
       return formattedContent;
     } catch (error) {
-      console.error('포멧팅 실패:', error);
+      console.error('포맷팅 실패:', error);
       if (toastId) {
-        toast.error(`포멧팅 실패: ${(error as Error).message}`, { id: toastId });
+        toast.error(`포맷팅 실패: ${(error as Error).message}`, { id: toastId });
       }
       throw error;
     } finally {
@@ -2278,10 +2358,15 @@ export default function MyContentPage() {
                                 {item.data.type === 'longform' && (
                                   <button
                                     onClick={() => handleConvertToShorts(item.data.id, item.data.title || '제목 없음')}
-                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                    title="쇼츠로 변환 (200 크레딧)"
+                                    disabled={convertingJobs.has(item.data.id)}
+                                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition whitespace-nowrap ${
+                                      convertingJobs.has(item.data.id)
+                                        ? 'bg-purple-400 cursor-not-allowed opacity-60'
+                                        : 'bg-purple-600 hover:bg-purple-500 cursor-pointer'
+                                    }`}
+                                    title={convertingJobs.has(item.data.id) ? '변환 중...' : '쇼츠로 변환 (200 크레딧)'}
                                   >
-                                    ⚡ 쇼츠
+                                    {convertingJobs.has(item.data.id) ? '⏳ 변환 중...' : '⚡ 쇼츠'}
                                   </button>
                                 )}
                                 <button
@@ -3814,10 +3899,15 @@ export default function MyContentPage() {
                             {job.type === 'longform' && (
                               <button
                                 onClick={() => handleConvertToShorts(job.id, job.title || '제목 없음')}
-                                className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                title="쇼츠로 변환 (200 크레딧)"
+                                disabled={convertingJobs.has(job.id)}
+                                className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition whitespace-nowrap ${
+                                  convertingJobs.has(job.id)
+                                    ? 'bg-purple-400 cursor-not-allowed opacity-60'
+                                    : 'bg-purple-600 hover:bg-purple-500 cursor-pointer'
+                                }`}
+                                title={convertingJobs.has(job.id) ? '변환 중...' : '쇼츠로 변환 (200 크레딧)'}
                               >
-                                ⚡ 쇼츠
+                                {convertingJobs.has(job.id) ? '⏳ 변환 중...' : '⚡ 쇼츠'}
                               </button>
                             )}
                             <button

@@ -57,18 +57,28 @@ export async function POST(request: NextRequest) {
       // console.log('✅ 대본 조회 성공:', { id: script.id, title: script.title });
 
       let parsedData: any;
+      let formattedContentToSave: string;
 
       if (formattedContent && typeof formattedContent === 'string' && formattedContent.trim().length > 0) {
         try {
           parsedData = JSON.parse(formattedContent);
-          // console.log('✅ 클라이언트에서 전달된 formattedContent 사용');
+          formattedContentToSave = JSON.stringify(parsedData, null, 2);
+          // console.log('✅ 클라이언트에서 전달된 formattedContent 사용 (JSON)');
         } catch (overrideError: any) {
-          // 에러는 로그 유지
-          console.error('❌ formattedContent JSON 파싱 실패:', overrideError);
-          return NextResponse.json(
-            { error: 'formattedContent가 올바른 JSON 형식이 아닙니다.' },
-            { status: 400 }
-          );
+          // JSON 파싱 실패 - 상품정보 텍스트일 수 있음
+          // ✅가 3개 이상 있으면 상품정보 텍스트로 간주하고 그대로 저장
+          const checkMarkCount = (formattedContent.match(/✅/g) || []).length;
+          if (checkMarkCount >= 3) {
+            formattedContentToSave = formattedContent;
+            console.log('✅ 상품정보 텍스트로 감지 - 텍스트 그대로 저장');
+          } else {
+            // 에러는 로그 유지
+            console.error('❌ formattedContent JSON 파싱 실패:', overrideError);
+            return NextResponse.json(
+              { error: 'formattedContent가 올바른 JSON 형식이 아닙니다.' },
+              { status: 400 }
+            );
+          }
         }
       } else {
         const rawContent = (script.content || '').trim();
@@ -90,9 +100,8 @@ export async function POST(request: NextRequest) {
         // console.log('✨ JSON 자동 보정 결과가 적용되었습니다.');
 
         parsedData = parseResult.data;
+        formattedContentToSave = JSON.stringify(parsedData, null, 2);
       }
-
-      const formattedContentToSave = JSON.stringify(parsedData, null, 2);
       // console.log('📏 원본 길이:', script.content.length, '→ 포맷팅 후:', formattedContentToSave.length);
 
       const updateQuery = "UPDATE contents SET content = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?";

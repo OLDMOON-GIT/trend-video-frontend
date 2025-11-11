@@ -227,7 +227,13 @@ export default function SettingsPage() {
       const youtubeRes = await fetch('/api/youtube/channels', { credentials: 'include' });
       const youtubeData = await youtubeRes.json();
 
-      setChannels(youtubeData.channels || []);
+      // 기본 채널을 맨 위로 정렬
+      const sortedChannels = (youtubeData.channels || []).sort((a: any, b: any) => {
+        if (a.isDefault && !b.isDefault) return -1;
+        if (!a.isDefault && b.isDefault) return 1;
+        return 0;
+      });
+      setChannels(sortedChannels);
       setHasCredentials(youtubeData.hasCredentials || false);
     } catch (error) {
       console.error('설정 로드 실패:', error);
