@@ -93,25 +93,59 @@ async function handleOpenFolder(request: NextRequest) {
       // video-merge 작업은 videoPath에서 폴더 경로 추출
       absoluteFolderPath = path.dirname(path.resolve(job.videoPath));
     } else {
-      // 일반 비디오 작업은 trend-video-backend/uploads에서 찾기
-      let projectName: string;
+      // 일반 비디오 작업은 trend-video-backend/uploads 또는 input에서 찾기
+      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
 
       if (job.videoPath) {
-        // videoPath에서 추출
-        const pathParts = job.videoPath.split('/');
+        // videoPath에서 추출 (절대 경로와 상대 경로 모두 지원)
+        const normalizedPath = job.videoPath.replace(/\\/g, '/');
+        const pathParts = normalizedPath.split('/');
+
+        // uploads 또는 input 폴더 찾기
         const uploadsIndex = pathParts.findIndex(p => p === 'uploads');
+        const inputIndex = pathParts.findIndex(p => p === 'input');
+
         if (uploadsIndex !== -1 && uploadsIndex + 1 < pathParts.length) {
-          projectName = pathParts[uploadsIndex + 1];
+          // uploads 폴더에 있는 경우
+          const projectName = pathParts[uploadsIndex + 1];
+          const folderPath = path.join(backendPath, 'uploads', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
+        } else if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
+          // input 폴더에 있는 경우 (쇼츠 변환)
+          const projectName = pathParts[inputIndex + 1];
+          const folderPath = path.join(backendPath, 'input', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
         } else {
-          projectName = `uploaded_${jobId}`;
+          // 기본값
+          const projectName = `uploaded_${jobId}`;
+          const folderPath = path.join(backendPath, 'uploads', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
         }
       } else {
-        projectName = `uploaded_${jobId}`;
+        // videoPath 없으면 type에 따라 추정
+        if (job.type === 'shortform') {
+          // 쇼츠 작업은 input/shorts_* 패턴
+          // jobId에서 timestamp 추출 (job_1762844840576_xxx 형식)
+          const timestampMatch = jobId.match(/job_(\d+)_/);
+          if (timestampMatch) {
+            const timestamp = timestampMatch[1];
+            const projectName = `shorts_${timestamp}`;
+            const folderPath = path.join(backendPath, 'input', projectName);
+            absoluteFolderPath = path.resolve(folderPath);
+            console.log(`📂 쇼츠 작업 폴더 추정: ${absoluteFolderPath}`);
+          } else {
+            // timestamp 추출 실패 시 기본값
+            const projectName = `uploaded_${jobId}`;
+            const folderPath = path.join(backendPath, 'uploads', projectName);
+            absoluteFolderPath = path.resolve(folderPath);
+          }
+        } else {
+          // 일반 작업은 uploads/uploaded_* 패턴
+          const projectName = `uploaded_${jobId}`;
+          const folderPath = path.join(backendPath, 'uploads', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
+        }
       }
-
-      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
-      const folderPath = path.join(backendPath, 'uploads', projectName);
-      absoluteFolderPath = path.resolve(folderPath);
     }
 
     console.log(`📁 폴더 열기 요청: ${absoluteFolderPath}`);
