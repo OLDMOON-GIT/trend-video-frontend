@@ -2903,7 +2903,7 @@ export default function Home() {
             {productionMode === 'merge' && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-300">
-                📁 JSON/TXT 대본과 비디오 파일들을 한번에 드래그하세요
+                📁 JSON/TXT 대본과 이미지/비디오 파일들을 한번에 드래그하세요
               </label>
               <div
                 onDragOver={(e) => {
@@ -2934,12 +2934,27 @@ export default function Home() {
                     f.name.endsWith('.txt')
                   );
 
+                  // 이미지 파일 분류
+                  const imageFiles = files.filter(f => f.type.startsWith('image/'));
+
                   // 비디오 파일 분류
                   const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                   if (jsonFile) {
                     setUploadedJson(jsonFile);
                     showToast('✅ JSON/TXT 파일 업로드 완료', 'success');
+                  }
+
+                  if (imageFiles.length > 0) {
+                    setUploadedImages(prev => {
+                      const existingNames = new Set(prev.map(f => f.name));
+                      const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                      if (newFiles.length < imageFiles.length) {
+                        showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                      }
+                      return [...prev, ...newFiles];
+                    });
+                    showToast(`✅ ${imageFiles.length}개 이미지를 업로드했습니다!`, 'success');
                   }
 
                   if (videoFiles.length > 0) {
@@ -2954,8 +2969,8 @@ export default function Home() {
                     showToast(`✅ ${videoFiles.length}개 비디오를 업로드했습니다!`, 'success');
                   }
 
-                  if (!jsonFile && videoFiles.length === 0) {
-                    showToast('JSON/TXT 또는 비디오 파일을 업로드해주세요.', 'error');
+                  if (!jsonFile && imageFiles.length === 0 && videoFiles.length === 0) {
+                    showToast('JSON/TXT, 이미지 또는 비디오 파일을 업로드해주세요.', 'error');
                   }
                 }}
                 onPaste={async (e) => {
@@ -2996,7 +3011,7 @@ export default function Home() {
               >
                 <div className="space-y-4">
                   {/* 업로드된 파일 표시 */}
-                  {(uploadedJson || uploadedVideos.length > 0) ? (
+                  {(uploadedJson || uploadedImages.length > 0 || uploadedVideos.length > 0) ? (
                     <div className="space-y-3">
                       <div className="text-4xl">✅</div>
 
@@ -3011,6 +3026,28 @@ export default function Home() {
                             >
                               ✕
                             </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 이미지 파일 표시 */}
+                      {uploadedImages.length > 0 && (
+                        <div className="rounded-lg bg-blue-500/10 p-3 border border-blue-500/30">
+                          <p className="text-sm text-blue-400 mb-2">🖼️ {uploadedImages.length}개 이미지</p>
+                          <div className="max-h-32 overflow-y-auto space-y-1">
+                            {uploadedImages.map((img, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs text-slate-300 bg-white/10 rounded px-2 py-1">
+                                <span>{idx + 1}. {img.name}</span>
+                                <button
+                                  onClick={() => {
+                                    setUploadedImages(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="ml-2 text-red-400 hover:text-red-300"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}
@@ -3047,7 +3084,7 @@ export default function Home() {
                           <input
                             type="file"
                             multiple
-                            accept=".json,.txt,video/*"
+                            accept=".json,.txt,image/*,video/*"
                             disabled={isGeneratingVideo}
                             onChange={(e) => {
                               const files = Array.from(e.target.files || []);
@@ -3066,10 +3103,22 @@ export default function Home() {
                                 f.name.endsWith('.txt')
                               );
 
+                              const imageFiles = files.filter(f => f.type.startsWith('image/'));
                               const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                               if (jsonFile) {
                                 setUploadedJson(jsonFile);
+                              }
+
+                              if (imageFiles.length > 0) {
+                                setUploadedImages(prev => {
+                                  const existingNames = new Set(prev.map(f => f.name));
+                                  const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                                  if (newFiles.length < imageFiles.length) {
+                                    showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                  }
+                                  return [...prev, ...newFiles];
+                                });
                               }
 
                               if (videoFiles.length > 0) {
@@ -3093,6 +3142,7 @@ export default function Home() {
                         <button
                           onClick={() => {
                             setUploadedJson(null);
+                            setUploadedImages([]);
                             setUploadedVideos([]);
                           }}
                           className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
@@ -3104,7 +3154,7 @@ export default function Home() {
                   ) : (
                     <div className="space-y-3">
                       <div className="text-4xl">📁</div>
-                      <p className="text-sm text-slate-300 font-semibold">JSON/TXT 대본과 비디오 파일들을 한번에 드래그하세요</p>
+                      <p className="text-sm text-slate-300 font-semibold">JSON/TXT 대본과 이미지/비디오 파일들을 한번에 드래그하세요</p>
                       <div className="p-2 bg-blue-500/10 border border-blue-500/30 rounded">
                         <p className="text-xs text-blue-300">
                           📌 <strong>비디오 정렬 규칙:</strong><br/>
@@ -3121,7 +3171,7 @@ export default function Home() {
                         <input
                           type="file"
                           multiple
-                          accept=".json,.txt,video/*"
+                          accept=".json,.txt,image/*,video/*"
                           disabled={isGeneratingVideo}
                           onChange={(e) => {
                             const files = Array.from(e.target.files || []);
@@ -3140,10 +3190,22 @@ export default function Home() {
                               f.name.endsWith('.txt')
                             );
 
+                            const imageFiles = files.filter(f => f.type.startsWith('image/'));
                             const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                             if (jsonFile) {
                               setUploadedJson(jsonFile);
+                            }
+
+                            if (imageFiles.length > 0) {
+                              setUploadedImages(prev => {
+                                const existingNames = new Set(prev.map(f => f.name));
+                                const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                                if (newFiles.length < imageFiles.length) {
+                                  showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                }
+                                return [...prev, ...newFiles];
+                              });
                             }
 
                             if (videoFiles.length > 0) {
@@ -3157,7 +3219,7 @@ export default function Home() {
                               });
                             }
 
-                            if (jsonFile || videoFiles.length > 0) {
+                            if (jsonFile || imageFiles.length > 0 || videoFiles.length > 0) {
                               showToast('✅ 파일 업로드 완료!', 'success');
                             }
                           }}
