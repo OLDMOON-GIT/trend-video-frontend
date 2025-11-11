@@ -1,0 +1,175 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/session';
+import db from '@/lib/sqlite';
+
+/**
+ * ?ºÎ∏îÎ¶¨Ïãú???ÅÌíà???ïÏ†Å HTML ?ùÏÑ± API
+ * - ?∏Îûò??0: Î™®Îì† Î¶¨ÏÜå???¥Î?ÏßÄ, ?•ÎßÅ????Ïø†Ìå° ?úÎ≤Ñ ÏßÅÏ†ë ?¨Ïö©
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Î°úÍ∑∏?∏Ïù¥ ?ÑÏöî?©Îãà??' },
+        { status: 401 }
+      );
+    }
+
+    // ?¨Ïö©?êÏùò ?ºÎ∏îÎ¶¨Ïãú???ÅÌíà Ï°∞Ìöå
+    const products = db.prepare(`
+      SELECT
+        id, title, description, category,
+        original_price, discount_price,
+        image_url, deep_link
+      FROM coupang_products
+      WHERE user_id = ? AND status = 'published'
+      ORDER BY created_at DESC
+    `).all(user.userId) as any[];
+
+    if (products.length === 0) {
+      return NextResponse.json(
+        { error: '?ºÎ∏îÎ¶¨Ïãú???ÅÌíà???ÜÏäµ?àÎã§.' },
+        { status: 404 }
+      );
+    }
+
+    // HTML ?ùÏÑ±
+    const html = generateStaticHTML(products);
+
+    return NextResponse.json({
+      success: true,
+      html,
+      productCount: products.length
+    });
+
+  } catch (error: any) {
+    console.error('??HTML ?ùÏÑ± ?§Î•ò:', error);
+    return NextResponse.json(
+      { error: error?.message || 'HTML ?ùÏÑ± ?§Ìå®' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * ?ïÏ†Å HTML ?ùÏÑ± ?®Ïàò
+ * - Î™®Îì† Î¶¨ÏÜå?§Îäî Ïø†Ìå° CDN ÏßÅÏ†ë ?¨Ïö©
+ */
+function generateStaticHTML(products: any[]): string {
+  const productCards = products.map(product => `
+    <div style="background: #1e293b; border-radius: 12px; overflow: hidden; transition: transform 0.2s;">
+      <!-- ?ÅÌíà ?¥Î?ÏßÄ (Ïø†Ìå° CDN) -->
+      ${product.image_url ? `
+      <img
+        src="${product.image_url}"
+        alt="${escapeHtml(product.title)}"
+        style="width: 100%; height: 200px; object-fit: cover;"
+      />
+      ` : ''}
+
+      <div style="padding: 16px;">
+        <!-- Ïπ¥ÌÖåÍ≥†Î¶¨ -->
+        <span style="display: inline-block; background: #9333ea; color: white; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 8px;">
+          ${escapeHtml(product.category)}
+        </span>
+
+        <!-- ?úÎ™© -->
+        <h3 style="color: white; font-size: 16px; font-weight: bold; margin: 8px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+          ${escapeHtml(product.title)}
+        </h3>
+
+        <!-- ?§Î™Ö -->
+        <p style="color: #94a3b8; font-size: 14px; margin: 8px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+          ${escapeHtml(product.description || '')}
+        </p>
+
+        <!-- Í∞ÄÍ≤?-->
+        ${product.discount_price ? `
+        <div style="margin: 12px 0;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: #f87171; font-size: 20px; font-weight: bold;">
+              ${product.discount_price.toLocaleString()}??
+            </span>
+            ${product.original_price ? `
+            <span style="color: #64748b; font-size: 14px; text-decoration: line-through;">
+              ${product.original_price.toLocaleString()}??
+            </span>
+            ` : ''}
+          </div>
+        </div>
+        ` : product.original_price ? `
+        <div style="margin: 12px 0;">
+          <span style="color: white; font-size: 20px; font-weight: bold;">
+            ${product.original_price.toLocaleString()}??
+          </span>
+        </div>
+        ` : ''}
+
+        <!-- Íµ¨Îß§ Î≤ÑÌäº (Ïø†Ìå° ?åÌä∏?àÏä§ ?•ÎßÅ?? -->
+        <a
+          href="${product.deep_link}"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="display: block; width: 100%; background: linear-gradient(to right, #ea580c, #dc2626); color: white; text-align: center; padding: 12px; border-radius: 8px; font-weight: 600; text-decoration: none; margin-top: 12px;"
+        >
+          ?õí Ïø†Ìå°?êÏÑú Î≥¥Í∏∞
+        </a>
+      </div>
+    </div>
+  `).join('\n');
+
+  return `
+<!-- Ïø†Ìå° ?ºÌïëÎ™?- ?êÎèô ?ùÏÑ± HTML -->
+<style>
+  .coupang-shop-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .coupang-shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+  }
+  .coupang-disclaimer {
+    text-align: center;
+    color: #64748b;
+    font-size: 12px;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #334155;
+  }
+  @media (max-width: 768px) {
+    .coupang-shop-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="coupang-shop-container">
+  <div class="coupang-shop-grid">
+    ${productCards}
+  </div>
+
+  <div class="coupang-disclaimer">
+    ???¨Ïä§?ÖÏ? Ïø†Ìå° ?åÌä∏?àÏä§ ?úÎèô???ºÌôò?ºÎ°ú, ?¥Ïóê ?∞Î•∏ ?ºÏ†ï?°Ïùò ?òÏàòÎ£åÎ? ?úÍ≥µÎ∞õÏäµ?àÎã§.
+  </div>
+</div>
+`;
+}
+
+/**
+ * HTML ?¥Ïä§ÏºÄ?¥ÌîÑ (XSS Î∞©Ï?)
+ */
+function escapeHtml(text: string): string {
+  const map: { [key: string]: string } = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+

@@ -11,6 +11,7 @@ interface CoupangSettings {
   accessKey: string;
   secretKey: string;
   trackingId: string;
+  openaiApiKey?: string;
   isConnected: boolean;
   lastChecked?: string;
 }
@@ -52,14 +53,25 @@ export async function GET(request: NextRequest) {
       accessKey: '',
       secretKey: '',
       trackingId: '',
+      openaiApiKey: '',
       isConnected: false
     };
 
-    // Secret Key는 앞 4자리만 보여주기
+    // Secret Key와 OpenAI API Key 마스킹 (구글 스타일: sk-proj-...***ABC)
+    const maskKey = (key: string) => {
+      if (!key) return '';
+      if (key.length <= 8) return '****';
+      // 앞부분 유지, 중간 마스킹, 마지막 3글자 표시
+      const start = key.substring(0, Math.min(12, key.length - 3));
+      const end = key.substring(key.length - 3);
+      return `${start}...***${end}`;
+    };
+
     return NextResponse.json({
       settings: {
         ...userSettings,
-        secretKey: userSettings.secretKey ? userSettings.secretKey.substring(0, 4) + '****' : ''
+        secretKey: maskKey(userSettings.secretKey),
+        openaiApiKey: maskKey(userSettings.openaiApiKey || '')
       }
     });
   } catch (error: any) {
@@ -77,18 +89,22 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { accessKey, secretKey, trackingId } = body;
+    const { accessKey, secretKey, trackingId, openaiApiKey } = body;
 
     const allSettings = await loadSettings();
 
     // 기존 설정이 있으면 유지하고 업데이트
     const existingSettings = allSettings[user.userId] || {};
 
+    // 마스킹된 값이 전송되면 기존 값 유지
+    const isMasked = (value: string) => value && (value.includes('****') || value.includes('...***'));
+
     allSettings[user.userId] = {
       userId: user.userId,
       accessKey: accessKey || existingSettings.accessKey || '',
-      secretKey: secretKey && !secretKey.includes('****') ? secretKey : existingSettings.secretKey || '',
+      secretKey: secretKey && !isMasked(secretKey) ? secretKey : existingSettings.secretKey || '',
       trackingId: trackingId || existingSettings.trackingId || '',
+      openaiApiKey: openaiApiKey && !isMasked(openaiApiKey) ? openaiApiKey : existingSettings.openaiApiKey || '',
       isConnected: existingSettings.isConnected || false,
       lastChecked: existingSettings.lastChecked
     };

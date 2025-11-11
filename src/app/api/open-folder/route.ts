@@ -5,7 +5,7 @@ import fs from 'fs';
 import { getCurrentUser } from '@/lib/session';
 import { findJobById } from '@/lib/db';
 
-export async function POST(request: NextRequest) {
+async function handleOpenFolder(request: NextRequest) {
   try {
     console.log('📁 폴더 열기 API 호출됨');
 
@@ -22,11 +22,46 @@ export async function POST(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get('jobId');
-    console.log('🆔 Job ID:', jobId);
+    const directPath = searchParams.get('path'); // 직접 경로 지원
+    console.log('🆔 Job ID:', jobId, '직접 경로:', directPath);
+
+    // 직접 경로가 제공된 경우
+    if (directPath) {
+      console.log(`📁 직접 경로로 폴더 열기: ${directPath}`);
+
+      // 파일 경로인 경우 디렉토리 추출
+      let folderPath = directPath;
+      if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) {
+        folderPath = path.dirname(directPath);
+      }
+
+      if (!fs.existsSync(folderPath)) {
+        console.error(`❌ 폴더가 존재하지 않습니다: ${folderPath}`);
+        return NextResponse.json(
+          { error: `폴더가 존재하지 않습니다: ${path.basename(folderPath)}` },
+          { status: 404 }
+        );
+      }
+
+      const windowsPath = folderPath.replace(/\//g, '\\');
+      const explorerProcess = spawn('explorer', [windowsPath], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      explorerProcess.unref();
+
+      console.log('✅ explorer 프로세스 시작됨:', windowsPath);
+
+      return NextResponse.json({
+        success: true,
+        message: '폴더를 열었습니다.',
+        path: folderPath
+      });
+    }
 
     if (!jobId) {
       return NextResponse.json(
-        { error: 'jobId가 필요합니다.' },
+        { error: 'jobId 또는 path가 필요합니다.' },
         { status: 400 }
       );
     }
@@ -42,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 권한 확인: 관리자이거나 자신의 작업인 경우만 허용
-    if (!user.isAdmin && job.userId !== user.id) {
+    if (!user.isAdmin && job.userId !== user.userId) {
       return NextResponse.json(
         { error: '이 작업의 폴더를 열 권한이 없습니다.' },
         { status: 403 }
@@ -58,25 +93,67 @@ export async function POST(request: NextRequest) {
       // video-merge 작업은 videoPath에서 폴더 경로 추출
       absoluteFolderPath = path.dirname(path.resolve(job.videoPath));
     } else {
-      // 일반 비디오 작업은 trend-video-backend/input에서 찾기
-      let projectName: string;
+      // 일반 비디오 작업은 trend-video-backend/uploads 또는 input에서 찾기
+      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
 
       if (job.videoPath) {
-        // videoPath에서 추출
-        const pathParts = job.videoPath.split('/');
+        // videoPath에서 추출 (절대 경로와 상대 경로 모두 지원)
+        const normalizedPath = job.videoPath.replace(/\\/g, '/');
+        const pathParts = normalizedPath.split('/');
+
+        // uploads, input, output 폴더 찾기
+        const uploadsIndex = pathParts.findIndex(p => p === 'uploads');
         const inputIndex = pathParts.findIndex(p => p === 'input');
-        if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
-          projectName = pathParts[inputIndex + 1];
+        const outputIndex = pathParts.findIndex(p => p === 'output');
+
+        if (uploadsIndex !== -1 && uploadsIndex + 1 < pathParts.length) {
+          // uploads 폴더에 있는 경우
+          const projectName = pathParts[uploadsIndex + 1];
+          const folderPath = path.join(backendPath, 'uploads', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
+        } else if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
+          // input 폴더에 있는 경우 (쇼츠 변환)
+          const projectName = pathParts[inputIndex + 1];
+          const folderPath = path.join(backendPath, 'input', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
+        } else if (outputIndex !== -1 && outputIndex + 1 < pathParts.length) {
+          // output 폴더에 있는 경우 (merge 작업 등)
+          const projectName = pathParts[outputIndex + 1];
+          const folderPath = path.join(backendPath, 'output', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
         } else {
-          projectName = `uploaded_${jobId}`;
+          // 기본값
+          // jobId가 이미 upload_로 시작하면 그대로 사용, 아니면 uploaded_ prefix 추가
+          const projectName = jobId.startsWith('upload_') ? jobId : `uploaded_${jobId}`;
+          const folderPath = path.join(backendPath, 'uploads', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
         }
       } else {
-        projectName = `uploaded_${jobId}`;
+        // videoPath 없으면 type에 따라 추정
+        if (job.type === 'shortform') {
+          // 쇼츠 작업은 input/shorts_* 패턴
+          // jobId에서 timestamp 추출 (job_1762844840576_xxx 형식)
+          const timestampMatch = jobId.match(/job_(\d+)_/);
+          if (timestampMatch) {
+            const timestamp = timestampMatch[1];
+            const projectName = `shorts_${timestamp}`;
+            const folderPath = path.join(backendPath, 'input', projectName);
+            absoluteFolderPath = path.resolve(folderPath);
+            console.log(`📂 쇼츠 작업 폴더 추정: ${absoluteFolderPath}`);
+          } else {
+            // timestamp 추출 실패 시 기본값
+            const projectName = jobId.startsWith('upload_') ? jobId : `uploaded_${jobId}`;
+            const folderPath = path.join(backendPath, 'uploads', projectName);
+            absoluteFolderPath = path.resolve(folderPath);
+          }
+        } else {
+          // 일반 작업은 uploads/uploaded_* 패턴
+          // jobId가 이미 upload_로 시작하면 그대로 사용, 아니면 uploaded_ prefix 추가
+          const projectName = jobId.startsWith('upload_') ? jobId : `uploaded_${jobId}`;
+          const folderPath = path.join(backendPath, 'uploads', projectName);
+          absoluteFolderPath = path.resolve(folderPath);
+        }
       }
-
-      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
-      const folderPath = path.join(backendPath, 'input', projectName);
-      absoluteFolderPath = path.resolve(folderPath);
     }
 
     console.log(`📁 폴더 열기 요청: ${absoluteFolderPath}`);
@@ -120,4 +197,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// POST와 GET 모두 지원
+export async function POST(request: NextRequest) {
+  return handleOpenFolder(request);
+}
+
+export async function GET(request: NextRequest) {
+  return handleOpenFolder(request);
 }

@@ -7,11 +7,17 @@ const nextConfig: NextConfig = {
       fullUrl: false,
     },
   },
-  // Cross-Origin 개발 서버 설정
+  // 큰 파일 업로드를 위한 설정
   experimental: {
-    allowedDevOrigins: ['oldmoon.iptime.org'],
+    // ISR 메모리 캐시 크기 증가
+    isrMemoryCacheSize: 0, // 메모리 캐시 비활성화
+    // serverActions body size limit
+    serverActions: {
+      bodySizeLimit: '2gb', // 2GB로 증가 (대용량 비디오 지원)
+    },
   },
   images: {
+    unoptimized: true, // 이미지 최적화 비활성화 (쿠팡 CDN 직접 사용)
     remotePatterns: [
       {
         protocol: "https",
@@ -24,6 +30,14 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "yt3.ggpht.com",
+      },
+      {
+        protocol: "https",
+        hostname: "*.coupangcdn.com", // 쿠팡 이미지
+      },
+      {
+        protocol: "http",
+        hostname: "thumbnail*.coupangcdn.com", // 쿠팡 썸네일
       },
     ],
   },

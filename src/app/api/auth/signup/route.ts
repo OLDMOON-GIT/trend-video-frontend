@@ -5,7 +5,7 @@ import { createSession, setSessionCookie } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name, phone, address, kakaoId, rememberMe } = await request.json();
+    const { email, password, name, nickname, phone, address, kakaoId, rememberMe } = await request.json();
 
     // 기본 필수값 검증
     if (!email || !password || !name || !phone || !address) {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 사용자 생성
-    const user = await createUser(email, password, name, phone, address, kakaoId);
+    const user = await createUser(email, password, name, nickname, phone, address, kakaoId);
 
     // 일반 사용자: 이메일 인증 메일 발송 후 로그인 보류
     if (!user.emailVerified && user.emailVerificationToken) {

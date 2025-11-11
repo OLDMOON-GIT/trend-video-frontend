@@ -12,7 +12,7 @@ interface User {
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
   const getAuthHeaders = (): HeadersInit => {
@@ -20,29 +20,39 @@ export default function Navbar() {
   };
 
   useEffect(() => {
-    setIsMounted(true);
-    checkAuth();
+    // 중복 호출 방지
+    let mounted = true;
+
+    const initAuth = async () => {
+      if (!mounted) return;
+      await checkAuth();
+      if (mounted) setIsLoading(false);
+    };
+
+    initAuth();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const checkAuth = async () => {
     try {
-      // 세션 확인
-      const response = await fetch('/api/auth/session', {
-        headers: getAuthHeaders()
-      });
-      const data = await response.json();
+      // 세션 + 크레딧 동시 조회 (병렬 처리)
+      const [sessionRes, creditsRes] = await Promise.all([
+        fetch('/api/auth/session', { headers: getAuthHeaders() }),
+        fetch('/api/credits', { headers: getAuthHeaders() })
+      ]);
 
-      if (data.user) {
-        setUser(data.user);
-        console.log('✅ 사용자 인증됨:', data.user.email);
+      const sessionData = await sessionRes.json();
+      const creditsData = await creditsRes.json();
 
-        // 크레딧 조회
-        const creditsRes = await fetch('/api/credits', { headers: getAuthHeaders() });
-        const creditsData = await creditsRes.json();
-
-        if (creditsData.credits !== undefined) {
-          setUser(prev => prev ? {...prev, credits: creditsData.credits} : null);
-        }
+      if (sessionData.user) {
+        // 크레딧 정보를 포함한 사용자 정보 설정
+        setUser({
+          ...sessionData.user,
+          credits: creditsData.credits || 0
+        });
       }
     } catch (error) {
       console.error('Auth check error:', error);
@@ -63,7 +73,25 @@ export default function Navbar() {
     }
   };
 
-  if (!isMounted) return null;
+  // 로딩 중에는 skeleton 표시
+  if (isLoading) {
+    return (
+      <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-white/10">
+        <div className="mx-auto max-w-6xl px-3 sm:px-6">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-10 rounded-lg bg-slate-700 animate-pulse"></div>
+              <div className="h-6 w-32 rounded bg-slate-700 animate-pulse"></div>
+            </div>
+            <div className="hidden md:flex items-center gap-2">
+              <div className="h-10 w-24 rounded-lg bg-slate-700 animate-pulse"></div>
+              <div className="h-10 w-24 rounded-lg bg-slate-700 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-white/10">
@@ -94,15 +122,6 @@ export default function Navbar() {
                   <span className="text-sm font-semibold text-yellow-300">💰 {user.credits?.toLocaleString() || 0}</span>
                 </a>
 
-                {user.isAdmin && (
-                  <a
-                    href="/admin"
-                    className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                  >
-                    ⚙️ 관리자
-                  </a>
-                )}
-
                 <a
                   href="/my-content"
                   className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
@@ -111,18 +130,27 @@ export default function Navbar() {
                 </a>
 
                 <a
-                  href="/coupang"
-                  className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500"
+                  href="/admin/coupang-products"
+                  className="rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-orange-500 hover:to-red-500"
                 >
-                  🛒 쿠팡 파트너스
+                  ⚙️ 상품 관리
                 </a>
 
                 <a
-                  href="/my-content?tab=settings"
+                  href="/settings"
                   className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
                 >
                   ⚙️ 설정
                 </a>
+
+                {user.isAdmin && (
+                  <a
+                    href="/admin"
+                    className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+                  >
+                    ⚙️ 관리자
+                  </a>
+                )}
 
                 <button
                   onClick={handleLogout}
@@ -176,16 +204,6 @@ export default function Navbar() {
                   <span className="text-sm font-semibold text-yellow-300">💰 {user.credits?.toLocaleString() || 0}</span>
                 </a>
 
-                {user.isAdmin && (
-                  <a
-                    href="/admin"
-                    className="rounded-lg bg-red-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    ⚙️ 관리자
-                  </a>
-                )}
-
                 <a
                   href="/my-content"
                   className="rounded-lg bg-purple-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-purple-500"
@@ -195,20 +213,30 @@ export default function Navbar() {
                 </a>
 
                 <a
-                  href="/coupang"
-                  className="rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500"
+                  href="/admin/coupang-products"
+                  className="rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:from-orange-500 hover:to-red-500"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  🛒 쿠팡 파트너스
+                  ⚙️ 상품 관리
                 </a>
 
                 <a
-                  href="/my-content?tab=settings"
+                  href="/settings"
                   className="rounded-lg bg-slate-700 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-slate-600"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   ⚙️ 설정
                 </a>
+
+                {user.isAdmin && (
+                  <a
+                    href="/admin"
+                    className="rounded-lg bg-red-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:bg-red-500"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    ⚙️ 관리자
+                  </a>
+                )}
 
                 <button
                   onClick={() => {

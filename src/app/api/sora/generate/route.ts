@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { parseJsonSafely } from '@/lib/json-utils';
 
 /**
  * trend-video-backend Python 스크립트를 직접 호출하여 Sora2 비디오 생성
@@ -24,15 +25,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Script JSON 파싱
+    // Script JSON 파싱 (유도리있는 파서 사용)
     let scriptJson;
-    try {
-      scriptJson = typeof script === 'string' ? JSON.parse(script) : script;
-    } catch (e) {
-      return NextResponse.json(
-        { error: 'Invalid script JSON format' },
-        { status: 400 }
-      );
+    if (typeof script === 'string') {
+      const parseResult = parseJsonSafely(script, { logErrors: true });
+      if (!parseResult.success) {
+        console.error('❌ Script JSON 파싱 실패:', parseResult.error);
+        return NextResponse.json(
+          { error: 'Invalid script JSON format: ' + parseResult.error },
+          { status: 400 }
+        );
+      }
+      scriptJson = parseResult.data;
+      if (parseResult.fixed) {
+        console.log('🔧 Script JSON 자동 수정 적용됨');
+      }
+    } else {
+      scriptJson = script;
     }
 
     // scenes 배열 추출

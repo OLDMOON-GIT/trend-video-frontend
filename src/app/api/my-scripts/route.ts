@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
-import { getScriptsByUserId, findScriptById, deleteScript } from '@/lib/db';
 import Database from 'better-sqlite3';
 import path from 'path';
 
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
-// GET - 사용자의 대본 목록 조회 (scripts + scripts_temp 통합)
+// GET - 사용자의 대본 목록 조회 (contents 테이블 사용)
 export async function GET(request: NextRequest) {
   try {
     console.log('=== 대본 목록 조회 요청 시작 ===');
@@ -24,75 +23,156 @@ export async function GET(request: NextRequest) {
 
     console.log('사용자 ID로 대본 조회 중:', user.userId);
 
-    // 1. scripts 테이블에서 API 생성 대본 가져오기
-    const apiScripts = await getScriptsByUserId(user.userId);
-    console.log('API 대본 개수:', apiScripts.length);
+    // URL 파라미터 파싱
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const offset = parseInt(searchParams.get('offset') || '0');
+    const search = searchParams.get('search') || '';
 
-    // 2. scripts_temp 테이블에서 로컬 Claude 생성 대본 가져오기
-    let localScripts: any[] = [];
+    console.log('필터 - 제한:', limit, '| 오프셋:', offset, '| 검색:', search);
+
+    let db: Database.Database | null = null;
+
     try {
-      const db = new Database(dbPath);
-      localScripts = db.prepare(`
+      db = new Database(dbPath);
+
+      console.log('🔍 쿼리:', 'SELECT * FROM contents WHERE user_id = ? AND type = "script" ORDER BY created_at DESC');
+      console.log('🔍 파라미터:', user.userId);
+
+      // 1. contents 테이블에서 완료된 대본 가져오기
+      let allScripts = db.prepare(`
+        SELECT * FROM contents
+        WHERE user_id = ? AND type = 'script'
+        ORDER BY created_at DESC
+      `).all(user.userId) as any[];
+
+      console.log('📊 조회된 완료 대본 개수:', allScripts.length);
+
+      // 2. scripts_temp 테이블에서 모든 대본 가져오기 (에러, 펜딩, 진행중 등 모두 포함)
+      // DONE이면서 scriptId가 있는 것만 제외 (이미 contents에 저장됨)
+      // scripts_temp는 userId를 저장하지 않으므로 모든 작업을 가져옴
+      const tempScripts = db.prepare(`
         SELECT * FROM scripts_temp
+        WHERE NOT (status = 'DONE' AND scriptId IS NOT NULL)
         ORDER BY createdAt DESC
-      `).all();
+      `).all() as any[];
 
-      console.log('로컬 대본 개수:', localScripts.length);
+      console.log('📊 조회된 진행 상태 대본 개수 (전체):', tempScripts.length);
 
-      // scripts_temp의 데이터를 scripts 형식으로 변환
-      localScripts = localScripts.map((script: any) => {
-        let content = '';
+      // tempScripts를 Script 형식으로 변환
+      const tempScriptsConverted = tempScripts.map((row: any) => {
+        const logs = row.logs ? JSON.parse(row.logs) : [];
 
-        // scriptId가 있으면 scripts 테이블에서 실제 내용 가져오기
-        if (script.scriptId) {
-          try {
-            const actualScript = db.prepare(`
-              SELECT content FROM scripts WHERE id = ?
-            `).get(script.scriptId) as any;
+        // status 매핑: PENDING/ING -> processing, ERROR -> failed, WAITING_LOGIN -> pending
+        let mappedStatus: 'pending' | 'processing' | 'completed' | 'failed' = 'processing';
+        if (row.status === 'PENDING' || row.status === 'WAITING_LOGIN') {
+          mappedStatus = 'pending';
+        } else if (row.status === 'ERROR') {
+          mappedStatus = 'failed';
+        } else if (row.status === 'ING') {
+          mappedStatus = 'processing';
+        }
 
-            if (actualScript && actualScript.content) {
-              content = actualScript.content;
-              console.log(`✓ scriptId ${script.scriptId}의 content 로드 완료 (${content.length}자)`);
-            }
-          } catch (err) {
-            console.error(`⚠️ scriptId ${script.scriptId} content 로드 실패:`, err);
-          }
+        // progress 계산 (로그 개수 기반)
+        let progress = 0;
+        if (mappedStatus === 'processing') {
+          progress = Math.min(Math.floor((logs.length / 10) * 90), 90);
+        } else if (mappedStatus === 'failed') {
+          progress = 0;
         }
 
         return {
-          id: script.id,
-          userId: '', // scripts_temp에는 userId가 없음 (전역 공유)
-          title: script.title,
-          originalTitle: script.title,
-          content: content, // scripts 테이블에서 가져온 실제 내용
-          status: script.status === 'DONE' ? 'completed' :
-                  script.status === 'ERROR' ? 'failed' :
-                  script.status === 'PENDING' ? 'pending' : 'processing',
-          progress: 0, // scripts_temp에는 progress가 없음
-          error: script.message?.includes('오류') ? script.message : undefined,
-          logs: script.logs ? JSON.parse(script.logs) : [],
-          type: script.type as 'longform' | 'shortform' | 'sora2' | undefined,
-          createdAt: script.createdAt,
-          updatedAt: script.createdAt
+          id: row.id,
+          userId: user.userId, // 현재 사용자로 설정 (scripts_temp에는 userId가 없음)
+          title: row.title || row.originalTitle || '제목 없음',
+          originalTitle: row.originalTitle,
+          content: '', // 진행 중이므로 내용 없음
+          status: mappedStatus,
+          progress: progress,
+          error: row.status === 'ERROR' ? row.message : undefined,
+          type: row.type as 'longform' | 'shortform' | 'sora2',
+          logs: logs.map((log: any) => typeof log === 'object' ? log.message : log),
+          useClaudeLocal: row.useClaudeLocal === 1,
+          model: row.model || 'claude',
+          createdAt: row.createdAt,
+          updatedAt: row.createdAt
         };
       });
 
-      db.close();
-    } catch (error) {
-      console.error('⚠️ scripts_temp 조회 실패:', error);
+      // contents → Script 형식으로 변환
+      const completedScripts = allScripts.map((row: any) => {
+        // 로그 가져오기
+        const logsStmt = db!.prepare('SELECT log_message FROM content_logs WHERE content_id = ? ORDER BY created_at');
+        const logRows = logsStmt.all(row.id) as any[];
+        const logs = logRows.map(l => l.log_message);
+
+        return {
+          id: row.id,
+          userId: row.user_id,
+          title: row.title,
+          originalTitle: row.original_title,
+          content: row.content || '',
+          status: row.status || 'completed',
+          progress: row.progress ?? 100,
+          error: row.error,
+          type: row.format, // format → type
+          logs: logs.length > 0 ? logs : undefined,
+          tokenUsage: row.input_tokens || row.output_tokens ? {
+            input_tokens: row.input_tokens || 0,
+            output_tokens: row.output_tokens || 0
+          } : undefined,
+          useClaudeLocal: row.use_claude_local === 1,
+          model: row.model || 'claude',  // AI 모델 정보
+          sourceContentId: row.source_content_id,  // 원본 컨텐츠 ID
+          conversionType: row.conversion_type,      // 변환 타입
+          isRegenerated: row.is_regenerated === 1,  // 재생성 여부
+          createdAt: row.created_at,
+          updatedAt: row.updated_at || row.created_at
+        };
+      });
+
+      // 진행 중인 대본과 완료된 대본 합치기 (최신순으로 정렬)
+      allScripts = [...tempScriptsConverted, ...completedScripts].sort((a, b) => {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      console.log('📊 전체 대본 개수 (진행중 + 완료):', allScripts.length);
+
+      // 검색 필터링
+      if (search) {
+        const searchLower = search.toLowerCase();
+        allScripts = allScripts.filter(script =>
+          script.title?.toLowerCase().includes(searchLower) ||
+          script.originalTitle?.toLowerCase().includes(searchLower) ||
+          script.id?.toLowerCase().includes(searchLower) ||
+          script.status?.toLowerCase().includes(searchLower)
+        );
+        console.log('검색 후 대본 개수:', allScripts.length);
+      }
+
+      // 전체 개수
+      const total = allScripts.length;
+
+      // 페이징
+      const scripts = allScripts.slice(offset, offset + limit);
+
+      console.log('대본 목록:', scripts.map(s => ({ id: s.id, title: s.title, status: s.status })));
+
+      return NextResponse.json({
+        scripts,
+        total,
+        hasMore: offset + limit < total
+      });
+
+    } finally {
+      if (db) {
+        try {
+          db.close();
+        } catch (closeError) {
+          console.error('⚠️ DB close 실패:', closeError);
+        }
+      }
     }
-
-    // 3. 두 목록을 합치고 최신순으로 정렬
-    const allScripts = [...apiScripts, ...localScripts]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    console.log('전체 대본 개수:', allScripts.length);
-    console.log('대본 목록:', allScripts.map(s => ({ id: s.id, title: s.title, status: s.status })));
-
-    return NextResponse.json({
-      scripts: allScripts,
-      total: allScripts.length
-    });
 
   } catch (error: any) {
     console.error('❌ Error fetching scripts:', error);
@@ -104,7 +184,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// DELETE - 대본 삭제
+// DELETE - 대본 삭제 (contents 테이블 사용)
 export async function DELETE(request: NextRequest) {
   try {
     console.log('=== 대본 삭제 요청 시작 ===');
@@ -122,7 +202,7 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const scriptId = searchParams.get('scriptId');
-    console.log('scriptId:', scriptId);
+    console.log('🗑️ 삭제 요청 scriptId:', scriptId);
 
     if (!scriptId) {
       console.log('❌ scriptId 없음');
@@ -132,105 +212,78 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const db = new Database(dbPath);
+    let db: Database.Database | null = null;
 
-    // 1. scripts 테이블에서 찾기
-    const script = await findScriptById(scriptId);
+    try {
+      db = new Database(dbPath);
 
-    if (script) {
-      // scripts 테이블에 있는 경우 - 소유자 확인 필요
-      console.log('찾은 대본 (scripts):', script);
-      console.log('대본 소유자:', script.userId, '현재 사용자:', user.userId);
+      // 1. contents 테이블에서 삭제 시도 (소유자 확인 포함)
+      const deleteQuery = 'DELETE FROM contents WHERE id = ? AND user_id = ?';
+      console.log('🔍 실행할 쿼리:', deleteQuery);
+      console.log('🔍 파라미터:', { id: scriptId, user_id: user.userId });
 
-      if (script.userId !== user.userId) {
-        console.log('❌ 권한 없음');
-        db.close();
-        return NextResponse.json(
-          { error: '권한이 없습니다.' },
-          { status: 403 }
-        );
-      }
+      const stmt = db.prepare(deleteQuery);
+      const result = stmt.run(scriptId, user.userId);
 
-      // 대본 삭제
-      console.log('scripts 테이블에서 대본 삭제 시도...');
-      const success = await deleteScript(scriptId);
-      console.log('삭제 결과:', success);
+      console.log('📊 contents 삭제 결과:', { changes: result.changes });
 
-      db.close();
-
-      if (success) {
-        console.log('✅ 대본 삭제 성공');
+      if (result.changes > 0) {
+        console.log('✅ contents 테이블에서 삭제 성공');
         return NextResponse.json({
           success: true,
           message: '대본이 삭제되었습니다.'
         });
-      } else {
-        console.log('❌ 대본 삭제 실패');
-        return NextResponse.json(
-          { error: '대본 삭제에 실패했습니다.' },
-          { status: 500 }
-        );
+      }
+
+      // 2. contents에 없으면 scripts_temp에서 삭제 시도
+      console.log('⏭️ contents에 없음. scripts_temp에서 시도...');
+      const deleteTempQuery = 'DELETE FROM scripts_temp WHERE id = ?';
+      const tempStmt = db.prepare(deleteTempQuery);
+      const tempResult = tempStmt.run(scriptId);
+
+      console.log('📊 scripts_temp 삭제 결과:', { changes: tempResult.changes });
+
+      if (tempResult.changes > 0) {
+        console.log('✅ scripts_temp 테이블에서 삭제 성공');
+        return NextResponse.json({
+          success: true,
+          message: '대본이 삭제되었습니다.'
+        });
+      }
+
+      // 3. 둘 다 없으면 404
+      console.log('❌ 삭제 실패: 어느 테이블에도 없음');
+
+      // 디버깅: 해당 ID가 존재하는지 확인
+      const checkQuery = 'SELECT id, user_id, type, title FROM contents WHERE id = ?';
+      console.log('🔍 존재 확인 쿼리:', checkQuery);
+      const checkStmt = db.prepare(checkQuery);
+      const existing = checkStmt.get(scriptId);
+      console.log('📊 contents 존재 확인:', existing);
+
+      const checkTempQuery = 'SELECT id, title, status FROM scripts_temp WHERE id = ?';
+      const checkTempStmt = db.prepare(checkTempQuery);
+      const existingTemp = checkTempStmt.get(scriptId);
+      console.log('📊 scripts_temp 존재 확인:', existingTemp);
+
+      return NextResponse.json(
+        { error: '컨텐츠를 찾을 수 없거나 권한이 없습니다.' },
+        { status: 404 }
+      );
+
+    } finally {
+      if (db) {
+        try {
+          db.close();
+          console.log('✅ DB 연결 닫힘');
+        } catch (closeError) {
+          console.error('⚠️ DB close 실패:', closeError);
+        }
       }
     }
-
-    // 2. scripts_temp 테이블에서 찾기 (로컬 Claude 생성 대본)
-    console.log('scripts 테이블에 없음, scripts_temp 확인 중...');
-    const tempScript = db.prepare('SELECT * FROM scripts_temp WHERE id = ?').get(scriptId) as any;
-
-    if (tempScript) {
-      console.log('찾은 대본 (scripts_temp):', tempScript);
-
-      // scripts_temp는 전역 공유이므로 소유자 확인 없이 삭제 가능
-      // 하지만 보안을 위해 관리자만 삭제하도록 제한할 수도 있습니다
-      // 여기서는 로그인한 사용자라면 누구나 삭제 가능하도록 설정
-
-      try {
-        // scripts_temp에서 삭제
-        const deleteTemp = db.prepare('DELETE FROM scripts_temp WHERE id = ?');
-        const result = deleteTemp.run(scriptId);
-
-        // 연관된 scripts 항목도 삭제 (scriptId가 있는 경우)
-        if (tempScript.scriptId) {
-          console.log('연관된 scripts 항목도 삭제:', tempScript.scriptId);
-          const deleteScripts = db.prepare('DELETE FROM scripts WHERE id = ?');
-          deleteScripts.run(tempScript.scriptId);
-        }
-
-        db.close();
-
-        if (result.changes > 0) {
-          console.log('✅ scripts_temp에서 대본 삭제 성공');
-          return NextResponse.json({
-            success: true,
-            message: '대본이 삭제되었습니다.'
-          });
-        } else {
-          console.log('❌ scripts_temp에서 대본 삭제 실패');
-          return NextResponse.json(
-            { error: '대본 삭제에 실패했습니다.' },
-            { status: 500 }
-          );
-        }
-      } catch (dbError) {
-        console.error('DB 삭제 오류:', dbError);
-        db.close();
-        return NextResponse.json(
-          { error: '대본 삭제 중 데이터베이스 오류가 발생했습니다.' },
-          { status: 500 }
-        );
-      }
-    }
-
-    // 3. 둘 다 없는 경우
-    console.log('❌ 대본을 찾을 수 없음 (scripts, scripts_temp 모두)');
-    db.close();
-    return NextResponse.json(
-      { error: '대본을 찾을 수 없습니다.' },
-      { status: 404 }
-    );
 
   } catch (error: any) {
-    console.error('Error deleting script:', error);
+    console.error('❌ 삭제 에러:', error);
     return NextResponse.json(
       { error: error?.message || '대본 삭제 중 오류가 발생했습니다.' },
       { status: 500 }

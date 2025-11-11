@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import type { DateFilter, SortOption, VideoItem, VideoType } from "@/types/video";
+import { parseJsonSafely, extractPureJson, parseJsonFile } from "@/lib/json-utils";
 
 const fallbackVideos: VideoItem[] = [];
 
@@ -79,14 +81,10 @@ type RunPipelinePayload = {
 
 const FILTER_STORAGE_KEY = 'trend-video-filters';
 
-// 마크다운 코드 블록 제거 헬퍼 함수
+// 마크다운 코드 블록 제거 헬퍼 함수 (하위 호환성 유지, 실제로는 parseJsonSafely 사용 권장)
 function stripMarkdownCodeBlock(text: string): string {
-  // ```json, ```JSON, ``` 로 시작하고 ``` 로 끝나는 패턴 제거
-  return text
-    .trim()
-    .replace(/^```(?:json|JSON)?\s*\n?/g, '')  // 시작 부분의 ```json 또는 ``` 제거
-    .replace(/\n?```\s*$/g, '')                 // 끝 부분의 ``` 제거
-    .trim();
+  // extractPureJson 사용하여 더 강력한 정리 수행
+  return extractPureJson(text);
 }
 
 let cachedFilters: StoredFilters | null | undefined = undefined;
@@ -111,7 +109,7 @@ const defaultSubRange = { min: 1, max: 10_000_000 };
 const defaultDurationRange = { min: 0, max: 120 };
 
 const modelOptions = [
-  { label: 'GPT', value: 'gpt' },
+  { label: 'ChatGPT', value: 'chatgpt' },
   { label: 'Gemini', value: 'gemini' },
   { label: 'Claude', value: 'claude' },
   { label: 'Groq', value: 'groq' },
@@ -125,6 +123,8 @@ const MAX_LOG_LINES = 50;
 const renderCount = (value: number) => numberFormatter.format(value);
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isMounted, setIsMounted] = useState(false);
   const [viewRange, setViewRange] = useState(defaultViewRange);
   const [subRange, setSubRange] = useState(defaultSubRange);
@@ -135,7 +135,33 @@ export default function Home() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [titleQuery, setTitleQuery] = useState("");
   const [durationRange, setDurationRange] = useState(defaultDurationRange);
-  const [selectedModel, setSelectedModel] = useState<ModelOption>('gpt');
+  const [selectedModel, setSelectedModel] = useState<ModelOption>(() => {
+    // localStorage에서 저장된 소재찾기 LLM 모델 불러오기 (기본값: chatgpt)
+    if (typeof window !== 'undefined') {
+      try {
+        const filters = localStorage.getItem('trend-video-filters');
+        if (filters) {
+          const parsed = JSON.parse(filters);
+          if (parsed.selectedModel && ['chatgpt', 'gemini', 'claude', 'groq'].includes(parsed.selectedModel)) {
+            return parsed.selectedModel as ModelOption;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load selectedModel from localStorage:', e);
+      }
+    }
+    return 'chatgpt'; // 기본값: ChatGPT
+  });
+  const [scriptModel, setScriptModel] = useState<ModelOption>(() => {
+    // localStorage에서 저장된 AI 모델 불러오기 (기본값: claude)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('scriptModel');
+      if (saved === 'chatgpt' || saved === 'gemini' || saved === 'claude') {
+        return saved as ModelOption;
+      }
+    }
+    return 'claude'; // 기본값: Claude
+  });
   const [videos, setVideos] = useState<VideoItem[]>(fallbackVideos);
   const [isFetching, setIsFetching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -157,6 +183,23 @@ export default function Home() {
   const [uploadedJson, setUploadedJson] = useState<File | null>(null);
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
+  const [selectedTtsVoice, setSelectedTtsVoice] = useState<string>(() => {
+    // localStorage에서 이전 선택 불러오기
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('selected_tts_voice');
+      return saved || 'ko-KR-SoonBokNeural';
+    }
+    return 'ko-KR-SoonBokNeural';
+  });
+  const [ttsSpeed, setTtsSpeed] = useState<number>(() => {
+    // localStorage에서 이전 속도 불러오기
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('tts_speed');
+      return saved ? parseFloat(saved) : 1.0;
+    }
+    return 1.0;
+  });
+  const [preloadedAudio, setPreloadedAudio] = useState<Map<string, string>>(new Map());
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [showJsonTextarea, setShowJsonTextarea] = useState(false);
   const [jsonTextareaValue, setJsonTextareaValue] = useState('');
@@ -176,7 +219,49 @@ export default function Home() {
     return false; // 기본값 false (접힌 상태)
   });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const [videoFormat, setVideoFormat] = useState<'longform' | 'shortform' | 'sora2'>('longform'); // 항상 기본값으로 시작
+
+  // 초기 promptFormat을 기억 (URL 파라미터로 설정된 경우 localStorage 복원 방지용)
+  const initialVideoFormatRef = useRef<string | null>(null);
+
+  const [promptFormat, setPromptFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product' | 'product-info'>(() => {
+    // 상품 프롬프트 타입인 경우 초기값을 product로 설정
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+
+      // generateProductInfo 파라미터가 있으면 무조건 product-info 모드
+      const generateProductInfo = params.get('generateProductInfo');
+      if (generateProductInfo) {
+        console.log('🛍️ 초기 로드: generateProductInfo 감지 → product-info 모드');
+        initialVideoFormatRef.current = 'product-info-from-url';
+        return 'product-info';
+      }
+
+      const promptType = params.get('promptType');
+      if (promptType === 'product') {
+        initialVideoFormatRef.current = 'product-from-url';
+        return 'product';
+      }
+      if (promptType === 'product-info') {
+        initialVideoFormatRef.current = 'product-info-from-url';
+        return 'product-info';
+      }
+
+      // localStorage 마이그레이션: videoFormat -> promptFormat
+      const oldFormat = localStorage.getItem('videoFormat');
+      if (oldFormat) {
+        console.log('🔄 localStorage 마이그레이션: videoFormat -> promptFormat');
+        localStorage.setItem('promptFormat', oldFormat);
+        localStorage.removeItem('videoFormat');
+      }
+
+      // localStorage에서 저장된 포맷 불러오기
+      const savedFormat = localStorage.getItem('promptFormat');
+      if (savedFormat === 'longform' || savedFormat === 'shortform' || savedFormat === 'sora2' || savedFormat === 'product' || savedFormat === 'product-info') {
+        return savedFormat as 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info';
+      }
+    }
+    return 'longform';
+  });
   const [productionMode, setProductionMode] = useState<'create' | 'merge'>('create'); // 영상제작 vs 영상병합
   const [sora2Script, setSora2Script] = useState<string>(''); // SORA2 대본
   const [showSora2Review, setShowSora2Review] = useState(false); // SORA2 대본 확인 모달
@@ -184,17 +269,18 @@ export default function Home() {
   const [scriptProgress, setScriptProgress] = useState<{current: number; total: number; content?: string} | null>(null);
   const [showScriptConfirmModal, setShowScriptConfirmModal] = useState(false);
   const [scriptConfirmCallback, setScriptConfirmCallback] = useState<(() => void) | null>(null);
+  const [productInfo, setProductInfo] = useState<{title: string; thumbnail: string; product_link: string; description: string} | null>(null);
   const [scriptConfirmData, setScriptConfirmData] = useState<{cost: number; currentCredits: number; title: string; mode: 'generate' | 'generate-api'} | null>(null);
   const [completedScript, setCompletedScript] = useState<{title: string; content: string; scriptId: string} | null>(null);
   const [user, setUser] = useState<{id: string; email: string; credits: number; isAdmin: boolean} | null>(null);
   const [settings, setSettings] = useState<{aiScriptCost: number; videoGenerationCost: number} | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [confirmModalData, setConfirmModalData] = useState<{cost: number; currentCredits: number; jsonName: string; imageCount: number} | null>(null);
+  const [confirmModalData, setConfirmModalData] = useState<{cost: number; currentCredits: number; jsonName: string; imageCount: number; videoCount?: number} | null>(null);
   const [suggestedTitles, setSuggestedTitles] = useState<string[]>([]);
   const [isSuggestingTitles, setIsSuggestingTitles] = useState(false);
   const [selectedSuggestedTitle, setSelectedSuggestedTitle] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<'none' | 'dalle' | 'google'>('none');
-  const [originalFormat, setOriginalFormat] = useState<'longform' | 'shortform' | 'sora2' | null>(null); // 불러온 대본의 원본 포맷
+  const [originalFormat, setOriginalFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product' | null>(null); // 불러온 대본의 원본 포맷
   const [titleHistory, setTitleHistory] = useState<string[]>([]); // 제목 히스토리
   const [isInitialLoading, setIsInitialLoading] = useState(true); // 초기 로딩 상태
 
@@ -204,6 +290,17 @@ export default function Home() {
   const [scriptPollingInterval, setScriptPollingInterval] = useState<NodeJS.Timeout | null>(null); // 폴링 인터벌
   const [scriptGenerationLogs, setScriptGenerationLogs] = useState<Array<{timestamp: string; message: string}>>([]); // 로그 배열
   const [showScriptLogs, setShowScriptLogs] = useState(false); // 로그 표시 여부
+  // 중국영상변환 관련 state
+  const [showChineseConverter, setShowChineseConverter] = useState(false);
+  const [chineseVideoFile, setChineseVideoFile] = useState<File | null>(null);
+  const [chineseVideoTitle, setChineseVideoTitle] = useState<string>(''); // 상품 제목
+  const [isConvertingChinese, setIsConvertingChinese] = useState(false);
+  const [chineseConvertLogs, setChineseConvertLogs] = useState<Array<{timestamp: string; message: string}>>([]);
+  const [chineseJobId, setChineseJobId] = useState<string | null>(null);
+  const [chineseProgress, setChineseProgress] = useState<{step: string; progress: number} | null>(null);
+  const chineseLogRef = useRef<HTMLDivElement>(null);
+  const chineseConverterSectionRef = useRef<HTMLDivElement>(null);
+
   const [removeWatermark, setRemoveWatermark] = useState(() => {
     // localStorage에서 저장된 값 불러오기 (기본값: OFF)
     if (typeof window !== 'undefined') {
@@ -220,7 +317,16 @@ export default function Home() {
 
   // 프롬프트 API URL 헬퍼 함수
   const getPromptApiUrl = () => {
-    return videoFormat === 'shortform' ? '/api/shortform-prompt' : '/api/prompt';
+    if (promptFormat === 'shortform') {
+      return '/api/shortform-prompt';
+    }
+    if (promptFormat === 'product') {
+      return '/api/product-prompt';
+    }
+    if (promptFormat === 'product-info') {
+      return '/api/product-info-prompt';
+    }
+    return '/api/prompt';
   };
 
   // 제목 히스토리에 추가 (DB에서 자동으로 로드되므로 별도 저장 불필요)
@@ -230,26 +336,109 @@ export default function Home() {
   };
 
   // 포맷 변경 핸들러 (대본이 로드된 경우 경고)
-  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2') => {
+  const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info') => {
     // 대본이 로드되어 있고, 원본 포맷과 다른 경우 경고
     if (originalFormat && originalFormat !== newFormat && uploadedJson) {
       const formatNames = {
         longform: '롱폼 (16:9 가로)',
         shortform: '숏폼 (9:16 세로)',
-        sora2: 'Sora2 (AI 시네마틱)'
+        sora2: 'Sora2 (AI 시네마틱)',
+        product: '상품 (AI 마케팅)',
+        'product-info': '상품정보 (상세 설명)'
       };
 
       if (confirm(`⚠️ 포맷 변경 경고\n\n현재 불러온 대본은 ${formatNames[originalFormat]} 형식입니다.\n${formatNames[newFormat]}(으)로 변경하시겠습니까?\n\n대본 내용이 형식에 맞지 않을 수 있습니다.`)) {
-        setVideoFormat(newFormat);
+        setPromptFormat(newFormat);
         console.log(`📝 포맷 변경: ${originalFormat} → ${newFormat}`);
       } else {
         console.log('📝 포맷 변경 취소됨');
       }
     } else {
       // 대본이 없거나 같은 포맷이면 바로 변경
-      setVideoFormat(newFormat);
+      setPromptFormat(newFormat);
+      console.log(`📝 포맷 변경: ${newFormat}`);
     }
   };
+
+  // URL 파라미터에서 promptType 감지 및 promptFormat 설정
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const promptType = params.get('promptType');
+      const retryTitle = params.get('retryTitle');
+      const retryType = params.get('retryType');
+
+      // 대본 재시도 파라미터 처리
+      if (retryTitle) {
+        console.log('🔄 대본 재시도 모드:', retryTitle, retryType);
+        setManualTitle(retryTitle);
+        setShowTitleInput(true);
+
+        // 타입이 있으면 포맷도 설정
+        if (retryType && ['longform', 'shortform', 'sora2', 'product', 'product-info'].includes(retryType)) {
+          setPromptFormat(retryType as any);
+        }
+
+        // URL 파라미터 제거 (히스토리에 남지 않도록)
+        window.history.replaceState({}, '', '/');
+      } else if (promptType === 'product' && promptFormat !== 'product') {
+        console.log('🛍️ URL에서 상품 모드 감지, 포맷 변경');
+        initialVideoFormatRef.current = 'product-from-url'; // URL 파라미터로 설정됨을 표시
+        setPromptFormat('product');
+      } else if (promptType === 'product-info' && promptFormat !== 'product-info') {
+        console.log('📝 URL에서 상품정보 모드 감지, 포맷 변경');
+        initialVideoFormatRef.current = 'product-info-from-url'; // URL 파라미터로 설정됨을 표시
+        setPromptFormat('product-info');
+      }
+    }
+  }, []); // 컴포넌트 마운트 시 한 번만 실행
+
+  // TTS 미리듣기 오디오 미리 로딩 (1.0x 속도만)
+  useEffect(() => {
+    const voices = [
+      'ko-KR-SunHiNeural', 'ko-KR-JiMinNeural', 'ko-KR-SeoHyeonNeural',
+      'ko-KR-SoonBokNeural', 'ko-KR-YuJinNeural', 'ko-KR-InJoonNeural',
+      'ko-KR-HyunsuMultilingualNeural', 'ko-KR-BongJinNeural',
+      'ko-KR-GookMinNeural', 'ko-KR-HyunsuNeural'
+    ];
+
+    const preloadAudioSamples = async () => {
+      const newMap = new Map<string, string>();
+
+      console.log('🎤 TTS 미리듣기 샘플 로딩 시작...');
+
+      for (const voice of voices) {
+        try {
+          // 1.0x 속도 샘플만 로딩 (재생 시 playbackRate로 속도 조절)
+          const response = await fetch(`/api/tts-preview?voice=${voice}&speed=1.0`);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            newMap.set(voice, url);
+            console.log(`  ✓ ${voice} 로딩 완료`);
+          } else {
+            console.error(`  ✗ ${voice} 로딩 실패: ${response.status}`);
+          }
+        } catch (error) {
+          console.error(`  ✗ ${voice} 로딩 에러:`, error);
+        }
+      }
+
+      console.log(`🎤 TTS 미리듣기 샘플 로딩 완료: ${newMap.size}/${voices.length}개`);
+      setPreloadedAudio(newMap);
+    };
+
+    // 이전 URL 정리
+    preloadedAudio.forEach(url => URL.revokeObjectURL(url));
+
+    // 1.0x 속도로 미리 로딩
+    preloadAudioSamples();
+
+    // 클린업: 컴포넌트 언마운트 시 URL 정리
+    return () => {
+      preloadedAudio.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []); // 컴포넌트 마운트 시 한 번만 실행
 
   // localStorage에서 필터 로드 (클라이언트에서만)
   useEffect(() => {
@@ -268,6 +457,193 @@ export default function Home() {
 
     // 제목 히스토리는 checkAuth()에서 로드됨
     setIsMounted(true);
+  }, []);
+
+  // 상품 프롬프트 타입 감지 및 상품 정보 로드
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const promptType = urlParams.get('promptType');
+
+      if (promptType === 'product') {
+        // 확실하게 상품 포맷으로 설정
+        console.log('🛍️ 상품 모드 강제 설정');
+        initialVideoFormatRef.current = 'product-from-url'; // URL 파라미터로 설정됨을 표시
+        setPromptFormat('product');
+
+        // localStorage에서 상품 정보 로드
+        const productInfoStr = localStorage.getItem('product_video_info');
+        if (productInfoStr) {
+          try {
+            const loadedProductInfo = JSON.parse(productInfoStr);
+
+            // 제목 자동 입력
+            if (loadedProductInfo.title) {
+              setManualTitle(loadedProductInfo.title);
+              console.log('🛍️ 상품 제목 로드:', loadedProductInfo.title);
+            }
+
+            // 상품 정보를 state에 저장 (UI 표시 및 프롬프트 생성 시 사용)
+            setProductInfo(loadedProductInfo);
+            localStorage.setItem('current_product_info', productInfoStr);
+
+            console.log('🛍️ 상품 정보 로드 완료:', loadedProductInfo);
+
+            // AI 대본 생성 섹션 열기 및 스크롤
+            setShowTitleInput(true);
+
+            // 약간의 딜레이 후 스크롤 (DOM 렌더링 대기)
+            setTimeout(() => {
+              // 상품 정보 섹션으로 스크롤 (없으면 AI 섹션으로)
+              const productInfoSection = document.querySelector('[data-product-info-section]');
+              const aiSection = document.querySelector('[data-ai-script-section]');
+
+              if (productInfoSection) {
+                productInfoSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                console.log('📜 상품 정보 섹션으로 이동');
+              } else if (aiSection) {
+                aiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                console.log('📜 AI 대본 생성 섹션으로 이동');
+              }
+            }, 300);
+
+            // localStorage 클리어 (일회용)
+            localStorage.removeItem('product_video_info');
+          } catch (e) {
+            console.error('❌ 상품 정보 로드 실패:', e);
+          }
+        }
+      }
+    }
+  }, []);
+
+  // 상품정보 대본 생성 파라미터 감지
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const scriptId = urlParams.get('generateProductInfo');
+
+      if (scriptId) {
+        console.log('🛍️ 상품정보 생성 요청 감지:', scriptId);
+
+        // 상품정보 포맷으로 강제 설정
+        initialVideoFormatRef.current = 'product-info-from-url'; // URL 파라미터로 설정됨을 표시
+        setPromptFormat('product-info');
+        setProductionMode('create'); // 영상 생성 모드로 설정 (병합 아님)
+        console.log('📝 상품정보 모드 강제 설정 (영상 생성)');
+
+        // 대본 내용 로드
+        fetch(`/api/scripts/${scriptId}`)
+          .then(res => {
+            if (!res.ok) {
+              throw new Error('대본을 찾을 수 없습니다.');
+            }
+            return res.json();
+          })
+          .then(async data => {
+            if (data.script) {
+              const script = data.script;
+              console.log('✅ 상품 대본 로드 완료:', script.title);
+
+              // 상품정보 제목 설정
+              const productInfoTitle = `${script.title} - 상품 기입 정보`;
+              setManualTitle(productInfoTitle);
+
+              // API에서 상품정보 프롬프트 템플릿 가져오기
+              try {
+                const promptRes = await fetch('/api/product-info-prompt');
+                if (!promptRes.ok) {
+                  throw new Error('프롬프트 템플릿을 불러올 수 없습니다.');
+                }
+                const promptData = await promptRes.json();
+                let promptTemplate = promptData.content;
+
+                // 상품 대본 내용에서 product_info 추출 (JSON 형식으로 저장되어 있을 수 있음)
+                let extractedProductInfo = null;
+                try {
+                  // 대본이 JSON인지 확인
+                  const scriptData = JSON.parse(script.content);
+                  if (scriptData.product_info) {
+                    extractedProductInfo = scriptData.product_info;
+                  }
+                } catch (e) {
+                  // JSON이 아니면 그냥 텍스트로 처리
+                  console.log('대본이 JSON 형식이 아님, 텍스트로 처리');
+                }
+
+                // product_info가 있으면 state에 저장 (backend에서 플레이스홀더 치환)
+                if (extractedProductInfo) {
+                  console.log('✅ product_info 추출 완료:');
+                  console.log('  📌 제목:', script.title);
+                  console.log('  📌 상품 링크:', extractedProductInfo.product_link?.trim() || '없음');
+                  console.log('  📌 썸네일:', extractedProductInfo.thumbnail?.trim() || '없음');
+                  console.log('  📌 설명:', extractedProductInfo.description?.trim() || '없음');
+
+                  // ⭐ STATE + localStorage에 저장 - API 호출 시 backend에서 치환하도록
+                  const productInfoData = {
+                    title: script.title,
+                    thumbnail: extractedProductInfo.thumbnail || '',
+                    product_link: extractedProductInfo.product_link || '',
+                    description: extractedProductInfo.description || ''
+                  };
+                  setProductInfo(productInfoData);
+                  localStorage.setItem('pendingProductInfoData', JSON.stringify(productInfoData));
+                  localStorage.setItem('current_product_info', JSON.stringify(productInfoData));
+                  console.log('✅ productInfo state + localStorage 저장 완료! (backend에서 치환 예정)');
+                } else {
+                  // product_info가 없으면 경고
+                  console.log('⚠️ product_info 없음');
+                }
+
+                // 프롬프트 템플릿은 치환하지 않고 그대로 사용 (backend에서 치환)
+                const finalPrompt = promptTemplate;
+                console.log('✅ 상품정보 프롬프트 템플릿 로드 완료');
+
+                // AI 대본 생성 섹션 표시
+                setShowTitleInput(true);
+                setTitleInputMode('generate');
+
+                // localStorage에 프롬프트 저장 및 UI 업데이트
+                localStorage.setItem('pendingProductInfoPrompt', finalPrompt);
+
+                setTimeout(() => {
+                  // 상품 정보 섹션으로 스크롤 (없으면 AI 섹션으로)
+                  const productInfoSection = document.querySelector('[data-product-info-section]');
+                  const aiSection = document.querySelector('[data-ai-script-section]');
+
+                  if (productInfoSection) {
+                    productInfoSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    console.log('📜 상품 정보 섹션으로 이동');
+                  } else if (aiSection) {
+                    aiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    console.log('📜 AI 대본 생성 섹션으로 이동');
+                  }
+
+                  console.log('✅ 상품정보 프롬프트 준비 완료');
+                  console.log('📝 제목:', productInfoTitle);
+                  console.log('📝 프롬프트 길이:', finalPrompt.length);
+
+                  // 토스트 메시지
+                  showToast(`🛍️ "${productInfoTitle}" - 상품 기입 정보 생성 준비 완료! 아래 "🤖 AI 대본 생성" 버튼을 클릭하세요.`, 'success');
+                }, 500);
+              } catch (promptError) {
+                console.error('❌ 프롬프트 로드 실패:', promptError);
+                showToast('상품정보 프롬프트를 불러오지 못했습니다.', 'error');
+              }
+            } else {
+              console.error('❌ 대본 로드 실패:', data.error);
+              showToast('상품 대본을 찾을 수 없습니다.', 'error');
+            }
+          })
+          .catch(error => {
+            console.error('❌ 대본 로드 에러:', error);
+            showToast('상품 대본 로드에 실패했습니다.', 'error');
+          });
+
+        // URL 파라미터 제거 (히스토리 오염 방지)
+        window.history.replaceState({}, '', '/');
+      }
+    }
   }, []);
 
   // 드롭다운 외부 클릭 시 닫기
@@ -311,13 +687,12 @@ export default function Home() {
     }
   }, [scriptGenerationLog, scriptGenerationLogs]);
 
-  // videoFormat이 변경될 때마다 localStorage에 저장
+  // 중국영상변환 로그 자동 스크롤
   useEffect(() => {
-    if (typeof window !== 'undefined' && isMounted) {
-      console.log('💾 videoFormat 저장:', videoFormat);
-      localStorage.setItem('videoFormat', videoFormat);
+    if (chineseLogRef.current) {
+      chineseLogRef.current.scrollTop = chineseLogRef.current.scrollHeight;
     }
-  }, [videoFormat, isMounted]);
+  }, [chineseConvertLogs]);
 
   // 컴포넌트 언마운트 시 폴링 인터벌 정리
   useEffect(() => {
@@ -332,14 +707,20 @@ export default function Home() {
     setIsMounted(true);
     checkAuth();
 
-    // localStorage에서 videoFormat 복원 (클라이언트에서만)
-    const savedVideoFormat = localStorage.getItem('videoFormat');
-    console.log('📂 localStorage에서 videoFormat 불러오기:', savedVideoFormat);
-    if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2' || savedVideoFormat === 'video-merge') {
-      console.log('✅ videoFormat 복원:', savedVideoFormat);
-      setVideoFormat(savedVideoFormat as any);
+    // localStorage에서 promptFormat 복원 (클라이언트에서만)
+    // 단, URL 파라미터로 설정된 경우는 절대 복원하지 않음
+    console.log('🔍 초기 promptFormat 출처:', initialVideoFormatRef.current);
+    console.log('🔍 현재 promptFormat:', promptFormat);
+
+    if (!initialVideoFormatRef.current || !initialVideoFormatRef.current.includes('-from-url')) {
+      const savedVideoFormat = localStorage.getItem('promptFormat');
+      console.log('💾 localStorage에서 promptFormat 복원 시도:', savedVideoFormat);
+      if (savedVideoFormat === 'longform' || savedVideoFormat === 'shortform' || savedVideoFormat === 'sora2' || savedVideoFormat === 'product' || savedVideoFormat === 'product-info') {
+        console.log('✅ promptFormat 복원:', savedVideoFormat);
+        setPromptFormat(savedVideoFormat as any);
+      }
     } else {
-      console.log('⚠️ 저장된 videoFormat 없음, 기본값(longform) 사용');
+      console.log('🚫 URL 파라미터로 설정된 포맷 - localStorage 복원 완전 차단!');
     }
 
     // localStorage에서 selectedModel 복원 (isFilterExpanded는 useState lazy init에서 이미 처리됨)
@@ -397,7 +778,11 @@ export default function Home() {
     // }
 
     // 파이프라인 스크립트 로드 (내 콘텐츠에서 실행 버튼 눌렀을 때)
-    const pipelineScript = localStorage.getItem('pipelineScript');
+    // 단, URL 파라미터가 있으면 스킵 (상품정보 생성 등)
+    const urlParams2 = new URLSearchParams(window.location.search);
+    const hasFormatParam2 = urlParams2.get('promptType') || urlParams2.get('generateProductInfo');
+
+    const pipelineScript = !hasFormatParam2 ? localStorage.getItem('pipelineScript') : null;
     console.log('🔍 파이프라인 스크립트 체크:', pipelineScript ? '있음' : '없음');
 
     if (pipelineScript) {
@@ -435,9 +820,9 @@ export default function Home() {
 
         // 포맷 타입 설정 (기본값: longform)
         const formatType = type || 'longform';
-        setVideoFormat(formatType);
+        setPromptFormat(formatType);
         setOriginalFormat(formatType); // 원본 포맷 저장
-        console.log('  ✓ videoFormat 설정:', formatType);
+        console.log('  ✓ promptFormat 설정:', formatType);
         console.log('  ✓ originalFormat 저장:', formatType);
 
         setShowUploadSection(true);
@@ -445,6 +830,24 @@ export default function Home() {
 
         localStorage.removeItem('pipelineScript');
         console.log('  ✓ pipelineScript localStorage 제거');
+
+        // 업로드 섹션으로 스크롤 (섹션이 렌더링된 후)
+        // requestAnimationFrame 2번 사용하여 렌더링 완료 보장
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              if (uploadSectionRef.current) {
+                uploadSectionRef.current.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'start'
+                });
+                console.log('  ✓ 업로드 섹션으로 스크롤 완료');
+              } else {
+                console.warn('  ⚠️ uploadSectionRef.current가 null입니다');
+              }
+            }, 100);
+          });
+        });
 
         // Sora2 타입인 경우 자동으로 영상 생성 시작
         if (formatType === 'sora2') {
@@ -683,7 +1086,6 @@ export default function Home() {
 
       if (data.user) {
         setUser(data.user);
-        console.log('✅ 사용자 인증됨:', data.user.email);
 
         // 2. 크레딧, 설정, 최근 제목 동시에 가져오기
         const [creditsRes, settingsRes, titlesRes] = await Promise.all([
@@ -698,17 +1100,25 @@ export default function Home() {
           titlesRes.json()
         ]);
 
+        // 에러 응답 확인
+        if (!titlesRes.ok) {
+          console.error('최근 제목 API 호출 실패:', titlesRes.status);
+          setTitleHistory([]);
+        } else {
+          if (titlesData && titlesData.titles && Array.isArray(titlesData.titles)) {
+            setTitleHistory(titlesData.titles);
+          } else {
+            console.warn('제목 데이터가 올바르지 않습니다:', titlesData);
+            setTitleHistory([]); // 빈 배열로 초기화
+          }
+        }
+
         if (creditsData.credits !== undefined) {
           setUser(prev => prev ? {...prev, credits: creditsData.credits} : null);
         }
 
         if (settingsData) {
           setSettings(settingsData);
-        }
-
-        if (titlesData.titles && Array.isArray(titlesData.titles)) {
-          setTitleHistory(titlesData.titles);
-          console.log('✅ 최근 제목 로드됨:', titlesData.titles.length, '개', titlesData.titles);
         }
       }
     } catch (error) {
@@ -763,10 +1173,26 @@ export default function Home() {
       return;
     }
 
-    const confirmCancel = window.confirm('대본 생성을 취소하시겠습니까?');
+    const confirmCancel = window.confirm('대본 생성을 취소하시겠습니까? Chrome 창이 닫힙니다.');
     if (!confirmCancel) return;
 
     try {
+      // 1. Chrome 창 닫고 Python 프로세스 종료
+      try {
+        const cancelResponse = await fetch('/api/ai/auto-open/cancel', {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+
+        if (cancelResponse.ok) {
+          console.log('✅ Chrome 창과 Python 프로세스가 종료되었습니다.');
+        }
+      } catch (error) {
+        console.error('Chrome/Python 종료 중 오류:', error);
+        // 에러가 나도 계속 진행 (DB 삭제는 해야 함)
+      }
+
+      // 2. DB에서 작업 삭제
       const response = await fetch(`/api/scripts/${currentScriptId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
@@ -774,7 +1200,7 @@ export default function Home() {
       });
 
       if (response.ok) {
-        showToast('대본 생성이 취소되었습니다.', 'success');
+        showToast('대본 생성이 취소되었습니다. Chrome 창이 닫혔습니다.', 'success');
 
         // 폴링 중지
         if (scriptPollingInterval) {
@@ -815,7 +1241,7 @@ export default function Home() {
 
   // SORA2 대본 생성
   const generateSora2Script = async () => {
-    if (!topicOrTitle.trim()) {
+    if (!manualTitle.trim()) {
       showToast('주제를 먼저 입력해주세요', 'error');
       return;
     }
@@ -827,8 +1253,10 @@ export default function Home() {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          topic: topicOrTitle.trim(),
-          videoFormat: 'sora2' // SORA2 전용 프롬프트 사용
+          topic: manualTitle.trim(),
+          promptFormat: 'sora2', // SORA2 전용 프롬프트 사용
+          scriptModel: scriptModel, // AI 모델 선택
+          productInfo: productInfo // 상품 정보 추가
         })
       });
 
@@ -857,7 +1285,7 @@ export default function Home() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           script: sora2Script,
-          title: topicOrTitle.trim()
+          title: manualTitle.trim()
         })
       });
 
@@ -897,6 +1325,41 @@ export default function Home() {
     window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
     cachedFilters = filters;
   }, [viewRange, subRange, videoType, dateFilter, sortBy, selectedCategories, titleQuery, durationRange, selectedModel]);
+
+  // scriptModel을 localStorage에 저장 (AI 대본 생성 모델 기억)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && scriptModel) {
+      window.localStorage.setItem('scriptModel', scriptModel);
+      console.log('💾 AI 모델 저장:', scriptModel);
+    }
+  }, [scriptModel]);
+
+  // promptFormat을 localStorage에 저장 (포맷 선택 기억)
+  // 단, product-info는 임시 모드이므로 저장하지 않음
+  useEffect(() => {
+    if (typeof window !== 'undefined' && promptFormat && promptFormat !== 'product-info') {
+      window.localStorage.setItem('promptFormat', promptFormat);
+      console.log('💾 프롬프트 포맷 저장:', promptFormat);
+    } else if (promptFormat === 'product-info') {
+      console.log('🚫 product-info는 임시 모드 - localStorage 저장 스킵');
+    }
+  }, [promptFormat]);
+
+  // promptFormat 변경 시 URL 파라미터 업데이트 (탭 상태 유지)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && promptFormat) {
+      const currentParams = new URLSearchParams(window.location.search);
+      const currentPromptType = currentParams.get('promptType');
+
+      // 현재 URL의 promptType과 다르면 업데이트
+      if (currentPromptType !== promptFormat) {
+        currentParams.set('promptType', promptFormat);
+        const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
+        router.replace(newUrl, { scroll: false });
+        console.log('🔗 URL 업데이트:', promptFormat);
+      }
+    }
+  }, [promptFormat, router]);
 
   const pushLog = useCallback((message: string) => {
     setLogs((prev) => {
@@ -983,7 +1446,7 @@ export default function Home() {
         !titleQuery.trim() || video.title.toLowerCase().includes(titleQuery.trim().toLowerCase());
       const durationSecondsValue = typeof video.durationSeconds === 'number'
         ? video.durationSeconds
-        : Math.max(parseIsoDurationLocal(video.duration), 0);
+        : 0;
       const minDurationSeconds = durationRange.min * 60;
       const maxDurationSeconds = durationRange.max * 60;
       const matchDuration =
@@ -1096,7 +1559,7 @@ export default function Home() {
 
     // 조건에 따라 토스트 메시지 변경
     let message = '';
-    if (videoFormat === 'sora2') {
+    if (promptFormat === 'sora2') {
       message = '📤 JSON 대본을 업로드해주세요. (이미지 불필요)';
     } else if (productionMode === 'merge') {
       message = '📤 JSON 대본과 비디오 파일들을 업로드해주세요.';
@@ -1114,14 +1577,21 @@ export default function Home() {
     setTimeout(() => {
       uploadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
-  }, [videoFormat, imageSource]);
+  }, [promptFormat, imageSource]);
 
   const handleMoveToLLM = useCallback(async () => {
     // 영상이 선택되지 않았으면 프롬프트만 복사하고 모델 홈페이지로 이동
     if (!selectedIds.length) {
       try {
-        // 프롬프트 파일 가져오기
-        const response = await fetch(`/api/prompt?format=${videoFormat}`);
+        // 프롬프트 파일 가져오기 - promptFormat에 따라 결정
+        let promptUrl = '/api/prompt';
+        if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+        else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+        else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+        else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
+
+        console.log('🔍 LLM 이동 - promptFormat:', promptFormat, 'URL:', promptUrl);
+        const response = await fetch(promptUrl);
 
         if (!response.ok) {
           showToast('프롬프트를 가져오는데 실패했습니다.', 'error');
@@ -1155,7 +1625,7 @@ export default function Home() {
 
         // 모델 홈페이지 열기
         const modelUrls: Record<string, string> = {
-          'gpt': 'https://chatgpt.com',
+          'chatgpt': 'https://chatgpt.com',
           'gemini': 'https://gemini.google.com',
           'claude': 'https://claude.ai',
           'groq': 'https://groq.com'
@@ -1203,7 +1673,7 @@ export default function Home() {
 
     pushLog(`LLM 이동 완료 (${results.length}건)`);
     alert(`✅ 모델: ${pipelineModel.toUpperCase()}로 ${results.length}개 탭을 열었습니다.\n\n📋 각 탭의 프롬프트가 클립보드에 복사되었습니다.\n(마지막 탭의 내용이 클립보드에 남아있습니다)\n\n이제 LLM 사이트에서 Ctrl+V로 붙여넣으세요.`);
-  }, [runPipeline, pushLog, selectedIds, videoFormat, selectedModel]);
+  }, [runPipeline, pushLog, selectedIds, promptFormat, selectedModel]);
 
   const handleGenerateSubtitle = useCallback(async () => {
     if (!selectedIds.length) {
@@ -1349,12 +1819,12 @@ export default function Home() {
                 AI 대본을 생성하고, LLM을 사용하거나 자동으로 영상을 제작하세요.
               </p>
             </div>
-            {/* 롱폼/숏폼/SORA2 선택 */}
+            {/* 롱폼/숏폼/SORA2/상품 선택 */}
             <div className="flex gap-2">
               <button
                 onClick={() => handleFormatChange('longform')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  videoFormat === 'longform'
+                  promptFormat === 'longform'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/10 text-slate-300 hover:bg-white/20'
                 }`}
@@ -1364,7 +1834,7 @@ export default function Home() {
               <button
                 onClick={() => handleFormatChange('shortform')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  videoFormat === 'shortform'
+                  promptFormat === 'shortform'
                     ? 'bg-pink-600 text-white'
                     : 'bg-white/10 text-slate-300 hover:bg-white/20'
                 }`}
@@ -1374,20 +1844,40 @@ export default function Home() {
               <button
                 onClick={() => handleFormatChange('sora2')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  videoFormat === 'sora2'
+                  promptFormat === 'sora2'
                     ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
                     : 'bg-white/10 text-slate-300 hover:bg-white/20'
                 }`}
               >
                 🎥 SORA2
               </button>
+              <button
+                onClick={() => handleFormatChange('product')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  promptFormat === 'product'
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                🛍️ 상품
+              </button>
+              <button
+                onClick={() => handleFormatChange('product-info')}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  promptFormat === 'product-info'
+                    ? 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                }`}
+              >
+                📝 상품정보
+              </button>
             </div>
           </div>
           <div className="mb-4 h-px bg-white/10"></div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             {/* Flow 1: AI 대본 생성 */}
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 backdrop-blur">
+            <div data-ai-script-section className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 backdrop-blur">
               <div className="mb-3 flex items-start justify-between">
                 <div className="flex-1">
                   <div className="mb-1 flex items-center gap-2">
@@ -1399,43 +1889,74 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                {user?.isAdmin && (
+
+              {/* AI 모델 선택 */}
+              <div className="mb-3">
+                <label className="mb-2 block text-xs font-medium text-slate-300">
+                  AI 모델 선택
+                </label>
+                <div className="flex gap-2">
                   <button
-                    onClick={async () => {
-                      setShowTitleInput(true);
-                      setTitleInputMode('copy');
-                      setManualTitle('');
-                      setSuggestedTitles([]);
-                      setSelectedSuggestedTitle(null);
-                    }}
-                    className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
-                      titleInputMode === 'copy' && showTitleInput
-                        ? 'bg-slate-600 ring-2 ring-slate-400'
-                        : 'bg-slate-700 hover:bg-slate-600'
+                    type="button"
+                    onClick={() => setScriptModel('chatgpt')}
+                    className={`flex-1 rounded-lg border-2 p-2 transition ${
+                      scriptModel === 'chatgpt'
+                        ? 'border-green-500 bg-green-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
                     }`}
                   >
-                    🚀 Claude로 열기
+                    <div className="text-sm font-bold">💬 ChatGPT</div>
                   </button>
-                )}
-                {user?.isAdmin && (
                   <button
-                    onClick={async () => {
-                      setShowTitleInput(true);
-                      setTitleInputMode('generate-api');
-                      setManualTitle('');
-                      setSuggestedTitles([]);
-                      setSelectedSuggestedTitle(null);
-                    }}
-                    className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
-                      titleInputMode === 'generate-api' && showTitleInput
-                        ? 'bg-red-500 ring-2 ring-red-300'
-                        : 'bg-red-600 hover:bg-red-500'
+                    type="button"
+                    onClick={() => setScriptModel('gemini')}
+                    className={`flex-1 rounded-lg border-2 p-2 transition ${
+                      scriptModel === 'gemini'
+                        ? 'border-blue-500 bg-blue-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
                     }`}
                   >
-                    🔴 AI 대본생성(API)
+                    <div className="text-sm font-bold">✨ Gemini</div>
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => setScriptModel('claude')}
+                    className={`flex-1 rounded-lg border-2 p-2 transition ${
+                      scriptModel === 'claude'
+                        ? 'border-orange-500 bg-orange-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="text-sm font-bold">🤖 Claude</div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={async () => {
+                    if (!user) {
+                      alert('로그인이 필요합니다.\n\nAI 대본 생성 (API 호출) 기능을 사용하려면 먼저 로그인해주세요.');
+                      return;
+                    }
+                    if (!user.isAdmin) {
+                      alert('관리자 권한이 필요합니다.\n\nAI 대본 생성 (API 호출) 기능은 관리자만 사용할 수 있습니다.');
+                      return;
+                    }
+                    setShowTitleInput(true);
+                    setTitleInputMode('generate-api');
+                    setManualTitle('');
+                    setSuggestedTitles([]);
+                    setSelectedSuggestedTitle(null);
+                  }}
+                  className={`w-full rounded-xl px-5 py-3.5 text-base font-semibold text-white transition ${
+                    titleInputMode === 'generate-api' && showTitleInput
+                      ? 'bg-red-500 ring-2 ring-red-300'
+                      : 'bg-red-600 hover:bg-red-500'
+                  }`}
+                >
+                  🔴 AI 대본생성(API)
+                </button>
                 <button
                   onClick={async () => {
                     setShowTitleInput(true);
@@ -1444,7 +1965,7 @@ export default function Home() {
                     setSuggestedTitles([]);
                     setSelectedSuggestedTitle(null);
                   }}
-                  className={`w-full rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
+                  className={`w-full rounded-xl px-5 py-3.5 text-base font-semibold text-white transition ${
                     titleInputMode === 'generate' && showTitleInput
                       ? 'bg-emerald-500 ring-2 ring-emerald-300'
                       : 'bg-emerald-600 hover:bg-emerald-500'
@@ -1469,31 +1990,245 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* 큰 버튼: 영상제작 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setProductionMode('create');
-                  handleRunAutomation();
-                }}
-                disabled={isPipelineProcessing}
-                className="mb-3 w-full rounded-xl bg-purple-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-purple-500 disabled:cursor-wait disabled:opacity-70"
-              >
-                {isPipelineProcessing && productionMode === 'create' ? '⏳ 제작 중...' : '🎬 영상 제작'}
-              </button>
+              <div className="flex flex-col gap-3">
+                {/* 큰 버튼: 영상제작 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductionMode('create');
+                    handleRunAutomation();
+                  }}
+                  disabled={isPipelineProcessing}
+                  className="w-full rounded-xl bg-purple-600 px-5 py-3.5 text-base font-semibold text-white transition hover:bg-purple-500 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isPipelineProcessing && productionMode === 'create' ? '⏳ 제작 중...' : '🎬 영상 제작'}
+                </button>
 
-              {/* 큰 버튼: 영상병합 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setProductionMode('merge');
-                  handleRunAutomation();
-                }}
-                disabled={isPipelineProcessing}
-                className="w-full rounded-xl bg-teal-600 px-4 py-3 text-base font-semibold text-white transition hover:bg-teal-500 disabled:cursor-wait disabled:opacity-70"
-              >
-                {isPipelineProcessing && productionMode === 'merge' ? '⏳ 병합 중...' : '🎞️ 영상 병합'}
-              </button>
+                {/* 큰 버튼: 영상병합 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductionMode('merge');
+                    handleRunAutomation();
+                  }}
+                  disabled={isPipelineProcessing}
+                  className="w-full rounded-xl bg-teal-600 px-5 py-3.5 text-base font-semibold text-white transition hover:bg-teal-500 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isPipelineProcessing && productionMode === 'merge' ? '⏳ 병합 중...' : '🎞️ 영상 병합'}
+                </button>
+
+                {/* 큰 버튼: 중국영상변환 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChineseConverter(!showChineseConverter);
+                    if (!showChineseConverter) {
+                      // 섹션이 열릴 때 다른 섹션들 닫기
+                      setShowTitleInput(false);
+                      setShowUploadSection(false);
+
+                      // 섹션으로 스크롤
+                      setTimeout(() => {
+                        chineseConverterSectionRef.current?.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'start'
+                        });
+                      }, 100);
+                    }
+                  }}
+                  disabled={isPipelineProcessing || isConvertingChinese}
+                  className="w-full rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-5 py-3.5 text-base font-semibold text-white transition hover:from-red-500 hover:to-orange-500 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isConvertingChinese ? '⏳ 변환 중...' : '🇨🇳 중국영상변환'}
+                </button>
+              </div>
+            </div>
+
+            {/* Flow 3: TTS 음성 선택 */}
+            <div className="rounded-2xl border border-blue-500/30 bg-blue-950/20 p-4 backdrop-blur">
+              <div className="mb-3 flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white">3</span>
+                    <h4 className="text-sm font-semibold text-blue-300">TTS 음성</h4>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    음성을 선택하세요
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {/* 여성 음성 */}
+                {[
+                  { id: 'ko-KR-SunHiNeural', name: '선희', gender: '여성', emoji: '👩‍🦰', recommended: true },
+                  { id: 'ko-KR-JiMinNeural', name: '지민', gender: '여성', emoji: '👩‍🦰' },
+                  { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩‍🦰' },
+                  { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩‍🦰', recommended: true },
+                  { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩‍🦰' },
+                ].map((voice) => (
+                  <div key={voice.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTtsVoice(voice.id);
+                        localStorage.setItem('selected_tts_voice', voice.id);
+                        showToast(`✅ ${voice.name} 음성 선택`, 'success');
+                      }}
+                      className={`w-full group relative flex items-center gap-2 rounded-lg border p-2 transition-all ${
+                        selectedTtsVoice === voice.id
+                          ? 'border-pink-500 bg-pink-500/20'
+                          : 'border-slate-700 bg-slate-800/50 hover:border-pink-400'
+                      }`}
+                    >
+                      <span className="text-xl">{voice.emoji}</span>
+                      <div className="flex-1 text-left">
+                        <div className={`text-xs ${selectedTtsVoice === voice.id ? 'text-pink-300' : 'text-slate-300'}`}>
+                          <span className={voice.recommended ? 'font-extrabold' : 'font-bold'}>{voice.name}</span>
+                          {voice.recommended && <span className="ml-1 text-[10px] text-slate-400">(추천)</span>}
+                        </div>
+                      </div>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const audioUrl = preloadedAudio.get(voice.id);
+
+                            if (!audioUrl) {
+                              showToast('⏳ 미리듣기 준비 중...', 'info');
+                              return;
+                            }
+
+                            const audio = new Audio(audioUrl);
+                            audio.playbackRate = ttsSpeed; // 속도 조절
+                            await audio.play();
+                            showToast(`🔊 ${voice.name} 음성 재생 중 (${ttsSpeed}x)`, 'success');
+                          } catch (error) {
+                            console.error('미리듣기 에러:', error);
+                            showToast('❌ 미리듣기 실패', 'error');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            (e.currentTarget as HTMLElement).click();
+                          }
+                        }}
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-700 text-xs hover:bg-slate-600 transition cursor-pointer"
+                        title="미리듣기"
+                      >
+                        🔊
+                      </div>
+                      {selectedTtsVoice === voice.id && (
+                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-pink-500 text-xs text-white">
+                          ✓
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                ))}
+
+                {/* 남성 음성 */}
+                {[
+                  { id: 'ko-KR-InJoonNeural', name: '인준', gender: '남성', emoji: '👨‍💼' },
+                  { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', gender: '남성', emoji: '👨‍💼' },
+                  { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨‍💼' },
+                  { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨‍💼' },
+                  { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨‍💼' },
+                ].map((voice) => (
+                  <div key={voice.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTtsVoice(voice.id);
+                        localStorage.setItem('selected_tts_voice', voice.id);
+                        showToast(`✅ ${voice.name} 음성 선택`, 'success');
+                      }}
+                      className={`w-full group relative flex items-center gap-2 rounded-lg border p-2 transition-all ${
+                        selectedTtsVoice === voice.id
+                          ? 'border-blue-500 bg-blue-500/20'
+                          : 'border-slate-700 bg-slate-800/50 hover:border-blue-400'
+                      }`}
+                    >
+                      <span className="text-xl">{voice.emoji}</span>
+                      <div className="flex-1 text-left">
+                        <div className={`text-xs font-bold ${selectedTtsVoice === voice.id ? 'text-blue-300' : 'text-slate-300'}`}>
+                          {voice.name}
+                        </div>
+                      </div>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const audioUrl = preloadedAudio.get(voice.id);
+
+                            if (!audioUrl) {
+                              showToast('⏳ 미리듣기 준비 중...', 'info');
+                              return;
+                            }
+
+                            const audio = new Audio(audioUrl);
+                            audio.playbackRate = ttsSpeed; // 속도 조절
+                            await audio.play();
+                            showToast(`🔊 ${voice.name} 음성 재생 중 (${ttsSpeed}x)`, 'success');
+                          } catch (error) {
+                            console.error('미리듣기 에러:', error);
+                            showToast('❌ 미리듣기 실패', 'error');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            (e.currentTarget as HTMLElement).click();
+                          }
+                        }}
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-700 text-xs hover:bg-slate-600 transition cursor-pointer"
+                        title="미리듣기"
+                      >
+                        🔊
+                      </div>
+                      {selectedTtsVoice === voice.id && (
+                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">
+                          ✓
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* 음성 속도 조절 */}
+              <div className="mt-3 rounded-lg bg-slate-800/50 border border-slate-700 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-300">🎚️ 음성 속도</label>
+                  <span className="text-xs text-slate-400">{ttsSpeed.toFixed(1)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={ttsSpeed}
+                  onChange={(e) => {
+                    const newSpeed = parseFloat(e.target.value);
+                    setTtsSpeed(newSpeed);
+                    localStorage.setItem('tts_speed', newSpeed.toString());
+                  }}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+                <div className="flex justify-between mt-1">
+                  <span className="text-[10px] text-slate-500">0.5x</span>
+                  <span className="text-[10px] text-slate-500 font-semibold">1.0x</span>
+                  <span className="text-[10px] text-slate-500">1.5x</span>
+                  <span className="text-[10px] text-slate-500">2.0x</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1520,6 +2255,51 @@ export default function Home() {
             </button>
           </div>
 
+          {/* AI 모델 선택 - 맨 위로 이동 */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              AI 모델 선택
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setScriptModel('chatgpt')}
+                disabled={isGeneratingScript}
+                className={`flex-1 rounded-lg border-2 p-3 transition ${
+                  scriptModel === 'chatgpt'
+                    ? 'border-green-500 bg-green-500/20 text-white'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                } disabled:opacity-50`}
+              >
+                <div className="text-base font-bold">💬 ChatGPT</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScriptModel('gemini')}
+                disabled={isGeneratingScript}
+                className={`flex-1 rounded-lg border-2 p-3 transition ${
+                  scriptModel === 'gemini'
+                    ? 'border-blue-500 bg-blue-500/20 text-white'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                } disabled:opacity-50`}
+              >
+                <div className="text-base font-bold">✨ Gemini</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScriptModel('claude')}
+                disabled={isGeneratingScript}
+                className={`flex-1 rounded-lg border-2 p-3 transition ${
+                  scriptModel === 'claude'
+                    ? 'border-orange-500 bg-orange-500/20 text-white'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                } disabled:opacity-50`}
+              >
+                <div className="text-base font-bold">🤖 Claude</div>
+              </button>
+            </div>
+          </div>
+
           {/* 선택된 모드 표시 */}
           <div className="mb-4 flex items-center gap-2 rounded-lg bg-white/10 px-4 py-3">
             <span className="text-2xl">
@@ -1538,7 +2318,7 @@ export default function Home() {
                   ? 'Claude.ai를 새 탭으로 열고 프롬프트를 클립보드에 복사합니다 (Ctrl+V로 붙여넣기)'
                   : titleInputMode === 'generate-api'
                   ? 'Claude API를 직접 호출합니다 (테스트용, 비용 발생)'
-                  : '로컬 Claude로 대본을 생성합니다 (실패 시 API 사용)'}
+                  : `로컬 ${scriptModel === 'chatgpt' ? 'ChatGPT' : scriptModel === 'gemini' ? 'Gemini' : 'Claude'}로 대본을 생성합니다 (실패 시 API 사용)`}
               </div>
             </div>
           </div>
@@ -1582,13 +2362,31 @@ export default function Home() {
                       return;
                     }
 
+                    // 상품 타입일 때 상품 URL 필수 검증
+                    if ((promptFormat === 'product' || promptFormat === 'product-info') &&
+                        (!productInfo || !productInfo.product_link || !productInfo.product_link.trim())) {
+                      setToast({
+                        message: '상품 대본 생성은 최소 상품 URL이 필요합니다.\n상품관리에서 상품을 선택하거나 직접 입력해주세요.',
+                        type: 'error'
+                      });
+                      setTimeout(() => setToast(null), 5000);
+                      return;
+                    }
+
                     // 제목을 히스토리에 추가
                     addToTitleHistory(manualTitle.trim());
 
                     if (titleInputMode === 'copy') {
-                    // Claude로 프롬프트 열기 - /api/prompt에서 텍스트 파일 전체 내용 가져오기
+                    // Claude로 프롬프트 열기 - 포맷에 따른 프롬프트 파일 가져오기
                     try {
-                      const response = await fetch(`/api/prompt?format=${videoFormat}`);
+                      let promptUrl = '/api/prompt';
+                      if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                      else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                      else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+                      else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
+
+                      console.log('🔍 Claude.ai 자동실행 - promptFormat:', promptFormat, 'URL:', promptUrl);
+                      const response = await fetch(promptUrl);
 
                       if (!response.ok) {
                         throw new Error(`API 오류: ${response.status}`);
@@ -1721,7 +2519,9 @@ export default function Home() {
                         headers: getAuthHeaders(),
                         body: JSON.stringify({
                           title: manualTitle.trim(),
-                          type: videoFormat
+                          type: promptFormat,
+                          scriptModel: scriptModel, // AI 모델 선택
+                          productInfo: productInfo // 상품 정보 추가
                         })
                       });
 
@@ -1894,6 +2694,47 @@ export default function Home() {
               </button>
             </div>
 
+            {/* 상품 정보 표시 (product 또는 product-info 모드일 때) */}
+            {(promptFormat === 'product' || promptFormat === 'product-info') && productInfo && (
+              <div data-product-info-section className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+                <h4 className="text-sm font-semibold text-amber-300 mb-3">📦 상품 추가 정보</h4>
+                <div className="space-y-3">
+                  {/* 썸네일 */}
+                  {productInfo.thumbnail && (
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">썸네일:</label>
+                      <img
+                        src={productInfo.thumbnail}
+                        alt={productInfo.title}
+                        className="w-32 h-32 object-cover rounded-lg border border-white/10"
+                      />
+                    </div>
+                  )}
+                  {/* 상품링크 */}
+                  {productInfo.product_link && (
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">상품링크:</label>
+                      <a
+                        href={productInfo.product_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-400 hover:text-blue-300 hover:underline break-all"
+                      >
+                        {productInfo.product_link}
+                      </a>
+                    </div>
+                  )}
+                  {/* 상품설명 */}
+                  {productInfo.description && (
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">상품설명:</label>
+                      <p className="text-xs text-slate-300 line-clamp-3">{productInfo.description}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* 제목 히스토리 - 디버깅 */}
             <div className="mt-4">
               <label className="mb-2 block text-xs font-medium text-slate-400">
@@ -2016,7 +2857,7 @@ export default function Home() {
             </button>
           </div>
           <p className="mb-4 text-sm text-slate-300">
-            {videoFormat === 'sora2'
+            {promptFormat === 'sora2'
               ? 'JSON 대본을 업로드하여 AI 시네마틱 영상을 생성하세요. (이미지 불필요)'
               : productionMode === 'merge'
               ? '여러 개의 비디오 파일을 업로드하여 하나로 병합하세요. TTS 나레이션 추가 가능'
@@ -2042,7 +2883,7 @@ export default function Home() {
             )}
 
             {/* SORA2 안내 메시지 */}
-            {productionMode !== 'merge' && videoFormat === 'sora2' && (
+            {productionMode !== 'merge' && promptFormat === 'sora2' && (
             <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-4">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">🎬</span>
@@ -2062,7 +2903,7 @@ export default function Home() {
             {productionMode === 'merge' && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-300">
-                📁 JSON/TXT 대본과 비디오 파일들을 한번에 드래그하세요
+                📁 JSON/TXT 대본과 이미지/비디오 파일들을 한번에 드래그하세요
               </label>
               <div
                 onDragOver={(e) => {
@@ -2079,12 +2920,22 @@ export default function Home() {
 
                   const files = Array.from(e.dataTransfer.files);
 
+                  // .gdoc 파일 차단
+                  const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                  if (gdocFile) {
+                    showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                    return;
+                  }
+
                   // JSON/TXT 파일 분류
                   const jsonFile = files.find(f =>
                     f.type === 'application/json' ||
                     f.name.endsWith('.json') ||
                     f.name.endsWith('.txt')
                   );
+
+                  // 이미지 파일 분류
+                  const imageFiles = files.filter(f => f.type.startsWith('image/'));
 
                   // 비디오 파일 분류
                   const videoFiles = files.filter(f => f.type.startsWith('video/'));
@@ -2094,13 +2945,32 @@ export default function Home() {
                     showToast('✅ JSON/TXT 파일 업로드 완료', 'success');
                   }
 
+                  if (imageFiles.length > 0) {
+                    setUploadedImages(prev => {
+                      const existingNames = new Set(prev.map(f => f.name));
+                      const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                      if (newFiles.length < imageFiles.length) {
+                        showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                      }
+                      return [...prev, ...newFiles];
+                    });
+                    showToast(`✅ ${imageFiles.length}개 이미지를 업로드했습니다!`, 'success');
+                  }
+
                   if (videoFiles.length > 0) {
-                    setUploadedVideos(prev => [...prev, ...videoFiles]);
+                    setUploadedVideos(prev => {
+                      const existingNames = new Set(prev.map(f => f.name));
+                      const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                      if (newFiles.length < videoFiles.length) {
+                        showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                      }
+                      return [...prev, ...newFiles];
+                    });
                     showToast(`✅ ${videoFiles.length}개 비디오를 업로드했습니다!`, 'success');
                   }
 
-                  if (!jsonFile && videoFiles.length === 0) {
-                    showToast('JSON/TXT 또는 비디오 파일을 업로드해주세요.', 'error');
+                  if (!jsonFile && imageFiles.length === 0 && videoFiles.length === 0) {
+                    showToast('JSON/TXT, 이미지 또는 비디오 파일을 업로드해주세요.', 'error');
                   }
                 }}
                 onPaste={async (e) => {
@@ -2112,16 +2982,20 @@ export default function Home() {
                       return;
                     }
 
-                    // JSON 파싱 시도
-                    try {
-                      const text = stripMarkdownCodeBlock(rawText);
-                      const jsonData = JSON.parse(text);
+                    // JSON 파싱 시도 (유연한 파싱)
+                    const result = parseJsonSafely(rawText);
+                    if (result.success) {
+                      const text = JSON.stringify(result.data, null, 2);
                       const blob = new Blob([text], { type: 'application/json' });
                       const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                       setUploadedJson(file);
                       showToast('✅ 클립보드에서 JSON을 가져왔습니다!', 'success');
-                    } catch (e) {
+                      if (result.fixed) {
+                        showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                      }
+                    } else {
                       showToast('클립보드 내용이 올바른 JSON 형식이 아닙니다.', 'error');
+                      console.error('JSON 파싱 실패:', result.error);
                     }
                   } catch (error) {
                     console.error('클립보드 읽기 실패:', error);
@@ -2137,7 +3011,7 @@ export default function Home() {
               >
                 <div className="space-y-4">
                   {/* 업로드된 파일 표시 */}
-                  {(uploadedJson || uploadedVideos.length > 0) ? (
+                  {(uploadedJson || uploadedImages.length > 0 || uploadedVideos.length > 0) ? (
                     <div className="space-y-3">
                       <div className="text-4xl">✅</div>
 
@@ -2152,6 +3026,28 @@ export default function Home() {
                             >
                               ✕
                             </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 이미지 파일 표시 */}
+                      {uploadedImages.length > 0 && (
+                        <div className="rounded-lg bg-blue-500/10 p-3 border border-blue-500/30">
+                          <p className="text-sm text-blue-400 mb-2">🖼️ {uploadedImages.length}개 이미지</p>
+                          <div className="max-h-32 overflow-y-auto space-y-1">
+                            {uploadedImages.map((img, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs text-slate-300 bg-white/10 rounded px-2 py-1">
+                                <span>{idx + 1}. {img.name}</span>
+                                <button
+                                  onClick={() => {
+                                    setUploadedImages(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="ml-2 text-red-400 hover:text-red-300"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}
@@ -2178,20 +3074,87 @@ export default function Home() {
                         </div>
                       )}
 
-                      <button
-                        onClick={() => {
-                          setUploadedJson(null);
-                          setUploadedVideos([]);
-                        }}
-                        className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
-                      >
-                        전체 삭제
-                      </button>
+                      <div className="flex gap-2">
+                        <label className={`rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition ${
+                          isGeneratingVideo
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'cursor-pointer hover:from-purple-500 hover:to-orange-500'
+                        }`}>
+                          추가 파일 선택
+                          <input
+                            type="file"
+                            multiple
+                            accept=".json,.txt,image/*,video/*"
+                            disabled={isGeneratingVideo}
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []);
+
+                              // .gdoc 파일 차단
+                              const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                              if (gdocFile) {
+                                showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                                e.target.value = ''; // input 초기화
+                                return;
+                              }
+
+                              const jsonFile = files.find(f =>
+                                f.type === 'application/json' ||
+                                f.name.endsWith('.json') ||
+                                f.name.endsWith('.txt')
+                              );
+
+                              const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                              const videoFiles = files.filter(f => f.type.startsWith('video/'));
+
+                              if (jsonFile) {
+                                setUploadedJson(jsonFile);
+                              }
+
+                              if (imageFiles.length > 0) {
+                                setUploadedImages(prev => {
+                                  const existingNames = new Set(prev.map(f => f.name));
+                                  const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                                  if (newFiles.length < imageFiles.length) {
+                                    showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                  }
+                                  return [...prev, ...newFiles];
+                                });
+                              }
+
+                              if (videoFiles.length > 0) {
+                                setUploadedVideos(prev => {
+                                  const existingNames = new Set(prev.map(f => f.name));
+                                  const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                                  if (newFiles.length < videoFiles.length) {
+                                    showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                  }
+                                  return [...prev, ...newFiles];
+                                });
+                              }
+
+                              if (jsonFile || videoFiles.length > 0) {
+                                showToast('✅ 파일 추가 완료!', 'success');
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          onClick={() => {
+                            setUploadedJson(null);
+                            setUploadedImages([]);
+                            setUploadedVideos([]);
+                          }}
+                          className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
+                        >
+                          전체 삭제
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       <div className="text-4xl">📁</div>
-                      <p className="text-sm text-slate-300 font-semibold">JSON/TXT 대본과 비디오 파일들을 한번에 드래그하세요</p>
+                      <p className="text-sm text-slate-300 font-semibold">JSON/TXT 대본과 이미지/비디오 파일들을 한번에 드래그하세요</p>
                       <div className="p-2 bg-blue-500/10 border border-blue-500/30 rounded">
                         <p className="text-xs text-blue-300">
                           📌 <strong>비디오 정렬 규칙:</strong><br/>
@@ -2199,14 +3162,27 @@ export default function Home() {
                           • 숫자가 없으면 생성/수정 시간 순서대로 병합 (오래된 것부터)
                         </p>
                       </div>
-                      <label className="cursor-pointer rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-purple-500 hover:to-orange-500 inline-block">
+                      <label className={`rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition inline-block ${
+                        isGeneratingVideo
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'cursor-pointer hover:from-purple-500 hover:to-orange-500'
+                      }`}>
                         파일 선택
                         <input
                           type="file"
                           multiple
-                          accept=".json,.txt,video/*"
+                          accept=".json,.txt,image/*,video/*"
+                          disabled={isGeneratingVideo}
                           onChange={(e) => {
                             const files = Array.from(e.target.files || []);
+
+                            // .gdoc 파일 차단
+                            const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                            if (gdocFile) {
+                              showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                              e.target.value = ''; // input 초기화
+                              return;
+                            }
 
                             const jsonFile = files.find(f =>
                               f.type === 'application/json' ||
@@ -2214,17 +3190,36 @@ export default function Home() {
                               f.name.endsWith('.txt')
                             );
 
+                            const imageFiles = files.filter(f => f.type.startsWith('image/'));
                             const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                             if (jsonFile) {
                               setUploadedJson(jsonFile);
                             }
 
-                            if (videoFiles.length > 0) {
-                              setUploadedVideos(prev => [...prev, ...videoFiles]);
+                            if (imageFiles.length > 0) {
+                              setUploadedImages(prev => {
+                                const existingNames = new Set(prev.map(f => f.name));
+                                const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                                if (newFiles.length < imageFiles.length) {
+                                  showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                }
+                                return [...prev, ...newFiles];
+                              });
                             }
 
-                            if (jsonFile || videoFiles.length > 0) {
+                            if (videoFiles.length > 0) {
+                              setUploadedVideos(prev => {
+                                const existingNames = new Set(prev.map(f => f.name));
+                                const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                                if (newFiles.length < videoFiles.length) {
+                                  showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                }
+                                return [...prev, ...newFiles];
+                              });
+                            }
+
+                            if (jsonFile || imageFiles.length > 0 || videoFiles.length > 0) {
                               showToast('✅ 파일 업로드 완료!', 'success');
                             }
                           }}
@@ -2263,7 +3258,7 @@ export default function Home() {
             )}
 
             {/* 이미지 소스 선택 (SORA2, VIDEO-MERGE 제외) */}
-            {videoFormat !== 'sora2' && productionMode !== 'merge' && (
+            {promptFormat !== 'sora2' && productionMode !== 'merge' && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-300">
                 🎨 이미지 소스 선택
@@ -2315,7 +3310,7 @@ export default function Home() {
                 </button>
               </div>
               <p className="mt-2 text-xs text-slate-400">
-                {imageSource === 'none' && '💡 이미지를 직접 업로드합니다 (8컷 권장)'}
+                {imageSource === 'none' && '💡 이미지를 직접 업로드합니다 (최대 50개)'}
                 {imageSource === 'dalle' && '💡 DALL-E가 자동으로 이미지를 생성합니다'}
                 {imageSource === 'google' && '💡 Google에서 관련 이미지를 검색합니다'}
               </p>
@@ -2323,7 +3318,7 @@ export default function Home() {
             )}
 
             {/* 파일 업로드 (JSON + 이미지) */}
-            {videoFormat !== 'sora2' && productionMode !== 'merge' && imageSource === 'none' && (
+            {promptFormat !== 'sora2' && productionMode !== 'merge' && imageSource === 'none' && (
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-sm font-medium text-slate-300">
@@ -2356,14 +3351,65 @@ export default function Home() {
                   setIsDraggingFiles(false);
 
                   const files = Array.from(e.dataTransfer.files);
+                  // .gdoc 파일 차단
+                  const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                  if (gdocFile) {
+                    showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                    return;
+                  }
+
                   const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
                   const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                  const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                   if (jsonFile) setUploadedJson(jsonFile);
-                  if (imageFiles.length > 0) setUploadedImages(imageFiles.slice(0, 50)); // 최대 50개
+                  if (imageFiles.length > 0) {
+                    console.log('\n' + '='.repeat(70));
+                    console.log('🎯 드래그앤드롭으로 이미지 업로드됨 (' + imageFiles.length + '개)');
+                    console.log('='.repeat(70));
+                    imageFiles.slice(0, 50).forEach((file, i) => {
+                      const date = new Date(file.lastModified);
+                      const timeStr = date.toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        fractionalSecondDigits: 3
+                      });
+                      console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
+                    });
+                    console.log('='.repeat(70) + '\n');
+                    setUploadedImages(prev => {
+                      const existingNames = new Set(prev.map(f => f.name));
+                      const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                      if (newFiles.length < imageFiles.length) {
+                        showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                      }
+                      return [...prev, ...newFiles].slice(0, 50);
+                    });
+                  }
+                  if (videoFiles.length > 0) {
+                    console.log('\n' + '='.repeat(70));
+                    console.log('🎬 드래그앤드롭으로 비디오 업로드됨 (' + videoFiles.length + '개)');
+                    console.log('='.repeat(70));
+                    videoFiles.forEach((file, i) => {
+                      console.log(`  [${i}] ${file.name} | ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+                    });
+                    console.log('='.repeat(70) + '\n');
+                    setUploadedVideos(prev => {
+                      const existingNames = new Set(prev.map(f => f.name));
+                      const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                      if (newFiles.length < videoFiles.length) {
+                        showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                      }
+                      return [...prev, ...newFiles];
+                    });
+                  }
 
-                  if (!jsonFile && imageFiles.length === 0) {
-                    showToast('JSON 또는 이미지 파일을 업로드해주세요.', 'error');
+                  if (!jsonFile && imageFiles.length === 0 && videoFiles.length === 0) {
+                    showToast('JSON, 이미지 또는 비디오 파일을 업로드해주세요.', 'error');
                   }
                 }}
                 onPaste={async (e) => {
@@ -2389,6 +3435,23 @@ export default function Home() {
                   }
 
                   if (imageFiles.length > 0) {
+                    console.log('\n' + '='.repeat(70));
+                    console.log('📋 클립보드로 이미지 붙여넣기됨 (' + imageFiles.length + '개)');
+                    console.log('='.repeat(70));
+                    imageFiles.forEach((file, i) => {
+                      const date = new Date(file.lastModified);
+                      const timeStr = date.toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        fractionalSecondDigits: 3
+                      });
+                      console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
+                    });
+                    console.log('='.repeat(70) + '\n');
                     setUploadedImages(prev => [...prev, ...imageFiles].slice(0, 50));
                     showToast(`✅ ${imageFiles.length}개 이미지를 클립보드에서 가져왔습니다!`, 'success');
                   }
@@ -2402,32 +3465,23 @@ export default function Home() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="text-4xl">📁</div>
                   <div>
-                    <p className="text-sm text-slate-300">JSON/TXT 파일과 이미지를 한번에 드래그하세요</p>
+                    <p className="text-sm text-slate-300">JSON/TXT 파일, 이미지, 비디오를 한번에 드래그하세요</p>
                     <p className="mt-1 text-xs text-slate-400">또는 파일을 선택하세요</p>
                     <p className="mt-1 text-xs text-purple-400">💡 이미지를 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능</p>
                     <div className="mt-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded">
                       <p className="text-xs text-blue-300">
-                        📌 <strong>이미지 정렬 규칙:</strong><br/>
-                        • 파일명에 숫자가 있으면 숫자 순서대로 정렬 (예: image_01.jpg, image_02.jpg)<br/>
+                        📌 <strong>이미지/비디오 정렬 규칙:</strong><br/>
+                        • 파일명에 숫자가 있으면 숫자 순서대로 정렬 (예: image_01.jpg, video_02.mp4)<br/>
                         • 숫자가 없으면 생성/수정 시간 순서대로 정렬 (오래된 것부터 씬 0)
                       </p>
                     </div>
                   </div>
 
                   {/* 업로드된 파일 표시 */}
-                  {(uploadedJson || uploadedImages.length > 0) && (
+                  {(uploadedJson || uploadedImages.length > 0 || uploadedVideos.length > 0) && (
                     <div className="w-full space-y-3 rounded-lg bg-white/5 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-xs text-slate-400">업로드된 파일</span>
-                        <button
-                          onClick={() => {
-                            setUploadedJson(null);
-                            setUploadedImages([]);
-                          }}
-                          className="rounded bg-red-500/20 px-3 py-1 text-xs text-red-400 transition hover:bg-red-500/30"
-                        >
-                          전체 취소
-                        </button>
                       </div>
                       {uploadedJson && (
                         <div className="flex items-center gap-2">
@@ -2450,8 +3504,8 @@ export default function Home() {
                             <span className="text-sm text-emerald-400">
                               ✓ 이미지: {uploadedImages.length}개
                             </span>
-                            {uploadedImages.length < 8 && (
-                              <span className="text-xs text-amber-400">(8개 권장)</span>
+                            {uploadedImages.length < 50 && (
+                              <span className="text-xs text-amber-400">(최대 50개)</span>
                             )}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1">
@@ -2475,22 +3529,172 @@ export default function Home() {
                           </div>
                         </div>
                       )}
+                      {uploadedVideos.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-emerald-400">
+                              ✓ 비디오: {uploadedVideos.length}개
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {uploadedVideos.map((vid, idx) => (
+                              <span
+                                key={idx}
+                                className="group flex items-center gap-1 rounded bg-white/10 px-2 py-1 text-xs text-slate-400"
+                              >
+                                {vid.name}
+                                <button
+                                  onClick={() => {
+                                    setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="ml-1 flex h-3 w-3 items-center justify-center rounded text-xs opacity-60 transition hover:bg-red-500/30 hover:text-red-400 hover:opacity-100"
+                                  aria-label={`${vid.name} 삭제`}
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex gap-2 pt-2">
+                        <label className={`flex-1 rounded-lg bg-purple-600 px-4 py-2 text-center text-sm font-semibold text-white transition ${
+                          isGeneratingVideo
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'cursor-pointer hover:bg-purple-500'
+                        }`}>
+                          추가 파일 선택
+                          <input
+                            type="file"
+                            multiple
+                            accept=".json,.txt,image/*,video/*"
+                            disabled={isGeneratingVideo}
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []);
+                              // .gdoc 파일 차단
+                  const gdocFile = files.find(f => f.name.endsWith('.gdoc'));
+                  if (gdocFile) {
+                    showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                    return;
+                  }
+
+                  const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
+                              const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                              const videoFiles = files.filter(f => f.type.startsWith('video/'));
+
+                              if (jsonFile) setUploadedJson(jsonFile);
+                              if (imageFiles.length > 0) {
+                                console.log('\n' + '='.repeat(70));
+                                console.log('📁 추가 파일 선택으로 이미지 업로드됨 (' + imageFiles.length + '개)');
+                                console.log('='.repeat(70));
+                                imageFiles.slice(0, 50).forEach((file, i) => {
+                                  const date = new Date(file.lastModified);
+                                  const timeStr = date.toLocaleString('ko-KR', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                    fractionalSecondDigits: 3
+                                  });
+                                  console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
+                                });
+                                console.log('='.repeat(70) + '\n');
+                                setUploadedImages(prev => {
+                                  const existingNames = new Set(prev.map(f => f.name));
+                                  const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                                  if (newFiles.length < imageFiles.length) {
+                                    showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                  }
+                                  return [...prev, ...newFiles].slice(0, 50);
+                                });
+                                showToast(`✅ ${imageFiles.length}개 이미지 추가 완료!`, 'success');
+                              }
+                              if (videoFiles.length > 0) {
+                                console.log('\n' + '='.repeat(70));
+                                console.log('🎬 추가 파일 선택으로 비디오 업로드됨 (' + videoFiles.length + '개)');
+                                console.log('='.repeat(70));
+                                videoFiles.forEach((file, i) => {
+                                  console.log(`  [${i}] ${file.name} | ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+                                });
+                                console.log('='.repeat(70) + '\n');
+                                setUploadedVideos(prev => {
+                                  const existingNames = new Set(prev.map(f => f.name));
+                                  const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                                  if (newFiles.length < videoFiles.length) {
+                                    showToast('⚠️ 중복된 파일은 무시되었습니다.', 'warning');
+                                  }
+                                  return [...prev, ...newFiles];
+                                });
+                                showToast(`✅ ${videoFiles.length}개 비디오 추가 완료!`, 'success');
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          onClick={() => {
+                            setUploadedJson(null);
+                            setUploadedImages([]);
+                            setUploadedVideos([]);
+                          }}
+                          className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
+                        >
+                          전체 취소
+                        </button>
+                      </div>
                     </div>
                   )}
 
-                  <label className="cursor-pointer rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500">
+                  <label className={`rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition ${
+                    isGeneratingVideo
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'cursor-pointer hover:bg-purple-500'
+                  }`}>
                     파일 선택
                     <input
                       type="file"
                       multiple
-                      accept=".json,.txt,image/*"
+                      accept=".json,.txt,image/*,video/*"
+                      disabled={isGeneratingVideo}
                       onChange={(e) => {
                         const files = Array.from(e.target.files || []);
                         const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json') || f.name.endsWith('.txt'));
                         const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                        const videoFiles = files.filter(f => f.type.startsWith('video/'));
 
                         if (jsonFile) setUploadedJson(jsonFile);
-                        if (imageFiles.length > 0) setUploadedImages(imageFiles.slice(0, 8));
+                        if (imageFiles.length > 0) {
+                          console.log('\n' + '='.repeat(70));
+                          console.log('📁 파일 선택으로 이미지 업로드됨 (' + imageFiles.length + '개)');
+                          console.log('='.repeat(70));
+                          imageFiles.slice(0, 50).forEach((file, i) => {
+                            const date = new Date(file.lastModified);
+                            const timeStr = date.toLocaleString('ko-KR', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              fractionalSecondDigits: 3
+                            });
+                            console.log(`  [${i}] ${file.name.padEnd(30)} | lastModified: ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
+                          });
+                          console.log('='.repeat(70) + '\n');
+                          setUploadedImages(imageFiles.slice(0, 50));
+                        }
+                        if (videoFiles.length > 0) {
+                          console.log('\n' + '='.repeat(70));
+                          console.log('🎬 파일 선택으로 비디오 업로드됨 (' + videoFiles.length + '개)');
+                          console.log('='.repeat(70));
+                          videoFiles.forEach((file, i) => {
+                            console.log(`  [${i}] ${file.name} | ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+                          });
+                          console.log('='.repeat(70) + '\n');
+                          setUploadedVideos(videoFiles);
+                        }
                       }}
                       className="hidden"
                     />
@@ -2515,18 +3719,22 @@ export default function Home() {
                         const rawText = jsonTextareaValue.trim();
                         if (!rawText) return;
 
-                        try {
-                          // 마크다운 코드 블록 제거
-                          const text = stripMarkdownCodeBlock(rawText);
-                          const jsonData = JSON.parse(text);
+                        // 유연한 JSON 파싱
+                        const result = parseJsonSafely(rawText);
+                        if (result.success) {
+                          const text = JSON.stringify(result.data, null, 2);
                           const blob = new Blob([text], { type: 'application/json' });
                           const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                           setUploadedJson(file);
                           showToast('✅ JSON을 가져왔습니다!', 'success');
+                          if (result.fixed) {
+                            showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                          }
                           setJsonTextareaValue('');
                           setShowJsonTextarea(false);
-                        } catch (e) {
+                        } else {
                           showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                          console.error('JSON 파싱 실패:', result.error);
                         }
                       }
                     }}
@@ -2549,18 +3757,22 @@ export default function Home() {
                           return;
                         }
 
-                        try {
-                          // 마크다운 코드 블록 제거
-                          const text = stripMarkdownCodeBlock(rawText);
-                          const jsonData = JSON.parse(text);
+                        // 유연한 JSON 파싱
+                        const result = parseJsonSafely(rawText);
+                        if (result.success) {
+                          const text = JSON.stringify(result.data, null, 2);
                           const blob = new Blob([text], { type: 'application/json' });
                           const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                           setUploadedJson(file);
                           showToast('✅ JSON을 가져왔습니다!', 'success');
+                          if (result.fixed) {
+                            showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                          }
                           setJsonTextareaValue('');
                           setShowJsonTextarea(false);
-                        } catch (e) {
+                        } else {
                           showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                          console.error('JSON 파싱 실패:', result.error);
                         }
                       }}
                       className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
@@ -2574,7 +3786,7 @@ export default function Home() {
             )}
 
             {/* JSON 파일만 업로드 (DALL-E, Google 검색, 또는 SORA2) */}
-            {productionMode !== 'merge' && (videoFormat === 'sora2' || imageSource !== 'none') && (
+            {productionMode !== 'merge' && (promptFormat === 'sora2' || imageSource !== 'none') && (
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-sm font-medium text-slate-300">
@@ -2607,10 +3819,10 @@ export default function Home() {
                   setIsDraggingFiles(false);
 
                   const file = e.dataTransfer.files[0];
-                  if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt'))) {
+                  if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt') || file.name.endsWith('.gdoc'))) {
                     setUploadedJson(file);
                   } else {
-                    showToast('JSON 또는 TXT 파일만 업로드 가능합니다.', 'error');
+                    showToast('JSON, TXT, GDOC 파일만 업로드 가능합니다.', 'error');
                   }
                 }}
                 onPaste={async (e) => {
@@ -2622,18 +3834,21 @@ export default function Home() {
                       return;
                     }
 
-                    // JSON 파싱 시도
-                    try {
-                      // 마크다운 코드 블록 제거
-                      const text = stripMarkdownCodeBlock(rawText);
-                      const jsonData = JSON.parse(text);
+                    // JSON 파싱 시도 (유연한 파싱)
+                    const result = parseJsonSafely(rawText);
+                    if (result.success) {
+                      const text = JSON.stringify(result.data, null, 2);
                       // JSON을 Blob으로 변환
                       const blob = new Blob([text], { type: 'application/json' });
                       const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                       setUploadedJson(file);
                       showToast('✅ 클립보드에서 JSON을 가져왔습니다!', 'success');
-                    } catch (e) {
+                      if (result.fixed) {
+                        showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                      }
+                    } else {
                       showToast('클립보드 내용이 올바른 JSON 형식이 아닙니다.', 'error');
+                      console.error('JSON 파싱 실패:', result.error);
                     }
                   } catch (error) {
                     console.error('클립보드 읽기 실패:', error);
@@ -2665,17 +3880,28 @@ export default function Home() {
                     <div className="text-4xl">📄</div>
                     <p className="text-sm text-slate-300">JSON 또는 TXT 파일을 드래그하거나 선택하세요</p>
                     <p className="text-xs text-purple-400">💡 JSON을 복사한 후 여기를 클릭하고 Ctrl+V로 붙여넣기 가능</p>
-                    <label className="cursor-pointer rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 inline-block">
+                    <label className={`rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition inline-block ${
+                      isGeneratingVideo
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'cursor-pointer hover:bg-purple-500'
+                    }`}>
                       파일 선택
                       <input
                         type="file"
                         accept=".json,.txt"
+                        disabled={isGeneratingVideo}
                         onChange={(e) => {
                           const file = e.target.files?.[0];
+                          // .gdoc 파일 차단
+                          if (file && file.name.endsWith('.gdoc')) {
+                            showToast('❌ Google Docs 파일(.gdoc)은 지원하지 않습니다. JSON 또는 TXT 파일로 다운로드한 후 업로드해주세요.', 'error');
+                            return;
+                          }
+
                           if (file && (file.type === 'application/json' || file.name.endsWith('.json') || file.name.endsWith('.txt'))) {
                             setUploadedJson(file);
                           } else {
-                            showToast('JSON 또는 TXT 파일만 업로드 가능합니다.', 'error');
+                            showToast('JSON, TXT, GDOC 파일만 업로드 가능합니다.', 'error');
                           }
                         }}
                         className="hidden"
@@ -2702,18 +3928,22 @@ export default function Home() {
                         const rawText = jsonTextareaValue.trim();
                         if (!rawText) return;
 
-                        try {
-                          // 마크다운 코드 블록 제거
-                          const text = stripMarkdownCodeBlock(rawText);
-                          const jsonData = JSON.parse(text);
+                        // 유연한 JSON 파싱
+                        const result = parseJsonSafely(rawText);
+                        if (result.success) {
+                          const text = JSON.stringify(result.data, null, 2);
                           const blob = new Blob([text], { type: 'application/json' });
                           const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                           setUploadedJson(file);
                           showToast('✅ JSON을 가져왔습니다!', 'success');
+                          if (result.fixed) {
+                            showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                          }
                           setJsonTextareaValue('');
                           setShowJsonTextarea(false);
-                        } catch (e) {
+                        } else {
                           showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                          console.error('JSON 파싱 실패:', result.error);
                         }
                       }
                     }}
@@ -2736,18 +3966,22 @@ export default function Home() {
                           return;
                         }
 
-                        try {
-                          // 마크다운 코드 블록 제거
-                          const text = stripMarkdownCodeBlock(rawText);
-                          const jsonData = JSON.parse(text);
+                        // 유연한 JSON 파싱
+                        const result = parseJsonSafely(rawText);
+                        if (result.success) {
+                          const text = JSON.stringify(result.data, null, 2);
                           const blob = new Blob([text], { type: 'application/json' });
                           const file = new File([blob], 'clipboard.json', { type: 'application/json' });
                           setUploadedJson(file);
                           showToast('✅ JSON을 가져왔습니다!', 'success');
+                          if (result.fixed) {
+                            showToast('⚡ JSON을 자동으로 수정했습니다', 'success');
+                          }
                           setJsonTextareaValue('');
                           setShowJsonTextarea(false);
-                        } catch (e) {
+                        } else {
                           showToast('올바른 JSON 형식이 아닙니다.', 'error');
+                          console.error('JSON 파싱 실패:', result.error);
                         }
                       }}
                       className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
@@ -2776,125 +4010,18 @@ export default function Home() {
                     return;
                   }
 
-                  // 영상 병합 시작
-                  setIsGeneratingVideo(true);
-                  setVideoLogs([]);
-                  setGeneratedVideoUrl(null);
+                  const cost = settings?.videoGenerationCost || 40;
+                  const currentCredits = user.credits || 0;
 
-                  try {
-                    showToast('비디오 병합을 시작합니다...', 'info');
-
-                    // FormData 생성
-                    const mergeFormData = new FormData();
-
-                    // 비디오 정렬: 시퀀스 번호가 있으면 시퀀스 우선, 없으면 시간 순서
-                    const sortedVideos = [...uploadedVideos].sort((a, b) => {
-                      // 파일명에서 숫자 추출 (예: clip_01.mp4 → 1, scene_5.mp4 → 5)
-                      const extractNumber = (filename: string): number | null => {
-                        const match = filename.match(/(\d+)/);
-                        return match ? parseInt(match[1], 10) : null;
-                      };
-
-                      const numA = extractNumber(a.name);
-                      const numB = extractNumber(b.name);
-
-                      // 둘 다 시퀀스 번호가 있으면 시퀀스로 정렬
-                      if (numA !== null && numB !== null) {
-                        return numA - numB;
-                      }
-
-                      // 시퀀스 번호가 없으면 생성/수정 시간으로 정렬 (오래된 것부터)
-                      return a.lastModified - b.lastModified;
-                    });
-
-                    // 정렬된 비디오 파일들 추가
-                    sortedVideos.forEach((video, index) => {
-                      mergeFormData.append(`video_${index}`, video);
-                    });
-
-                    // JSON 파일 추가 (있으면 - TTS 나레이션용)
-                    if (uploadedJson) {
-                      mergeFormData.append('json', uploadedJson);
-                    }
-
-                    // 자막 옵션 추가 (항상 true)
-                    mergeFormData.append('addSubtitles', 'true');
-
-                    // 워터마크 제거 옵션 추가
-                    mergeFormData.append('removeWatermark', removeWatermark ? 'true' : 'false');
-
-                    // API 호출
-                    const response = await fetch('/api/video-merge', {
-                      method: 'POST',
-                      body: mergeFormData
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                      throw new Error(data.error || '비디오 병합 실패');
-                    }
-
-                    if (data.jobId) {
-                      setCurrentJobId(data.jobId);
-                      showToast('✅ 비디오 병합이 시작되었습니다!', 'success');
-
-                      // 폴링 시작
-                      const interval = setInterval(async () => {
-                        try {
-                          const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
-                          const statusData = await statusRes.json();
-
-                          // 로그를 줄 단위로 분리해서 배열로 저장
-                          if (statusData.logs) {
-                            const logLines = typeof statusData.logs === 'string'
-                              ? statusData.logs.split('\n').filter(line => line.trim())
-                              : statusData.logs;
-                            setVideoLogs(logLines);
-                          }
-
-                          // 진행률 업데이트
-                          if (statusData.progress !== undefined) {
-                            setVideoProgress({
-                              step: statusData.status === 'processing' ? '비디오 병합 중...' : '준비 중...',
-                              progress: statusData.progress
-                            });
-                          }
-
-                          if (statusData.status === 'completed' && statusData.outputPath) {
-                            clearInterval(interval);
-                            setPollingInterval(null);
-                            setIsGeneratingVideo(false);
-                            setVideoProgress({
-                              step: '완료!',
-                              progress: 100
-                            });
-
-                            const videoUrl = `/api/video-stream?path=${encodeURIComponent(statusData.outputPath)}`;
-                            setGeneratedVideoUrl(videoUrl);
-                            showToast('✅ 비디오 병합 완료!', 'success');
-
-                            // 사용자 정보 갱신
-                            await checkAuth();
-                          } else if (statusData.status === 'failed') {
-                            clearInterval(interval);
-                            setPollingInterval(null);
-                            setIsGeneratingVideo(false);
-                            setVideoProgress(null);
-                            showToast(`❌ 비디오 병합 실패: ${statusData.error}`, 'error');
-                          }
-                        } catch (error) {
-                          console.error('폴링 오류:', error);
-                        }
-                      }, 2000);
-
-                      setPollingInterval(interval);
-                    }
-                  } catch (error: any) {
-                    console.error('비디오 병합 오류:', error);
-                    showToast(error.message || '비디오 병합 중 오류가 발생했습니다.', 'error');
-                    setIsGeneratingVideo(false);
-                  }
+                  // 병합 모드도 확인 모달 표시
+                  setConfirmModalData({
+                    cost,
+                    currentCredits,
+                    jsonName: uploadedJson?.name || '',
+                    imageCount: 0,
+                    videoCount: uploadedVideos.length  // 비디오 개수 추가
+                  });
+                  setShowConfirmModal(true);
                   return;
                 }
 
@@ -2904,7 +4031,7 @@ export default function Home() {
                 }
 
                 // SORA2가 아니고 직접 업로드 모드일 때만 이미지 필수
-                if (videoFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0) {
+                if (promptFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0) {
                   showToast('최소 1개 이상의 이미지를 업로드해주세요.', 'error');
                   return;
                 }
@@ -2924,7 +4051,7 @@ export default function Home() {
               disabled={
                 isGeneratingVideo ||
                 (productionMode === 'merge' ? uploadedVideos.length === 0 :
-                  (!uploadedJson || (videoFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0)))
+                  (!uploadedJson || (promptFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0)))
               }
               className="w-full rounded-xl bg-purple-600 px-6 py-3 font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -2933,6 +4060,281 @@ export default function Home() {
                 `🎬 영상 제작${settings ? ` (${settings.videoGenerationCost} 크레딧)` : ''}`}
             </button>
           </div>
+        </section>
+        )}
+
+        {/* 중국영상변환 */}
+        {showChineseConverter && (
+        <section ref={chineseConverterSectionRef} className="rounded-3xl border border-red-500/20 bg-red-950/20 p-6 backdrop-blur">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-red-400">🇨🇳 중국영상변환</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setShowChineseConverter(false);
+                setChineseVideoFile(null);
+                setChineseConvertLogs([]);
+                setChineseProgress(null);
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+              aria-label="닫기"
+            >
+              ✕
+            </button>
+          </div>
+
+          <p className="mb-4 text-sm text-slate-300">
+            중국어 자막이 포함된 영상을 업로드하면 한국어 자막과 음성으로 변환합니다.
+          </p>
+
+          {/* 상품 제목 입력 */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              🏷️ 상품 제목 (선택사항)
+            </label>
+            <input
+              type="text"
+              value={chineseVideoTitle}
+              onChange={(e) => setChineseVideoTitle(e.target.value)}
+              placeholder="예: 겨울 니트 스웨터 여성용"
+              className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder-slate-500 focus:border-red-500 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              제목을 입력하면 변환된 파일명으로 저장됩니다.
+            </p>
+          </div>
+
+          {/* 파일 업로드 */}
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              📹 중국어 영상 파일
+            </label>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingFiles(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDraggingFiles(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingFiles(false);
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('video/')) {
+                  setChineseVideoFile(file);
+                } else {
+                  alert('비디오 파일만 업로드할 수 있습니다.');
+                }
+              }}
+              className={`rounded-lg border-2 border-dashed p-6 text-center transition ${
+                isDraggingFiles
+                  ? 'border-red-400 bg-red-500/10'
+                  : 'border-slate-600 bg-slate-800/50'
+              }`}
+            >
+              {chineseVideoFile ? (
+                <div>
+                  <div className="mb-2 text-3xl">📹</div>
+                  <p className="font-semibold text-white">{chineseVideoFile.name}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {(chineseVideoFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-2 text-4xl">🎬</div>
+                  <p className="text-sm text-slate-400">
+                    드래그하여 비디오 파일 업로드
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <label className="flex-1 cursor-pointer rounded-lg bg-gradient-to-r from-red-600 to-orange-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:from-red-500 hover:to-orange-500">
+                {chineseVideoFile ? '다른 파일 선택' : '파일 선택'}
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setChineseVideoFile(file);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+              {chineseVideoFile && (
+                <button
+                  onClick={() => setChineseVideoFile(null)}
+                  className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 transition hover:bg-red-500/30"
+                >
+                  삭제
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 변환 프로세스 설명 */}
+          <div className="mb-4 rounded-lg bg-red-900/20 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-white">🔄 변환 프로세스</h3>
+            <ol className="space-y-1 text-xs text-slate-300">
+              <li>1️⃣ 중국어 자막 추출</li>
+              <li>2️⃣ 중국어 → 한국어 번역</li>
+              <li>3️⃣ 한국어 TTS 음성 생성</li>
+              <li>4️⃣ 원본 영상과 합성</li>
+              <li>5️⃣ 완료 후 내 콘텐츠에서 확인</li>
+            </ol>
+          </div>
+
+          {/* 프로그레스 바 */}
+          {isConvertingChinese && chineseProgress && (
+            <div className="mb-4 space-y-3 rounded-lg border border-red-500/30 bg-red-900/20 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-300">{chineseProgress.step}</span>
+                <span className="text-sm font-bold text-red-400">{chineseProgress.progress}%</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-700">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-400 transition-all duration-500"
+                  style={{ width: `${chineseProgress.progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-400">
+                ⏳ 영상을 변환하는 중입니다. 잠시만 기다려주세요...
+              </p>
+            </div>
+          )}
+
+          {/* 로그 */}
+          {(isConvertingChinese || chineseConvertLogs.length > 0) && (
+            <div ref={chineseLogRef} className="mb-4 max-h-48 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-slate-300">📋 변환 로그</h3>
+              <div className="space-y-1">
+                {chineseConvertLogs.length > 0 ? (
+                  chineseConvertLogs.map((log, idx) => (
+                    <div key={idx} className="text-sm text-slate-300 font-mono">
+                      <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                      {log.message}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-400 font-mono">
+                    로그를 불러오는 중...
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 변환 시작 버튼 */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (!chineseVideoFile) {
+                alert('비디오 파일을 선택해주세요.');
+                return;
+              }
+
+              setIsConvertingChinese(true);
+              setChineseProgress({ step: '🚀 중국영상변환 시작...', progress: 0 });
+              setChineseConvertLogs([{
+                timestamp: new Date().toISOString(),
+                message: '🚀 중국영상변환 시작...'
+              }]);
+
+              try {
+                // FormData 생성
+                const formData = new FormData();
+                formData.append('video', chineseVideoFile);
+
+                // 제목이 입력되었으면 추가
+                if (chineseVideoTitle.trim()) {
+                  formData.append('title', chineseVideoTitle.trim());
+                }
+
+                // TTS 음성 추가
+                formData.append('ttsVoice', selectedTtsVoice);
+                formData.append('ttsSpeed', ttsSpeed.toString());
+
+                const response = await fetch('/api/chinese-converter/convert', {
+                  method: 'POST',
+                  body: formData,
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                  throw new Error(data.error || '변환 실패');
+                }
+
+                setChineseJobId(data.jobId);
+                setChineseConvertLogs(prev => [...prev, {
+                  timestamp: new Date().toISOString(),
+                  message: `✅ 작업 시작됨 (Job ID: ${data.jobId})`
+                }]);
+
+                // 상태 폴링 시작
+                const pollInterval = setInterval(async () => {
+                  try {
+                    const statusRes = await fetch(`/api/chinese-converter/status?jobId=${data.jobId}`);
+                    const statusData = await statusRes.json();
+
+                    // 진행률 업데이트
+                    if (statusData.progress !== undefined) {
+                      const currentStep = statusData.logs && statusData.logs.length > 0
+                        ? statusData.logs[statusData.logs.length - 1].message
+                        : '변환 중...';
+                      setChineseProgress({
+                        step: currentStep,
+                        progress: statusData.progress
+                      });
+                    }
+
+                    // 로그 업데이트 (전체 로그 배열로 교체)
+                    if (statusData.logs && Array.isArray(statusData.logs)) {
+                      setChineseConvertLogs(statusData.logs);
+                    }
+
+                    if (statusData.status === 'completed') {
+                      clearInterval(pollInterval);
+                      setChineseProgress(null);
+                      setIsConvertingChinese(false);
+                      setTimeout(() => {
+                        window.location.href = '/my-content';
+                      }, 2000);
+                    } else if (statusData.status === 'failed') {
+                      clearInterval(pollInterval);
+                      setChineseProgress(null);
+                      setIsConvertingChinese(false);
+                    }
+                  } catch (error) {
+                    console.error('상태 조회 오류:', error);
+                  }
+                }, 3000);
+
+                // 10분 후 자동 중지
+                setTimeout(() => {
+                  clearInterval(pollInterval);
+                }, 10 * 60 * 1000);
+
+              } catch (error: any) {
+                console.error('변환 오류:', error);
+                setChineseConvertLogs(prev => [...prev, {
+                  timestamp: new Date().toISOString(),
+                  message: `❌ 오류: ${error.message}`
+                }]);
+                setChineseProgress(null);
+                setIsConvertingChinese(false);
+              }
+            }}
+            disabled={!chineseVideoFile || isConvertingChinese}
+            className="w-full rounded-xl bg-gradient-to-r from-red-600 to-orange-600 px-6 py-3 font-semibold text-white transition hover:from-red-500 hover:to-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isConvertingChinese ? '⏳ 변환 중...' : '🚀 변환 시작'}
+          </button>
         </section>
         )}
 
@@ -2946,23 +4348,35 @@ export default function Home() {
                 <div className="rounded-lg bg-purple-500/10 p-3 border border-purple-500/30">
                   <p className="text-sm text-purple-300 font-semibold mb-2">📹 영상 포맷</p>
                   <p className="text-white text-lg font-bold">
-                    {videoFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
-                     videoFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
-                     videoFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
+                    {promptFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
+                     promptFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
+                     promptFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
+                     promptFormat === 'product' ? '🛍️ 상품 (AI 마케팅)' :
                      '🎞️ 영상 병합 (Concat)'}
                   </p>
                 </div>
 
                 <div className="rounded-lg bg-white/5 p-3 border border-white/10">
                   <p className="text-sm text-slate-400">파일 정보</p>
-                  <p className="text-white">📄 {confirmModalData.jsonName}</p>
-                  <p className="text-white">
-                    🖼️ 이미지: {imageSource === 'none'
-                      ? `${confirmModalData.imageCount}개 업로드됨`
-                      : imageSource === 'dalle'
-                        ? 'DALL-E 자동 생성'
-                        : 'Google 검색'}
-                  </p>
+                  {productionMode === 'merge' ? (
+                    <>
+                      <p className="text-white">🎞️ 비디오: {confirmModalData.videoCount}개</p>
+                      {confirmModalData.jsonName && (
+                        <p className="text-white">📄 {confirmModalData.jsonName}</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-white">📄 {confirmModalData.jsonName}</p>
+                      <p className="text-white">
+                        🖼️ 이미지: {imageSource === 'none'
+                          ? `${confirmModalData.imageCount}개 업로드됨`
+                          : imageSource === 'dalle'
+                            ? 'DALL-E 자동 생성'
+                            : 'Google 검색'}
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 <div className="rounded-lg bg-yellow-500/10 p-3 border border-yellow-500/30">
@@ -2994,30 +4408,21 @@ export default function Home() {
                     setShowConfirmModal(false);
                     setConfirmModalData(null);
 
-                    setIsGeneratingVideo(true);
-                    setVideoProgress({ step: '파일 업로드 준비 중...', progress: 0 });
-                    setVideoLogs([]);
+                    // 병합 모드 처리
+                    if (productionMode === 'merge') {
+                      setIsGeneratingVideo(true);
+                      setVideoLogs([]);
+                      setGeneratedVideoUrl(null);
 
-                    try {
-                      // JSON 파일 읽기
-                      const rawJsonText = await uploadedJson!.text();
-                      // 마크다운 코드 블록 제거
-                      const jsonText = stripMarkdownCodeBlock(rawJsonText);
-                      const storyData = JSON.parse(jsonText);
+                      try {
+                        showToast('비디오 병합을 시작합니다...', 'info');
 
-                      setVideoProgress({ step: '이미지 업로드 중...', progress: 10 });
+                        // FormData 생성
+                        const mergeFormData = new FormData();
 
-                      // FormData로 파일 전송
-                      const formData = new FormData();
-                      formData.append('json', uploadedJson!);
-                      formData.append('imageSource', imageSource);
-                      formData.append('videoFormat', videoFormat); // 롱폼/숏폼 정보 추가
-
-                      // 직접 업로드 모드일 때만 이미지 추가
-                      if (imageSource === 'none') {
-                        // 이미지 정렬: 시퀀스 번호가 있으면 시퀀스 우선, 없으면 시간 순서
-                        const sortedImages = [...uploadedImages].sort((a, b) => {
-                          // 파일명에서 숫자 추출 (예: image_01.jpg → 1, scene_5.png → 5, 3.jpg → 3)
+                        // 비디오 정렬: 시퀀스 번호가 있으면 시퀀스 우선, 없으면 시간 순서
+                        const sortedVideos = [...uploadedVideos].sort((a, b) => {
+                          // 파일명에서 숫자 추출 (예: clip_01.mp4 → 1, scene_5.mp4 → 5)
                           const extractNumber = (filename: string): number | null => {
                             const match = filename.match(/(\d+)/);
                             return match ? parseInt(match[1], 10) : null;
@@ -3035,9 +4440,288 @@ export default function Home() {
                           return a.lastModified - b.lastModified;
                         });
 
-                        sortedImages.forEach((img, idx) => {
-                          formData.append(`image_${idx}`, img);
+                        // 파일 크기 체크 (2GB 제한)
+                        const totalSize = sortedVideos.reduce((sum, video) => sum + video.size, 0);
+                        const maxSize = 2 * 1024 * 1024 * 1024; // 2GB
+
+                        if (totalSize > maxSize) {
+                          throw new Error(`총 파일 크기가 너무 큽니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB / 최대 2GB)`);
+                        }
+
+                        // 정렬된 비디오 파일들 추가
+                        sortedVideos.forEach((video, index) => {
+                          mergeFormData.append(`video_${index}`, video);
                         });
+
+                        // JSON 파일 추가 (있으면 - TTS 나레이션용)
+                        if (uploadedJson) {
+                          mergeFormData.append('json', uploadedJson);
+                        }
+
+                        // 제목 추가 (사용자가 입력한 제목 우선 사용)
+                        if (titleQuery && titleQuery.trim()) {
+                          mergeFormData.append('title', titleQuery.trim());
+                        }
+
+                        // 자막 옵션 추가 (항상 true)
+                        mergeFormData.append('addSubtitles', 'true');
+
+                        // 워터마크 제거 옵션 추가
+                        mergeFormData.append('removeWatermark', removeWatermark ? 'true' : 'false');
+
+                        // TTS 음성 선택 추가
+                        mergeFormData.append('ttsVoice', selectedTtsVoice);
+                        mergeFormData.append('ttsSpeed', ttsSpeed.toString());
+
+                        // API 호출 (디버깅 로그 추가)
+                        console.log('📤 비디오 병합 요청 시작...');
+                        console.log('📦 업로드 파일 개수:', sortedVideos.length);
+                        console.log('📦 총 파일 크기:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
+
+                        const response = await fetch('/api/video-merge', {
+                          method: 'POST',
+                          body: mergeFormData
+                        });
+
+                        console.log('✅ 응답 받음:', response.status, response.statusText);
+
+                        // 응답 텍스트 먼저 읽기 (에러 디버깅용)
+                        const responseText = await response.text();
+                        console.log('📄 응답 내용 (처음 500자):', responseText.substring(0, 500));
+
+                        let data;
+                        try {
+                          data = JSON.parse(responseText);
+                        } catch (e) {
+                          console.error('❌ JSON 파싱 실패:', e);
+                          throw new Error('서버 응답을 파싱할 수 없습니다: ' + responseText.substring(0, 100));
+                        }
+
+                        if (!response.ok) {
+                          throw new Error(data.error || '비디오 병합 실패');
+                        }
+
+                        if (data.jobId) {
+                          setCurrentJobId(data.jobId);
+                          showToast('✅ 비디오 병합이 시작되었습니다!', 'success');
+
+                          // 폴링 시작
+                          const interval = setInterval(async () => {
+                            try {
+                              const statusRes = await fetch(`/api/job-status?jobId=${data.jobId}`);
+                              const statusData = await statusRes.json();
+
+                              // 로그를 줄 단위로 분리해서 배열로 저장
+                              if (statusData.logs) {
+                                const logLines = typeof statusData.logs === 'string'
+                                  ? statusData.logs.split('\n').filter((line: string) => line.trim())
+                                  : statusData.logs;
+                                setVideoLogs(logLines);
+                              }
+
+                              // 진행률 업데이트
+                              if (statusData.progress !== undefined) {
+                                setVideoProgress({
+                                  step: statusData.status === 'processing' ? '비디오 병합 중...' : '준비 중...',
+                                  progress: statusData.progress
+                                });
+                              }
+
+                              if (statusData.status === 'completed' && statusData.outputPath) {
+                                clearInterval(interval);
+                                setPollingInterval(null);
+                                setIsGeneratingVideo(false);
+                                setVideoProgress({
+                                  step: '완료!',
+                                  progress: 100
+                                });
+
+                                const videoUrl = `/api/video-stream?path=${encodeURIComponent(statusData.outputPath)}`;
+                                setGeneratedVideoUrl(videoUrl);
+                                showToast('✅ 비디오 병합 완료!', 'success');
+
+                                // 사용자 정보 갱신
+                                await checkAuth();
+                              } else if (statusData.status === 'failed') {
+                                clearInterval(interval);
+                                setPollingInterval(null);
+                                setIsGeneratingVideo(false);
+                                setVideoProgress(null);
+                                showToast(`❌ 비디오 병합 실패: ${statusData.error}`, 'error');
+                              }
+                            } catch (error) {
+                              console.error('폴링 오류:', error);
+                            }
+                          }, 2000);
+
+                          setPollingInterval(interval);
+                        }
+                      } catch (error: any) {
+                        console.error('비디오 병합 오류:', error);
+                        showToast(error.message || '비디오 병합 중 오류가 발생했습니다.', 'error');
+                        setIsGeneratingVideo(false);
+                      }
+                      return;
+                    }
+
+                    // 영상 제작 모드 처리
+                    setIsGeneratingVideo(true);
+                    setVideoProgress({ step: '파일 업로드 준비 중...', progress: 0 });
+                    setVideoLogs([]);
+
+                    try {
+                      // JSON 파일 읽기 및 파싱 (공통 함수 사용)
+                      const parseResult = await parseJsonFile(uploadedJson!);
+
+                      if (!parseResult.success) {
+                        console.error('JSON 파싱 실패:', parseResult.error);
+                        throw new Error(`JSON 파싱 실패: ${parseResult.error}`);
+                      }
+
+                      const storyData = parseResult.data;
+
+                      if (parseResult.fixed) {
+                        console.log('⚠️ JSON이 자동으로 수정되어 파싱되었습니다.');
+                      } else {
+                        console.log('✅ JSON 파싱 성공 (원본 그대로)');
+                      }
+
+                      setVideoProgress({ step: '이미지 업로드 중...', progress: 10 });
+
+                      // FormData로 파일 전송
+                      const formData = new FormData();
+                      formData.append('json', uploadedJson!);
+                      formData.append('imageSource', imageSource);
+                      formData.append('promptFormat', promptFormat); // 롱폼/숏폼 정보 추가
+                      formData.append('ttsVoice', selectedTtsVoice); // TTS 음성 선택 추가
+                      formData.append('ttsSpeed', ttsSpeed.toString()); // TTS 속도 추가
+
+                      // 직접 업로드 모드일 때만 이미지 추가
+                      if (imageSource === 'none') {
+                        console.log('\n' + '='.repeat(70));
+                        console.log('📷 이미지 정렬 시작 (총 ' + uploadedImages.length + '개)');
+                        console.log('='.repeat(70));
+                        console.log('\n🔵 원본 순서 (사용자가 선택한 순서):');
+                        uploadedImages.forEach((img, i) => {
+                          const date = new Date(img.lastModified);
+                          const timeStr = date.toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            fractionalSecondDigits: 3
+                          });
+                          console.log(`  [${i}] ${img.name.padEnd(30)} | ${timeStr} | ${(img.size / 1024).toFixed(1)}KB`);
+                        });
+
+                        // 이미지 정렬: 명확한 시퀀스 패턴이 있으면 시퀀스 우선, 없으면 시간 순서
+                        const sortedImages = [...uploadedImages].sort((a, b) => {
+                          // 명확한 시퀀스 번호만 추출:
+                          // - image_01, scene_1, img_5 등
+                          // - image(1), scene(2) 등
+                          // - (1), (2) 등
+                          // - 파일명 전체가 숫자 (1.jpg, 2.png)
+                          const extractSequence = (filename: string): number | null => {
+                            const name = filename.replace(/\.\w+$/, ''); // 확장자 제거
+
+                            // image_01, scene_1, img_5 패턴
+                            let match = name.match(/^(image|scene|img)[-_](\d+)$/i);
+                            if (match) return parseInt(match[2], 10);
+
+                            // image(1), scene(2) 패턴
+                            match = name.match(/^(image|scene|img)\((\d+)\)$/i);
+                            if (match) return parseInt(match[2], 10);
+
+                            // (1), (2) 패턴
+                            match = name.match(/^\((\d+)\)$/);
+                            if (match) return parseInt(match[1], 10);
+
+                            // 파일명 전체가 숫자 (1, 2, 3)
+                            match = name.match(/^(\d+)$/);
+                            if (match) return parseInt(match[1], 10);
+
+                            return null;
+                          };
+
+                          const numA = extractSequence(a.name);
+                          const numB = extractSequence(b.name);
+
+                          // 둘 다 명확한 시퀀스 번호가 있으면 시퀀스로 정렬
+                          if (numA !== null && numB !== null) {
+                            console.log(`  정렬 (시퀀스): ${a.name} (seq:${numA}) vs ${b.name} (seq:${numB}) → ${numA - numB > 0 ? 'B가 앞' : 'A가 앞'}`);
+                            return numA - numB;
+                          }
+
+                          // 시퀀스 번호가 없으면 생성/수정 시간으로 정렬 (오래된 것부터)
+                          const timeDiff = a.lastModified - b.lastModified;
+                          console.log(`  정렬 (시간): ${a.name} (${new Date(a.lastModified).toLocaleTimeString('ko-KR')}) vs ${b.name} (${new Date(b.lastModified).toLocaleTimeString('ko-KR')}) → ${timeDiff > 0 ? 'B가 앞' : 'A가 앞'}`);
+                          return timeDiff;
+                        });
+
+                        console.log('\n🟢 정렬 후 순서 (오래된 파일부터 image_00):');
+                        console.log('   ※ 첫 번째 파일(image_00)이 씬 0 또는 첫 씬이 됩니다!');
+                        sortedImages.forEach((img, i) => {
+                          const date = new Date(img.lastModified);
+                          const timeStr = date.toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            fractionalSecondDigits: 3
+                          });
+                          const newName = `image_${String(i).padStart(2, '0')}.${img.name.split('.').pop()}`;
+                          console.log(`  [${i}] ${img.name.padEnd(30)} → ${newName.padEnd(15)} | ${timeStr}`);
+                        });
+
+                        console.log('\n📤 FormData에 추가되는 순서:');
+
+                        // 원본 파일명 매핑 정보 생성
+                        const originalNames: Record<number, string> = {};
+
+                        // 정렬된 이미지를 image_00.ext, image_01.ext 형식으로 파일명 변경하여 전송
+                        sortedImages.forEach((img, idx) => {
+                          const ext = img.name.split('.').pop() || 'jpg';
+                          const newFileName = `image_${String(idx).padStart(2, '0')}.${ext}`;
+
+                          // 원본 파일명 저장
+                          originalNames[idx] = img.name;
+
+                          // 새로운 File 객체 생성 (파일명 변경)
+                          const renamedFile = new File([img], newFileName, { type: img.type });
+
+                          formData.append(`image_${idx}`, renamedFile);
+                          console.log(`  FormData.append('image_${idx}', ${newFileName}) - 원본: ${img.name}`);
+                        });
+
+                        // 원본 파일명 매핑 정보 추가
+                        formData.append('originalNames', JSON.stringify(originalNames));
+
+                        console.log('\n' + '='.repeat(70));
+                        console.log('✅ 이미지 정렬 및 FormData 추가 완료');
+                        console.log('='.repeat(70) + '\n');
+                      }
+
+                      // 비디오 파일 처리
+                      if (uploadedVideos.length > 0) {
+                        console.log('\n' + '='.repeat(70));
+                        console.log('🎬 비디오 파일 FormData 추가 시작');
+                        console.log('='.repeat(70));
+
+                        uploadedVideos.forEach((vid, idx) => {
+                          const ext = vid.name.split('.').pop() || 'mp4';
+                          const newFileName = `video_${String(idx).padStart(2, '0')}.${ext}`;
+                          const renamedFile = new File([vid], newFileName, { type: vid.type });
+                          formData.append(`video_${idx}`, renamedFile);
+                          console.log(`  FormData.append('video_${idx}', ${newFileName}) - 원본: ${vid.name}`);
+                        });
+
+                        console.log('\n' + '='.repeat(70));
+                        console.log('✅ 비디오 FormData 추가 완료');
+                        console.log('='.repeat(70) + '\n');
                       }
 
                       const response = await fetch('/api/generate-video-upload', {
@@ -3083,21 +4767,15 @@ export default function Home() {
               <h2 className="mb-4 text-2xl font-bold text-white">⚠️ AI 대본 생성 확인</h2>
 
               <div className="mb-6 space-y-3">
-                <div className="rounded-lg bg-emerald-500/10 p-3 border border-emerald-500/30">
-                  <p className="text-sm text-emerald-300 font-semibold mb-2">📹 영상 포맷</p>
-                  <p className="text-white text-lg font-bold">
-                    {videoFormat === 'longform' ? '🎬 롱폼 (16:9 가로)' :
-                     videoFormat === 'shortform' ? '📱 숏폼 (9:16 세로)' :
-                     videoFormat === 'sora2' ? '🎥 SORA2 (AI 시네마틱)' :
-                     '🎞️ 영상 병합 (Concat)'}
-                  </p>
-                </div>
-
                 <div className="rounded-lg bg-white/5 p-3 border border-white/10">
                   <p className="text-sm text-slate-400">대본 정보</p>
                   <p className="text-white">📝 주제: {scriptConfirmData.title}</p>
                   <p className="text-white">
-                    🤖 생성 방식: {scriptConfirmData.mode === 'generate-api' ? 'Claude API' : '로컬 Claude'}
+                    🤖 생성 방식: {scriptConfirmData.mode === 'generate-api' ? 'API 호출' : '로컬'} {
+                      scriptModel === 'chatgpt' ? 'ChatGPT' :
+                      scriptModel === 'gemini' ? 'Gemini' :
+                      scriptModel === 'claude' ? 'Claude' : scriptModel
+                    }
                   </p>
                 </div>
 
@@ -3141,32 +4819,114 @@ export default function Home() {
 
                       // 실제 AI 대본 생성 로직 실행
                       if (mode === 'generate-api') {
-                        // Claude API 사용
+                        // API 사용
+                        const modelNames: Record<string, string> = {
+                          'claude': 'Claude',
+                          'chatgpt': 'ChatGPT',
+                          'gemini': 'Gemini',
+                          'groq': 'Groq'
+                        };
+
                         setIsGeneratingScript(true);
                       setShowScriptLogs(true);
                       setScriptProgress({ current: 0, total: 100 });
                       setScriptGenerationLogs([{
                         timestamp: new Date().toISOString(),
-                        message: '💰 Claude API를 사용하여 대본 생성 시작...'
+                        message: `💰 ${modelNames[scriptModel] || scriptModel} API를 사용하여 대본 생성 시작...`
                       }]);
 
                       try {
-                        const promptResponse = await fetch(getPromptApiUrl());
-                        const promptData = await promptResponse.json();
+                        // 상품정보 생성 프롬프트 확인 (localStorage에서)
+                        let promptContent = '';
+                        const pendingPrompt = localStorage.getItem('pendingProductInfoPrompt');
 
-                        setScriptGenerationLogs(prev => [...prev, {
-                          timestamp: new Date().toISOString(),
-                          message: '📝 프롬프트 로드 완료'
-                        }]);
+                        if (pendingPrompt) {
+                          // 저장된 상품정보 프롬프트 사용
+                          console.log('🛍️ 상품정보 프롬프트 사용 (localStorage)');
+                          promptContent = pendingPrompt;
+                          localStorage.removeItem('pendingProductInfoPrompt'); // 사용 후 삭제
+
+                          setScriptGenerationLogs(prev => [...prev, {
+                            timestamp: new Date().toISOString(),
+                            message: '🛍️ 상품정보 프롬프트 로드 완료'
+                          }]);
+                        } else {
+                          // promptFormat에 따라 프롬프트 URL 결정
+                          let promptUrl = '/api/prompt'; // 기본값: 롱폼
+                          if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                          else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                          else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+                          else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
+
+                          console.log('🔍 현재 promptFormat:', promptFormat);
+                          console.log('📥 프롬프트 fetch 시작:', promptUrl);
+
+                          const promptResponse = await fetch(promptUrl);
+                          const promptData = await promptResponse.json();
+                          console.log('📥 프롬프트 로드 완료:', promptData.filename || 'filename 없음');
+
+                          promptContent = promptData.content;
+
+                          setScriptGenerationLogs(prev => [...prev, {
+                            timestamp: new Date().toISOString(),
+                            message: '📝 프롬프트 로드 완료'
+                          }]);
+                        }
+
+                        // ⭐ localStorage에서 productInfo 불러오기 (product와 product-info 모두 동일하게)
+                        let productInfoForApi = productInfo; // 먼저 state 사용 시도
+
+                        if (!productInfoForApi && (promptFormat === 'product' || promptFormat === 'product-info')) {
+                          // current_product_info 먼저 체크 (product 모드와 동일)
+                          const currentProductInfo = localStorage.getItem('current_product_info');
+                          if (currentProductInfo) {
+                            productInfoForApi = JSON.parse(currentProductInfo);
+                            console.log('✅ current_product_info에서 productInfo 복원:', productInfoForApi);
+                          } else {
+                            // 없으면 pendingProductInfoData 체크 (product-info 전용)
+                            const storedProductInfo = localStorage.getItem('pendingProductInfoData');
+                            if (storedProductInfo) {
+                              productInfoForApi = JSON.parse(storedProductInfo);
+                              console.log('✅ pendingProductInfoData에서 productInfo 복원:', productInfoForApi);
+                              localStorage.removeItem('pendingProductInfoData'); // 사용 후 삭제
+                            }
+                          }
+                        }
+
+                        // 상품 정보 체크 (state 또는 localStorage)
+                        console.log('🔍🔍🔍 === API 호출 직전 상품 정보 체크 ===');
+                        console.log('🔍 promptFormat:', promptFormat);
+                        console.log('🔍 productInfoForApi:', productInfoForApi);
+                        console.log('🔍 productInfo null 여부:', productInfoForApi === null);
+                        if (productInfoForApi) {
+                          console.log('🔍 productInfo.title:', productInfoForApi.title);
+                          console.log('🔍 productInfo.thumbnail:', productInfoForApi.thumbnail);
+                          console.log('🔍 productInfo.product_link:', productInfoForApi.product_link);
+                          console.log('🔍 productInfo.description:', productInfoForApi.description);
+                        }
+
+                        // 프롬프트 내용에 플레이스홀더가 있는지 확인
+                        console.log('🔍 프롬프트 처음 500자:', promptContent.substring(0, 500));
+                        console.log('🔍 프롬프트에 {title} 포함:', promptContent.includes('{title}'));
+                        console.log('🔍 프롬프트에 {thumbnail} 포함:', promptContent.includes('{thumbnail}'));
+                        console.log('🔍 프롬프트에 {product_link} 포함:', promptContent.includes('{product_link}'));
+                        console.log('🔍 프롬프트에 {product_description} 포함:', promptContent.includes('{product_description}'));
+
+                        const requestBody = {
+                          prompt: promptContent,
+                          topic: title,
+                          format: promptFormat,
+                          model: scriptModel, // 대본 생성용 AI 모델
+                          productInfo: productInfoForApi // ⭐ localStorage에서 복원한 상품 정보 사용
+                        };
+
+                        console.log('🔍 API 요청 본문 (prompt 제외):', JSON.stringify({...requestBody, prompt: `[${requestBody.prompt.length}자 생략]`}, null, 2));
+                        console.log('🔍🔍🔍 productInfo 전달 확인:', requestBody.productInfo);
 
                         const response = await fetch('/api/generate-script', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-                          body: JSON.stringify({
-                            prompt: promptData.content,
-                            topic: title,
-                            format: videoFormat
-                          })
+                          body: JSON.stringify(requestBody)
                         });
                         const data = await response.json();
 
@@ -3195,6 +4955,33 @@ export default function Home() {
                             const statusResponse = await fetch(`/api/scripts/${scriptId}`, {
                               headers: getAuthHeaders()
                             });
+
+                            if (!statusResponse.ok) {
+                              const errorText = await statusResponse.text();
+                              console.warn(`❌ 상태 조회 실패 (${statusResponse.status}):`, errorText);
+
+                              // 404는 아직 대본이 생성 중일 수 있으므로 계속 폴링
+                              if (statusResponse.status === 404) {
+                                checkCount++;
+                                if (checkCount >= maxChecks) {
+                                  clearInterval(interval);
+                                  setScriptPollingInterval(null);
+                                  setIsGeneratingScript(false);
+                                  setScriptGenerationLogs(prev => [...prev, {
+                                    timestamp: new Date().toISOString(),
+                                    message: '⏱️ 대본 생성 시간이 초과되었습니다.'
+                                  }]);
+                                  setScriptProgress({ current: 0, total: 100 });
+                                  setCurrentScriptId(null);
+                                  setToast({ message: '대본 생성 시간이 초과되었습니다.', type: 'error' });
+                                  setTimeout(() => setToast(null), 5000);
+                                }
+                                return; // 404는 에러로 처리하지 않고 계속 폴링
+                              }
+
+                              throw new Error(`상태 조회 실패 (${statusResponse.status}): ${errorText}`);
+                            }
+
                             const statusData = await statusResponse.json();
 
                             if (statusData.script?.status === 'completed') {
@@ -3214,15 +5001,19 @@ export default function Home() {
                               });
 
                               // SORA2 형식인 경우 JSON 검증 및 설정
-                              if (videoFormat === 'sora2') {
-                                try {
-                                  // JSON 파싱 시도
-                                  const parsed = JSON.parse(scriptContent);
+                              if (promptFormat === 'sora2') {
+                                // JSON 파싱 (유틸리티 함수 사용)
+                                const parseResult = parseJsonSafely(scriptContent);
+
+                                if (parseResult.success) {
                                   setSora2Script(scriptContent);
                                   setShowSora2Review(true);
-                                  setToast({ message: 'SORA2 대본이 생성되었습니다! JSON 형식이 확인되었습니다.', type: 'success' });
-                                } catch (jsonError) {
-                                  console.error('SORA2 JSON 파싱 오류:', jsonError);
+                                  const message = parseResult.fixed
+                                    ? 'SORA2 대본이 생성되었습니다! (자동 수정 적용됨)'
+                                    : 'SORA2 대본이 생성되었습니다! JSON 형식이 확인되었습니다.';
+                                  setToast({ message, type: 'success' });
+                                } else {
+                                  console.error('SORA2 JSON 파싱 오류:', parseResult.error);
                                   setToast({ message: '대본이 생성되었지만 JSON 형식이 아닙니다. 프롬프트를 확인해주세요.', type: 'error' });
                                 }
                               } else {
@@ -3287,6 +5078,21 @@ export default function Home() {
                                 setTimeout(() => setToast(null), 5000);
                               }
                             } else {
+                              // pending 상태 - 로그 표시 및 기본 진행률 증가
+                              if (statusData.script?.logs && statusData.script.logs.length > 0) {
+                                const formattedLogs = statusData.script.logs.map((log: string) => ({
+                                  timestamp: new Date().toISOString(),
+                                  message: log
+                                }));
+                                setScriptGenerationLogs(formattedLogs);
+                              } else {
+                                // 로그가 없어도 기본 진행률 표시
+                                setScriptProgress(prev => ({
+                                  current: Math.min((prev?.current || 0) + 2, 30), // 최대 30%까지만 자동 증가
+                                  total: prev?.total || 100
+                                }));
+                              }
+
                               checkCount++;
                               if (checkCount >= maxChecks) {
                                 clearInterval(interval);
@@ -3324,16 +5130,29 @@ export default function Home() {
                       setIsGeneratingScript(true);
                       setShowScriptLogs(true);
                       setScriptProgress({ current: 0, total: 100 });
+                      const modelNames: Record<string, string> = {
+                        'claude': 'Claude',
+                        'chatgpt': 'ChatGPT',
+                        'gemini': 'Gemini',
+                        'groq': 'Groq'
+                      };
+
                       setScriptGenerationLogs([{
                         timestamp: new Date().toISOString(),
-                        message: '🖥️ 로컬 Claude를 사용하여 대본 생성 시작...'
+                        message: `🖥️ 로컬 ${modelNames[scriptModel] || scriptModel}를 사용하여 대본 생성 시작...`
                       }]);
 
                       try {
                         const response = await fetch('/api/scripts/generate', {
                           method: 'POST',
                           headers: getAuthHeaders(),
-                          body: JSON.stringify({ title: title, type: videoFormat })
+                          body: JSON.stringify({
+                            title: title,
+                            type: promptFormat, // format -> type으로 수정
+                            scriptModel: scriptModel, // 대본 생성용 AI 모델
+                            useClaudeLocal: true,
+                            productInfo: productInfo // 상품 정보 추가 (title처럼)
+                          })
                         });
 
                         const data = await response.json();
@@ -3362,19 +5181,90 @@ export default function Home() {
 
                         const interval = setInterval(async () => {
                           try {
-                            // 로컬 Claude는 /api/script-status 엔드포인트 사용 (scripts_temp 테이블 조회)
+                            // 로컬 Claude는 /api/script-status 엔드포인트 사용 (contents 테이블 조회)
                             const statusResponse = await fetch(`/api/script-status?scriptId=${scriptId}`, {
                               headers: getAuthHeaders()
                             });
 
                             if (!statusResponse.ok) {
-                              console.warn(`❌ 상태 조회 실패 (${statusResponse.status})`);
-                              throw new Error('상태 조회 실패');
+                              let errorData: any = {};
+                              try {
+                                errorData = await statusResponse.json();
+                              } catch {
+                                const errorText = await statusResponse.text();
+                                errorData = { error: errorText };
+                              }
+
+                              console.warn(`❌ 상태 조회 실패 (${statusResponse.status}):`, errorData);
+
+                              // 410 (Gone): 오래된 ID 형식 - 즉시 중단하고 사용자에게 알림
+                              if (statusResponse.status === 410) {
+                                clearInterval(interval);
+                                setScriptPollingInterval(null);
+                                setIsGeneratingScript(false);
+                                setScriptGenerationLogs(prev => [...prev, {
+                                  timestamp: new Date().toISOString(),
+                                  message: '⚠️ 오래된 형식의 작업 ID입니다. 페이지를 새로고침해주세요.'
+                                }]);
+                                setScriptProgress({ current: 0, total: 100 });
+                                setCurrentScriptId(null);
+                                setToast({
+                                  message: errorData.suggestion || '페이지를 새로고침하고 다시 시도해주세요.',
+                                  type: 'error'
+                                });
+                                setTimeout(() => setToast(null), 8000);
+                                return;
+                              }
+
+                              // 404는 아직 대본이 생성 중일 수 있으므로 계속 폴링
+                              if (statusResponse.status === 404) {
+                                checkCount++;
+                                if (checkCount >= maxChecks) {
+                                  clearInterval(interval);
+                                  setScriptPollingInterval(null);
+                                  setIsGeneratingScript(false);
+                                  setScriptGenerationLogs(prev => [...prev, {
+                                    timestamp: new Date().toISOString(),
+                                    message: '⏱️ 대본 생성 시간이 초과되었습니다.'
+                                  }]);
+                                  setScriptProgress({ current: 0, total: 100 });
+                                  setCurrentScriptId(null);
+                                  setToast({ message: '대본 생성 시간이 초과되었습니다.', type: 'error' });
+                                  setTimeout(() => setToast(null), 5000);
+                                }
+                                return; // 404는 에러로 처리하지 않고 계속 폴링
+                              }
+
+                              throw new Error(`상태 조회 실패 (${statusResponse.status}): ${errorData.error || JSON.stringify(errorData)}`);
                             }
 
                             const statusData = await statusResponse.json();
                             console.log('📊 로컬 Claude 상태:', statusData);
 
+                            // 멈춰있는 작업 감지 (경고 있으면)
+                            if (statusData._warning) {
+                              console.warn('⚠️ 멈춰있는 작업:', statusData._warning);
+                              clearInterval(interval);
+                              setScriptPollingInterval(null);
+                              setIsGeneratingScript(false);
+                              setScriptGenerationLogs(prev => [...prev, {
+                                timestamp: new Date().toISOString(),
+                                message: `⚠️ ${statusData._warning}`
+                              }, {
+                                timestamp: new Date().toISOString(),
+                                message: '💡 페이지를 새로고침하고 새로운 대본을 생성해주세요.'
+                              }]);
+                              setScriptProgress({ current: 0, total: 100 });
+                              setCurrentScriptId(null);
+                              setToast({
+                                message: '이전 작업이 완료되지 않았습니다. 새로운 대본을 생성해주세요.',
+                                type: 'error'
+                              });
+                              setTimeout(() => setToast(null), 8000);
+                              return;
+                            }
+
+                            // 로그 표시 (항상 업데이트)
                             if (statusData.logs && statusData.logs.length > 0) {
                               const formattedLogs = statusData.logs.map((log: any) => ({
                                 timestamp: typeof log === 'object' ? log.timestamp : new Date().toISOString(),
@@ -3384,6 +5274,12 @@ export default function Home() {
 
                               const progress = Math.min(Math.floor((statusData.logs.length / 10) * 90), 90);
                               setScriptProgress({ current: progress, total: 100 });
+                            } else {
+                              // 로그가 없어도 기본 진행률 표시
+                              setScriptProgress(prev => ({
+                                current: Math.min((prev?.current || 0) + 5, 50), // 최대 50%까지만 자동 증가
+                                total: prev?.total || 100
+                              }));
                             }
 
                             if (statusData.status === 'completed') {
@@ -3403,7 +5299,7 @@ export default function Home() {
                               });
 
                               fetchCreditsAndSettings();
-                              setToast({ message: '로컬 Claude로 대본이 생성되었습니다!', type: 'success' });
+                              setToast({ message: `로컬 ${modelNames[scriptModel] || scriptModel}로 대본이 생성되었습니다!`, type: 'success' });
                               setTimeout(() => setToast(null), 3000);
                               setManualTitle('');
                               setIsGeneratingScript(false);
@@ -3455,7 +5351,7 @@ export default function Home() {
 
                         setScriptPollingInterval(interval);
 
-                        setToast({ message: '로컬 Claude로 대본 생성 중... 잠시만 기다려주세요.', type: 'info' });
+                        setToast({ message: `로컬 ${modelNames[scriptModel] || scriptModel}로 대본 생성 중... 잠시만 기다려주세요.`, type: 'info' });
                       } catch (error: any) {
                         console.error(error);
                         setIsGeneratingScript(false);
@@ -3967,7 +5863,14 @@ export default function Home() {
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch('/api/prompt');
+                      let promptUrl = '/api/prompt';
+                      if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                      else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                      else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+                      else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
+
+                      console.log('🔍 프롬프트 복사 - promptFormat:', promptFormat, 'URL:', promptUrl);
+                      const response = await fetch(promptUrl);
                       const data = await response.json();
                       if (data.content) {
                         // 모든 선택된 제목들을 조합
@@ -4033,7 +5936,13 @@ export default function Home() {
                   // 확인 모달 표시
                   setScriptConfirmCallback(() => async () => {
                     try {
-                    const promptResponse = await fetch(getPromptApiUrl());
+                    let promptUrl = '/api/prompt';
+                    if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                    else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                    else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+
+                    console.log('🔍 제목 제안 생성 - promptFormat:', promptFormat, 'URL:', promptUrl);
+                    const promptResponse = await fetch(promptUrl);
                     const promptData = await promptResponse.json();
 
                     if (!promptData.content) {
@@ -4241,14 +6150,14 @@ export default function Home() {
             <div className="flex gap-4">
               <button
                 onClick={startSora2VideoGeneration}
-                disabled={!sora2Script.trim() || isGenerating}
+                disabled={!sora2Script.trim() || isGeneratingVideo}
                 className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 font-semibold text-white transition hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isGenerating ? '⏳ 처리 중...' : '✅ 확인 및 영상 제작'}
+                {isGeneratingVideo ? '⏳ 처리 중...' : '✅ 확인 및 영상 제작'}
               </button>
               <button
                 onClick={() => setShowSora2Review(false)}
-                disabled={isGenerating}
+                disabled={isGeneratingVideo}
                 className="rounded-lg bg-slate-600 px-6 py-4 font-semibold text-white transition hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ✕ 취소
@@ -4719,7 +6628,7 @@ ${script}`;
 
 function normalizeModel(value: string | undefined): ModelOption {
   const found = modelOptions.find((option) => option.value === value);
-  return found ? found.value : 'gpt';
+  return found ? found.value : 'chatgpt';
 }
 
 function matchesDateFilterLocal(publishedAt: string, filter: DateFilter) {

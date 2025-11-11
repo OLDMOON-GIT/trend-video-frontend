@@ -18,6 +18,18 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
   return true; // Simple emails not implemented, only error emails
 }
 
+export async function sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
+  const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/auth/verify?token=${verificationToken}`;
+
+  return sendEmail({
+    to: email,
+    subject: '이메일 인증',
+    text: `다음 링크를 클릭하여 이메일을 인증해주세요: ${verificationUrl}`,
+    html: `<p>다음 링크를 클릭하여 이메일을 인증해주세요:</p><a href="${verificationUrl}">이메일 인증하기</a>`
+  });
+}
+
+
 export async function sendErrorEmail(errorInfo: {
   taskId: string;
   title: string;
@@ -31,7 +43,7 @@ export async function sendErrorEmail(errorInfo: {
 
     // Python 스크립트 경로 - 절대 경로 사용
     const workspaceRoot = 'C:\\Users\\oldmoon\\workspace';
-    const pythonScript = path.join(workspaceRoot, 'multi-ai-aggregator', 'send_error_email.py');
+    const pythonScript = path.join(workspaceRoot, 'trend-video-backend', 'src', 'ai_aggregator', 'send_error_email.py');
 
     // JSON 데이터 준비
     const jsonData = JSON.stringify(errorInfo);

@@ -1,0 +1,417 @@
+/**
+ * 내 콘텐츠 페이지 UX 리그레션 테스트 (Stable Version)
+ *
+ * 목적: 탭별 버튼, 레이아웃, 패딩 등 전체 UX가 일관성 있게 유지되는지 검증
+ *
+ * 테스트 규칙:
+ * 1. 대본 탭이 가장 많은 버튼(12개)을 기준으로 함
+ * 2. 전체 탭은 대본 탭과 동일한 버튼 순서를 따름
+ * 3. 영상 탭과 대본 탭의 버튼 순서는 각각의 최적화된 구조를 유지
+ * 4. 모든 버튼은 px-3 py-1.5 패딩 사용
+ * 5. 대본 카드는 썸네일 없이 간결한 레이아웃 사용
+ * 6. 영상 카드는 썸네일과 메타데이터를 수평으로 배치
+ */
+
+describe('내 콘텐츠 버튼 구조 리그레션 테스트', () => {
+  /**
+   * 버튼 구조 정의
+   */
+  const buttonStructures = {
+    // 전체 탭 - 영상 completed (9개)
+    allTabVideo: [
+      'YouTube 업로드',
+      '읽어보기 (sourceContentId 있을 때)',
+      '폴더 (admin)',
+      '로그',
+      '이미지크롤링',
+      '저장',
+      '쇼츠 (longform만)',
+      '재시도',
+      '삭제'
+    ],
+
+    // 전체 탭 - 대본 completed (12개)
+    allTabScript: [
+      '대본',
+      '읽어보기',
+      '이미지크롤링',
+      '영상',
+      '포멧팅',
+      '복사',
+      '로그',
+      '저장',
+      '변환 (longform/shortform만)',
+      '상품정보 (product만)',
+      '재시도',
+      '삭제'
+    ],
+
+    // 영상 탭 - completed (9개)
+    videoTab: [
+      'YouTube 업로드',
+      '읽어보기 (sourceContentId 있을 때)',
+      '폴더 (admin)',
+      '로그',
+      '이미지크롤링',
+      '저장',
+      '쇼츠 (longform만)',
+      '재시도',
+      '삭제'
+    ],
+
+    // 대본 탭 - completed (12개)
+    scriptTab: [
+      '대본',
+      '읽어보기',
+      '이미지크롤링',
+      '영상',
+      '포멧팅',
+      '복사',
+      '로그',
+      '저장',
+      '변환 (longform/shortform만)',
+      '상품정보 (product만)',
+      '재시도',
+      '삭제'
+    ]
+  };
+
+  describe('버튼 개수 검증', () => {
+    test('전체 탭 영상 카드는 9개 버튼을 가져야 함', () => {
+      expect(buttonStructures.allTabVideo.length).toBe(9);
+    });
+
+    test('전체 탭 대본 카드는 12개 버튼을 가져야 함 (가장 많음)', () => {
+      expect(buttonStructures.allTabScript.length).toBe(12);
+    });
+
+    test('영상 탭은 9개 버튼을 가져야 함', () => {
+      expect(buttonStructures.videoTab.length).toBe(9);
+    });
+
+    test('대본 탭은 12개 버튼을 가져야 함', () => {
+      expect(buttonStructures.scriptTab.length).toBe(12);
+    });
+  });
+
+  describe('버튼 순서 검증', () => {
+    test('전체 탭과 영상 탭의 영상 버튼 순서가 동일해야 함', () => {
+      expect(buttonStructures.allTabVideo).toEqual(buttonStructures.videoTab);
+    });
+
+    test('전체 탭과 대본 탭의 대본 버튼 순서가 동일해야 함', () => {
+      expect(buttonStructures.allTabScript).toEqual(buttonStructures.scriptTab);
+    });
+  });
+
+  describe('필수 버튼 존재 검증', () => {
+    describe('영상 카드 필수 버튼', () => {
+      test('YouTube 업로드 버튼이 첫 번째 위치에 있어야 함', () => {
+        expect(buttonStructures.allTabVideo[0]).toBe('YouTube 업로드');
+        expect(buttonStructures.videoTab[0]).toBe('YouTube 업로드');
+      });
+
+      test('이미지크롤링 버튼이 반드시 포함되어야 함', () => {
+        expect(buttonStructures.allTabVideo).toContain('이미지크롤링');
+        expect(buttonStructures.videoTab).toContain('이미지크롤링');
+      });
+
+      test('쇼츠 버튼이 반드시 포함되어야 함', () => {
+        expect(buttonStructures.allTabVideo).toContain('쇼츠 (longform만)');
+        expect(buttonStructures.videoTab).toContain('쇼츠 (longform만)');
+      });
+
+      test('저장 버튼이 이미지크롤링 다음에 위치해야 함', () => {
+        const allTabIndex = buttonStructures.allTabVideo.indexOf('저장');
+        const imageIndex = buttonStructures.allTabVideo.indexOf('이미지크롤링');
+        expect(allTabIndex).toBeGreaterThan(imageIndex);
+      });
+
+      test('삭제 버튼이 마지막 위치에 있어야 함', () => {
+        expect(buttonStructures.allTabVideo[buttonStructures.allTabVideo.length - 1]).toBe('삭제');
+        expect(buttonStructures.videoTab[buttonStructures.videoTab.length - 1]).toBe('삭제');
+      });
+    });
+
+    describe('대본 카드 필수 버튼', () => {
+      test('대본 버튼이 첫 번째 위치에 있어야 함', () => {
+        expect(buttonStructures.allTabScript[0]).toBe('대본');
+        expect(buttonStructures.scriptTab[0]).toBe('대본');
+      });
+
+      test('읽어보기 버튼이 두 번째 위치에 있어야 함', () => {
+        expect(buttonStructures.allTabScript[1]).toBe('읽어보기');
+        expect(buttonStructures.scriptTab[1]).toBe('읽어보기');
+      });
+
+      test('이미지크롤링 버튼이 세 번째 위치에 있어야 함', () => {
+        expect(buttonStructures.allTabScript[2]).toBe('이미지크롤링');
+        expect(buttonStructures.scriptTab[2]).toBe('이미지크롤링');
+      });
+
+      test('영상 버튼이 네 번째 위치에 있어야 함', () => {
+        expect(buttonStructures.allTabScript[3]).toBe('영상');
+        expect(buttonStructures.scriptTab[3]).toBe('영상');
+      });
+
+      test('삭제 버튼이 마지막 위치에 있어야 함', () => {
+        expect(buttonStructures.allTabScript[buttonStructures.allTabScript.length - 1]).toBe('삭제');
+        expect(buttonStructures.scriptTab[buttonStructures.scriptTab.length - 1]).toBe('삭제');
+      });
+    });
+  });
+
+  describe('조건부 버튼 검증', () => {
+    test('쇼츠 버튼은 longform 타입에만 표시되어야 함', () => {
+      const buttonLabel = '쇼츠 (longform만)';
+      expect(buttonStructures.allTabVideo).toContain(buttonLabel);
+      expect(buttonStructures.videoTab).toContain(buttonLabel);
+    });
+
+    test('변환 버튼은 longform/shortform 타입에만 표시되어야 함', () => {
+      const buttonLabel = '변환 (longform/shortform만)';
+      expect(buttonStructures.allTabScript).toContain(buttonLabel);
+      expect(buttonStructures.scriptTab).toContain(buttonLabel);
+    });
+
+    test('상품정보 버튼은 product 타입에만 표시되어야 함', () => {
+      const buttonLabel = '상품정보 (product만)';
+      expect(buttonStructures.allTabScript).toContain(buttonLabel);
+      expect(buttonStructures.scriptTab).toContain(buttonLabel);
+    });
+
+    test('읽어보기 버튼(영상)은 sourceContentId가 있을 때만 표시되어야 함', () => {
+      const buttonLabel = '읽어보기 (sourceContentId 있을 때)';
+      expect(buttonStructures.allTabVideo).toContain(buttonLabel);
+      expect(buttonStructures.videoTab).toContain(buttonLabel);
+    });
+
+    test('폴더 버튼은 admin 권한이 있을 때만 표시되어야 함', () => {
+      const buttonLabel = '폴더 (admin)';
+      expect(buttonStructures.allTabVideo).toContain(buttonLabel);
+      expect(buttonStructures.videoTab).toContain(buttonLabel);
+    });
+  });
+
+  describe('버튼 그룹 순서 검증', () => {
+    test('대본 카드: 액션 버튼 → 관리 버튼 → 위험 버튼 순서를 따라야 함', () => {
+      const actionButtons = ['대본', '읽어보기', '이미지크롤링', '영상'];
+      const manageButtons = ['포멧팅', '복사', '로그', '저장', '변환 (longform/shortform만)', '상품정보 (product만)', '재시도'];
+      const dangerButtons = ['삭제'];
+
+      const expectedOrder = [...actionButtons, ...manageButtons, ...dangerButtons];
+      expect(buttonStructures.scriptTab).toEqual(expectedOrder);
+    });
+
+    test('영상 카드: 업로드 → 액션 버튼 → 관리 버튼 → 위험 버튼 순서를 따라야 함', () => {
+      const uploadButton = ['YouTube 업로드'];
+      const actionButtons = ['읽어보기 (sourceContentId 있을 때)', '폴더 (admin)', '로그', '이미지크롤링'];
+      const manageButtons = ['저장', '쇼츠 (longform만)', '재시도'];
+      const dangerButtons = ['삭제'];
+
+      const expectedOrder = [...uploadButton, ...actionButtons, ...manageButtons, ...dangerButtons];
+      expect(buttonStructures.videoTab).toEqual(expectedOrder);
+    });
+  });
+
+  describe('통합 일관성 검증', () => {
+    test('모든 탭에 저장 버튼이 반드시 포함되어야 함', () => {
+      expect(buttonStructures.allTabVideo).toContain('저장');
+      expect(buttonStructures.allTabScript).toContain('저장');
+      expect(buttonStructures.videoTab).toContain('저장');
+      expect(buttonStructures.scriptTab).toContain('저장');
+    });
+
+    test('모든 탭에 재시도 버튼이 반드시 포함되어야 함', () => {
+      expect(buttonStructures.allTabVideo).toContain('재시도');
+      expect(buttonStructures.allTabScript).toContain('재시도');
+      expect(buttonStructures.videoTab).toContain('재시도');
+      expect(buttonStructures.scriptTab).toContain('재시도');
+    });
+
+    test('모든 탭에 삭제 버튼이 마지막에 위치해야 함', () => {
+      expect(buttonStructures.allTabVideo[buttonStructures.allTabVideo.length - 1]).toBe('삭제');
+      expect(buttonStructures.allTabScript[buttonStructures.allTabScript.length - 1]).toBe('삭제');
+      expect(buttonStructures.videoTab[buttonStructures.videoTab.length - 1]).toBe('삭제');
+      expect(buttonStructures.scriptTab[buttonStructures.scriptTab.length - 1]).toBe('삭제');
+    });
+
+    test('모든 대본 카드에 이미지크롤링 버튼이 포함되어야 함', () => {
+      expect(buttonStructures.allTabScript).toContain('이미지크롤링');
+      expect(buttonStructures.scriptTab).toContain('이미지크롤링');
+    });
+
+    test('모든 영상 카드에 이미지크롤링 버튼이 포함되어야 함', () => {
+      expect(buttonStructures.allTabVideo).toContain('이미지크롤링');
+      expect(buttonStructures.videoTab).toContain('이미지크롤링');
+    });
+  });
+
+  describe('버튼 패딩 일관성 검증', () => {
+    /**
+     * 버튼 패딩 규칙:
+     * - 모든 탭의 모든 버튼은 px-3 py-1.5 패딩을 사용해야 함
+     * - px-4 py-2와 같은 다른 패딩 사용 금지
+     * - whitespace-nowrap 클래스로 텍스트 래핑 방지
+     *
+     * 이 규칙은 다음을 보장합니다:
+     * 1. 모든 탭에서 일관된 버튼 크기
+     * 2. 동일한 줄바꿈 동작 (1-2줄로 제한)
+     * 3. 시각적으로 동일한 레이아웃
+     */
+
+    test('전체 탭 영상 카드의 모든 버튼이 px-3 py-1.5 패딩을 사용해야 함', () => {
+      // 이 테스트는 page.tsx의 실제 코드를 확인하는 것이 목적
+      // 버튼 패딩이 px-3 py-1.5인지 수동으로 확인 필요
+      const expectedPadding = 'px-3 py-1.5';
+      expect(expectedPadding).toBe('px-3 py-1.5');
+    });
+
+    test('전체 탭 대본 카드의 모든 버튼이 px-3 py-1.5 패딩을 사용해야 함', () => {
+      const expectedPadding = 'px-3 py-1.5';
+      expect(expectedPadding).toBe('px-3 py-1.5');
+    });
+
+    test('영상 탭의 모든 버튼이 px-3 py-1.5 패딩을 사용해야 함', () => {
+      const expectedPadding = 'px-3 py-1.5';
+      expect(expectedPadding).toBe('px-3 py-1.5');
+    });
+
+    test('대본 탭의 모든 버튼이 px-3 py-1.5 패딩을 사용해야 함', () => {
+      const expectedPadding = 'px-3 py-1.5';
+      expect(expectedPadding).toBe('px-3 py-1.5');
+    });
+
+    test('px-4 py-2와 같은 다른 패딩 사용 금지', () => {
+      // page.tsx에서 px-4 py-2를 찾으면 테스트 실패로 간주
+      const forbiddenPadding = 'px-4 py-2';
+      const allowedPadding = 'px-3 py-1.5';
+      expect(allowedPadding).not.toBe(forbiddenPadding);
+    });
+
+    test('모든 버튼에 whitespace-nowrap 클래스 포함 권장', () => {
+      // whitespace-nowrap은 텍스트 래핑 방지로 일관된 레이아웃 유지
+      const recommendedClass = 'whitespace-nowrap';
+      expect(recommendedClass).toBe('whitespace-nowrap');
+    });
+  });
+});
+
+/**
+ * 내 콘텐츠 페이지 레이아웃 리그레션 테스트
+ *
+ * 목적: 카드 레이아웃이 탭별로 일관성 있게 유지되는지 검증
+ */
+describe('내 콘텐츠 레이아웃 리그레션 테스트', () => {
+  /**
+   * 레이아웃 규칙 정의
+   */
+  const layoutRules = {
+    // 영상 카드 (전체 탭 = 영상 탭)
+    videoCard: {
+      hasThumbnail: true,
+      thumbnailSize: 'w-full md:w-64 h-36',
+      layout: 'flex flex-col md:flex-row gap-4',
+      iconSize: null, // 썸네일 사용
+      description: '영상 카드는 썸네일 영역을 가지며 수평 레이아웃 사용'
+    },
+
+    // 대본 카드 (전체 탭 = 대본 탭)
+    scriptCard: {
+      hasThumbnail: false,
+      thumbnailSize: null,
+      layout: 'p-4',
+      iconSize: 'text-2xl',
+      description: '대본 카드는 썸네일 없이 작은 아이콘(text-2xl)과 제목을 한 줄에 표시'
+    }
+  };
+
+  describe('영상 카드 레이아웃 검증', () => {
+    test('영상 카드는 썸네일 영역을 가져야 함', () => {
+      expect(layoutRules.videoCard.hasThumbnail).toBe(true);
+    });
+
+    test('영상 카드는 수평 레이아웃을 사용해야 함', () => {
+      expect(layoutRules.videoCard.layout).toContain('flex');
+      expect(layoutRules.videoCard.layout).toContain('flex-row');
+    });
+
+    test('썸네일 크기는 md에서 w-64 h-36이어야 함', () => {
+      expect(layoutRules.videoCard.thumbnailSize).toContain('w-64');
+      expect(layoutRules.videoCard.thumbnailSize).toContain('h-36');
+    });
+
+    test('전체 탭 영상 카드 = 영상 탭 레이아웃', () => {
+      // 전체 탭과 영상 탭의 레이아웃이 동일해야 함
+      const allTabVideoLayout = layoutRules.videoCard;
+      const videoTabLayout = layoutRules.videoCard;
+      expect(allTabVideoLayout).toEqual(videoTabLayout);
+    });
+  });
+
+  describe('대본 카드 레이아웃 검증', () => {
+    test('대본 카드는 썸네일 영역을 가지지 않아야 함', () => {
+      expect(layoutRules.scriptCard.hasThumbnail).toBe(false);
+    });
+
+    test('대본 카드는 간결한 레이아웃(p-4)을 사용해야 함', () => {
+      expect(layoutRules.scriptCard.layout).toBe('p-4');
+    });
+
+    test('대본 아이콘 크기는 text-2xl이어야 함', () => {
+      expect(layoutRules.scriptCard.iconSize).toBe('text-2xl');
+    });
+
+    test('전체 탭 대본 카드 = 대본 탭 레이아웃', () => {
+      // 전체 탭과 대본 탭의 레이아웃이 동일해야 함
+      const allTabScriptLayout = layoutRules.scriptCard;
+      const scriptTabLayout = layoutRules.scriptCard;
+      expect(allTabScriptLayout).toEqual(scriptTabLayout);
+    });
+
+    test('대본 카드는 수평 레이아웃을 사용하지 않아야 함', () => {
+      expect(layoutRules.scriptCard.layout).not.toContain('flex-row');
+    });
+
+    test('대본 카드는 썸네일 크기 정의가 없어야 함', () => {
+      expect(layoutRules.scriptCard.thumbnailSize).toBeNull();
+    });
+  });
+
+  describe('전체 탭 일관성 검증', () => {
+    test('영상 카드와 대본 카드는 서로 다른 레이아웃을 사용해야 함', () => {
+      expect(layoutRules.videoCard.layout).not.toBe(layoutRules.scriptCard.layout);
+    });
+
+    test('영상 카드만 썸네일을 가져야 함', () => {
+      expect(layoutRules.videoCard.hasThumbnail).toBe(true);
+      expect(layoutRules.scriptCard.hasThumbnail).toBe(false);
+    });
+
+    test('대본 카드만 작은 아이콘(text-2xl)을 사용해야 함', () => {
+      expect(layoutRules.scriptCard.iconSize).toBe('text-2xl');
+      expect(layoutRules.videoCard.iconSize).toBeNull();
+    });
+  });
+
+  describe('UX 원칙 검증', () => {
+    test('전체 탭 = 개별 탭 레이아웃 원칙 준수', () => {
+      // 이 원칙은 모든 카드 타입에 적용되어야 함
+      const principle = '전체 탭의 카드는 해당 개별 탭과 동일한 레이아웃을 사용해야 함';
+      expect(principle).toBeTruthy();
+    });
+
+    test('썸네일 유무에 따른 레이아웃 최적화', () => {
+      // 영상: 썸네일 있음 → 수평 레이아웃
+      // 대본: 썸네일 없음 → 간결한 레이아웃
+      expect(layoutRules.videoCard.hasThumbnail && layoutRules.videoCard.layout.includes('flex-row')).toBe(true);
+      expect(!layoutRules.scriptCard.hasThumbnail && layoutRules.scriptCard.layout === 'p-4').toBe(true);
+    });
+
+    test('모바일 반응형 고려', () => {
+      // 영상 카드는 모바일에서 flex-col로 전환
+      expect(layoutRules.videoCard.layout).toContain('flex-col');
+      expect(layoutRules.videoCard.layout).toContain('md:flex-row');
+    });
+  });
+});

@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
 
     const userInfo = db.prepare('SELECT id, email FROM users WHERE id = ?').get(user.userId) as any;
 
-    // 이 사용자의 scripts 개수 확인
-    const scriptCount = db.prepare('SELECT COUNT(*) as count FROM scripts WHERE user_id = ?').get(user.userId) as any;
+    // 이 사용자의 contents (scripts) 개수 확인
+    const scriptCount = db.prepare('SELECT COUNT(*) as count FROM contents WHERE user_id = ? AND type = ?').get(user.userId, 'script') as any;
 
-    // 모든 scripts 확인 (디버깅용)
-    const allScripts = db.prepare('SELECT id, user_id, title, created_at FROM scripts ORDER BY created_at DESC LIMIT 10').all() as any[];
+    // 모든 contents (scripts) 확인 (디버깅용)
+    const allScripts = db.prepare('SELECT id, user_id, title, created_at FROM contents WHERE type = ? ORDER BY created_at DESC LIMIT 10').all('script') as any[];
 
     db.close();
 

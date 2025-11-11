@@ -1,9 +1,21 @@
 /**
+ * ⚠️ DEPRECATED - 이 스크립트는 더 이상 사용되지 않습니다
+ *
  * 프롬프트 파일 동기화 Watcher
  *
- * trend-video-frontend/prompts 폴더와 multi-ai-aggregator 폴더 간의
- * 프롬프트 파일을 양방향 자동 동기화합니다.
+ * 변경 사항:
+ * - 백엔드는 이제 항상 프론트엔드 prompts 폴더를 직접 참조합니다
+ * - 백엔드의 프롬프트 파일은 삭제되었습니다
+ * - 동기화가 더 이상 필요하지 않습니다
+ *
+ * 프롬프트 위치:
+ * - Source of Truth: trend-video-frontend/prompts/*.txt
+ * - 백엔드는 main.py에서 자동으로 프론트엔드 prompts 폴더를 참조합니다
  */
+
+console.warn('⚠️ DEPRECATED: prompt-sync-watcher.js는 더 이상 사용되지 않습니다');
+console.warn('백엔드가 프론트엔드 prompts 폴더를 직접 참조하므로 동기화가 필요없습니다');
+process.exit(0);
 
 const chokidar = require('chokidar');
 const fs = require('fs').promises;
@@ -11,7 +23,7 @@ const path = require('path');
 
 // 경로 설정
 const PROMPTS_DIR = path.join(__dirname, 'prompts');
-const MULTI_AI_DIR = path.join(__dirname, '..', 'multi-ai-aggregator');
+const MULTI_AI_DIR = path.join(__dirname, '..', 'trend-video-backend', 'src', 'ai_aggregator');
 
 // 동기화 매핑
 const SYNC_MAP = {

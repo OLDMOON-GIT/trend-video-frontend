@@ -2,6 +2,21 @@
 
 ![Architecture Overview](public/architecture-overview.svg)
 
+---
+
+## 🛒 쿠팡 쇼핑몰 무료 배포
+
+**클릭 한 번으로 Vercel에 배포하세요!** (완전 무료, 월 100만 방문자 지원)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/trend-video-frontend&env=ADMIN_SERVER_URL&envDescription=관리%20서버%20URL%20입력&envLink=https://github.com/your-username/trend-video-frontend/blob/master/VERCEL_DEPLOYMENT_GUIDE.md)
+
+**환경 변수 설정**:
+- `ADMIN_SERVER_URL`: `http://oldmoon.iptime.org`
+
+📖 **상세 가이드**: [VERCEL_DEPLOYMENT_GUIDE.md](./VERCEL_DEPLOYMENT_GUIDE.md)
+
+---
+
 ## Overview
 - Single-page Next.js 16 (App Router) application built with React 19 and TypeScript.
 - Focused on finding high-potential YouTube videos, filtering them, and handing selected items to an automation pipeline.

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, exec } from 'child_process';
+import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import { getCurrentUser } from '@/lib/session';
 import { createJob, updateJob, addJobLog, flushJobLogs, findJobById, getSettings, deductCredits, addCredits, addCreditHistory } from '@/lib/db';
+import { parseJsonSafely } from '@/lib/json-utils';
+import kill from 'tree-kill';
+import { sendProcessKillFailureEmail, sendProcessKillTimeoutEmail } from '@/utils/email';
+
+const execAsync = promisify(exec);
 
 // 실행 중인 프로세스 관리
 const runningProcesses = new Map<string, ChildProcess>();
@@ -37,32 +43,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // JSON 파일에서 제목 추출
+    // JSON 파일에서 제목 추출 (공통 파싱 함수 사용)
     let videoTitle = 'Untitled';
     try {
-      let jsonText = await jsonFile.text();
+      const jsonText = await jsonFile.text();
 
-      // 마크다운 코드 블록 제거 (```json ... ``` 형식)
-      jsonText = jsonText
-        .replace(/^```json\s*/i, '')  // 시작 부분 제거
-        .replace(/\s*```\s*$/i, '')   // 끝 부분 제거
-        .trim();
+      // parseJsonSafely로 안전하게 파싱 (AI 설명문, 코드 블록 등 자동 제거)
+      const parseResult = parseJsonSafely(jsonText, { logErrors: true });
 
-      const jsonData = JSON.parse(jsonText);
-      if (jsonData.title) {
-        videoTitle = jsonData.title;
+      if (parseResult.success && parseResult.data) {
+        if (parseResult.fixed) {
+          console.log('⚠️ JSON 자동 수정이 적용되었습니다 (제목 추출)');
+        }
+
+        const jsonData = parseResult.data;
+        if (jsonData.title) {
+          videoTitle = jsonData.title;
+          console.log('✅ JSON 제목 추출 성공:', videoTitle);
+        }
+      } else {
+        console.log('⚠️ JSON title 추출 실패, 기본 제목 사용:', parseResult.error);
       }
     } catch (error) {
-      console.log('JSON title 추출 실패, 기본 제목 사용');
+      console.log('❌ JSON title 추출 중 오류, 기본 제목 사용');
     }
 
     // 이미지 소스 확인
     const imageSource = formData.get('imageSource') as string || 'none';
     console.log('이미지 소스:', imageSource);
 
+    // 프롬프트 포맷 확인 (product, product-info)
+    const promptFormat = formData.get('promptFormat') as string || '';
+    console.log('프롬프트 포맷:', promptFormat);
+
+    // TTS 음성 선택 확인
+    const ttsVoice = formData.get('ttsVoice') as string || 'ko-KR-SoonBokNeural';
+    console.log('TTS 음성:', ttsVoice);
+
+    // 상품 타입이면 title 앞에 [광고] 추가
+    if (promptFormat === 'product' || promptFormat === 'product-info') {
+      if (!videoTitle.startsWith('[광고]')) {
+        videoTitle = `[광고] ${videoTitle}`;
+        console.log('✅ 상품 영상 - title에 [광고] 추가:', videoTitle);
+      }
+    }
+
     // 비디오 포맷 확인 (longform, shortform, sora2)
     const videoFormat = formData.get('videoFormat') as string || 'longform';
     console.log('비디오 포맷:', videoFormat);
+
+    // 원본 파일명 매핑 정보 파싱
+    const originalNamesStr = formData.get('originalNames') as string;
+    let originalNames: Record<number, string> = {};
+    if (originalNamesStr) {
+      try {
+        originalNames = JSON.parse(originalNamesStr);
+        console.log('✅ 원본 파일명 매핑 정보 수신:', originalNames);
+      } catch (error) {
+        console.warn('⚠️ 원본 파일명 파싱 실패, 변환된 이름만 사용');
+      }
+    }
 
     // 이미지 파일들 수집
     const imageFiles: File[] = [];
@@ -71,10 +111,68 @@ export async function POST(request: NextRequest) {
       if (img) imageFiles.push(img);
     }
 
-    // 직접 업로드 모드일 때만 이미지 필수 체크 (SORA2는 이미지 불필요)
-    if (videoFormat !== 'sora2' && imageSource === 'none' && imageFiles.length === 0) {
+    // 비디오 파일들 수집
+    const videoFiles: File[] = [];
+    for (let i = 0; i < 50; i++) { // 최대 50개까지 확인
+      const vid = formData.get(`video_${i}`) as File;
+      if (vid) videoFiles.push(vid);
+    }
+
+    // ⚠️ 중요: 시퀀스 번호 우선, 그 다음 lastModified 오래된 순 정렬
+    // 1. 파일명에서 시퀀스 번호 추출 (01.jpg, image_02.png, scene-03.jpg 등)
+    // 2. 시퀀스 번호가 있으면 시퀀스 순으로 정렬
+    // 3. 시퀀스 번호가 없으면 lastModified 오래된 순으로 정렬
+    const extractSequenceNumber = (filename: string): number | null => {
+      // 1. 파일명이 숫자로 시작: "1.jpg", "02.png"
+      const startMatch = filename.match(/^(\d+)\./);
+      if (startMatch) return parseInt(startMatch[1], 10);
+
+      // 2. _숫자. 또는 -숫자. 패턴: "image_01.jpg", "scene-02.png"
+      const seqMatch = filename.match(/[_-](\d{1,3})\./);
+      if (seqMatch) return parseInt(seqMatch[1], 10);
+
+      // 3. (숫자) 패턴: "Image_fx (47).jpg"
+      // 단, 랜덤 ID가 없을 때만
+      const parenMatch = filename.match(/\((\d+)\)/);
+      if (parenMatch && !filename.match(/[_-]\w{8,}/)) {
+        return parseInt(parenMatch[1], 10);
+      }
+
+      return null;
+    };
+
+    imageFiles.sort((a, b) => {
+      const numA = extractSequenceNumber(a.name);
+      const numB = extractSequenceNumber(b.name);
+
+      // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
+      if (numA !== null && numB !== null) {
+        return numA - numB;
+      }
+
+      // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+      if (numA !== null && numB === null) return -1;
+      if (numA === null && numB !== null) return 1;
+
+      // 둘 다 없으면: lastModified로 정렬 (오래된 순)
+      return a.lastModified - b.lastModified;
+    });
+
+    console.log('📷 정렬된 이미지 순서 (시퀀스 우선 → lastModified):');
+    imageFiles.forEach((f, i) => {
+      const sceneNum = i === 0 ? '씬 0 (폭탄)' : i === imageFiles.length - 1 ? '씬 마지막 (구독)' : `씬 ${i}`;
+      const date = new Date(f.lastModified);
+      const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${ String(date.getMilliseconds()).padStart(3,'0')}`;
+      const originalName = originalNames[i] ? ` (원본: ${originalNames[i]})` : '';
+      const seqNum = extractSequenceNumber(f.name);
+      const seqInfo = seqNum !== null ? ` [시퀀스: ${seqNum}]` : ' [시퀀스 없음]';
+      console.log(`  ${sceneNum}: ${f.name}${originalName}${seqInfo} (lastModified: ${timeStr})`);
+    });
+
+    // 직접 업로드 모드일 때만 이미지 또는 비디오 필수 체크 (SORA2는 불필요)
+    if (videoFormat !== 'sora2' && imageSource === 'none' && imageFiles.length === 0 && videoFiles.length === 0) {
       return NextResponse.json(
-        { error: '최소 1개 이상의 이미지가 필요합니다.' },
+        { error: '최소 1개 이상의 이미지 또는 비디오가 필요합니다.' },
         { status: 400 }
       );
     }
@@ -107,10 +205,10 @@ export async function POST(request: NextRequest) {
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
     const jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const projectName = `uploaded_${jobId}`;
-    const inputPath = path.join(backendPath, 'input', projectName);
+    const inputPath = path.join(backendPath, 'uploads', projectName);
 
-    // Job을 DB에 저장 (JSON의 title과 videoFormat 사용)
-    await createJob(user.userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2');
+    // Job을 DB에 저장 (JSON의 title과 videoFormat, ttsVoice 사용)
+    await createJob(user.userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2', undefined, ttsVoice);
 
     // 비동기로 영상 생성 시작
     generateVideoFromUpload(jobId, user.userId, cost, {
@@ -119,9 +217,12 @@ export async function POST(request: NextRequest) {
       projectName,
       jsonFile,
       imageFiles,
+      videoFiles,
       imageSource,
       isAdmin: user.isAdmin || false,
-      videoFormat // 롱폼/숏폼 정보 전달
+      videoFormat, // 롱폼/숏폼 정보 전달
+      originalNames, // 원본 파일명 매핑
+      ttsVoice // TTS 음성 선택
     });
 
     return NextResponse.json({
@@ -149,9 +250,12 @@ async function generateVideoFromUpload(
     projectName: string;
     jsonFile: File;
     imageFiles: File[];
+    videoFiles: File[];
     imageSource: string;
     isAdmin: boolean;
     videoFormat: string; // 'longform', 'shortform', 'sora2'
+    originalNames?: Record<number, string>; // 원본 파일명 매핑
+    ttsVoice: string; // TTS 음성 선택
   }
 ) {
   try {
@@ -170,7 +274,21 @@ async function generateVideoFromUpload(
     });
 
     const jsonText = await config.jsonFile.text();
-    let jsonData = JSON.parse(jsonText.replace(/^```json\s*/i, '').replace(/\s*```\s*$/i, '').trim());
+
+    // parseJsonSafely로 안전하게 파싱 (AI 설명문, 코드 블록 등 자동 제거)
+    const parseResult = parseJsonSafely(jsonText, { logErrors: true });
+
+    if (!parseResult.success) {
+      throw new Error(`JSON 파싱 실패: ${parseResult.error}`);
+    }
+
+    let jsonData = parseResult.data;
+
+    if (parseResult.fixed) {
+      await addJobLog(jobId, '⚠️ JSON 자동 수정이 적용되었습니다\n');
+    } else {
+      await addJobLog(jobId, '✅ JSON 파싱 성공 (원본 그대로)\n');
+    }
 
     // Python 스크립트를 위해 scene_number 필드 추가
     if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
@@ -192,25 +310,52 @@ async function generateVideoFromUpload(
         step: '이미지 저장 중...'
       });
 
-      await addJobLog(jobId, `\n📷 이미지 ${config.imageFiles.length}개를 순서대로 저장 (씬 1부터)`);
+      await addJobLog(jobId, `\n📷 이미지 ${config.imageFiles.length}개를 저장`);
+      await addJobLog(jobId, `⏰ Frontend에서 이미 정렬된 순서대로 저장 (image_00 → 씬 0)`);
 
+      // Frontend에서 이미 image_00, image_01... 형식으로 정렬되어 전송됨
+      // 파일명을 image_01, image_02... 형식으로 변경하여 저장 (Python 코드와 호환)
       for (let i = 0; i < config.imageFiles.length; i++) {
         const imgFile = config.imageFiles[i];
         const imgBuffer = Buffer.from(await imgFile.arrayBuffer());
         const ext = imgFile.name.split('.').pop() || 'jpg';
 
-        // 파일명을 image_01, image_02 형식으로 저장 (씬 순서 유지)
-        await fs.writeFile(
-          path.join(config.inputPath, `image_${String(i + 1).padStart(2, '0')}.${ext}`),
-          imgBuffer
-        );
+        // image_01.jpg, image_02.png 형식으로 저장 (1부터 시작)
+        const finalPath = path.join(config.inputPath, `image_${String(i + 1).padStart(2, '0')}.${ext}`);
+        await fs.writeFile(finalPath, imgBuffer);
 
-        await addJobLog(jobId, `  씬 ${i + 1}: ${imgFile.name}`);
+        const sceneLabel = i === 0 ? '씬 0 (폭탄)' : i === config.imageFiles.length - 1 ? '씬 마지막' : `씬 ${i}`;
+
+        // 원본 파일명 정보 추가
+        const originalName = config.originalNames?.[i] ? ` (원본: ${config.originalNames[i]})` : '';
+        await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name}${originalName} → image_${String(i + 1).padStart(2, '0')}.${ext}`);
       }
     } else if (config.imageSource === 'google') {
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
     } else if (config.imageSource === 'dalle') {
       await addJobLog(jobId, `\n🎨 DALL-E 3를 사용하여 이미지 자동 생성 예정`);
+    }
+
+    // 비디오 파일 저장 (직접 업로드 모드일 때)
+    if (config.imageSource === 'none' && config.videoFiles.length > 0) {
+      await updateJob(jobId, {
+        progress: 35,
+        step: '비디오 저장 중...'
+      });
+
+      await addJobLog(jobId, `\n🎬 비디오 ${config.videoFiles.length}개를 저장`);
+
+      for (let i = 0; i < config.videoFiles.length; i++) {
+        const vidFile = config.videoFiles[i];
+        const vidBuffer = Buffer.from(await vidFile.arrayBuffer());
+        const ext = vidFile.name.split('.').pop() || 'mp4';
+
+        // video_01.mp4, video_02.mp4 형식으로 저장 (1부터 시작)
+        const finalPath = path.join(config.inputPath, `video_${String(i + 1).padStart(2, '0')}.${ext}`);
+        await fs.writeFile(finalPath, vidBuffer);
+
+        await addJobLog(jobId, `  비디오 ${i + 1}: ${vidFile.name} → video_${String(i + 1).padStart(2, '0')}.${ext} (${(vidFile.size / 1024 / 1024).toFixed(1)}MB)`);
+      }
     }
 
     // 4. Python 스크립트 실행 (영상 생성) - 실시간 로그
@@ -254,12 +399,14 @@ async function generateVideoFromUpload(
 
       pythonProcess = spawn('python', pythonArgs, {
         cwd: backendPath,
-        shell: true,
+        shell: false,  // shell을 사용하지 않음 (프로세스 트리 단순화)
+        detached: false,  // 부모와 함께 종료
         env: {
           ...process.env,
           PYTHONIOENCODING: 'utf-8',
           PYTHONUNBUFFERED: '1'
-        }
+        },
+        windowsHide: true  // Windows 콘솔 창 숨김
       });
     } else {
       // trend-video-backend 사용 (기존 로직)
@@ -281,18 +428,24 @@ async function generateVideoFromUpload(
       // 자막 추가 (기본값이 True이지만 명시적으로 전달)
       const subtitlesArg = ['--add-subtitles'];
 
+      // TTS 음성 선택
+      const voiceArg = ['--voice', config.ttsVoice];
+      console.log(`🎤 TTS 음성: ${config.ttsVoice}`);
+
       // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
-      const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...isAdminArg];
+      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...voiceArg, ...isAdminArg];
       console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
 
       pythonProcess = spawn('python', pythonArgs, {
         cwd: config.backendPath,
-        shell: true,
+        shell: false,  // shell을 사용하지 않음 (프로세스 트리 단순화)
+        detached: false,  // 부모와 함께 종료
         env: {
           ...process.env,
           PYTHONIOENCODING: 'utf-8',
           PYTHONUNBUFFERED: '1'
-        }
+        },
+        windowsHide: true  // Windows 콘솔 창 숨김
       });
     }
 
@@ -305,7 +458,7 @@ async function generateVideoFromUpload(
     let isCancelled = false;
 
     // stdout 실시간 처리
-    pythonProcess.stdout.on('data', async (data) => {
+    pythonProcess.stdout.on('data', async (data: Buffer) => {
       const text = data.toString('utf-8');
       stdoutBuffer += text;
       console.log(text);
@@ -325,7 +478,7 @@ async function generateVideoFromUpload(
     });
 
     // stderr 실시간 처리
-    pythonProcess.stderr.on('data', async (data) => {
+    pythonProcess.stderr.on('data', async (data: Buffer) => {
       const text = data.toString('utf-8');
       stderrBuffer += text;
       console.error(text);
@@ -334,7 +487,7 @@ async function generateVideoFromUpload(
 
     // 프로세스 완료 대기
     await new Promise<void>((resolve, reject) => {
-      pythonProcess.on('close', (code) => {
+      pythonProcess.on('close', (code: number | null) => {
         // 맵에서 프로세스 제거
         runningProcesses.delete(jobId);
 
@@ -347,15 +500,25 @@ async function generateVideoFromUpload(
         }
       });
 
-      pythonProcess.on('error', (error) => {
+      pythonProcess.on('error', (error: Error) => {
         runningProcesses.delete(jobId);
         reject(error);
       });
 
-      // 타임아웃 (2시간)
+      // 타임아웃 (2시간) - 강제 종료
       setTimeout(() => {
-        if (runningProcesses.has(jobId)) {
-          pythonProcess.kill();
+        if (runningProcesses.has(jobId) && pythonProcess.pid) {
+          console.log(`⏰ 타임아웃: 프로세스 트리 강제 종료 ${jobId}, PID: ${pythonProcess.pid}`);
+
+          // tree-kill로 프로세스 트리 전체 강제 종료
+          kill(pythonProcess.pid, 'SIGKILL', (err) => {
+            if (err) {
+              console.error(`❌ tree-kill 실패 (타임아웃): ${err}`);
+            } else {
+              console.log(`✅ tree-kill 성공 (타임아웃): PID ${pythonProcess.pid}`);
+            }
+          });
+
           runningProcesses.delete(jobId);
           reject(new Error('Python 실행 시간 초과 (2시간)'));
         }
@@ -596,12 +759,9 @@ export async function GET(request: NextRequest) {
 // DELETE 요청 - 작업 취소
 export async function DELETE(request: NextRequest) {
   try {
-    console.log('🛑 DELETE 요청 받음');
-
     const user = await getCurrentUser(request);
 
     if (!user) {
-      console.log('❌ 인증 실패');
       return NextResponse.json(
         { error: '로그인이 필요합니다.' },
         { status: 401 }
@@ -611,10 +771,7 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get('jobId');
 
-    console.log(`🛑 취소 요청 jobId: ${jobId}`);
-
     if (!jobId) {
-      console.log('❌ jobId 없음');
       return NextResponse.json(
         { error: 'jobId가 필요합니다.' },
         { status: 400 }
@@ -622,9 +779,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Job 확인
-    console.log(`🔍 DB에서 job 조회 중: ${jobId}`);
     const job = await findJobById(jobId);
-    console.log(`📋 Job 조회 결과:`, job ? `찾음 (userId: ${job.userId}, status: ${job.status})` : '없음');
 
     if (!job) {
       return NextResponse.json(
@@ -649,19 +804,98 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 실행 중인 프로세스 찾기
+    // 1. 취소 플래그 파일 생성 (Python이 체크하도록)
+    try {
+      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+      const inputFolders = await fs.readdir(path.join(backendPath, 'input'));
+      const jobFolder = inputFolders.find(f => f.includes(jobId.replace('upload_', '')));
+
+      if (jobFolder) {
+        const cancelFilePath = path.join(backendPath, 'input', jobFolder, '.cancel');
+        await fs.writeFile(cancelFilePath, 'cancelled by user');
+        console.log(`✅ 취소 플래그 파일 생성: ${cancelFilePath}`);
+        await addJobLog(jobId, '\n🚫 취소 플래그 설정됨 - Python 프로세스가 감지하면 중단됩니다.');
+      } else {
+        console.warn(`⚠️ Job 폴더를 찾을 수 없음: ${jobId}`);
+      }
+    } catch (error: any) {
+      console.error(`❌ 취소 플래그 파일 생성 실패: ${error.message}`);
+    }
+
+    // 2. 프로세스 강제 종료
     const process = runningProcesses.get(jobId);
 
-    if (process) {
-      console.log(`🛑 작업 취소 요청 (프로세스 종료): ${jobId}`);
+    if (process && process.pid) {
+      const pid = process.pid;
+      console.log(`🛑 프로세스 트리 종료 시작: Job ${jobId}, PID ${pid}`);
 
-      // 프로세스 종료
-      process.kill('SIGTERM');
+      try {
+        // tree-kill 라이브러리로 프로세스 트리 전체 강제 종료
+        await new Promise<void>((resolve, reject) => {
+          kill(pid, 'SIGKILL', (err) => {
+            if (err) {
+              console.error(`❌ tree-kill 실패: ${err.message}`);
+              reject(err);
+            } else {
+              console.log(`✅ tree-kill 성공: PID ${pid} 및 모든 자식 프로세스 종료`);
+              resolve();
+            }
+          });
+        });
 
-      // 맵에서 제거
-      runningProcesses.delete(jobId);
+        // 추가 정리 (Windows)
+        if (process.platform === 'win32') {
+          console.log('🧹 Windows 좀비 프로세스 추가 정리...');
+
+          // ShimGen 정리
+          try {
+            await execAsync('taskkill /F /IM ShimGen.exe 2>nul');
+            console.log('✅ ShimGen.exe 정리 완료');
+          } catch {
+            // ShimGen이 없으면 무시
+          }
+
+          // 고아 Python 프로세스 정리 (DALL-E 등)
+          try {
+            // 현재 작업 디렉토리 관련 python.exe 프로세스 찾아서 종료
+            await execAsync('taskkill /F /FI "IMAGENAME eq python.exe" /FI "STATUS eq RUNNING" 2>nul');
+            console.log('✅ 고아 Python 프로세스 정리 시도');
+          } catch {
+            // 프로세스가 없으면 무시
+          }
+        }
+
+        // 맵에서 제거
+        runningProcesses.delete(jobId);
+        console.log(`✅ runningProcesses에서 제거: ${jobId}`);
+
+      } catch (error: any) {
+        console.error(`❌ 프로세스 종료 실패: ${error.message}`);
+
+        // 에러 발생해도 맵에서 제거
+        runningProcesses.delete(jobId);
+
+        // 강제 종료 재시도 (Windows만)
+        if (process.platform === 'win32') {
+          console.log('🔄 강제 종료 재시도...');
+          try {
+            await execAsync(`taskkill /F /T /PID ${pid}`);
+            console.log('✅ taskkill 재시도 성공');
+          } catch (retryErr: any) {
+            console.error(`❌ taskkill 재시도도 실패: ${retryErr.message}`);
+          }
+        }
+
+        // 관리자에게 메일 발송
+        await sendProcessKillFailureEmail(
+          jobId,
+          pid,
+          user.userId,
+          `프로세스 종료 실패: ${error.message}`
+        );
+      }
     } else {
-      console.log(`🛑 작업 취소 요청 (프로세스 없음, 상태만 변경): ${jobId}`);
+      console.log(`⚠️ 실행 중인 프로세스 없음: ${jobId}`);
     }
 
     // Job 상태 업데이트 (프로세스가 없어도 실행)

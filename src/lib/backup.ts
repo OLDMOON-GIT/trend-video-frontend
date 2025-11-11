@@ -172,7 +172,7 @@ export function checkDatabaseHealth(): {
 
     try {
       const db = new Database(dbPath);
-      const integrityCheck = db.pragma('integrity_check');
+      const integrityCheck = db.pragma('integrity_check') as any;
       result.integrity = integrityCheck[0]?.integrity_check === 'ok';
       db.close();
     } catch (error) {

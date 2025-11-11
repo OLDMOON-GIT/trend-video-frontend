@@ -2,197 +2,287 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import toast, { Toaster } from 'react-hot-toast';
 
-interface Settings {
-  aiScriptCost: number;
-  videoGenerationCost: number;
+interface CreditPrices {
+  scriptGeneration: number;      // AI 대본 생성 비용
+  videoGeneration: number;        // 영상 생성 비용
+  longformScript: number;         // 롱폼 대본 생성 비용
+  shortformScript: number;        // 숏폼 대본 생성 비용
+  sora2Video: number;            // Sora2 영상 생성 비용
+  productVideo: number;          // 상품 영상 생성 비용
 }
 
-export default function AdminSettingsPage() {
+export default function CreditSettingsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ id: string; email: string; isAdmin: boolean } | null>(null);
-  const [settings, setSettings] = useState<Settings>({ aiScriptCost: 50, videoGenerationCost: 40 });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-
-  // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
-  const getAuthHeaders = (): HeadersInit => {
-    return {}; // 빈 객체 반환 (쿠키가 자동으로 전송됨)
-  };
+  const [prices, setPrices] = useState<CreditPrices>({
+    scriptGeneration: 100,
+    videoGeneration: 500,
+    longformScript: 200,
+    shortformScript: 50,
+    sora2Video: 1000,
+    productVideo: 300
+  });
 
   useEffect(() => {
-    checkAuth();
-    loadSettings();
+    loadPrices();
   }, []);
 
-  const checkAuth = async () => {
+  const loadPrices = async () => {
     try {
-      const response = await fetch('/api/auth/session', {
-        headers: getAuthHeaders(),
+      const res = await fetch('/api/admin/credit-prices', {
         credentials: 'include'
       });
-      const data = await response.json();
 
-      if (!data.user || !data.user.isAdmin) {
-        alert('관리자 권한이 필요합니다.');
-        router.push('/');
+      if (res.status === 401) {
+        router.push('/auth');
         return;
       }
 
-      setUser(data.user);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.prices) {
+          setPrices(data.prices);
+        }
+      }
     } catch (error) {
-      console.error('Auth check error:', error);
-      router.push('/auth');
+      console.error('크레딧 가격 로드 실패:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadSettings = async () => {
-    try {
-      const response = await fetch('/api/settings');
-      const data = await response.json();
-      setSettings(data);
-    } catch (error) {
-      console.error('설정 로드 오류:', error);
-    }
-  };
-
-  const handleSaveSettings = async () => {
+  const handleSave = async () => {
     setIsSaving(true);
     try {
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
+      const res = await fetch('/api/admin/credit-prices', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(settings)
+        body: JSON.stringify({ prices })
       });
 
-      if (response.ok) {
-        alert('✅ 설정이 저장되었습니다.');
+      if (res.ok) {
+        toast.success('✅ 크레딧 가격이 저장되었습니다!');
       } else {
-        const error = await response.json();
-        alert('❌ 저장 실패: ' + error.error);
+        const data = await res.json();
+        toast.error(data.error || '저장 실패');
       }
     } catch (error) {
-      console.error('설정 저장 오류:', error);
-      alert('❌ 설정 저장 중 오류가 발생했습니다.');
+      console.error('저장 실패:', error);
+      toast.error('저장 중 오류가 발생했습니다.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        credentials: 'include'
-      });
-      localStorage.removeItem('sessionId');
-      router.push('/auth');
-    } catch (error) {
-      console.error('Logout error:', error);
+  const handleReset = () => {
+    if (!confirm('기본값으로 초기화하시겠습니까?')) {
+      return;
     }
+
+    setPrices({
+      scriptGeneration: 100,
+      videoGeneration: 500,
+      longformScript: 200,
+      shortformScript: 50,
+      sora2Video: 1000,
+      productVideo: 300
+    });
+    toast.success('기본값으로 초기화되었습니다');
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">로딩 중...</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-slate-300 text-lg">로딩 중...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-      <div className="mx-auto max-w-4xl">
-{/* 헤더 */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">💰 크레딧 가격 설정</h1>
-            {user && <p className="mt-1 text-sm text-slate-400">{user.email}</p>}
+      <Toaster position="top-right" />
+
+      <div className="max-w-4xl mx-auto">
+        {/* 헤더 */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">💰 크레딧 가격 설정</h1>
+          <p className="text-slate-400">
+            AI 대본 생성 및 영상 생성 시 차감되는 크레딧 금액을 설정합니다
+          </p>
+        </div>
+
+        {/* 크레딧 가격 설정 */}
+        <div className="rounded-2xl border border-slate-600 bg-slate-800/50 backdrop-blur">
+          {/* AI 대본 생성 비용 */}
+          <div className="p-6 border-b border-slate-700">
+            <h2 className="text-xl font-bold text-white mb-6">📝 AI 대본 생성 비용</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  롱폼 대본 생성 (Longform)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    value={prices.longformScript}
+                    onChange={(e) => setPrices({ ...prices, longformScript: Number(e.target.value) })}
+                    className="flex-1 rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
+                  />
+                  <span className="text-slate-300 font-semibold">크레딧</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  롱폼 드라마 대본 생성 시 차감되는 크레딧
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  숏폼 대본 생성 (Shortform)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    value={prices.shortformScript}
+                    onChange={(e) => setPrices({ ...prices, shortformScript: Number(e.target.value) })}
+                    className="flex-1 rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
+                  />
+                  <span className="text-slate-300 font-semibold">크레딧</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  숏폼 대본 생성 시 차감되는 크레딧
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  기본 대본 생성 (Legacy)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    value={prices.scriptGeneration}
+                    onChange={(e) => setPrices({ ...prices, scriptGeneration: Number(e.target.value) })}
+                    className="flex-1 rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
+                  />
+                  <span className="text-slate-300 font-semibold">크레딧</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  일반 AI 대본 생성 시 차감되는 크레딧 (하위 호환용)
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <Link
-              href="/admin"
-              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-            >
-              관리자 메인
-            </Link>
-            <Link
-              href="/"
-              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-            >
-              메인으로
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-            >
-              로그아웃
-            </button>
+
+          {/* 영상 생성 비용 */}
+          <div className="p-6">
+            <h2 className="text-xl font-bold text-white mb-6">🎬 영상 생성 비용</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Sora2 영상 생성
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    value={prices.sora2Video}
+                    onChange={(e) => setPrices({ ...prices, sora2Video: Number(e.target.value) })}
+                    className="flex-1 rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
+                  />
+                  <span className="text-slate-300 font-semibold">크레딧</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Sora2 AI를 이용한 영상 생성 시 차감되는 크레딧
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  상품 영상 생성
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    value={prices.productVideo}
+                    onChange={(e) => setPrices({ ...prices, productVideo: Number(e.target.value) })}
+                    className="flex-1 rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
+                  />
+                  <span className="text-slate-300 font-semibold">크레딧</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  쿠팡 상품 영상 생성 시 차감되는 크레딧
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  기본 영상 생성 (Legacy)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    value={prices.videoGeneration}
+                    onChange={(e) => setPrices({ ...prices, videoGeneration: Number(e.target.value) })}
+                    className="flex-1 rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
+                  />
+                  <span className="text-slate-300 font-semibold">크레딧</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  일반 영상 생성 시 차감되는 크레딧 (하위 호환용)
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* 크레딧 설정 */}
-        <div className="rounded-xl border border-white/10 bg-white/5 p-8 backdrop-blur">
-          <h2 className="mb-6 text-2xl font-bold text-white">💰 크레딧 가격 설정</h2>
-
-          <div className="space-y-6">
-            {/* AI 대본 생성 비용 */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-300">
-                AI 대본 생성 비용 (크레딧)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={settings.aiScriptCost}
-                onChange={(e) => setSettings({ ...settings, aiScriptCost: parseInt(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none transition"
-              />
-              <p className="mt-1 text-xs text-slate-400">AI로 대본을 생성할 때 차감되는 크레딧</p>
-            </div>
-
-            {/* 영상 생성 비용 */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-300">
-                영상 생성 비용 (크레딧)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={settings.videoGenerationCost}
-                onChange={(e) => setSettings({ ...settings, videoGenerationCost: parseInt(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none transition"
-              />
-              <p className="mt-1 text-xs text-slate-400">영상을 생성할 때 차감되는 크레딧</p>
-            </div>
-
-            {/* 저장 버튼 */}
-            <button
-              onClick={handleSaveSettings}
-              disabled={isSaving}
-              className="w-full rounded-lg bg-green-600 px-6 py-3 font-semibold text-white transition hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving ? '저장 중...' : '💾 설정 저장'}
-            </button>
-          </div>
+        {/* 버튼 */}
+        <div className="mt-6 flex gap-4">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 text-white font-bold hover:from-purple-500 hover:to-pink-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSaving ? '저장 중...' : '💾 설정 저장'}
+          </button>
+          <button
+            onClick={handleReset}
+            className="rounded-lg bg-slate-700 px-6 py-3 text-white font-bold hover:bg-slate-600 transition"
+          >
+            🔄 기본값 복원
+          </button>
         </div>
 
-        {/* 가격 예시 안내 */}
-        <div className="mt-6 rounded-xl border border-blue-500/30 bg-blue-500/10 p-6 backdrop-blur">
-          <h3 className="mb-3 text-lg font-bold text-blue-300">💡 가격 설정 가이드</h3>
+        {/* 안내 */}
+        <div className="mt-8 p-6 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+          <h3 className="text-lg font-semibold text-blue-400 mb-3">💡 사용 안내</h3>
           <div className="space-y-2 text-sm text-slate-300">
-            <p>• <strong>추천 가격:</strong> AI 대본 50 크레딧, 영상 생성 40 크레딧</p>
-            <p>• <strong>예시:</strong> 만 원 결제 시 2000 크레딧 제공 → 약 50개 영상 생성 가능</p>
-            <p>• <strong>주의:</strong> 가격 변경은 즉시 적용되며, 진행 중인 작업에도 영향을 줍니다.</p>
+            <p>• 설정한 크레딧 금액은 사용자가 해당 기능을 사용할 때 자동으로 차감됩니다.</p>
+            <p>• 크레딧이 부족한 사용자는 해당 기능을 사용할 수 없습니다.</p>
+            <p>• 설정 변경은 즉시 적용되며, 이전 작업에는 영향을 주지 않습니다.</p>
+            <p>• Legacy 항목은 이전 버전과의 호환성을 위해 유지됩니다.</p>
           </div>
+        </div>
+
+        {/* 돌아가기 버튼 */}
+        <div className="text-center mt-8">
+          <button
+            onClick={() => router.push('/admin')}
+            className="text-slate-400 hover:text-white transition"
+          >
+            ← 관리자 페이지로 돌아가기
+          </button>
         </div>
       </div>
     </div>

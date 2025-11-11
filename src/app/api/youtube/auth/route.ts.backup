@@ -1,0 +1,146 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/session';
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
+
+const BACKEND_PATH = path.join(process.cwd(), '..', 'trend-video-backend');
+const YOUTUBE_CLI = path.join(BACKEND_PATH, 'youtube_upload_cli.py');
+const CREDENTIALS_DIR = path.join(BACKEND_PATH, 'config');
+
+function getUserCredentialsPath(userId: string): string {
+  return path.join(CREDENTIALS_DIR, `youtube_client_secret_${userId}.json`);
+}
+
+/**
+ * GET /api/youtube/auth - YouTube 인증 상태 확인
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    }
+
+    const credentialsPath = getUserCredentialsPath(user.userId);
+    const hasCredentials = fs.existsSync(credentialsPath);
+
+    const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}.json`);
+    const hasToken = fs.existsSync(tokenPath);
+
+    if (!hasToken) {
+      return NextResponse.json({ authenticated: false, hasCredentials });
+    }
+
+    // 채널 정보 조회로 토큰 유효성 검증
+    return new Promise((resolve) => {
+      const python = spawn('python', [
+        YOUTUBE_CLI,
+        '--action', 'channel-info',
+        '--credentials', credentialsPath,
+        '--token', tokenPath
+      ]);
+
+      let output = '';
+      python.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      python.on('close', () => {
+        try {
+          const result = JSON.parse(output.trim());
+          if (result.success && result.channel) {
+            resolve(NextResponse.json({
+              authenticated: true,
+              channel: result.channel,
+              hasCredentials
+            }));
+          } else {
+            resolve(NextResponse.json({ authenticated: false, hasCredentials }));
+          }
+        } catch {
+          resolve(NextResponse.json({ authenticated: false, hasCredentials }));
+        }
+      });
+    });
+
+  } catch (error: any) {
+    return NextResponse.json({ error: '인증 상태 확인 실패' }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/youtube/auth - YouTube 인증 시작
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    }
+
+    const credentialsPath = getUserCredentialsPath(user.userId);
+
+    if (!fs.existsSync(credentialsPath)) {
+      return NextResponse.json({
+        error: 'YouTube API credentials 파일이 없습니다',
+        details: '설정 방법: 1) Google Cloud Console에서 OAuth 2.0 클라이언트 ID 생성 → 2) JSON 다운로드 → 3) 이 페이지에서 파일 업로드',
+        setupGuide: '../trend-video-backend/YOUTUBE_SETUP.md 참조'
+      }, { status: 500 });
+    }
+
+    const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}.json`);
+
+    return new Promise((resolve) => {
+      const python = spawn('python', [
+        YOUTUBE_CLI,
+        '--action', 'auth',
+        '--credentials', credentialsPath,
+        '--token', tokenPath
+      ]);
+
+      let output = '';
+      python.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      python.on('close', () => {
+        try {
+          const result = JSON.parse(output.trim());
+          if (result.success) {
+            resolve(NextResponse.json({ success: true, message: 'YouTube 채널 연결 성공' }));
+          } else {
+            resolve(NextResponse.json({ error: result.error || '인증 실패' }, { status: 500 }));
+          }
+        } catch {
+          resolve(NextResponse.json({ error: '인증 프로세스 오류' }, { status: 500 }));
+        }
+      });
+    });
+
+  } catch (error: any) {
+    return NextResponse.json({ error: 'YouTube 인증 실패' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/youtube/auth - YouTube 연결 해제
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    }
+
+    const tokenPath = path.join(CREDENTIALS_DIR, `youtube_token_${user.userId}.json`);
+    if (fs.existsSync(tokenPath)) {
+      fs.unlinkSync(tokenPath);
+    }
+
+    return NextResponse.json({ success: true, message: 'YouTube 연결 해제 완료' });
+
+  } catch (error: any) {
+    return NextResponse.json({ error: 'YouTube 연결 해제 실패' }, { status: 500 });
+  }
+}

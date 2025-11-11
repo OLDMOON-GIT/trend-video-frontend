@@ -22,7 +22,7 @@ async function getShortFormPrompt(): Promise<string> {
     const files = await fs.readdir(promptsPath);
 
     // prompt_shortform.txt 또는 prompt.txt 검색
-    let promptFile = files.find(file => file === 'prompt_shortform.txt');
+    let promptFile: string | undefined = files.find(file => file === 'prompt_shortform.txt');
     if (!promptFile) {
       promptFile = files.find(file => file === 'prompt.txt');
     }
@@ -143,25 +143,92 @@ SORA2 프롬프트 작성 가이드:
   }
 }
 
-// 로그 추가 헬퍼 함수
-function addLog(taskId: string, message: string) {
+// 상품정보 프롬프트를 파일에서 읽어오는 함수
+async function getProductInfoPrompt(): Promise<string> {
   try {
-    const db = new Database(dbPath);
+    // frontend/prompts 경로에서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
 
-    // 현재 로그 가져오기
-    const row: any = db.prepare('SELECT logs FROM scripts_temp WHERE id = ?').get(taskId);
-    const logs = row?.logs ? JSON.parse(row.logs) : [];
+    // prompt_product_info.txt 검색
+    let promptFile = files.find(file => file === 'prompt_product_info.txt');
 
-    // 새 로그 추가
-    const newLog = {
-      timestamp: new Date().toISOString(),
-      message
-    };
-    logs.push(newLog);
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('✅ 상품정보 프롬프트 파일 읽기 완료:', promptFile);
+      return content;
+    }
 
-    // 업데이트
-    db.prepare('UPDATE scripts_temp SET logs = ? WHERE id = ?').run(JSON.stringify(logs), taskId);
-    db.close();
+    // 파일이 없으면 기본 프롬프트 반환
+    console.warn('⚠️ 상품정보 프롬프트 파일을 찾을 수 없어 기본 프롬프트 사용');
+    return `당신은 YouTube 및 소셜미디어 플랫폼용 상품 기입 정보 작성 전문가입니다.
+
+다음 상품 대본 내용을 바탕으로 YouTube/릴스/쇼츠에 업로드할 때 필요한 상세 기입 정보를 작성해주세요.
+
+중요: 질문하지 말고, 바로 작성해주세요. 추가 정보 요청 없이 제공된 대본만으로 완성된 기입 정보를 만들어주세요.
+
+작성해야 할 항목:
+1. 제목 (Title): SEO 최적화된 매력적인 제목 (60자 이내)
+2. 설명 (Description): 상세한 상품 설명 및 혜택 (5000자 이내)
+3. 태그 (Tags): 관련 검색 키워드 10-15개
+4. 해시태그: 소셜미디어용 해시태그 10-15개
+5. 썸네일 텍스트: 썸네일에 들어갈 임팩트 있는 짧은 문구
+
+지금 바로 기입 정보를 작성해주세요:`;
+  } catch (error) {
+    console.error('❌ 상품정보 프롬프트 파일 읽기 실패:', error);
+    throw error;
+  }
+}
+
+// 상품 프롬프트를 파일에서 읽어오는 함수
+async function getProductPrompt(): Promise<string> {
+  try {
+    // frontend/prompts 경로에서 찾기
+    const promptsPath = path.join(process.cwd(), 'prompts');
+    const files = await fs.readdir(promptsPath);
+
+    // prompt_product.txt 검색
+    let promptFile = files.find(file => file === 'prompt_product.txt');
+
+    if (promptFile) {
+      const filePath = path.join(promptsPath, promptFile);
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log('✅ 상품 프롬프트 파일 읽기 완료:', promptFile);
+      return content;
+    }
+
+    // 파일이 없으면 기본 상품 프롬프트 반환
+    console.warn('⚠️ 상품 프롬프트 파일을 찾을 수 없어 기본 프롬프트 사용');
+    return `당신은 쿠팡 파트너스 상품 소개 영상 대본 작가입니다.
+
+다음 제목에 대해 상품을 효과적으로 소개하는 영상 대본을 작성해주세요.
+
+제목: {title}
+
+중요: 질문하지 말고, 바로 대본을 작성해주세요. 추가 정보 요청 없이 제목만으로 완성된 대본을 만들어주세요.
+
+대본 작성 가이드:
+1. 상품의 핵심 기능과 장점을 명확하게 전달
+2. 소비자의 고민을 해결해주는 솔루션 제시
+3. 구체적인 사용 시나리오 포함
+4. 가격 대비 가치 강조
+5. 구매 욕구를 자극하는 CTA(Call To Action)로 마무리
+6. 약 300-500자 정도의 분량으로 작성
+
+지금 바로 대본만 작성해주세요:`;
+  } catch (error) {
+    console.error('❌ 상품 프롬프트 파일 읽기 실패:', error);
+    throw error;
+  }
+}
+
+// 로그 추가 헬퍼 함수 (contents 테이블 사용)
+async function addLog(taskId: string, message: string) {
+  try {
+    const { addContentLog } = await import('@/lib/content');
+    addContentLog(taskId, message);
 
     // 디버깅: 로그가 제대로 추가되었는지 확인
     console.log(`[LOG ${taskId}] ${message}`);
@@ -194,7 +261,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, videoFormat } = body;
+    const { title, type, videoFormat, useClaudeLocal, scriptModel, productInfo } = body;
+
+    console.log('🚀 [Scripts Generate] 요청 받음');
+    console.log('  📝 제목:', title);
+    console.log('  🤖 scriptModel:', scriptModel);
+    console.log('  📌 useClaudeLocal:', useClaudeLocal);
 
     if (!title || typeof title !== 'string') {
       return NextResponse.json(
@@ -203,68 +275,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // scriptModel을 agent 이름으로 매핑
+    const MODEL_TO_AGENT: Record<string, string> = {
+      'gpt': 'chatgpt',
+      'chatgpt': 'chatgpt',  // 프론트엔드에서 'chatgpt'로 전송
+      'gemini': 'gemini',
+      'claude': 'claude'
+    };
+
+    const agentName = scriptModel && MODEL_TO_AGENT[scriptModel]
+      ? MODEL_TO_AGENT[scriptModel]
+      : 'claude';
+
+    console.log('  ✅ Agent 이름:', agentName);
+
     // type 또는 videoFormat에서 스크립트 타입 결정
-    // 입력: 'longform', 'shortform', 'sora2' (통일된 형식)
+    // 입력: 'longform', 'shortform', 'sora2', 'product', 'product-info' (통일된 형식)
     const inputType = type || videoFormat || 'longform';
 
     // 내부 처리용 타입 (프롬프트 선택용)
-    let scriptType: 'longform' | 'shortform' | 'sora2' = 'longform';
+    let scriptType: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info' = 'longform';
     if (inputType === 'sora2') {
       scriptType = 'sora2';
     } else if (inputType === 'shortform') {
       scriptType = 'shortform';
+    } else if (inputType === 'product') {
+      scriptType = 'product';
+    } else if (inputType === 'product-info') {
+      scriptType = 'product-info';
     } else if (inputType === 'longform') {
       scriptType = 'longform';
     }
 
-    console.log(`📌 대본 타입: ${scriptType} (입력: ${inputType})`);
+    console.log(`  📌 대본 타입: ${scriptType} (입력: ${inputType})`);
 
-    const db = new Database(dbPath);
+    // contents 테이블을 사용하여 스크립트 작업 생성
+    const { createContent } = await import('@/lib/content');
 
-    // scripts_temp 테이블 생성 (admin/titles 페이지용)
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS scripts_temp (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        status TEXT DEFAULT 'PENDING',
-        message TEXT,
-        createdAt TEXT NOT NULL,
-        scriptId TEXT,
-        type TEXT,
-        pid INTEGER,
-        logs TEXT DEFAULT '[]'
-      )
-    `);
-
-    // type, pid 컬럼이 없으면 추가 (기존 데이터 보존)
-    try {
-      db.exec(`ALTER TABLE scripts_temp ADD COLUMN type TEXT`);
-    } catch (e: any) {
-      if (!e.message.includes('duplicate column')) {
-        console.error('scripts_temp type 컬럼 추가 실패:', e);
+    const content = createContent(
+      user.userId,
+      'script',
+      title,
+      {
+        format: scriptType,
+        originalTitle: title,
+        useClaudeLocal: useClaudeLocal,
+        model: agentName,
+        productInfo: (scriptType === 'product' || scriptType === 'product-info') && productInfo ? productInfo : undefined
       }
-    }
-    try {
-      db.exec(`ALTER TABLE scripts_temp ADD COLUMN pid INTEGER`);
-    } catch (e: any) {
-      if (!e.message.includes('duplicate column')) {
-        console.error('scripts_temp pid 컬럼 추가 실패:', e);
-      }
-    }
+    );
 
-    // 새 스크립트 작업 생성
-    const taskId = `task_${Date.now()}`;
-    const createdAt = new Date().toISOString();
-
-    const insert = db.prepare(`
-      INSERT INTO scripts_temp (id, title, status, message, createdAt, type)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    // scriptType을 그대로 저장 (이미 'longform', 'shortform', 'sora2' 형식)
-    insert.run(taskId, title, 'PENDING', '대본 생성 대기 중...', createdAt, scriptType);
-
-    db.close();
+    const taskId = content.id;
 
     // 백그라운드에서 대본 생성 실행
     // 타입에 따라 다른 프롬프트 사용
@@ -279,6 +340,59 @@ export async function POST(request: NextRequest) {
       const sora2PromptTemplate = await getSora2Prompt();
       prompt = sora2PromptTemplate.replace(/{title}/g, title);
       console.log('✅ SORA2 프롬프트 사용');
+    } else if (scriptType === 'product') {
+      // 상품: 상품 소개 전용 프롬프트 사용
+      const productPromptTemplate = await getProductPrompt();
+      prompt = productPromptTemplate.replace(/{title}/g, title);
+
+      // productInfo가 있으면 플레이스홀더 치환
+      if (productInfo) {
+        console.log('🛍️ 상품 정보 치환 시작:', productInfo);
+        prompt = prompt
+          .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+          .replace(/{product_link}/g, productInfo.product_link || '')
+          .replace(/{product_description}/g, productInfo.description || '');
+        console.log('✅ 상품 정보 플레이스홀더 치환 완료');
+      } else {
+        console.warn('⚠️ productInfo가 없습니다! 플레이스홀더가 그대로 남아있을 수 있습니다.');
+      }
+
+      console.log('✅ 상품 프롬프트 사용');
+    } else if (scriptType === 'product-info') {
+      // 상품정보: 상품 기입 정보 전용 프롬프트 사용
+      const productInfoPromptTemplate = await getProductInfoPrompt();
+      prompt = productInfoPromptTemplate.replace(/{title}/g, title);
+
+      // productInfo가 있으면 플레이스홀더 치환
+      if (productInfo) {
+        console.log('🛍️🛍️🛍️ 상품 정보 치환 시작:', productInfo);
+        console.log('  - title:', productInfo.title);
+        console.log('  - thumbnail:', productInfo.thumbnail);
+        console.log('  - product_link:', productInfo.product_link);
+        console.log('  - description:', productInfo.description);
+
+        // DB에서 사용자 설정 가져오기
+        const db = Database(dbPath);
+        const userSettings = db.prepare('SELECT google_sites_home_url, nickname FROM users WHERE id = ?').get(user.userId) as { google_sites_home_url?: string; nickname?: string } | undefined;
+        db.close();
+        const homeUrl = userSettings?.google_sites_home_url || 'https://www.youtube.com/@살림남';
+        const nickname = userSettings?.nickname || '살림남';
+        console.log('🏠 home_url 설정:', homeUrl);
+        console.log('👤 별명 설정:', nickname);
+
+        prompt = prompt
+          .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+          .replace(/{product_link}/g, productInfo.product_link || '')
+          .replace(/{product_description}/g, productInfo.description || '')
+          .replace(/{home_url}/g, homeUrl)
+          .replace(/{별명}/g, nickname);
+
+        console.log('✅ 상품 정보 플레이스홀더 치환 완료');
+      } else {
+        console.warn('⚠️ productInfo가 없습니다! 플레이스홀더가 그대로 남아있을 수 있습니다.');
+      }
+
+      console.log('✅ 상품정보 프롬프트 사용');
     } else {
       // 롱폼: 파일에서 읽어온 상세 프롬프트 사용
       const longFormPromptTemplate = await getLongFormPrompt();
@@ -291,7 +405,12 @@ export async function POST(request: NextRequest) {
     // 프롬프트 내용 확인 로그
     console.log('\n' + '='.repeat(80));
     console.log('📝 생성된 프롬프트 내용:');
-    console.log('  타입:', scriptType === 'shortform' ? '⚡ 숏폼' : scriptType === 'sora2' ? '🎥 SORA2' : '📝 롱폼');
+    console.log('  타입:',
+      scriptType === 'shortform' ? '⚡ 숏폼' :
+      scriptType === 'sora2' ? '🎥 SORA2' :
+      scriptType === 'product' ? '🛍️ 상품' :
+      scriptType === 'product-info' ? '📋 상품정보' :
+      '📝 롱폼');
     console.log('  제목:', title);
     console.log('  프롬프트 길이:', prompt.length, '자');
     console.log('  프롬프트 미리보기:', prompt.substring(0, 200) + '...');
@@ -301,36 +420,49 @@ export async function POST(request: NextRequest) {
     // userId를 클로저에 저장
     const userId = user.userId;
 
+    // 작업 시작 시간 기록 (응답 파일 필터링용)
+    const taskStartTime = Date.now();
+
     // 비동기로 실행
     setTimeout(async () => {
+      let stdout = '';
+      let stderr = '';
+      let promptFileName = '';
+      let promptFilePath = '';
       try {
-        addLog(taskId, '작업 시작됨');
+        await addLog(taskId, '작업 시작됨');
 
-        const db2 = new Database(dbPath);
+        // contents 테이블 업데이트 - processing 상태로 변경
+        const { updateContentStatus } = await import('@/lib/content');
 
-        // 상태를 ING로 업데이트
         const message = scriptType === 'shortform'
           ? '⚡ Claude가 숏폼 대본을 생성하고 있습니다...'
           : scriptType === 'sora2'
           ? '🎥 Claude가 SORA2 프롬프트를 생성하고 있습니다...'
+          : scriptType === 'product'
+          ? '🛍️ Claude가 상품 소개 대본을 생성하고 있습니다...'
+          : scriptType === 'product-info'
+          ? '📋 Claude가 상품 기입 정보를 생성하고 있습니다...'
           : '📝 Claude가 롱폼 대본을 생성하고 있습니다...';
-        db2.prepare(`
-          UPDATE scripts_temp
-          SET status = ?, message = ?
-          WHERE id = ?
-        `).run('ING', message, taskId);
 
-        db2.close();
+        await addLog(taskId, message);
+        updateContentStatus(taskId, 'processing', 10);
 
         // 프롬프트를 임시 파일로 저장 (명령줄 길이 제한 및 특수문자 문제 회피)
-        const promptFileName = `prompt_${Date.now()}.txt`;
-        const promptFilePath = path.join(backendPath, promptFileName);
+        promptFileName = `prompt_${Date.now()}.txt`;
+        promptFilePath = path.join(backendPath, promptFileName);
 
         const fsSync = require('fs');
         fsSync.writeFileSync(promptFilePath, prompt, 'utf-8');
         addLog(taskId, `프롬프트 파일 생성: ${promptFileName}`);
-        const typeEmoji = scriptType === 'shortform' ? '⚡' : scriptType === 'sora2' ? '🎥' : '📝';
-        const typeName = scriptType === 'shortform' ? '숏폼' : scriptType === 'sora2' ? 'SORA2' : '롱폼';
+        const typeEmoji = scriptType === 'shortform' ? '⚡' :
+                          scriptType === 'sora2' ? '🎥' :
+                          scriptType === 'product' ? '🛍️' :
+                          scriptType === 'product-info' ? '📋' : '📝';
+        const typeName = scriptType === 'shortform' ? '숏폼' :
+                         scriptType === 'sora2' ? 'SORA2' :
+                         scriptType === 'product' ? '상품' :
+                         scriptType === 'product-info' ? '상품정보' : '롱폼';
         addLog(taskId, `${typeEmoji} 타입: ${typeName}`);
         addLog(taskId, `📝 제목: "${title}"`);
         addLog(taskId, `📄 프롬프트 길이: ${prompt.length}자`);
@@ -338,21 +470,31 @@ export async function POST(request: NextRequest) {
 
         // 실행할 명령어 구성 (backend의 ai_aggregator 모듈 사용)
         // headless 제거: 로그인 필요 시 브라우저가 표시되어야 함
-        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close'];
+        const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', agentName, '--auto-close'];
         const commandStr = `python ${pythonArgs.join(' ')}`;
 
+        const modelNames: Record<string, string> = {
+          'chatgpt': 'ChatGPT',
+          'gemini': 'Gemini',
+          'claude': 'Claude'
+        };
+        const modelDisplayName = modelNames[agentName] || agentName;
+
         addLog(taskId, '📌 Python 스크립트 실행 시작');
+        addLog(taskId, `🤖 사용 모델: ${modelDisplayName}`);
         addLog(taskId, `💻 실행 명령어: ${commandStr}`);
         addLog(taskId, `📂 작업 디렉토리: ${backendPath}`);
-        addLog(taskId, '🌐 브라우저 자동화로 Claude.ai 웹사이트 접속 중...');
+        addLog(taskId, `🌐 브라우저 자동화로 ${modelDisplayName} 웹사이트 접속 중...`);
         addLog(taskId, '👁️ 브라우저가 표시됩니다 (로그인 필요 시 수동 로그인 가능)');
         addLog(taskId, '💡 이미 로그인되어 있으면 자동으로 진행됩니다');
         addLog(taskId, '⏱️ 1-2분 소요 예상');
 
         console.log(`\n${'='.repeat(80)}`);
         console.log(`[${taskId}] 실행 명령어:`);
+        console.log(`  모델: ${modelDisplayName} (agent: ${agentName})`);
         console.log(`  작업 디렉토리: ${backendPath}`);
         console.log(`  명령어: ${commandStr}`);
+        console.log(`  🏷️  Agent 파라미터: ${agentName}`);
         console.log(`${'='.repeat(80)}\n`);
 
         // -f 옵션으로 파일 경로 전달
@@ -377,9 +519,6 @@ export async function POST(request: NextRequest) {
           addLog(taskId, `🔢 프로세스 PID: ${pythonProcess.pid}`);
           console.log(`✅ PID 저장됨: ${pythonProcess.pid} for task ${taskId}`);
         }
-
-        let stdout = '';
-        let stderr = '';
 
         // stdout 버퍼 (부분적인 줄 처리용)
         let stdoutBuffer = '';
@@ -468,18 +607,31 @@ export async function POST(request: NextRequest) {
 
         addLog(taskId, '📂 Claude 응답 파일 검색 중...');
 
-        // 최신 ai_responses 파일 찾기 (trend-video-backend에서)
+        // 최신 ai_responses 파일 찾기 (trend-video-backend/src/scripts에서)
         const fs = require('fs');
-        const aiResponseFiles = fs.readdirSync(backendPath)
+        const scriptsPath = path.join(backendPath, 'src', 'scripts');
+
+        addLog(taskId, `📁 검색 경로: ${scriptsPath}`);
+        console.log('📁 대본 파일 검색 경로:', scriptsPath);
+
+        // scripts 디렉토리가 없으면 생성
+        if (!fs.existsSync(scriptsPath)) {
+          fs.mkdirSync(scriptsPath, { recursive: true });
+          addLog(taskId, '📁 scripts 디렉토리 생성됨');
+        }
+
+        const aiResponseFiles = fs.readdirSync(scriptsPath)
           .filter((f: string) => f.startsWith('ai_responses_') && f.endsWith('.txt'))
           .map((f: string) => ({
             name: f,
-            path: path.join(backendPath, f),
-            time: fs.statSync(path.join(backendPath, f)).mtime.getTime()
+            path: path.join(scriptsPath, f),
+            time: fs.statSync(path.join(scriptsPath, f)).mtime.getTime()
           }))
+          // 작업 시작 시간 이후에 생성된 파일만 선택 (오래된 파일 제외)
+          .filter((f: any) => f.time >= taskStartTime)
           .sort((a: any, b: any) => b.time - a.time);
 
-        addLog(taskId, `📁 검색 경로: ${backendPath}`);
+        console.log(`📦 발견된 대본 파일 수: ${aiResponseFiles.length} (작업 시작 후 생성된 파일만)`);
 
         let scriptContent = '';
         if (aiResponseFiles.length > 0) {
@@ -498,72 +650,84 @@ export async function POST(request: NextRequest) {
             addLog(taskId, `✓ 대본 내용 읽기 완료 (${scriptContent.length} 글자)`);
           }
         } else {
-          addLog(taskId, '⚠️ 경고: 응답 파일을 찾을 수 없음');
+          const errorMsg = `응답 파일을 찾을 수 없음 (작업 시작: ${new Date(taskStartTime).toISOString()})`;
+          addLog(taskId, `⚠️ 경고: ${errorMsg}`);
+          console.error(`❌ ${errorMsg}`);
+          console.error('  - scripts 경로:', scriptsPath);
+          console.error('  - 전체 파일:', fs.readdirSync(scriptsPath).filter((f: string) => f.startsWith('ai_responses_')));
         }
 
-        addLog(taskId, '💾 데이터베이스에 저장 중...');
+        // SORA2 형식인 경우 JSON 정리
+        if (scriptType === 'sora2' && scriptContent) {
+          addLog(taskId, '🔧 SORA2 JSON 정리 중...');
+          console.log('🔧 SORA2 JSON 정리 시작 - 원본 길이:', scriptContent.length);
 
-        // scripts 테이블에 저장 (user_id는 관리자 또는 시스템으로)
-        const db3 = new Database(dbPath);
+          // 1. 코드펜스 제거 (```json 또는 ```)
+          let cleanedContent = scriptContent.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim();
 
-        // scripts 테이블이 있는지 확인하고 없으면 생성
-        db3.exec(`
-          CREATE TABLE IF NOT EXISTS scripts (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT,
-            status TEXT DEFAULT 'completed',
-            progress INTEGER DEFAULT 100,
-            error TEXT,
-            input_tokens INTEGER,
-            output_tokens INTEGER,
-            original_topic TEXT,
-            type TEXT,
-            created_at TEXT DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT (datetime('now'))
-          )
-        `);
+          // 2. 첫 번째 { 찾기 및 마지막 } 찾기
+          const jsonStart = cleanedContent.indexOf('{');
+          const jsonEnd = cleanedContent.lastIndexOf('}');
 
-        // type 컬럼이 없으면 추가 (기존 데이터 보존)
-        try {
-          db3.exec(`ALTER TABLE scripts ADD COLUMN type TEXT`);
-          console.log('✅ scripts 테이블에 type 컬럼 추가됨');
-        } catch (e: any) {
-          // 컬럼이 이미 존재하면 에러 무시
-          if (!e.message.includes('duplicate column')) {
-            console.error('type 컬럼 추가 실패:', e);
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            // { 이전과 } 이후의 텍스트 제거
+            cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
+            addLog(taskId, `✅ JSON 추출 완료 (${cleanedContent.length}자)`);
+            console.log('✅ JSON 추출 완료:', cleanedContent.substring(0, 200) + '...');
+
+            // 3. JSON 유효성 검증 및 포맷팅
+            try {
+              const parsed = JSON.parse(cleanedContent);
+              addLog(taskId, '✅ JSON 파싱 성공');
+              console.log('✅ JSON 파싱 성공 - 객체 키:', Object.keys(parsed).join(', '));
+
+              // 4. JSON 포맷팅 (예쁘게 정리)
+              scriptContent = JSON.stringify(parsed, null, 2);
+              addLog(taskId, '✨ JSON 포맷팅 완료');
+              console.log('✨ JSON 포맷팅 완료 - 최종 길이:', scriptContent.length);
+            } catch (jsonError: any) {
+              addLog(taskId, `⚠️ JSON 파싱 실패: ${jsonError.message}`);
+              console.error('❌ JSON 파싱 실패:', jsonError);
+              console.log('파싱 시도한 내용 (처음 500자):', cleanedContent.substring(0, 500));
+              // 파싱 실패해도 정리된 내용 사용
+              scriptContent = cleanedContent;
+            }
+          } else {
+            addLog(taskId, '⚠️ JSON 구조를 찾을 수 없음 (원본 사용)');
+            console.warn('⚠️ JSON 구조를 찾을 수 없음');
           }
         }
 
-        // 대본을 scripts 테이블에 저장
-        const scriptId = `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        // scriptType을 그대로 저장 (이미 'longform', 'shortform', 'sora2' 형식)
-        db3.prepare(`
-          INSERT INTO scripts (id, user_id, title, content, status, progress, original_topic, type, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        `).run(scriptId, userId, title, scriptContent, 'completed', 100, title, scriptType);
+        addLog(taskId, '💾 contents 테이블에 저장 중...');
 
-        db3.close();
+        // contents 테이블에 대본 내용 업데이트
+        const { updateContent } = await import('@/lib/content');
 
-        addLog(taskId, `✓ 데이터베이스 저장 완료! (ID: ${scriptId})`);
-        addLog(taskId, '🎉 모든 작업 완료!');
-
-        // 임시 scripts 상태 테이블 업데이트 (admin/titles 페이지용)
-        const db4 = new Database(dbPath);
-
-        // 임시 테이블이 있으면 업데이트 (없으면 무시)
         try {
-          db4.prepare(`
-            UPDATE scripts_temp
-            SET status = ?, message = ?, scriptId = ?
-            WHERE id = ?
-          `).run('DONE', '대본 생성 완료!', scriptId, taskId);
-        } catch (e) {
-          // 테이블이 없으면 무시
-        }
+          const updatedContent = updateContent(taskId, {
+            content: scriptContent,
+            status: 'completed',
+            progress: 100
+          });
 
-        db4.close();
+          if (updatedContent) {
+            await addLog(taskId, `✓ 대본 저장 완료! (${scriptContent.length} 글자)`);
+            await addLog(taskId, '🎉 모든 작업 완료!');
+            console.log('✅ 대본이 contents 테이블에 저장됨:', {
+              contentId: taskId,
+              userId,
+              title,
+              format: scriptType,
+              contentLength: scriptContent.length
+            });
+          } else {
+            throw new Error('Content update failed');
+          }
+        } catch (saveError: any) {
+          console.error('❌ contents 저장 실패:', saveError);
+          await addLog(taskId, `❌ 저장 실패: ${saveError.message}`);
+          throw saveError;
+        }
       } catch (error: any) {
         console.error('Error generating script:', error);
 
@@ -576,22 +740,22 @@ export async function POST(request: NextRequest) {
 
         // 로그인 에러 감지 시 안내 메시지
         if (isLoginError) {
-          addLog(taskId, '🔐 로그인 필요 감지!');
-          addLog(taskId, '⚠️ 브라우저 창에서 Claude.ai에 로그인해주세요');
-          addLog(taskId, '💡 로그인 후에는 자동으로 처리됩니다');
+          await addLog(taskId, '🔐 로그인 필요 감지!');
+          await addLog(taskId, '⚠️ 브라우저 창에서 Claude.ai에 로그인해주세요');
+          await addLog(taskId, '💡 로그인 후에는 자동으로 처리됩니다');
           console.log(`\n${'='.repeat(80)}`);
           console.log('🔐 로그인 필요 - 사용자가 브라우저에서 로그인해야 함');
           console.log(`${'='.repeat(80)}\n`);
 
           try {
             // headful 모드로 재실행 (브라우저 창 표시)
-            const pythonArgsHeadful = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', 'claude', '--auto-close'];
+            const pythonArgsHeadful = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', agentName, '--auto-close'];
             const commandStrHeadful = `python ${pythonArgsHeadful.join(' ')}`;
 
-            addLog(taskId, '🌐 새 CMD 창이 열립니다 - 브라우저에서 로그인하세요!');
-            addLog(taskId, `💻 재실행 명령어: ${commandStrHeadful}`);
-            addLog(taskId, '⏰ 로그인 후 자동으로 대본 생성이 계속됩니다...');
-            addLog(taskId, '💡 로그인은 한 번만 하면 됩니다. 다음부터는 자동으로 로그인됩니다.');
+            await addLog(taskId, '🌐 새 CMD 창이 열립니다 - 브라우저에서 로그인하세요!');
+            await addLog(taskId, `💻 재실행 명령어: ${commandStrHeadful}`);
+            await addLog(taskId, '⏰ 로그인 후 자동으로 대본 생성이 계속됩니다...');
+            await addLog(taskId, '💡 로그인은 한 번만 하면 됩니다. 다음부터는 자동으로 로그인됩니다.');
 
             // Windows: 새 CMD 창에서 실행 (로그인 UI 표시)
             const startCmd = `start "Claude 대본 생성 - 로그인 필요" cmd /k "cd /d ${backendPath} && python ${pythonArgsHeadful.join(' ')}"`;
@@ -607,29 +771,27 @@ export async function POST(request: NextRequest) {
             });
             pythonProcessRetry.unref();
 
-            addLog(taskId, '✅ 새 CMD 창이 열렸습니다');
-            addLog(taskId, '👁️ 브라우저가 표시되며, 로그인이 필요하면 수동으로 진행해주세요');
-            addLog(taskId, '⏱️ 로그인 완료 후 자동으로 대본이 생성됩니다');
-            addLog(taskId, '📝 생성된 대본은 자동으로 저장됩니다');
+            await addLog(taskId, '✅ 새 CMD 창이 열렸습니다');
+            await addLog(taskId, '👁️ 브라우저가 표시되며, 로그인이 필요하면 수동으로 진행해주세요');
+            await addLog(taskId, '⏱️ 로그인 완료 후 자동으로 대본이 생성됩니다');
+            await addLog(taskId, '📝 생성된 대본은 자동으로 저장됩니다');
 
-            // 프로세스 완료를 기다리지 않고 즉시 반환 (detached 모드)
-            // 사용자는 CMD 창에서 진행 상황을 확인할 수 있음
-            // 대본이 완성되면 자동으로 저장되고, 사용자는 "내 콘텐츠"에서 확인 가능
-            const db4 = new Database(dbPath);
-            db4.prepare(`
-              UPDATE scripts_temp SET status = ?, message = ? WHERE id = ?
-            `).run('WAITING_LOGIN', '로그인 필요 - 새 창에서 로그인 후 자동 진행됨', taskId);
-            db4.close();
+            // contents 테이블 상태 업데이트 - processing (로그인 대기 중)
+            const { updateContent } = await import('@/lib/content');
+            updateContent(taskId, {
+              status: 'processing',
+              error: '로그인 필요 - 새 창에서 로그인 후 자동 진행됨'
+            });
 
             return;
           } catch (retryError: any) {
             console.error('Headful 재시도 실패:', retryError);
-            addLog(taskId, `❌ 재시도 실패: ${retryError.message}`);
+            await addLog(taskId, `❌ 재시도 실패: ${retryError.message}`);
             // 재시도도 실패하면 아래 에러 처리 계속
           }
         }
 
-        addLog(taskId, `❌ 오류 발생: ${errorMsg}`);
+        await addLog(taskId, `❌ 오류 발생: ${errorMsg}`);
 
         // 에러 발생 시 이메일 전송
         try {
@@ -648,6 +810,7 @@ export async function POST(request: NextRequest) {
 
         // 에러 발생 시에도 프롬프트 파일 정리
         try {
+          const fsSync = require('fs');
           if (promptFilePath && fsSync.existsSync(promptFilePath)) {
             fsSync.unlinkSync(promptFilePath);
             console.log('프롬프트 파일 정리 완료 (에러 후)');
@@ -656,14 +819,12 @@ export async function POST(request: NextRequest) {
           console.error('프롬프트 파일 삭제 실패:', e);
         }
 
-        const db5 = new Database(dbPath);
-        db5.prepare(`
-          UPDATE scripts_temp
-          SET status = ?, message = ?
-          WHERE id = ?
-        `).run('ERROR', `오류: ${error.message}`, taskId);
-
-        db5.close();
+        // contents 테이블 상태 업데이트 - failed
+        const { updateContent: updateContentError } = await import('@/lib/content');
+        updateContentError(taskId, {
+          status: 'failed',
+          error: `오류: ${error.message}`
+        });
       }
     }, 100);
 

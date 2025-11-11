@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🛒 쿠팡 쇼핑몰 배포하기</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', sans-serif;
+      background: linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #ec4899 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(124, 58, 237, 0.3);
+      border-radius: 24px;
+      padding: 48px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+    }
+
+    h1 {
+      color: white;
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 16px;
+      text-align: center;
+      background: linear-gradient(135deg, #a78bfa, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      font-size: 18px;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .features {
+      background: rgba(124, 58, 237, 0.1);
+      border: 1px solid rgba(124, 58, 237, 0.3);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+
+    .feature {
+      color: #e2e8f0;
+      font-size: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .feature:last-child {
+      margin-bottom: 0;
+    }
+
+    .feature-icon {
+      font-size: 24px;
+    }
+
+    .deploy-button {
+      width: 100%;
+      background: linear-gradient(135deg, #7c3aed, #ec4899);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 20px;
+      font-size: 20px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+      text-decoration: none;
+      display: block;
+      text-align: center;
+    }
+
+    .deploy-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(124, 58, 237, 0.6);
+    }
+
+    .deploy-button:active {
+      transform: translateY(0);
+    }
+
+    .env-note {
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 24px;
+      color: #fbbf24;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .env-code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      color: #a78bfa;
+      margin-top: 8px;
+      display: block;
+    }
+
+    .guide-link {
+      text-align: center;
+      margin-top: 24px;
+    }
+
+    .guide-link a {
+      color: #a78bfa;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      transition: color 0.3s;
+    }
+
+    .guide-link a:hover {
+      color: #ec4899;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🛒 쿠팡 쇼핑몰 배포하기</h1>
+    <p class="subtitle">완전 무료! 월 100만 방문자 지원</p>
+
+    <div class="features">
+      <div class="feature">
+        <span class="feature-icon">✅</span>
+        <span>무제한 트래픽 (완전 무료)</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">⚡</span>
+        <span>글로벌 CDN (초고속)</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🔒</span>
+        <span>자동 HTTPS 인증서</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🔄</span>
+        <span>1시간마다 자동 재생성</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">💰</span>
+        <span>쿠팡 파트너스 수수료 자동 추적</span>
+      </div>
+    </div>
+
+    <a href="https://vercel.com/new" class="deploy-button" target="_blank">
+      🚀 Vercel에 배포하기
+    </a>
+
+    <div class="env-note">
+      ⚠️ <strong>배포 시 환경 변수 설정</strong><br>
+      Vercel에서 환경 변수를 추가하세요:
+      <code class="env-code">ADMIN_SERVER_URL=http://oldmoon.iptime.org</code>
+    </div>
+
+    <div class="guide-link">
+      📖 <a href="/VERCEL_DEPLOYMENT_GUIDE.md" target="_blank">상세 배포 가이드 보기</a>
+    </div>
+  </div>
+
+  <script>
+    console.log(`
+╔════════════════════════════════════════════╗
+║   🛒 쿠팡 쇼핑몰 무료 배포                  ║
+║                                            ║
+║   ✅ 무제한 트래픽 무료                     ║
+║   ⚡ 글로벌 CDN                            ║
+║   🔒 자동 HTTPS                           ║
+║   💰 월 100만 방문자 지원                  ║
+╚════════════════════════════════════════════╝
+    `);
+  </script>
+</body>
+</html>

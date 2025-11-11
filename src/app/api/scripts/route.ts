@@ -38,6 +38,13 @@ export async function GET(request: NextRequest) {
         console.error('pid 컬럼 추가 실패:', e);
       }
     }
+    try {
+      db.exec(`ALTER TABLE scripts_temp ADD COLUMN model TEXT DEFAULT 'claude'`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) {
+        console.error('model 컬럼 추가 실패:', e);
+      }
+    }
 
     // URL에서 id 파라미터 확인
     const { searchParams } = new URL(request.url);

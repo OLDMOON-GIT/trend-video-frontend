@@ -24,7 +24,8 @@ export default function TitlesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [scriptType, setScriptType] = useState<'longform' | 'shortform' | 'sora2'>('longform'); // 기본값: 롱폼
+  const [scriptType, setScriptType] = useState<'longform' | 'shortform' | 'sora2' | 'product'>('longform'); // 기본값: 롱폼
+  const [selectedModel, setSelectedModel] = useState<'claude' | 'gpt' | 'gemini'>('claude'); // AI 모델 선택
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set()); // 펼쳐진 로그 ID들
 
@@ -122,9 +123,16 @@ export default function TitlesPage() {
 
     setIsGenerating(true);
     setShowScriptLogs(true); // 로그창 처음부터 열기
+
+    const modelNames: Record<string, string> = {
+      'claude': 'Claude',
+      'gpt': 'ChatGPT',
+      'gemini': 'Gemini'
+    };
+
     setScriptGenerationLogs([{
       timestamp: new Date().toISOString(),
-      message: '🖥️ 로컬 Claude를 사용하여 대본 생성 시작...'
+      message: `🤖 ${modelNames[selectedModel]} 모델로 대본 생성 시작...`
     }]);
 
     try {
@@ -133,7 +141,8 @@ export default function TitlesPage() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           title: newTitle.trim(),
-          type: scriptType
+          type: scriptType,
+          model: selectedModel
         })
       });
 
@@ -435,16 +444,62 @@ export default function TitlesPage() {
                 />
               </div>
 
+              {/* AI 모델 선택 */}
               <div>
                 <label className="block text-sm font-semibold text-slate-300 mb-2">
-                  대본 타입
+                  AI 모델
                 </label>
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setScriptType('longform')}
+                    onClick={() => setSelectedModel('claude')}
                     disabled={isGenerating}
                     className={`flex-1 rounded-lg border-2 p-3 transition ${
+                      selectedModel === 'claude'
+                        ? 'border-orange-500 bg-orange-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    } disabled:opacity-50`}
+                  >
+                    <div className="text-base font-bold">🤖 Claude</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModel('gpt')}
+                    disabled={isGenerating}
+                    className={`flex-1 rounded-lg border-2 p-3 transition ${
+                      selectedModel === 'gpt'
+                        ? 'border-green-500 bg-green-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    } disabled:opacity-50`}
+                  >
+                    <div className="text-base font-bold">💬 ChatGPT</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModel('gemini')}
+                    disabled={isGenerating}
+                    className={`flex-1 rounded-lg border-2 p-3 transition ${
+                      selectedModel === 'gemini'
+                        ? 'border-blue-500 bg-blue-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    } disabled:opacity-50`}
+                  >
+                    <div className="text-base font-bold">✨ Gemini</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 대본 타입 */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  대본 타입
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setScriptType('longform')}
+                    disabled={isGenerating}
+                    className={`rounded-lg border-2 p-3 transition ${
                       scriptType === 'longform'
                         ? 'border-purple-500 bg-purple-500/20 text-white'
                         : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
@@ -458,7 +513,7 @@ export default function TitlesPage() {
                     type="button"
                     onClick={() => setScriptType('shortform')}
                     disabled={isGenerating}
-                    className={`flex-1 rounded-lg border-2 p-3 transition ${
+                    className={`rounded-lg border-2 p-3 transition ${
                       scriptType === 'shortform'
                         ? 'border-purple-500 bg-purple-500/20 text-white'
                         : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
@@ -472,7 +527,7 @@ export default function TitlesPage() {
                     type="button"
                     onClick={() => setScriptType('sora2')}
                     disabled={isGenerating}
-                    className={`flex-1 rounded-lg border-2 p-3 transition ${
+                    className={`rounded-lg border-2 p-3 transition ${
                       scriptType === 'sora2'
                         ? 'border-purple-500 bg-purple-500/20 text-white'
                         : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
@@ -482,31 +537,51 @@ export default function TitlesPage() {
                     <div className="text-xs">9:16 세로</div>
                     <div className="text-xs text-slate-500">AI 시네마틱</div>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setScriptType('product')}
+                    disabled={isGenerating}
+                    className={`rounded-lg border-2 p-3 transition ${
+                      scriptType === 'product'
+                        ? 'border-purple-500 bg-purple-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    } disabled:opacity-50`}
+                  >
+                    <div className="text-base font-bold mb-1">🛍️ 상품</div>
+                    <div className="text-xs">쿠팡 상품</div>
+                    <div className="text-xs text-slate-500">리뷰 대본</div>
+                  </button>
                 </div>
               </div>
 
               <div className="rounded-lg bg-blue-900/20 border border-blue-500/30 p-4">
                 <p className="text-sm text-blue-300">
-                  💡 제목을 입력하면 Claude AI가 선택한 포맷에 맞는 대본을 자동으로 생성합니다.
+                  💡 제목을 입력하면 선택한 AI 모델이 대본을 자동으로 생성합니다.
                 </p>
               </div>
             </div>
 
             {/* 대본 생성 로그 */}
-            {showScriptLogs && scriptGenerationLogs.length > 0 && (
+            {showScriptLogs && (
               <div className="mt-4 rounded-lg border border-slate-600 bg-slate-900/80 p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-400">📋 생성 로그</span>
                   <span className="text-xs text-slate-500">{scriptGenerationLogs.length}개 항목</span>
                 </div>
                 <div className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed">
-                  {scriptGenerationLogs.map((log, idx) => (
-                    <div key={idx} className="text-emerald-400 whitespace-pre-wrap break-all mb-1">
-                      <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
-                      <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>
-                      {log.message}
+                  {scriptGenerationLogs.length > 0 ? (
+                    scriptGenerationLogs.map((log, idx) => (
+                      <div key={idx} className="text-emerald-400 whitespace-pre-wrap break-all mb-1">
+                        <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                        <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>
+                        {log.message}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-slate-500 text-center py-4">
+                      <div className="animate-pulse">⏳ 로그 대기 중...</div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}

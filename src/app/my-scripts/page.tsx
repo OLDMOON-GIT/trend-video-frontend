@@ -11,6 +11,8 @@ interface Script {
   status?: string;
   progress?: number;
   type?: 'longform' | 'shortform' | 'sora2';
+  useClaudeLocal?: boolean;
+  model?: string;
   tokenUsage?: {
     input_tokens: number;
     output_tokens: number;
@@ -331,6 +333,16 @@ export default function MyScriptsPage() {
 
                     <div className="mb-3 space-y-1 text-sm text-slate-400">
                       <p>생성 시간: {formatDate(script.createdAt)}</p>
+                      {script.model && (
+                        <p>
+                          AI 모델: {
+                            script.model === 'claude' ? '🤖 Claude' :
+                            script.model === 'gpt' ? '💬 ChatGPT' :
+                            script.model === 'gemini' ? '✨ Gemini' :
+                            `🤖 ${script.model}`
+                          }
+                        </p>
+                      )}
                       {script.tokenUsage && (
                         <p>
                           토큰 사용: {script.tokenUsage.input_tokens.toLocaleString()} (입력) + {script.tokenUsage.output_tokens.toLocaleString()} (출력)
@@ -419,6 +431,17 @@ export default function MyScriptsPage() {
                         className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
                       >
                         🎬 영상 제작
+                      </button>
+                    )}
+                    {(script.status === 'completed' || !script.status) && (
+                      <button
+                        onClick={() => {
+                          // 상품정보 생성을 위해 메인 페이지로 이동
+                          window.location.href = `/?promptType=product-info&generateProductInfo=${script.id}`;
+                        }}
+                        className="rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-amber-500 hover:to-yellow-500"
+                      >
+                        📝 상품정보
                       </button>
                     )}
                     <button

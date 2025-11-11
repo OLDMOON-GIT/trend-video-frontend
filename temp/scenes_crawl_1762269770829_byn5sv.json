@@ -1,0 +1,34 @@
+[
+  {
+    "scene_id": "scene_00_hook",
+    "scene_name": "훅 - 3초 충격",
+    "duration_seconds": 3,
+    "word_count": 50,
+    "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, extreme close-up of cold leftover rice in a worn metal bowl being placed down with force, full vertical composition with subject centered, dramatic slow motion impact moment, harsh overhead lighting casting deep shadows, slowly pushing in intensely, shocking and jaw-dropping mood, shot on 35mm film, shallow depth of field, intense bokeh, cold desaturated color palette, mobile-optimized framing",
+    "narration": "시어머니 앞에 놓인 차가운 찬밥 한 그릇. 며느리의 손이 떨리고 있었다."
+  },
+  {
+    "scene_id": "scene_01_immersion",
+    "scene_name": "몰입 - 9초 감정 이입",
+    "duration_seconds": 9,
+    "word_count": 150,
+    "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, a young woman's silhouette from behind holding a phone with trembling hands in a dimly lit kitchen, full vertical composition with subject centered, gentle slow motion capturing the emotional weight of the moment, soft window light creating a melancholic atmosphere, slowly tracking smoothly around the figure, nostalgic and emotional mood, shot on 35mm film, shallow depth of field, soft bokeh, muted warm color palette, mobile-optimized framing",
+    "narration": "전화기를 든 며느리. 목소리는 가늘게 떨렸다. 친정엄마는 숨을 크게 들이켰다. 시어머니는 평생 며느리를 위해 찬밥만 먹어왔던 것이다. 따뜻한 밥은 항상 며느리 몫이었다. 며느리는 그 사실을 이제야 알게 됐다."
+  },
+  {
+    "scene_id": "scene_02_wtf",
+    "scene_name": "반전 - 9초 WTF 순간",
+    "duration_seconds": 9,
+    "word_count": 150,
+    "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, an elderly woman's silhouette from side angle sitting alone at a table with an untouched bowl of warm rice, full vertical composition with subject centered, heartbreaking slow motion revelation moment, sudden dramatic golden hour lighting shift through window, slowly orbiting with tension, mind-blowing and unbelievable mood, shot on 35mm film, shallow depth of field, dreamy bokeh, unexpected warm contrasting color palette, mobile-optimized framing",
+    "narration": "시어머니는 따뜻한 밥을 받고도 먹지 않았다. 며느리가 차린 그 밥을 식힌 뒤에야 숟가락을 들었다. 며느리에게 찬밥을 먹인 건 시어머니가 아니었다. 며느리 자신이었다. 평생을 그렇게 살아온 시어머니였다."
+  },
+  {
+    "scene_id": "scene_03_addictive",
+    "scene_name": "중독 - 9초 다시보기 유도",
+    "duration_seconds": 9,
+    "word_count": 150,
+    "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, two figures embracing in soft focus with steam rising from a bowl of warm rice on table, full vertical composition with subject centered, satisfying slow motion emotional payoff, satisfying magical golden hour lighting flooding through window, slowly pulling away with satisfaction, addictive and rewarding mood, shot on 35mm film, shallow depth of field, mesmerizing bokeh, satisfying and vibrant warm color palette, mobile-optimized framing",
+    "narration": "전화를 끊은 며느리는 부엌으로 달려갔다. 가장 따뜻한 밥을 새 그릇에 정성껏 담았다. 시어머니의 눈가에 이슬이 맺혔다. 그날부터 두 사람의 식탁은 달라졌다. 사랑은 이해에서 시작되는 것이었다."
+  }
+]

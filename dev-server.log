@@ -1,0 +1,204 @@
+
+> trend-video-frontend@0.1.0 dev
+> concurrently "next dev" "node prompt-sync-watcher.js"
+
+[1] [1m[오후 1:18:05][0m [1m🚀 프롬프트 동기화 Watcher 시작[0m
+[1] [1m[오후 1:18:05][0m [34m============================================================[0m
+[1] [1m[오후 1:18:05][0m [34m✅ 프롬프트 디렉토리 확인: C:\Users\oldmoon\workspace\trend-video-frontend\prompts[0m
+[1] [1m[오후 1:18:05][0m [34m✅ multi-ai-aggregator 디렉토리 확인: C:\Users\oldmoon\workspace\multi-ai-aggregator[0m
+[1] [1m[오후 1:18:05][0m [1m🔄 초기 동기화 시작...[0m
+[1] [1m[오후 1:18:05][0m [34m   shortform_prompt.txt ↔ prompt_shortform.txt (양쪽 모두 존재)[0m
+[1] [1m[오후 1:18:05][0m [34m   prompt_longform.txt ↔ prompt_longform.txt (양쪽 모두 존재)[0m
+[1] [1m[오후 1:18:05][0m [34m   sora2_prompt.txt ↔ prompt_sora2.txt (양쪽 모두 존재)[0m
+[1] [1m[오후 1:18:05][0m [32m✅ 초기 동기화 완료[0m
+[1] [1m[오후 1:18:05][0m [1m
+[1] 👀 파일 감시 시작...[0m
+[1] [1m[오후 1:18:05][0m [36m   프롬프트 폴더: C:\Users\oldmoon\workspace\trend-video-frontend\prompts[0m
+[1] [1m[오후 1:18:05][0m [36m   Multi-AI 폴더: C:\Users\oldmoon\workspace\multi-ai-aggregator[0m
+[1] [1m[오후 1:18:05][0m [1m
+[1] 📝 동기화 매핑:[0m
+[1] [1m[오후 1:18:05][0m [34m   shortform_prompt.txt ↔ prompt_shortform.txt[0m
+[1] [1m[오후 1:18:05][0m [34m   prompt_longform.txt ↔ prompt_longform.txt[0m
+[1] [1m[오후 1:18:05][0m [34m   sora2_prompt.txt ↔ prompt_sora2.txt[0m
+[1] [1m[오후 1:18:05][0m [0m
+[1] [0m
+[1] [1m[오후 1:18:05][0m [33m⚠️ multi-ai-aggregator 역방향 동기화 비활성화 (무한 루프 방지)[0m
+[1] [1m[오후 1:18:05][0m [36m   prompts 폴더만 감시하여 단방향 동기화합니다[0m
+[1] [1m[오후 1:18:05][0m [32m✅ 파일 감시 활성화됨[0m
+[1] [1m[오후 1:18:05][0m [36m   프롬프트 파일을 수정하면 자동으로 동기화됩니다[0m
+[1] [1m[오후 1:18:05][0m [36m   종료하려면 Ctrl+C를 누르세요
+[1] [0m
+[0]  ⚠ Port 3000 is in use by process 29356, using available port 3004 instead.
+[0]    ▲ Next.js 16.0.0 (Turbopack)
+[0]    - Local:        http://localhost:3004
+[0]    - Network:      http://10.31.14.170:3004
+[0]    - Environments: .env.local
+[0] 
+[0]  ✓ Starting...
+[0]  ✓ Ready in 1167ms
+[1] [1m[오후 5:31:06][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:31:06][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (28,367자)[0m
+[1] [1m[오후 5:31:18][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:31:18][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (28,362자)[0m
+[1] [1m[오후 5:31:47][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:31:47][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (28,478자)[0m
+[1] [1m[오후 5:32:11][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:32:11][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (28,728자)[0m
+[1] [1m[오후 5:38:59][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:38:59][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (28,877자)[0m
+[1] [1m[오후 5:39:55][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:39:55][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (30,326자)[0m
+[1] [1m[오후 5:41:00][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:41:00][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (30,646자)[0m
+[1] [1m[오후 5:41:42][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:41:42][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (30,830자)[0m
+[1] [1m[오후 5:42:40][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:42:40][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (30,973자)[0m
+[1] [1m[오후 5:46:08][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:46:08][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,017자)[0m
+[1] [1m[오후 5:46:31][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 5:46:31][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,430자)[0m
+[1] [1m[오후 7:35:28][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 7:35:28][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,432자)[0m
+[1] [1m[오후 8:14:10][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:14:10][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,526자)[0m
+[1] [1m[오후 8:14:15][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:14:15][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,526자)[0m
+[1] [1m[오후 8:14:19][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:14:19][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,620자)[0m
+[1] [1m[오후 8:14:41][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:14:41][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,617자)[0m
+[1] [1m[오후 8:15:07][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:15:07][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,131자)[0m
+[1] [1m[오후 8:15:24][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:15:24][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,346자)[0m
+[1] [1m[오후 8:15:35][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:15:35][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,346자)[0m
+[1] [1m[오후 8:15:38][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:15:38][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,349자)[0m
+[1] [1m[오후 8:22:31][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:22:31][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,349자)[0m
+[1] [1m[오후 8:22:34][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:22:34][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,349자)[0m
+[1] [1m[오후 8:22:38][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:22:38][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,349자)[0m
+[1] [1m[오후 8:22:59][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:22:59][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,348자)[0m
+[1] [1m[오후 8:23:02][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:23:02][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,348자)[0m
+[1] [1m[오후 8:23:07][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:23:07][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,348자)[0m
+[1] [1m[오후 8:23:12][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:23:12][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,348자)[0m
+[1] [1m[오후 8:23:32][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 8:23:32][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,357자)[0m
+[1] [1m[오후 8:53:04][0m [36m📝 파일 변경 감지: sora2_prompt.txt[0m
+[1] [1m[오후 8:53:04][0m [32m✅ 동기화 완료: sora2_prompt.txt → prompt_sora2.txt (20,192자)[0m
+[1] [1m[오후 9:00:04][0m [36m📝 파일 변경 감지: sora2_prompt.txt[0m
+[1] [1m[오후 9:00:04][0m [32m✅ 동기화 완료: sora2_prompt.txt → prompt_sora2.txt (15,989자)[0m
+[1] [1m[오후 9:54:21][0m [36m📝 파일 변경 감지: sora2_prompt.txt[0m
+[1] [1m[오후 9:54:21][0m [32m✅ 동기화 완료: sora2_prompt.txt → prompt_sora2.txt (5,846자)[0m
+[1] [1m[오후 11:58:43][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오후 11:58:43][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,510자)[0m
+[1] [1m[오전 12:00:58][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:00:58][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,279자)[0m
+[1] [1m[오전 12:01:25][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:01:25][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,224자)[0m
+[1] [1m[오전 12:01:51][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:01:51][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,220자)[0m
+[1] [1m[오전 12:02:55][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:02:55][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,144자)[0m
+[1] [1m[오전 12:03:40][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:03:40][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,077자)[0m
+[1] [1m[오전 12:06:11][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:06:11][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,055자)[0m
+[1] [1m[오전 12:06:45][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:06:45][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,573자)[0m
+[1] [1m[오전 12:07:52][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:07:52][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,454자)[0m
+[1] [1m[오전 12:25:25][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:25:25][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,420자)[0m
+[1] [1m[오전 12:25:47][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:25:47][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,415자)[0m
+[1] [1m[오전 12:26:06][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:26:06][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,413자)[0m
+[1] [1m[오전 12:26:20][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:26:20][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,411자)[0m
+[1] [1m[오전 12:26:41][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:26:41][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,408자)[0m
+[1] [1m[오전 12:28:19][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:28:19][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,645자)[0m
+[1] [1m[오전 12:36:47][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:36:47][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,639자)[0m
+[1] [1m[오전 12:39:25][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:39:25][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,639자)[0m
+[1] [1m[오전 12:39:46][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:39:46][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,647자)[0m
+[1] [1m[오전 12:40:04][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:40:04][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,648자)[0m
+[1] [1m[오전 12:40:22][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:40:22][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,652자)[0m
+[1] [1m[오전 12:40:52][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:40:52][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,656자)[0m
+[1] [1m[오전 12:41:21][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:41:21][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,660자)[0m
+[1] [1m[오전 12:41:47][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 12:41:47][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,664자)[0m
+[1] [1m[오전 1:01:52][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:01:52][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,014자)[0m
+[1] [1m[오전 1:02:21][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:02:21][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,481자)[0m
+[1] [1m[오전 1:02:40][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:02:40][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,593자)[0m
+[1] [1m[오전 1:02:55][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:02:55][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,594자)[0m
+[1] [1m[오전 1:08:58][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:08:58][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,823자)[0m
+[1] [1m[오전 1:09:19][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:09:19][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,869자)[0m
+[1] [1m[오전 1:09:37][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:09:37][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,900자)[0m
+[1] [1m[오전 1:09:49][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:09:49][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,913자)[0m
+[1] [1m[오전 1:10:02][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:10:02][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,921자)[0m
+[1] [1m[오전 1:17:50][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:17:50][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (34,943자)[0m
+[1] [1m[오전 1:18:08][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:18:08][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (35,131자)[0m
+[1] [1m[오전 1:18:27][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:18:27][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (35,140자)[0m
+[1] [1m[오전 1:18:38][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:18:38][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (35,147자)[0m
+[1] [1m[오전 1:18:47][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:18:47][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (35,151자)[0m
+[1] [1m[오전 1:22:39][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:22:39][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (35,504자)[0m
+[1] [1m[오전 1:23:02][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 1:23:02][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (35,804자)[0m
+[1] [1m[오전 2:28:20][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 2:28:20][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (33,459자)[0m
+[1] [1m[오전 3:00:57][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 3:00:57][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (32,371자)[0m
+[1] [1m[오전 3:05:36][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 3:05:36][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (30,580자)[0m
+[1] [1m[오전 3:07:18][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 3:07:18][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (25,464자)[0m
+[1] [1m[오전 3:08:50][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 3:08:50][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (23,026자)[0m
+[1] [1m[오전 3:10:18][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 3:10:18][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (21,251자)[0m
+[1] [1m[오전 3:11:39][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 3:11:39][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (19,170자)[0m
+[1] [1m[오전 4:09:02][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 4:09:02][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (19,153자)[0m
+[1] [1m[오전 4:09:31][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 4:09:31][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (18,296자)[0m
+[1] [1m[오전 4:09:56][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 4:09:56][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (18,311자)[0m
+[1] [1m[오전 4:52:45][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 4:52:45][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (18,370자)[0m
+[1] [1m[오전 4:53:01][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 4:53:01][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (18,409자)[0m
+[1] [1m[오전 4:53:18][0m [36m📝 파일 변경 감지: prompt_longform.txt[0m
+[1] [1m[오전 4:53:18][0m [32m✅ 동기화 완료: prompt_longform.txt → prompt_longform.txt (18,461자)[0m

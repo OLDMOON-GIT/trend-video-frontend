@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# downloads
+/public/downloads/
+.gitignore
+nul
+src/nul
