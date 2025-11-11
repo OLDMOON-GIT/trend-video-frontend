@@ -147,8 +147,8 @@ export default function MyContentPage() {
   const [isLoadingMoreScripts, setIsLoadingMoreScripts] = useState(false);
 
   // Pagination states for each tab
-  const [allTabLimit, setAllTabLimit] = useState(50);
-  const [scriptsTabLimit, setScriptsTabLimit] = useState(50);
+  const [allTabLimit, setAllTabLimit] = useState(20);
+  const [scriptsTabLimit, setScriptsTabLimit] = useState(20);
 
   // Videos state
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -453,7 +453,7 @@ export default function MyContentPage() {
 
     try {
       const params = new URLSearchParams({
-        limit: '50',
+        limit: '20',
         offset: currentOffset.toString(),
         ...(activeSearchQuery && { search: activeSearchQuery })
       });
@@ -610,7 +610,10 @@ export default function MyContentPage() {
 
           if (response.ok) {
             toast.success('대본이 삭제되었습니다.');
-            fetchScripts(true);
+            // 전체 목록 다시 로드하지 않고 삭제된 항목만 state에서 제거
+            setScripts(prev => prev.filter(s => s.id !== scriptId));
+            // total count 감소
+            setScriptsTotal(prev => Math.max(0, prev - 1));
           } else {
             toast.error('삭제 실패: ' + (data.error || '알 수 없는 오류'));
           }
@@ -642,7 +645,7 @@ export default function MyContentPage() {
 
       const params = new URLSearchParams({
         filter: actualFilter,
-        limit: '50',
+        limit: '20',
         offset: currentOffset.toString(),
         ...(activeSearchQuery && { search: activeSearchQuery })
       });
@@ -700,7 +703,7 @@ export default function MyContentPage() {
 
     try {
       const params = new URLSearchParams({
-        limit: '50',
+        limit: '20',
         offset: currentOffset.toString()
       });
 
@@ -754,9 +757,10 @@ export default function MyContentPage() {
 
       if (response.ok) {
         toast.success('삭제되었습니다');
-        setYoutubeUploads([]);
-        setPublishedOffset(0);
-        fetchYouTubeUploads(true);
+        // 전체 목록 다시 로드하지 않고 삭제된 항목만 state에서 제거
+        setYoutubeUploads(prev => prev.filter(u => u.id !== uploadId));
+        // total count 감소
+        setPublishedTotal(prev => Math.max(0, prev - 1));
       } else {
         toast.error('삭제 실패');
       }
@@ -810,7 +814,10 @@ export default function MyContentPage() {
 
           if (response.ok) {
             toast.success('영상이 삭제되었습니다.');
-            fetchJobs(true);
+            // 전체 목록 다시 로드하지 않고 삭제된 항목만 state에서 제거
+            setJobs(prev => prev.filter(j => j.id !== jobId));
+            // total count 감소
+            setTotal(prev => Math.max(0, prev - 1));
           } else {
             toast.error('삭제 실패: ' + (data.error || '알 수 없는 오류'));
           }
@@ -1241,18 +1248,17 @@ export default function MyContentPage() {
       }
 
       // 유연한 JSON 파싱 사용 (제어 문자 자동 이스케이프)
-      const result = parseJsonSafely(rawContent);
+      // 상품정보일 수 있으므로 에러 로그는 나중에 출력
+      const result = parseJsonSafely(rawContent, { logErrors: false });
 
       if (!result.success) {
-        console.error('JSON 파싱 실패:', result.error);
-
         // JSON이 아닌 경우, 상품정보 텍스트인지 확인
         // ✅로 시작하는 항목들이 여러 개 있으면 상품정보로 간주
         const checkMarkCount = (rawContent.match(/✅/g) || []).length;
 
         if (checkMarkCount >= 3) {
           // 상품정보 텍스트로 판단 - 적절한 줄바꿈 추가
-          console.log('상품정보 텍스트 포맷팅 시작...');
+          console.log('✅ 상품정보 텍스트 포맷팅 시작...');
 
           let formatted = rawContent.trim();
 
@@ -1297,10 +1303,12 @@ export default function MyContentPage() {
           // 10. 앞뒤 공백 제거
           formatted = formatted.trim();
 
-          console.log('상품정보 텍스트 포맷팅 완료');
+          console.log('✅ 상품정보 텍스트 포맷팅 완료');
           return { formatted, scriptJson: null };
         }
 
+        // 상품정보도 아니면 진짜 JSON 파싱 에러
+        console.error('❌ JSON 파싱 실패:', result.error);
         return null;
       }
 
@@ -2862,7 +2870,7 @@ export default function MyContentPage() {
                           });
 
                           // limit 증가
-                          setAllTabLimit(prev => prev + 10);
+                          setAllTabLimit(prev => prev + 20);
 
                           // 서버에서 더 많은 데이터 가져오기
                           if (hasMore && !isLoadingMore) {
@@ -2877,7 +2885,7 @@ export default function MyContentPage() {
                         disabled={isLoadingMore || isLoadingMoreScripts}
                         className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isLoadingMore || isLoadingMoreScripts ? '로딩 중...' : `더보기 (${remainingItems > 0 ? remainingItems : '더 많이'}개)`}
+                        {isLoadingMore || isLoadingMoreScripts ? '로딩 중...' : `더보기 (${displayedItems.length}/${scriptsTotal + total})`}
                       </button>
                     </div>
                   )}
@@ -3577,7 +3585,7 @@ export default function MyContentPage() {
                       disabled={isLoadingMoreScripts}
                       className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isLoadingMoreScripts ? '로딩 중...' : `더보기 (${scriptsTotal - scripts.length}개 더)`}
+                      {isLoadingMoreScripts ? '로딩 중...' : `더보기 (${scripts.length}/${scriptsTotal})`}
                     </button>
                   </div>
                 )}
@@ -3991,7 +3999,7 @@ export default function MyContentPage() {
                       disabled={isLoadingMore}
                       className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isLoadingMore ? '로딩 중...' : '더 보기'}
+                      {isLoadingMore ? '로딩 중...' : `더보기 (${jobs.length}/${total})`}
                     </button>
                   </div>
                 )}
@@ -4119,7 +4127,7 @@ export default function MyContentPage() {
                       disabled={isLoadingMorePublished}
                       className="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isLoadingMorePublished ? '로딩 중...' : `더보기 (${publishedTotal - youtubeUploads.length}개 더)`}
+                      {isLoadingMorePublished ? '로딩 중...' : `더보기 (${youtubeUploads.length}/${publishedTotal})`}
                     </button>
                   </div>
                 )}
