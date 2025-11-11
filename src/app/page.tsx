@@ -362,6 +362,19 @@ export default function Home() {
           setPromptFormat(retryType as any);
         }
 
+        // 상품 대본 재시도인 경우 productInfo 복원
+        const productInfoParam = params.get('productInfo');
+        if ((retryType === 'product' || retryType === 'product-info') && productInfoParam) {
+          try {
+            const parsedProductInfo = JSON.parse(productInfoParam);
+            setProductInfo(parsedProductInfo);
+            localStorage.setItem('current_product_info', productInfoParam);
+            console.log('✅ 재시도 시 상품 정보 복원:', parsedProductInfo);
+          } catch (error) {
+            console.warn('⚠️ 재시도 시 상품 정보 파싱 실패:', error);
+          }
+        }
+
         // URL 파라미터 제거 (히스토리에 남지 않도록)
         window.history.replaceState({}, '', '/');
       } else if (promptType === 'product' && promptFormat !== 'product') {

@@ -1007,6 +1007,21 @@ export default function MyContentPage() {
       params.set('retryType', script.type);
     }
 
+    // 상품 대본인 경우 product_info 추출하여 전달
+    if (script.type === 'product' || script.type === 'product-info') {
+      try {
+        const parseResult = parseJsonSafely(script.content);
+        if (parseResult.success && parseResult.data?.product_info) {
+          const productInfo = parseResult.data.product_info;
+          // product_info를 JSON 문자열로 인코딩하여 전달
+          params.set('productInfo', JSON.stringify(productInfo));
+          console.log('✅ 재시도 시 상품 정보 전달:', productInfo);
+        }
+      } catch (error) {
+        console.warn('⚠️ 재시도 시 상품 정보 추출 실패:', error);
+      }
+    }
+
     window.location.href = `/?${params.toString()}`;
   };
 
