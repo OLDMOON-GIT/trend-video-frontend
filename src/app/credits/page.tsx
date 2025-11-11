@@ -127,34 +127,6 @@ export default function CreditsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-5xl">
-{/* 헤더 */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">💰 크레딧</h1>
-            {user && <p className="mt-1 text-sm text-slate-400">{user.email}</p>}
-          </div>
-          <div className="flex gap-3">
-            <Link
-              href="/"
-              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-            >
-              메인으로
-            </Link>
-            <Link
-              href="/my-videos"
-              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
-            >
-              내 영상
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-            >
-              로그아웃
-            </button>
-          </div>
-        </div>
-
         {/* 크레딧 잔액 */}
         <div className="mb-6 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 p-8 backdrop-blur">
           <div className="flex items-center justify-between">

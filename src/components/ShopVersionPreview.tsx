@@ -37,7 +37,7 @@ export default function ShopVersionPreview({ versionId, onClose, showHeader = fa
         const data = await res.json();
         const received: PublishedProduct[] = Array.isArray(data.products) ? data.products : [];
         setProductCount(received.length);
-        setHtmlPreview(generateShopHtml(received));
+        setHtmlPreview(generateShopHtml(received, data.nickname));
         if (data.version) {
           setVersionName(data.version.name || `버전 ${data.version.versionNumber}`);
         } else {

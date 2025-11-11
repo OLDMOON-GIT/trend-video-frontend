@@ -66,6 +66,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const tokens = await tokenResponse.json();
     console.log('[OAuth Callback] Token exchange successful');
 
+    // 토큰에 client_id와 client_secret 추가 (Python에서 필요함)
+    const tokenData = {
+      ...tokens,
+      client_id,
+      client_secret
+    };
+
     // 2. 토큰으로 채널 정보 가져오기
     const channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true', {
       headers: {
@@ -98,7 +105,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const tokenFilename = `youtube_token_${userId}_${channelId}.json`;
     const tokenPath = path.join(CREDENTIALS_DIR, tokenFilename);
 
-    fs.writeFileSync(tokenPath, JSON.stringify(tokens, null, 2));
+    fs.writeFileSync(tokenPath, JSON.stringify(tokenData, null, 2));
     console.log('[OAuth Callback] Token saved:', tokenFilename);
 
     // 4. DB에 채널 추가

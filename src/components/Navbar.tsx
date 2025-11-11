@@ -53,7 +53,6 @@ export default function Navbar() {
           ...sessionData.user,
           credits: creditsData.credits || 0
         });
-        console.log('✅ 사용자 인증 완료:', sessionData.user.email, '/ 크레딧:', creditsData.credits);
       }
     } catch (error) {
       console.error('Auth check error:', error);

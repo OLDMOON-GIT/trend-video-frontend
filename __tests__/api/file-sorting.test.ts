@@ -111,10 +111,16 @@ describe('File Sorting Logic', () => {
         const numA = extractSequenceNumber(a.name);
         const numB = extractSequenceNumber(b.name);
 
+        // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
         if (numA !== null && numB !== null) {
           return numA - numB;
         }
 
+        // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+        if (numA !== null && numB === null) return -1;
+        if (numA === null && numB !== null) return 1;
+
+        // 둘 다 없으면: lastModified로 정렬 (오래된 순)
         return a.lastModified - b.lastModified;
       });
 
@@ -132,10 +138,16 @@ describe('File Sorting Logic', () => {
         const numA = extractSequenceNumber(a.name);
         const numB = extractSequenceNumber(b.name);
 
+        // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
         if (numA !== null && numB !== null) {
           return numA - numB;
         }
 
+        // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+        if (numA !== null && numB === null) return -1;
+        if (numA === null && numB !== null) return 1;
+
+        // 둘 다 없으면: lastModified로 정렬 (오래된 순)
         return a.lastModified - b.lastModified;
       });
 
@@ -153,17 +165,22 @@ describe('File Sorting Logic', () => {
         const numA = extractSequenceNumber(a.name);
         const numB = extractSequenceNumber(b.name);
 
+        // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
         if (numA !== null && numB !== null) {
           return numA - numB;
         }
 
+        // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+        if (numA !== null && numB === null) return -1;
+        if (numA === null && numB !== null) return 1;
+
+        // 둘 다 없으면: lastModified로 정렬 (오래된 순)
         return a.lastModified - b.lastModified;
       });
 
-      // Files without sequence numbers come first (sorted by lastModified),
-      // then sequence-numbered files (sorted by sequence)
-      // Actual behavior: random.jpg (oldest by time), then 01.jpg, 02.jpg (by sequence)
-      expect(sorted.map(f => f.name)).toEqual(['random.jpg', '01.jpg', '02.jpg']);
+      // 시퀀스 번호 있는 파일이 우선, 그 다음 시퀀스 없는 파일 (lastModified 순)
+      // Expected: 01.jpg (seq 1), 02.jpg (seq 2), random.jpg (no seq, oldest)
+      expect(sorted.map(f => f.name)).toEqual(['01.jpg', '02.jpg', 'random.jpg']);
     });
 
     test('should sort videos by sequence number when present', () => {
@@ -177,10 +194,16 @@ describe('File Sorting Logic', () => {
         const numA = extractVideoSequenceNumber(a.name);
         const numB = extractVideoSequenceNumber(b.name);
 
+        // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
         if (numA !== null && numB !== null) {
           return numA - numB;
         }
 
+        // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+        if (numA !== null && numB === null) return -1;
+        if (numA === null && numB !== null) return 1;
+
+        // 둘 다 없으면: lastModified로 정렬 (오래된 순)
         return a.lastModified - b.lastModified;
       });
 
@@ -204,10 +227,16 @@ describe('File Sorting Logic', () => {
         const numA = extractSequenceNumber(a.name);
         const numB = extractSequenceNumber(b.name);
 
+        // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
         if (numA !== null && numB !== null) {
           return numA - numB;
         }
 
+        // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+        if (numA !== null && numB === null) return -1;
+        if (numA === null && numB !== null) return 1;
+
+        // 둘 다 없으면: lastModified로 정렬 (오래된 순)
         return a.lastModified - b.lastModified;
       });
 
@@ -229,10 +258,16 @@ describe('File Sorting Logic', () => {
         const numA = extractSequenceNumber(a.name);
         const numB = extractSequenceNumber(b.name);
 
+        // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
         if (numA !== null && numB !== null) {
           return numA - numB;
         }
 
+        // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+        if (numA !== null && numB === null) return -1;
+        if (numA === null && numB !== null) return 1;
+
+        // 둘 다 없으면: lastModified로 정렬 (오래된 순)
         return a.lastModified - b.lastModified;
       });
 

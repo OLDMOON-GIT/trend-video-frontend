@@ -61,6 +61,8 @@ export default function SettingsPage() {
   // Google Sites 설정
   const [isSaving, setIsSaving] = useState(false);
   const [googleSitesUrl, setGoogleSitesUrl] = useState('');
+  const [googleSitesEditUrl, setGoogleSitesEditUrl] = useState('');
+  const [googleSitesHomeUrl, setGoogleSitesHomeUrl] = useState('');
   const [nickname, setNickname] = useState('');
   const [userId, setUserId] = useState('');
 
@@ -212,6 +214,8 @@ export default function SettingsPage() {
       if (sitesRes.ok) {
         setUserId(sitesData.userId || '');
         setGoogleSitesUrl(sitesData.googleSitesUrl || '');
+        setGoogleSitesEditUrl(sitesData.googleSitesEditUrl || '');
+        setGoogleSitesHomeUrl(sitesData.googleSitesHomeUrl || '');
         setNickname(sitesData.nickname || '');
         setProfileNickname(sitesData.nickname || '');
       } else if (sitesRes.status === 401) {
@@ -622,7 +626,12 @@ export default function SettingsPage() {
       const res = await fetch('/api/user/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ googleSitesUrl, nickname })
+        body: JSON.stringify({
+          googleSitesUrl,
+          googleSitesEditUrl,
+          googleSitesHomeUrl,
+          nickname
+        })
       });
 
       const data = await res.json();
@@ -861,14 +870,6 @@ export default function SettingsPage() {
       <Toaster position="top-right" />
 
       <div className="max-w-7xl mx-auto">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">⚙️ 설정</h1>
-          <p className="text-slate-400">
-            YouTube 채널, 쿠팡 파트너스, 비밀번호 설정을 관리하세요
-          </p>
-        </div>
-
         {/* 탭 메뉴 */}
         <div className="mb-8 flex gap-2 flex-wrap">
           <button
@@ -1184,31 +1185,33 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  별명 (선택)
+                  🖊️ Google Sites Edit URL (편집용)
                 </label>
                 <input
                   type="text"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  maxLength={30}
-                  placeholder="살림남"
-                  className="w-full rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none"
-                />
-                <p className="mt-1 text-xs text-slate-400">쇼핑몰/HTML 내보내기에 표시될 이름입니다. 미입력 시 이메일이 사용됩니다.</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Google Sites 페이지 URL
-                </label>
-                <input
-                  type="text"
-                  value={googleSitesUrl}
-                  onChange={(e) => setGoogleSitesUrl(e.target.value)}
-                  placeholder="https://sites.google.com/..."
+                  value={googleSitesEditUrl}
+                  onChange={(e) => setGoogleSitesEditUrl(e.target.value)}
+                  placeholder="https://sites.google.com/.../edit"
                   className="w-full rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none"
                 />
                 <p className="mt-2 text-xs text-slate-500">
-                  예: https://sites.google.com/d/1wdaBjcpjaM0WhdQOhG-ATzJ_Dx83ytH_/p/10Ms4qn7y-fscezanBmegRpWuro_iYjoX/edit
+                  편집 모드로 열리는 URL - 상품관리 페이지에서 "편집" 버튼으로 열립니다
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  🏠 Google Sites Home URL (실제 사이트)
+                </label>
+                <input
+                  type="text"
+                  value={googleSitesHomeUrl}
+                  onChange={(e) => setGoogleSitesHomeUrl(e.target.value)}
+                  placeholder="https://sites.google.com/.../home"
+                  className="w-full rounded-lg bg-slate-900 border border-slate-600 px-4 py-3 text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  실제 사이트 홈 URL - 상품관리 페이지에서 "사이트 보기" 버튼으로 열립니다
                 </p>
               </div>
 

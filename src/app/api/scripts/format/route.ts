@@ -8,13 +8,14 @@ const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== JSON 포맷팅 요청 시작 ===');
+    // 개발 완료 - 디버깅 로그 제거 (개발가이드 9. 로그 관리)
+    // console.log('=== JSON 포맷팅 요청 시작 ===');
 
     const user = await getCurrentUser(request);
-    console.log('🔐 인증된 사용자:', user);
+    // console.log('🔐 인증된 사용자:', user);
 
     if (!user) {
-      console.log('❌ 인증 실패: 로그인 필요');
+      // console.log('❌ 인증 실패: 로그인 필요');
       return NextResponse.json(
         { error: '로그인이 필요합니다.' },
         { status: 401 }
@@ -23,10 +24,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { scriptId, formattedContent } = body || {};
-    console.log('🧾 포맷팅 요청 scriptId:', scriptId, 'formattedContent 전달 여부:', Boolean(formattedContent));
+    // console.log('🧾 포맷팅 요청 scriptId:', scriptId, 'formattedContent 전달 여부:', Boolean(formattedContent));
 
     if (!scriptId) {
-      console.log('❌ scriptId 누락');
+      // console.log('❌ scriptId 누락');
       return NextResponse.json(
         { error: 'scriptId가 필요합니다.' },
         { status: 400 }
@@ -39,29 +40,30 @@ export async function POST(request: NextRequest) {
       db = new Database(dbPath);
 
       const query = 'SELECT * FROM contents WHERE id = ? AND user_id = ? AND type = ?';
-      console.log('📄 실행 쿼리:', query);
-      console.log('📄 파라미터:', { id: scriptId, user_id: user.userId, type: 'script' });
+      // console.log('📄 실행 쿼리:', query);
+      // console.log('📄 파라미터:', { id: scriptId, user_id: user.userId, type: 'script' });
 
       const stmt = db.prepare(query);
       const script = stmt.get(scriptId, user.userId, 'script') as any;
 
       if (!script) {
-        console.log('❌ 대본을 찾을 수 없거나 권한이 없습니다.');
+        // console.log('❌ 대본을 찾을 수 없거나 권한이 없습니다.');
         return NextResponse.json(
           { error: '대본을 찾을 수 없거나 권한이 없습니다.' },
           { status: 404 }
         );
       }
 
-      console.log('✅ 대본 조회 성공:', { id: script.id, title: script.title });
+      // console.log('✅ 대본 조회 성공:', { id: script.id, title: script.title });
 
       let parsedData: any;
 
       if (formattedContent && typeof formattedContent === 'string' && formattedContent.trim().length > 0) {
         try {
           parsedData = JSON.parse(formattedContent);
-          console.log('✅ 클라이언트에서 전달된 formattedContent 사용');
+          // console.log('✅ 클라이언트에서 전달된 formattedContent 사용');
         } catch (overrideError: any) {
+          // 에러는 로그 유지
           console.error('❌ formattedContent JSON 파싱 실패:', overrideError);
           return NextResponse.json(
             { error: 'formattedContent가 올바른 JSON 형식이 아닙니다.' },
@@ -72,11 +74,12 @@ export async function POST(request: NextRequest) {
         const rawContent = (script.content || '').trim();
         const cleanedContent = extractPureJson(rawContent) || rawContent;
         const parseResult = parseJsonSafely(cleanedContent, {
-          logErrors: true,
+          logErrors: false,  // parseJsonSafely 내부 로그도 끔
           attemptFix: true
         });
 
         if (!parseResult.success || typeof parseResult.data === 'undefined') {
+          // 에러는 로그 유지
           console.error('❌ JSON 파싱 실패 (서버 측):', parseResult.error);
           return NextResponse.json(
             { error: parseResult.error || 'JSON 파싱에 실패했습니다.' },
@@ -84,31 +87,29 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        if (parseResult.fixed) {
-          console.log('✨ JSON 자동 보정 결과가 적용되었습니다.');
-        }
+        // console.log('✨ JSON 자동 보정 결과가 적용되었습니다.');
 
         parsedData = parseResult.data;
       }
 
       const formattedContentToSave = JSON.stringify(parsedData, null, 2);
-      console.log('📏 원본 길이:', script.content.length, '→ 포맷팅 후:', formattedContentToSave.length);
+      // console.log('📏 원본 길이:', script.content.length, '→ 포맷팅 후:', formattedContentToSave.length);
 
       const updateQuery = "UPDATE contents SET content = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?";
       const updateStmt = db.prepare(updateQuery);
       const result = updateStmt.run(formattedContentToSave, scriptId, user.userId);
 
-      console.log('📝 업데이트 결과:', { changes: result.changes });
+      // console.log('📝 업데이트 결과:', { changes: result.changes });
 
       if (result.changes === 0) {
-        console.log('❌ DB 업데이트 실패');
+        // console.log('❌ DB 업데이트 실패');
         return NextResponse.json(
           { error: '데이터베이스 업데이트에 실패했습니다.' },
           { status: 500 }
         );
       }
 
-      console.log('✅ JSON 포맷팅 및 저장 성공');
+      // console.log('✅ JSON 포맷팅 및 저장 성공');
 
       return NextResponse.json({
         success: true,
@@ -119,13 +120,15 @@ export async function POST(request: NextRequest) {
       if (db) {
         try {
           db.close();
-          console.log('🔌 DB 연결 종료');
+          // console.log('🔌 DB 연결 종료');
         } catch (closeError) {
+          // 에러는 로그 유지
           console.error('⚠️ DB close 실패:', closeError);
         }
       }
     }
   } catch (error: any) {
+    // 에러는 로그 유지
     console.error('❌ JSON 포맷팅 에러:', error);
     return NextResponse.json(
       { error: error?.message || 'JSON 포맷팅 중 오류가 발생했습니다.' },

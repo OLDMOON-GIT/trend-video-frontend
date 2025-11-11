@@ -350,8 +350,23 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const promptType = params.get('promptType');
+      const retryTitle = params.get('retryTitle');
+      const retryType = params.get('retryType');
 
-      if (promptType === 'product' && promptFormat !== 'product') {
+      // 대본 재시도 파라미터 처리
+      if (retryTitle) {
+        console.log('🔄 대본 재시도 모드:', retryTitle, retryType);
+        setManualTitle(retryTitle);
+        setShowTitleInput(true);
+
+        // 타입이 있으면 포맷도 설정
+        if (retryType && ['longform', 'shortform', 'sora2', 'product', 'product-info'].includes(retryType)) {
+          setPromptFormat(retryType as any);
+        }
+
+        // URL 파라미터 제거 (히스토리에 남지 않도록)
+        window.history.replaceState({}, '', '/');
+      } else if (promptType === 'product' && promptFormat !== 'product') {
         console.log('🛍️ URL에서 상품 모드 감지, 포맷 변경');
         initialVideoFormatRef.current = 'product-from-url'; // URL 파라미터로 설정됨을 표시
         setPromptFormat('product');

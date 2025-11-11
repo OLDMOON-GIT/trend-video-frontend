@@ -24,7 +24,7 @@ export async function GET(
     }
 
     const params = await context.params;
-    const contentId = params.id;
+    const { id: contentId } = await params;
 
     if (!contentId) {
       return NextResponse.json(
@@ -76,7 +76,7 @@ export async function PUT(
     }
 
     const params = await context.params;
-    const contentId = params.id;
+    const { id: contentId } = await params;
 
     if (!contentId) {
       return NextResponse.json(
@@ -156,7 +156,7 @@ export async function DELETE(
     }
 
     const params = await context.params;
-    const taskId = params.id;
+    const { id: taskId } = await params;
 
     if (!taskId) {
       return NextResponse.json(

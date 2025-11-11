@@ -155,15 +155,27 @@ export async function GET(request: NextRequest) {
     }
 
     // 대기 목록 반환 (기존 로직)
-    const products = db.prepare(`
-      SELECT * FROM crawled_product_links
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-    `).all(user.userId);
+    try {
+      const products = db.prepare(`
+        SELECT * FROM crawled_product_links
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+      `).all(user.userId);
 
-    return NextResponse.json({ products });
+      return NextResponse.json({ products: products || [] });
+    } catch (dbError: any) {
+      console.error('❌ DB 조회 실패:', dbError);
+      console.error('Error details:', {
+        message: dbError?.message,
+        stack: dbError?.stack,
+        code: dbError?.code
+      });
+      // 테이블이 없는 경우 빈 배열 반환
+      return NextResponse.json({ products: [] });
+    }
   } catch (error: any) {
-    console.error('❌ 조회 실패:', error);
+    console.error('❌ 전체 조회 실패:', error);
+    console.error('Error stack:', error?.stack);
     return NextResponse.json({ error: error?.message || '조회 실패' }, { status: 500 });
   }
 }
@@ -663,7 +675,7 @@ export async function DELETE(request: NextRequest) {
 }
 
 /**
- * 축약 링크를 풀 링크로 확장 (리다이렉트 따라가기)
+ * 축약 링크를 풀 링크로 확장 (헤드리스 브라우저 방식)
  */
 async function expandShortLink(shortUrl: string): Promise<string> {
   // 이미 풀 링크면 그대로 반환
@@ -672,41 +684,60 @@ async function expandShortLink(shortUrl: string): Promise<string> {
     return shortUrl;
   }
 
-  // 최대 2번 재시도 (빠른 실패)
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8초로 단축
+  console.log('🔗 링크 확장 시작:', shortUrl);
 
-      const response = await fetch(shortUrl, {
-        method: 'GET',
-        redirect: 'follow',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
-        }
-      });
+  let browser = null;
 
-      clearTimeout(timeoutId);
+  try {
+    // Puppeteer 동적 import
+    const puppeteerModule = await import('puppeteer-extra');
+    const StealthPlugin = (await import('puppeteer-extra-plugin-stealth')).default;
+    const puppeteer = puppeteerModule.default;
+    puppeteer.use(StealthPlugin());
 
-      if (response.ok && response.url) {
-        console.log(`✅ [시도 ${attempt}] 링크 확장 성공: ${shortUrl} → ${response.url}`);
-        return response.url;
-      }
-    } catch (error: any) {
-      console.warn(`⚠️ [시도 ${attempt}/2] 링크 확장 실패: ${shortUrl} - ${error.message}`);
-      if (attempt < 2) {
-        // 1초 대기 후 재시도
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ]
+    });
+
+    const page = await browser.newPage();
+
+    // 페이지 이동 (리다이렉트 자동 추적)
+    await page.goto(shortUrl, {
+      waitUntil: 'networkidle2',
+      timeout: 15000
+    });
+
+    // 최종 URL 가져오기
+    const finalUrl = page.url();
+
+    await browser.close();
+    browser = null;
+
+    console.log(`✅ 링크 확장 성공: ${shortUrl} → ${finalUrl}`);
+    return finalUrl;
+
+  } catch (error: any) {
+    console.error(`❌ 링크 확장 실패: ${shortUrl} - ${error.message}`);
+
+    // 브라우저 정리
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (e) {
+        console.error('브라우저 종료 실패:', e);
       }
     }
-  }
 
-  // 모든 시도 실패 시 원본 반환
-  console.error(`❌ 링크 확장 최종 실패, 원본 사용: ${shortUrl}`);
-  return shortUrl;
+    // 실패 시 원본 반환
+    console.log('⚠️ 원본 URL 사용:', shortUrl);
+    return shortUrl;
+  }
 }
 
 /**
@@ -813,7 +844,7 @@ function extractFromBody(html: string): {
 }
 
 /**
- * 상품 정보 크롤링 (개선된 HTML 파싱 버전)
+ * 상품 정보 크롤링 (Puppeteer 헤드리스 브라우저 방식)
  */
 async function scrapeProductInfo(productUrl: string): Promise<{
   title: string;
@@ -822,160 +853,175 @@ async function scrapeProductInfo(productUrl: string): Promise<{
   originalPrice?: number;
   discountPrice?: number;
 }> {
-  console.log('🔍 상품 정보 크롤링 시작:', productUrl);
+  console.log('🔍 상품 정보 크롤링 시작 (헤드리스 브라우저):', productUrl);
 
   const startTime = Date.now();
+  let browser = null;
 
   try {
-    // timeout을 60초로 설정
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    // Puppeteer 동적 import
+    const puppeteerModule = await import('puppeteer-extra');
+    const StealthPlugin = (await import('puppeteer-extra-plugin-stealth')).default;
+    const puppeteer = puppeteerModule.default;
+    puppeteer.use(StealthPlugin());
 
-    console.log('📡 HTML 가져오는 중 (리다이렉트 자동 추적)...');
-
-    // 실제 브라우저처럼 보이기 위한 헤더
-    const response = await fetch(productUrl, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'Referer': 'https://www.coupang.com/',
-      }
+    // 브라우저 실행
+    console.log('🌐 브라우저 시작 중...');
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--window-size=1920x1080',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      ]
     });
 
-    clearTimeout(timeoutId);
+    const page = await browser.newPage();
+
+    // 뷰포트 설정
+    await page.setViewport({ width: 1920, height: 1080 });
+
+    // 추가 헤더 설정
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    });
+
+    console.log('📡 페이지 로딩 중...');
+
+    // 페이지 이동 (30초 타임아웃)
+    await page.goto(productUrl, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+
     const fetchTime = Date.now() - startTime;
-    const finalUrl = response.url;
-    console.log(`✅ HTML 다운로드 완료 (${fetchTime}ms)`);
+    console.log(`✅ 페이지 로딩 완료 (${fetchTime}ms)`);
+
+    // 최종 URL 확인
+    const finalUrl = page.url();
     console.log(`🔗 최종 URL: ${finalUrl}`);
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
+    // 페이지 정보 추출
+    const pageData = await page.evaluate(() => {
+      // 메타 태그 추출 헬퍼 함수
+      const getMeta = (property: string): string | null => {
+        const meta = document.querySelector(`meta[property="${property}"]`) ||
+                     document.querySelector(`meta[name="${property}"]`);
+        return meta ? meta.getAttribute('content') : null;
+      };
 
-    const html = await response.text();
-    console.log(`📄 HTML 크기: ${html.length.toLocaleString()} bytes`);
+      // 상품명 추출
+      let title = getMeta('og:title') ||
+                  getMeta('twitter:title') ||
+                  document.querySelector('title')?.textContent ||
+                  '';
 
-    // head 부분만 추출 (효율성)
-    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-    const headHtml = headMatch ? headMatch[1] : html;
+      title = title.split('|')[0].split('-')[0].trim();
 
-    // title 태그 추출
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const pageTitle = titleMatch ? titleMatch[1].trim() : '';
+      // 설명 추출
+      let description = getMeta('og:description') ||
+                        getMeta('twitter:description') ||
+                        getMeta('description') ||
+                        '';
 
-    // 상품명 추출 (여러 방법 시도)
-    let title = extractMetaTag(headHtml, 'og:title')
-                || extractMetaTag(headHtml, 'twitter:title')
-                || extractMetaTag(headHtml, 'title')
-                || pageTitle.split('|')[0].split('-')[0].trim()
-                || '';
-
-    // HTML 엔티티 디코딩
-    if (title) {
-      title = decodeHtmlEntities(title);
-    }
-
-    // 썸네일 추출 (여러 방법 시도)
-    let imageUrl = extractMetaTag(headHtml, 'og:image')
-                   || extractMetaTag(headHtml, 'og:image:secure_url')
-                   || extractMetaTag(headHtml, 'twitter:image')
-                   || extractMetaTag(headHtml, 'twitter:image:src')
-                   || '';
-
-    // 상대 URL을 절대 URL로 변환
-    if (imageUrl && !imageUrl.startsWith('http')) {
-      imageUrl = new URL(imageUrl, finalUrl).href;
-    }
-
-    // 설명 추출 (여러 방법 시도)
-    let description = extractMetaTag(headHtml, 'og:description')
-                      || extractMetaTag(headHtml, 'twitter:description')
-                      || extractMetaTag(headHtml, 'description')
-                      || '';
-
-    // HTML 엔티티 디코딩
-    if (description) {
-      description = decodeHtmlEntities(description);
-    }
-
-    // 설명 길이 제한 (200자)
-    if (description.length > 200) {
-      description = description.substring(0, 200);
-    }
-
-    // 가격 시도 (product:price, og:price 등)
-    const priceStr = extractMetaTag(headHtml, 'product:price:amount')
-                     || extractMetaTag(headHtml, 'og:price:amount')
-                     || extractMetaTag(headHtml, 'product:sale_price')
-                     || null;
-
-    let discountPrice: number | undefined;
-    if (priceStr) {
-      const parsed = parseInt(priceStr.replace(/[^0-9]/g, ''));
-      if (!isNaN(parsed)) {
-        discountPrice = parsed;
-      }
-    }
-
-    // Fallback: meta 태그에서 추출 실패 시 body에서 시도
-    if (!title || !imageUrl) {
-      const bodyData = extractFromBody(html);
-
-      if (!title && bodyData.title) {
-        title = decodeHtmlEntities(bodyData.title);
-        console.log(`✅ 상품명 (body fallback): ${title.substring(0, 40)}...`);
+      // 설명 길이 제한
+      if (description.length > 200) {
+        description = description.substring(0, 200);
       }
 
-      if (!imageUrl && bodyData.imageUrl) {
-        imageUrl = bodyData.imageUrl;
-        if (!imageUrl.startsWith('http')) {
-          imageUrl = new URL(imageUrl, finalUrl).href;
+      // 이미지 추출
+      let imageUrl = getMeta('og:image') ||
+                     getMeta('og:image:secure_url') ||
+                     getMeta('twitter:image') ||
+                     '';
+
+      // 가격 추출
+      const priceStr = getMeta('product:price:amount') ||
+                       getMeta('og:price:amount') ||
+                       getMeta('product:sale_price');
+
+      let discountPrice: number | undefined;
+      if (priceStr) {
+        const parsed = parseInt(priceStr.replace(/[^0-9]/g, ''));
+        if (!isNaN(parsed)) {
+          discountPrice = parsed;
         }
-        console.log(`✅ 썸네일 (body fallback)`);
       }
 
-      if (!discountPrice && bodyData.price) {
-        discountPrice = bodyData.price;
+      // Body에서 추출 (fallback)
+      if (!title) {
+        const titleElement = document.querySelector('.prod-buy-header__title') ||
+                            document.querySelector('h1');
+        if (titleElement) {
+          title = titleElement.textContent?.trim() || '';
+        }
       }
-    }
 
-    // 최종 검증
-    if (!title) {
-      title = '상품명';
-    }
+      if (!imageUrl) {
+        const imgElement = document.querySelector('.prod-image__detail') ||
+                          document.querySelector('[class*="product"] img') ||
+                          document.querySelector('img');
+        if (imgElement) {
+          imageUrl = imgElement.getAttribute('src') || '';
+        }
+      }
+
+      if (!discountPrice) {
+        const priceElement = document.querySelector('.total-price') ||
+                            document.querySelector('.sale-price') ||
+                            document.querySelector('[class*="price"]');
+        if (priceElement) {
+          const priceText = priceElement.textContent || '';
+          const match = priceText.match(/(\d{1,3}(?:,\d{3})*)/);
+          if (match) {
+            const parsed = parseInt(match[1].replace(/,/g, ''));
+            if (!isNaN(parsed)) {
+              discountPrice = parsed;
+            }
+          }
+        }
+      }
+
+      return {
+        title: title || '상품명',
+        description,
+        imageUrl,
+        discountPrice
+      };
+    });
+
+    // 브라우저 종료
+    await browser.close();
+    browser = null;
 
     const totalTime = Date.now() - startTime;
-    console.log(`✅ 크롤링 완료 (총 ${totalTime}ms)`);
+    console.log(`✅ 크롤링 성공 (총 ${totalTime}ms)`);
+    console.log(`   제목: ${pageData.title.substring(0, 40)}...`);
+    console.log(`   썸네일: ${pageData.imageUrl ? 'O' : 'X'}`);
 
     return {
-      title,
-      description,
-      imageUrl,
+      title: pageData.title,
+      description: pageData.description,
+      imageUrl: pageData.imageUrl,
       originalPrice: undefined,
-      discountPrice
+      discountPrice: pageData.discountPrice
     };
 
   } catch (error: any) {
-    console.error('❌ 크롤링 실패:', error?.message);
+    console.error(`❌ 크롤링 실패:`, error?.message);
 
-    if (error.name === 'AbortError') {
-      throw new Error('크롤링 타임아웃 (60초 초과)');
+    // 브라우저 정리
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (e) {
+        console.error('브라우저 종료 실패:', e);
+      }
     }
 
     throw new Error(`크롤링 실패: ${error?.message}`);
@@ -1004,12 +1050,27 @@ async function classifyCategory(title: string, description: string): Promise<str
         max_tokens: 50,
         messages: [{
           role: 'user',
-          content: `다음 상품을 카테고리로 분류해주세요. 카테고리 이름만 한글로 답변하세요.
+          content: `다음 상품을 가장 적합한 카테고리로 분류해주세요.
 
-카테고리 목록: 패션, 뷰티, 식품, 생활용품, 디지털, 가전, 스포츠, 완구, 도서, 반려동물, 자동차, 기타
+**카테고리 목록 (아래 중 정확히 하나만 선택):**
+- 패션: 의류, 신발, 가방, 액세서리, 잡화
+- 뷰티: 화장품, 스킨케어, 향수, 헤어케어
+- 식품: 과자, 초콜릿, 음료, 과일, 채소, 육류, 수산물, 가공식품, 건강식품, 간식
+- 생활용품: 주방용품, 욕실용품, 청소용품, 수납, 침구
+- 디지털: 스마트폰, 태블릿, 노트북, 이어폰, 액세서리
+- 가전: TV, 냉장고, 세탁기, 청소기, 에어컨, 소형가전
+- 스포츠: 운동기구, 운동복, 등산, 자전거, 캠핑
+- 완구: 장난감, 인형, 게임, 교육완구
+- 도서: 책, 잡지, 전자책
+- 반려동물: 사료, 간식, 용품
+- 자동차: 자동차용품, 액세서리, 부품
+- 기타: 위 카테고리에 해당하지 않는 상품
 
+**상품 정보:**
 상품명: ${title}
 설명: ${description}
+
+**중요:** 반드시 위 카테고리 목록에서 정확히 일치하는 카테고리 이름 하나만 답변하세요 (패션, 뷰티, 식품, 생활용품, 디지털, 가전, 스포츠, 완구, 도서, 반려동물, 자동차, 기타 중 하나).
 
 카테고리:`
         }]
@@ -1018,7 +1079,17 @@ async function classifyCategory(title: string, description: string): Promise<str
 
     const data = await response.json();
     const category = data.content[0].text.trim();
-    return category || '기타';
+
+    // 정확히 카테고리 목록에 있는지 확인
+    const validCategories = ['패션', '뷰티', '식품', '생활용품', '디지털', '가전', '스포츠', '완구', '도서', '반려동물', '자동차', '기타'];
+
+    if (validCategories.includes(category)) {
+      return category;
+    }
+
+    // 카테고리 목록에 없으면 기타로 처리
+    console.warn(`예상치 못한 카테고리: ${category}, 기타로 처리`);
+    return '기타';
   } catch (error) {
     console.error('AI 카테고리 분류 실패:', error);
     return '기타';

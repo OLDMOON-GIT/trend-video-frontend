@@ -52,12 +52,6 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-5xl">
-{/* 헤더 */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white">⚙️ 관리자 대시보드</h1>
-          {user && <p className="mt-2 text-sm text-slate-400">{user.email}</p>}
-        </div>
-
         {/* 메뉴 카드 */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* 사용자 관리 */}

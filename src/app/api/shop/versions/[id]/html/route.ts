@@ -57,7 +57,11 @@ export async function GET(
       products = versionData.products || [];
     }
 
-    const html = generateShopHtml(products);
+    // 사용자 닉네임 가져오기
+    const userInfo = db.prepare('SELECT nickname FROM users WHERE id = ?').get(user.userId) as { nickname?: string } | undefined;
+    const nickname = userInfo?.nickname;
+
+    const html = generateShopHtml(products, nickname);
 
     return new NextResponse(html, {
       headers: {

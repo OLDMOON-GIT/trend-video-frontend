@@ -13,7 +13,7 @@ export default function PromptsAdminPage() {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* 롱폼 프롬프트 */}
           <Link
             href="/api/prompt"
@@ -102,6 +102,29 @@ export default function PromptsAdminPage() {
               </ul>
             </div>
             <div className="mt-6 flex items-center text-sm font-semibold text-green-300 transition group-hover:translate-x-2">
+              편집하기 →
+            </div>
+          </Link>
+
+          {/* 상품정보 프롬프트 */}
+          <Link
+            href="/api/product-description-prompt"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-amber-500/20 to-orange-500/20 p-8 backdrop-blur transition hover:border-amber-500/50 hover:shadow-2xl hover:shadow-amber-500/20"
+          >
+            <div className="mb-4 text-6xl">📋</div>
+            <h2 className="mb-3 text-2xl font-bold">상품정보 프롬프트</h2>
+            <p className="mb-4 text-sm text-slate-300">
+              유튜브/릴스 상품 상세정보 생성 프롬프트 편집
+            </p>
+            <div className="rounded-lg bg-slate-900/50 p-4 text-sm text-slate-400">
+              <p className="mb-2 font-semibold text-slate-300">💡 포함 내용:</p>
+              <ul className="space-y-1">
+                <li>• 유튜브 상세 설명</li>
+                <li>• 릴스 캡션 & 해시태그</li>
+                <li>• 주의사항 & 안내</li>
+              </ul>
+            </div>
+            <div className="mt-6 flex items-center text-sm font-semibold text-amber-300 transition group-hover:translate-x-2">
               편집하기 →
             </div>
           </Link>

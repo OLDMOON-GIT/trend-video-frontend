@@ -23,12 +23,14 @@ export async function GET(request: NextRequest) {
 
     const profile = await findUserById(user.userId);
     const userInfo = db.prepare(`
-      SELECT google_sites_url, nickname FROM users WHERE id = ?
+      SELECT google_sites_url, google_sites_edit_url, google_sites_home_url, nickname FROM users WHERE id = ?
     `).get(user.userId) as any;
 
     return NextResponse.json({
       userId: user.userId,
       googleSitesUrl: userInfo?.google_sites_url || '',
+      googleSitesEditUrl: userInfo?.google_sites_edit_url || '',
+      googleSitesHomeUrl: userInfo?.google_sites_home_url || '',
       nickname: userInfo?.nickname || profile?.nickname || ''
     });
 
@@ -53,12 +55,28 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { googleSitesUrl, nickname } = body;
+    const { googleSitesUrl, googleSitesEditUrl, googleSitesHomeUrl, nickname } = body;
 
     // URL 유효성 검증 (선택사항)
     if (googleSitesUrl && !googleSitesUrl.includes('sites.google.com')) {
       return NextResponse.json(
         { error: '올바른 Google Sites URL을 입력해주세요.' },
+        { status: 400 }
+      );
+    }
+
+    // Edit URL 유효성 검증
+    if (googleSitesEditUrl && !googleSitesEditUrl.includes('sites.google.com')) {
+      return NextResponse.json(
+        { error: '올바른 Google Sites Edit URL을 입력해주세요.' },
+        { status: 400 }
+      );
+    }
+
+    // Home URL 유효성 검증
+    if (googleSitesHomeUrl && !googleSitesHomeUrl.includes('sites.google.com')) {
+      return NextResponse.json(
+        { error: '올바른 Google Sites Home URL을 입력해주세요.' },
         { status: 400 }
       );
     }
@@ -84,10 +102,18 @@ export async function PUT(request: NextRequest) {
     db.prepare(`
       UPDATE users
       SET google_sites_url = ?,
+          google_sites_edit_url = ?,
+          google_sites_home_url = ?,
           nickname = COALESCE(?, nickname),
           updated_at = datetime('now')
       WHERE id = ?
-    `).run(googleSitesUrl || null, (nickname !== undefined ? (trimmedNickname || null) : null), user.userId);
+    `).run(
+      googleSitesUrl || null,
+      googleSitesEditUrl || null,
+      googleSitesHomeUrl || null,
+      (nickname !== undefined ? (trimmedNickname || null) : null),
+      user.userId
+    );
 
     console.log('✅ 사용자 설정 업데이트 완료:', user.userId);
 

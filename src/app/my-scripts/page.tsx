@@ -433,6 +433,17 @@ export default function MyScriptsPage() {
                         🎬 영상 제작
                       </button>
                     )}
+                    {(script.status === 'completed' || !script.status) && (
+                      <button
+                        onClick={() => {
+                          // 상품정보 생성을 위해 메인 페이지로 이동
+                          window.location.href = `/?promptType=product-info&generateProductInfo=${script.id}`;
+                        }}
+                        className="rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-amber-500 hover:to-yellow-500"
+                      >
+                        📝 상품정보
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDownload(script.id)}
                       className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"

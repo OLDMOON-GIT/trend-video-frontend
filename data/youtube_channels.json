@@ -1,18 +1,5 @@
 [
   {
-    "id": "df0608e8-9a72-4997-940a-481daf64f17b",
-    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
-    "channelId": "UCNh_t25SLZYmL0uCjI_gk5w",
-    "channelTitle": "은빛라디오",
-    "thumbnailUrl": "https://yt3.ggpht.com/B9otufSxeBOn2g5OG-7NermEdaVXnBHqjOHKjdwTECgitRWgVtqXML2ofvfRqNMm0eV90P7_=s88-c-k-c0x00ffffff-no-rj",
-    "subscriberCount": 13,
-    "description": "",
-    "tokenFile": "youtube_token_b5d1f064-60b9-45ab-9bcd-d36948196459_UCNh_t25SLZYmL0uCjI_gk5w.json",
-    "isDefault": true,
-    "createdAt": "2025-11-03T18:15:17.341Z",
-    "updatedAt": "2025-11-03T18:15:17.341Z"
-  },
-  {
     "id": "c1d4469b-90a3-4466-bdc8-5598963ba04a",
     "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
     "channelId": "UCZ-DUBUAV53zBuiK-3bYfEg",
@@ -37,5 +24,18 @@
     "isDefault": false,
     "createdAt": "2025-11-04T15:46:16.733Z",
     "updatedAt": "2025-11-04T15:46:16.733Z"
+  },
+  {
+    "id": "ea4ac1e5-adf1-40e8-a14e-35907778621d",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "channelId": "UCNh_t25SLZYmL0uCjI_gk5w",
+    "channelTitle": "은빛라디오",
+    "thumbnailUrl": "https://yt3.ggpht.com/B9otufSxeBOn2g5OG-7NermEdaVXnBHqjOHKjdwTECgitRWgVtqXML2ofvfRqNMm0eV90P7_=s88-c-k-c0x00ffffff-no-rj",
+    "subscriberCount": 26,
+    "description": "",
+    "tokenFile": "youtube_token_b5d1f064-60b9-45ab-9bcd-d36948196459_UCNh_t25SLZYmL0uCjI_gk5w.json",
+    "isDefault": true,
+    "createdAt": "2025-11-11T06:15:10.638Z",
+    "updatedAt": "2025-11-11T06:15:15.998Z"
   }
 ]

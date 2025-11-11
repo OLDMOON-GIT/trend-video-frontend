@@ -9,7 +9,7 @@
   deep_link: string;
 };
 
-export function generateShopHtml(products: PublishedProduct[]): string {
+export function generateShopHtml(products: PublishedProduct[], nickname?: string): string {
   const normalizedCategories = Array.from(
     new Set(products.map((product) => normalizeCategoryName(product.category)))
   );
@@ -30,7 +30,7 @@ export function generateShopHtml(products: PublishedProduct[]): string {
       const originalPrice = formatCurrency(product.original_price);
 
       return `
-    <div class="coupang-product-card" data-category="${categoryLabel}" data-product-id="${escapeHtml(product.id)}" style="background: #1e293b; border-radius: 12px; overflow: hidden; transition: transform 0.2s; position: relative;">
+    <div class="coupang-product-card" data-category="${categoryLabel}" data-product-id="${escapeHtml(product.id)}" style="background: #1e293b; border-radius: 12px; overflow: hidden; transition: transform 0.2s; position: relative; display: flex; flex-direction: column; height: 100%;">
       <button
         class="bookmark-btn"
         data-product-id="${escapeHtml(product.id)}"
@@ -42,49 +42,51 @@ export function generateShopHtml(products: PublishedProduct[]): string {
       <img
         src="${product.image_url}"
         alt="${escapeHtml(product.title)}"
-        style="width: 100%; height: 200px; object-fit: cover;"
+        style="width: 100%; height: 200px; object-fit: cover; flex-shrink: 0;"
       />
       ` : ''}
 
-      <div style="padding: 16px;">
-        <span style="display: inline-block; background: #9333ea; color: white; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 8px;">
-          ${categoryLabel}
-        </span>
+      <div style="padding: 16px; display: flex; flex-direction: column; flex: 1;">
+        <div style="flex: 1;">
+          <span style="display: inline-block; background: #9333ea; color: white; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 8px;">
+            ${categoryLabel}
+          </span>
 
-        <h3 style="color: white; font-size: 16px; font-weight: bold; margin: 8px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-          ${escapeHtml(product.title)}
-        </h3>
+          <h3 style="color: white; font-size: 16px; font-weight: bold; margin: 8px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+            ${escapeHtml(product.title)}
+          </h3>
 
-        <p style="color: #94a3b8; font-size: 14px; margin: 8px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
-          ${escapeHtml(product.description || '')}
-        </p>
+          <p style="color: #94a3b8; font-size: 14px; margin: 8px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+            ${escapeHtml(product.description || '')}
+          </p>
 
-        ${discountPrice ? `
-        <div style="margin: 12px 0;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: #f87171; font-size: 20px; font-weight: bold;">
-              ${discountPrice}원
-            </span>
-            ${originalPrice ? `
-            <span style="color: #64748b; font-size: 14px; text-decoration: line-through;">
+          ${discountPrice ? `
+          <div style="margin: 12px 0;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span style="color: #f87171; font-size: 20px; font-weight: bold;">
+                ${discountPrice}원
+              </span>
+              ${originalPrice ? `
+              <span style="color: #64748b; font-size: 14px; text-decoration: line-through;">
+                ${originalPrice}원
+              </span>
+              ` : ''}
+            </div>
+          </div>
+          ` : originalPrice ? `
+          <div style="margin: 12px 0;">
+            <span style="color: white; font-size: 20px; font-weight: bold;">
               ${originalPrice}원
             </span>
-            ` : ''}
           </div>
+          ` : ''}
         </div>
-        ` : originalPrice ? `
-        <div style="margin: 12px 0;">
-          <span style="color: white; font-size: 20px; font-weight: bold;">
-            ${originalPrice}원
-          </span>
-        </div>
-        ` : ''}
 
         <a
           href="${product.deep_link}"
           target="_blank"
           rel="noopener noreferrer"
-          style="display: block; width: 100%; background: linear-gradient(to right, #ea580c, #dc2626); color: white; text-align: center; padding: 12px; border-radius: 8px; font-weight: 600; text-decoration: none; margin-top: 12px;"
+          style="display: block; width: 100%; background: linear-gradient(to right, #ea580c, #dc2626); color: white; text-align: center; padding: 12px; border-radius: 8px; font-weight: 600; text-decoration: none; margin-top: 12px; flex-shrink: 0;"
         >
           🛒 쿠팡에서 보기
         </a>
@@ -420,7 +422,8 @@ export function generateShopHtml(products: PublishedProduct[]): string {
 </script>`
     : '';
 
-  const noticeText = '하단 링크로 구매하면 알리, 쿠팡, 네이버, 무신사로부터 일정액의 수수료를 살림남 채널이 제공받아 채널 운영에 도움이 됩니다.';
+  const displayName = nickname || '운영자';
+  const noticeText = `하단 링크로 구매하면 알리, 쿠팡, 네이버, 무신사로부터 일정액의 수수료를 ${displayName} 채널로 제공받아 채널 운영에 도움이 됩니다.`;
 
   return `
 <!-- 쿠팡 샵 - 자동 생성 HTML -->
@@ -445,6 +448,10 @@ export function generateShopHtml(products: PublishedProduct[]): string {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 24px;
+    align-items: stretch;
+  }
+  .coupang-product-card {
+    min-height: 500px;
   }
   .coupang-category-tabs {
     display: flex;

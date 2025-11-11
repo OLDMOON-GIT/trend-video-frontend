@@ -326,18 +326,43 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       console.log(`🛑 프로세스 트리 종료 시작: Upload ${uploadId}, PID ${pid}`);
 
       try {
-        // tree-kill로 프로세스 트리 전체 강제 종료
+        // 먼저 SIGTERM으로 정상 종료 시도 (Python의 KeyboardInterrupt 실행)
+        console.log(`🛑 SIGTERM 전송: PID ${pid} (정상 종료 시도)`);
         await new Promise<void>((resolve, reject) => {
-          kill(pid, 'SIGKILL', (err) => {
+          kill(pid, 'SIGTERM', (err) => {
             if (err) {
-              console.error(`❌ tree-kill 실패: ${err.message}`);
+              console.error(`⚠️ SIGTERM 실패: ${err.message}`);
               reject(err);
             } else {
-              console.log(`✅ tree-kill 성공: PID ${pid} 및 모든 자식 프로세스 종료`);
+              console.log(`✅ SIGTERM 전송 완료: PID ${pid}`);
               resolve();
             }
           });
         });
+
+        // Python 프로세스가 정리 작업을 할 시간 부여 (5초)
+        console.log('⏳ Python 정리 작업 대기 중 (5초)...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        // 프로세스가 아직 살아있으면 SIGKILL로 강제 종료
+        try {
+          process.kill(pid, 0); // 프로세스 존재 확인 (signal 0)
+          console.log(`⚠️ 프로세스 아직 실행 중, SIGKILL 전송: PID ${pid}`);
+          await new Promise<void>((resolve, reject) => {
+            kill(pid, 'SIGKILL', (err) => {
+              if (err) {
+                console.error(`❌ SIGKILL 실패: ${err.message}`);
+                reject(err);
+              } else {
+                console.log(`✅ SIGKILL 성공: PID ${pid} 강제 종료`);
+                resolve();
+              }
+            });
+          });
+        } catch {
+          // 프로세스가 이미 종료됨
+          console.log(`✅ 프로세스 정상 종료됨: PID ${pid}`);
+        }
 
         // Windows 고아 Python 프로세스 정리
         if (process.platform === 'win32') {

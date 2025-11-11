@@ -14,13 +14,15 @@ interface Category {
 interface ShopClientViewProps {
   initialCategories: Category[];
   initialTotalProducts: number;
+  googleSitesEditUrl?: string;
+  googleSitesHomeUrl?: string;
 }
 
 interface ExportState {
   busy: boolean;
 }
 
-export default function ShopClientView({ initialCategories, initialTotalProducts }: ShopClientViewProps) {
+export default function ShopClientView({ initialCategories, initialTotalProducts, googleSitesEditUrl, googleSitesHomeUrl }: ShopClientViewProps) {
   const [publishedVersionId, setPublishedVersionId] = useState<string>('live'); // 'live'는 실시간 상품을 의미
   const [loading, setLoading] = useState(false); // 로딩 불필요
   const [exportState, setExportState] = useState<ExportState>({ busy: false });
@@ -105,22 +107,47 @@ export default function ShopClientView({ initialCategories, initialTotalProducts
 
   return (
     <>
-      {/* HTML 내보내기 버튼 */}
-      <div className="mb-3 flex flex-wrap justify-end gap-2">
-        <button
-          onClick={downloadHtml}
-          disabled={exportState.busy}
-          className="rounded-lg border border-blue-600/60 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-blue-600/20 disabled:opacity-60"
-        >
-          {exportState.busy ? '내보내는 중...' : 'HTML 내보내기'}
-        </button>
-        <button
-          onClick={copyHtml}
-          disabled={exportState.busy}
-          className="rounded-lg border border-purple-600/60 px-4 py-2 text-sm font-semibold text-purple-200 hover:bg-purple-600/20 disabled:opacity-60"
-        >
-          {exportState.busy ? '복사 중...' : '코드 복사'}
-        </button>
+      {/* 상단 액션 버튼들 */}
+      <div className="mb-0 flex flex-wrap justify-between items-center gap-1">
+        {/* Google Sites 버튼들 */}
+        <div className="flex flex-wrap gap-1">
+          {googleSitesEditUrl && (
+            <button
+              onClick={() => window.open(googleSitesEditUrl, '_blank')}
+              className="rounded-lg bg-gradient-to-r from-yellow-600 to-orange-600 px-4 py-2 text-sm font-bold text-white hover:from-yellow-500 hover:to-orange-500 transition shadow-md hover:shadow-lg"
+              title="Google Sites 편집 페이지 열기"
+            >
+              🖊️ 사이트 편집
+            </button>
+          )}
+          {googleSitesHomeUrl && (
+            <button
+              onClick={() => window.open(googleSitesHomeUrl, '_blank')}
+              className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-md hover:shadow-lg"
+              title="Google Sites 실제 사이트 열기"
+            >
+              🏠 사이트 보기
+            </button>
+          )}
+        </div>
+
+        {/* HTML 내보내기 버튼 */}
+        <div className="flex flex-wrap gap-1">
+          <button
+            onClick={downloadHtml}
+            disabled={exportState.busy}
+            className="rounded-lg border border-blue-600/60 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-blue-600/20 disabled:opacity-60"
+          >
+            {exportState.busy ? '내보내는 중...' : 'HTML 내보내기'}
+          </button>
+          <button
+            onClick={copyHtml}
+            disabled={exportState.busy}
+            className="rounded-lg border border-purple-600/60 px-4 py-2 text-sm font-semibold text-purple-200 hover:bg-purple-600/20 disabled:opacity-60"
+          >
+            {exportState.busy ? '복사 중...' : '코드 복사'}
+          </button>
+        </div>
       </div>
 
       <ShopVersionPreview

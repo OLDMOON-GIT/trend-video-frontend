@@ -138,6 +138,26 @@ function runMigrations() {
     }
   }
 
+  // users 테이블에 google_sites_edit_url 컬럼 추가 (편집용 URL)
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN google_sites_edit_url TEXT`);
+    console.log('✅ users.google_sites_edit_url 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ users.google_sites_edit_url 컬럼 추가 실패:', e.message);
+    }
+  }
+
+  // users 테이블에 google_sites_home_url 컬럼 추가 (실제 사이트 홈 URL)
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN google_sites_home_url TEXT`);
+    console.log('✅ users.google_sites_home_url 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ users.google_sites_home_url 컬럼 추가 실패:', e.message);
+    }
+  }
+
   // users 테이블에 nickname 컬럼 추가
   try {
     db.exec(`ALTER TABLE users ADD COLUMN nickname TEXT`);
@@ -251,13 +271,13 @@ function runMigrations() {
     }
   }
 
-  // contents 테이블에 'product' 포맷 추가 (CHECK constraint 업데이트)
+  // contents 테이블에 'product' 및 'product-info' 포맷 추가 (CHECK constraint 업데이트)
   try {
     // CHECK constraint 확인
     const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='contents'").get() as any;
 
-    if (tableInfo && tableInfo.sql && !tableInfo.sql.includes("'product'")) {
-      console.log('🔄 contents 테이블에 product 포맷 추가 중...');
+    if (tableInfo && tableInfo.sql && !tableInfo.sql.includes("'product-info'")) {
+      console.log('🔄 contents 테이블에 product-info 포맷 추가 중...');
 
       // 백업 테이블 생성
       db.exec(`
@@ -273,7 +293,7 @@ function runMigrations() {
           id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
           type TEXT NOT NULL CHECK(type IN ('script', 'video')),
-          format TEXT CHECK(format IN ('longform', 'shortform', 'sora2', 'product')),
+          format TEXT CHECK(format IN ('longform', 'shortform', 'sora2', 'product', 'product-info')),
           title TEXT NOT NULL,
           original_title TEXT,
           content TEXT,
@@ -297,9 +317,24 @@ function runMigrations() {
         );
       `);
 
-      // 데이터 복원
+      // 데이터 복원 (명시적 컬럼 지정)
       db.exec(`
-        INSERT INTO contents SELECT * FROM contents_backup;
+        INSERT INTO contents (
+          id, user_id, type, format, title, original_title, content,
+          status, progress, error, pid,
+          video_path, thumbnail_path, published, published_at,
+          input_tokens, output_tokens, use_claude_local,
+          source_content_id, conversion_type, is_regenerated,
+          created_at, updated_at, model
+        )
+        SELECT
+          id, user_id, type, format, title, original_title, content,
+          status, progress, error, pid,
+          video_path, thumbnail_path, published, published_at,
+          input_tokens, output_tokens, use_claude_local,
+          source_content_id, conversion_type, is_regenerated,
+          created_at, updated_at, model
+        FROM contents_backup;
       `);
 
       // 백업 테이블 삭제
@@ -313,7 +348,7 @@ function runMigrations() {
       db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_created_at ON contents(created_at)`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_published ON contents(published)`);
 
-      console.log('✅ contents 테이블에 product 포맷 추가 완료');
+      console.log('✅ contents 테이블에 product, product-info 포맷 추가 완료');
     }
   } catch (e: any) {
     console.error('❌ contents 테이블 마이그레이션 실패:', e.message);

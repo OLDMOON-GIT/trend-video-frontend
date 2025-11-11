@@ -9,8 +9,8 @@
 
 describe('AI 모델 선택 테스트', () => {
   describe('API 요청 파라미터 검증', () => {
-    it('ChatGPT 선택 시 scriptModel: "gpt"로 전송되어야 함', () => {
-      const scriptModel = 'gpt';
+    it('ChatGPT 선택 시 scriptModel: "chatgpt"로 전송되어야 함', () => {
+      const scriptModel = 'chatgpt';  // 실제 프론트엔드 값
       const requestBody = {
         title: '테스트 제목',
         type: 'longform',
@@ -18,7 +18,7 @@ describe('AI 모델 선택 테스트', () => {
         useClaudeLocal: true
       };
 
-      expect(requestBody.scriptModel).toBe('gpt');
+      expect(requestBody.scriptModel).toBe('chatgpt');
       expect(requestBody).toHaveProperty('scriptModel');
       expect(requestBody).not.toHaveProperty('model');
     });
@@ -56,12 +56,14 @@ describe('AI 모델 선택 테스트', () => {
       // 서버 코드 시뮬레이션: MODEL_TO_AGENT mapping
       const MODEL_TO_AGENT: Record<string, string> = {
         'gpt': 'chatgpt',
+        'chatgpt': 'chatgpt',  // 프론트엔드에서 'chatgpt'로 전송
         'gemini': 'gemini',
         'claude': 'claude'
       };
 
       const testCases = [
         { scriptModel: 'gpt', expectedAgent: 'chatgpt' },
+        { scriptModel: 'chatgpt', expectedAgent: 'chatgpt' },  // 실제 프론트엔드 값
         { scriptModel: 'gemini', expectedAgent: 'gemini' },
         { scriptModel: 'claude', expectedAgent: 'claude' }
       ];

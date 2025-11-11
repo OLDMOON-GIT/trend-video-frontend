@@ -22,7 +22,7 @@ export async function PUT(
     }
 
     const params = await context.params;
-    const jobId = params.id;
+    const { id: jobId } = await params;
 
     if (!jobId) {
       return NextResponse.json(

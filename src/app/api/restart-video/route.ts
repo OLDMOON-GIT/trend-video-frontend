@@ -75,25 +75,48 @@ export async function POST(request: NextRequest) {
     // 크레딧 히스토리 기록
     await addCreditHistory(user.userId, 'use', -cost, '영상 재생성');
 
-    // 프로젝트 폴더명 추출
+    // 프로젝트 폴더명 및 타입 추출
     let oldProjectName: string;
+    let folderType: 'input' | 'output' = 'input'; // 기본값은 input
 
     if (job.videoPath) {
       // videoPath가 있으면 거기서 추출
-      // videoPath 예시: ../trend-video-backend/input/uploaded_upload_123.../generated_videos/final_video.mp4
-      const pathParts = job.videoPath.split('/');
+      // videoPath 예시:
+      // - input: ../trend-video-backend/input/uploaded_upload_123.../generated_videos/final_video.mp4
+      // - output: ../trend-video-backend/output/merge_xxxxx/최종영상.mp4
+      //   또는: C:\Users\...\trend-video-backend\output\merge_xxxxx\최종영상.mp4 (Windows 절대 경로)
+
+      console.log(`🔍 videoPath 원본: ${job.videoPath}`);
+
+      // Windows 백슬래시를 슬래시로 변환
+      const normalizedPath = job.videoPath.replace(/\\/g, '/');
+      const pathParts = normalizedPath.split('/');
+
+      // input 폴더 체크
       const inputIndex = pathParts.findIndex(p => p === 'input');
       if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
         oldProjectName = pathParts[inputIndex + 1];
-        console.log(`🔍 videoPath에서 프로젝트 폴더명 추출: ${oldProjectName}`);
+        folderType = 'input';
+        console.log(`🔍 input 폴더에서 프로젝트명 추출: ${oldProjectName}`);
       } else {
-        // videoPath 파싱 실패 시 jobId로 폴백
-        oldProjectName = `uploaded_${jobId}`;
-        console.log(`🔍 jobId로 프로젝트 폴더명 생성: ${oldProjectName}`);
+        // output 폴더 체크 (video-merge로 생성된 경우)
+        const outputIndex = pathParts.findIndex(p => p === 'output');
+        if (outputIndex !== -1 && outputIndex + 1 < pathParts.length) {
+          oldProjectName = pathParts[outputIndex + 1];
+          folderType = 'output';
+          console.log(`🔍 output 폴더에서 프로젝트명 추출: ${oldProjectName}`);
+        } else {
+          // videoPath 파싱 실패 시 jobId로 폴백
+          oldProjectName = `uploaded_${jobId}`;
+          folderType = 'input';
+          console.log(`⚠️ videoPath 파싱 실패, jobId로 폴백: ${oldProjectName}`);
+          console.log(`   pathParts:`, pathParts);
+        }
       }
     } else {
       // videoPath가 없으면 jobId로 추출 (upload_xxx... -> uploaded_upload_xxx...)
       oldProjectName = `uploaded_${jobId}`;
+      folderType = 'input';
       console.log(`🔍 jobId로 프로젝트 폴더명 생성: ${oldProjectName}`);
     }
 
@@ -105,7 +128,7 @@ export async function POST(request: NextRequest) {
     await createJob(user.userId, newJobId, `${job.title || 'Untitled'} (재생성)`);
 
     // 비동기로 영상 생성 재시작 (새 jobId로)
-    restartVideoGeneration(newJobId, user.userId, cost, oldProjectName, newProjectName, user.isAdmin || false);
+    restartVideoGeneration(newJobId, user.userId, cost, oldProjectName, newProjectName, user.isAdmin || false, folderType);
 
     return NextResponse.json({
       success: true,
@@ -243,7 +266,7 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-async function restartVideoGeneration(newJobId: string, userId: string, creditCost: number, oldProjectName: string, newProjectName: string, isAdmin: boolean) {
+async function restartVideoGeneration(newJobId: string, userId: string, creditCost: number, oldProjectName: string, newProjectName: string, isAdmin: boolean, folderType: 'input' | 'output' = 'input') {
   try {
     // 작업 시작 로그
     await updateJob(newJobId, {
@@ -252,9 +275,18 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       step: '재시작 준비 중...'
     });
 
-    await addJobLog(newJobId, `${'='.repeat(70)}\n🔄 영상 재생성 시작\n📂 기존 프로젝트: ${oldProjectName}\n📂 새 프로젝트: ${newProjectName}\n${'='.repeat(70)}`);
+    await addJobLog(newJobId, `${'='.repeat(70)}\n🔄 영상 재생성 시작\n📂 기존 프로젝트: ${oldProjectName} (${folderType})\n📂 새 프로젝트: ${newProjectName}\n${'='.repeat(70)}`);
 
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+
+    // folderType에 따라 완전히 다른 로직 실행
+    if (folderType === 'output') {
+      // video-merge 재시도
+      await restartVideoMerge(newJobId, userId, creditCost, oldProjectName, backendPath);
+      return;
+    }
+
+    // 이하 기존 로직 (input 폴더 롱폼 재생성)
     const oldFolderPath = path.join(backendPath, 'input', oldProjectName);
     const newFolderPath = path.join(backendPath, 'input', newProjectName);
 
@@ -286,7 +318,17 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       }
     }
 
-    const storyJsonFile = storyFiles.find(f => f.includes('story') && f.endsWith('.json'));
+    // folderType에 따라 다른 JSON 파일 찾기
+    let storyJsonFile: string | undefined;
+    if (folderType === 'output') {
+      // output 폴더에서는 original_story.json을 찾습니다
+      storyJsonFile = storyFiles.find(f => f === 'original_story.json');
+      await addJobLog(newJobId, `🔍 output 폴더에서 original_story.json 검색...`);
+    } else {
+      // input 폴더에서는 story.json을 찾습니다
+      storyJsonFile = storyFiles.find(f => f.includes('story') && f.endsWith('.json'));
+      await addJobLog(newJobId, `🔍 input 폴더에서 story.json 검색...`);
+    }
 
     if (storyJsonFile) {
       // JSON 파일 읽고 scene_number 추가 (유도리있는 파서 사용)
@@ -311,11 +353,12 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
         }));
       }
 
+      // 새 폴더에는 항상 story.json으로 저장 (Python 스크립트가 이 이름을 기대함)
       await fs.writeFile(
-        path.join(newFolderPath, storyJsonFile),
+        path.join(newFolderPath, 'story.json'),
         JSON.stringify(jsonData, null, 2)
       );
-      await addJobLog(newJobId, `✅ ${storyJsonFile} 복사 완료 (scene_number 추가)`);
+      await addJobLog(newJobId, `✅ ${storyJsonFile} → story.json 복사 완료 (scene_number 추가)`);
     } else {
       throw new Error('story.json 파일을 찾을 수 없습니다.');
     }
@@ -581,6 +624,189 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       error: error?.message || '알 수 없는 오류'
     });
     await addJobLog(newJobId, `\n❌ 오류 발생: ${error?.message || '알 수 없는 오류'}`);
+    await addJobLog(newJobId, `\n💰 ${creditCost} 크레딧이 환불되었습니다.`);
+  }
+}
+
+// video-merge 재시도 함수
+async function restartVideoMerge(newJobId: string, userId: string, creditCost: number, oldProjectName: string, backendPath: string) {
+  try {
+    await updateJob(newJobId, {
+      progress: 10,
+      step: 'video-merge 재시도 준비 중...'
+    });
+
+    const oldFolderPath = path.join(backendPath, 'output', oldProjectName);
+
+    // 기존 폴더 확인
+    try {
+      await fs.access(oldFolderPath);
+    } catch (error) {
+      throw new Error(`기존 프로젝트 폴더를 찾을 수 없습니다: ${oldProjectName}`);
+    }
+
+    await addJobLog(newJobId, `\n📁 기존 폴더: ${oldFolderPath}`);
+
+    // 새 output 폴더 생성
+    const timestamp = Date.now();
+    const newFolderPath = path.join(backendPath, 'output', `merge_${timestamp}`);
+    await fs.mkdir(newFolderPath, { recursive: true });
+    await addJobLog(newJobId, `📁 새 폴더: ${newFolderPath}`);
+
+    // videos 폴더 복사
+    const videosDir = path.join(oldFolderPath, 'videos');
+    const newVideosDir = path.join(newFolderPath, 'videos');
+
+    await updateJob(newJobId, {
+      progress: 20,
+      step: '비디오 파일 복사 중...'
+    });
+
+    try {
+      await fs.access(videosDir);
+      await fs.cp(videosDir, newVideosDir, { recursive: true });
+      const videoFiles = await fs.readdir(newVideosDir);
+      await addJobLog(newJobId, `✅ 비디오 ${videoFiles.length}개 복사 완료`);
+    } catch (error) {
+      throw new Error('videos 폴더를 찾을 수 없습니다');
+    }
+
+    // config.json 읽기
+    const oldConfigPath = path.join(oldFolderPath, 'config.json');
+    const configText = await fs.readFile(oldConfigPath, 'utf-8');
+    const oldConfig = JSON.parse(configText);
+
+    await addJobLog(newJobId, `📄 설정 읽기 완료`);
+
+    // 비디오 경로 업데이트
+    const videoFiles = await fs.readdir(newVideosDir);
+    const newVideoPaths = videoFiles
+      .filter(f => f.endsWith('.mp4'))
+      .sort()
+      .map(f => path.join(newVideosDir, f));
+
+    // 새 config.json 생성
+    const newConfig = {
+      video_files: newVideoPaths,
+      narration_text: oldConfig.narration_text || '',
+      add_subtitles: oldConfig.add_subtitles || false,
+      remove_watermark: oldConfig.remove_watermark || false,
+      title: oldConfig.title || '',
+      scenes: oldConfig.scenes || null,
+      output_dir: newFolderPath
+    };
+
+    const newConfigPath = path.join(newFolderPath, 'config.json');
+    await fs.writeFile(newConfigPath, JSON.stringify(newConfig, null, 2));
+
+    await updateJob(newJobId, {
+      progress: 30,
+      step: 'video-merge 실행 중...'
+    });
+
+    await addJobLog(newJobId, `\n🚀 video_merge.py 실행 중...\n`);
+
+    // video_merge.py 실행
+    const videoMergeScript = path.join(backendPath, 'video_merge.py');
+    const pythonProcess = spawn('python', [videoMergeScript, newConfigPath], {
+      cwd: backendPath,
+      shell: false,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUNBUFFERED: '1'
+      },
+      windowsHide: true
+    });
+
+    runningProcesses.set(newJobId, pythonProcess);
+
+    let stdoutBuffer = '';
+    let fullOutput = ''; // 전체 출력 저장용
+
+    pythonProcess.stdout.on('data', async (data) => {
+      const text = data.toString('utf-8');
+      stdoutBuffer += text;
+      fullOutput += text; // 전체 출력 누적
+      console.log(text);
+
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim()) {
+          await addJobLog(newJobId, line);
+        }
+      }
+    });
+
+    pythonProcess.stderr.on('data', async (data) => {
+      const text = data.toString('utf-8');
+      console.error(text);
+      await addJobLog(newJobId, `[stderr] ${text}`);
+    });
+
+    pythonProcess.on('close', async (code) => {
+      runningProcesses.delete(newJobId);
+
+      if (code === 0) {
+        try {
+          // 마지막 남은 버퍼도 fullOutput에 추가
+          if (stdoutBuffer.trim()) {
+            fullOutput += stdoutBuffer;
+          }
+
+          // 전체 출력에서 JSON 찾기 (마지막 JSON만 매칭)
+          const jsonMatches = fullOutput.match(/\{[^{}]*"success"\s*:\s*true[^{}]*\}/g);
+          if (jsonMatches && jsonMatches.length > 0) {
+            // 마지막 JSON 선택 (가장 최근 결과)
+            const lastJson = jsonMatches[jsonMatches.length - 1];
+            const result = JSON.parse(lastJson);
+            const videoPath = result.output_video;
+
+            await addJobLog(newJobId, `\n✅ 비디오 병합 완료!\n📁 출력: ${path.basename(videoPath)}`);
+
+            await updateJob(newJobId, {
+              status: 'completed',
+              progress: 100,
+              videoPath: videoPath
+            });
+          } else {
+            console.error('❌ JSON 파싱 실패 - 전체 출력:', fullOutput);
+            throw new Error('Python 스크립트 결과를 파싱할 수 없습니다.');
+          }
+        } catch (error: any) {
+          console.error('❌ 비디오 병합 처리 실패:', error);
+          await addJobLog(newJobId, `\n❌ 오류: ${error.message}`);
+          await updateJob(newJobId, {
+            status: 'failed',
+            error: error.message
+          });
+          // 크레딧 환불
+          await addCreditHistory(userId, 'refund', creditCost, 'video-merge 재시도 실패 환불');
+          await addJobLog(newJobId, `\n💰 ${creditCost} 크레딧이 환불되었습니다.`);
+        }
+      } else {
+        await addJobLog(newJobId, `\n❌ video_merge.py 실행 실패 (exit code: ${code})`);
+        await updateJob(newJobId, {
+          status: 'failed',
+          error: `Python 프로세스 종료 코드: ${code}`
+        });
+        // 크레딧 환불
+        await addCreditHistory(userId, 'refund', creditCost, 'video-merge 재시도 실패 환불');
+        await addJobLog(newJobId, `\n💰 ${creditCost} 크레딧이 환불되었습니다.`);
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ video-merge 재시도 실패:', error);
+    await updateJob(newJobId, {
+      status: 'failed',
+      error: error?.message || '알 수 없는 오류'
+    });
+    await addJobLog(newJobId, `\n❌ 오류 발생: ${error?.message || '알 수 없는 오류'}`);
+    // 크레딧 환불
+    await addCreditHistory(userId, 'refund', creditCost, 'video-merge 재시도 실패 환불');
     await addJobLog(newJobId, `\n💰 ${creditCost} 크레딧이 환불되었습니다.`);
   }
 }

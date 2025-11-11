@@ -7,7 +7,7 @@ import db from '@/lib/sqlite';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
     const user = await getCurrentUser(request);
@@ -15,7 +15,7 @@ export async function PATCH(
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const productId = params.id;
+    const { id: productId } = await params;
     const body = await request.json();
     const { title, description, category, original_price, discount_price, image_url } = body;
 
@@ -86,7 +86,7 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
     const user = await getCurrentUser(request);
@@ -94,7 +94,7 @@ export async function DELETE(
       return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
     }
 
-    const productId = params.id;
+    const { id: productId } = await params;
 
     // 상품 소유권 확인
     const product = db.prepare('SELECT * FROM coupang_products WHERE id = ?').get(productId) as any;

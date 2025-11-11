@@ -70,6 +70,9 @@ export interface Job {
   updatedAt: string;
   title?: string;
   type?: 'longform' | 'shortform' | 'sora2' | 'product';
+  sourceContentId?: string; // 대본 ID (대본->영상)
+  convertedFromJobId?: string; // 원본 영상 ID (영상->쇼츠)
+  prompt?: string; // 생성 시 사용한 프롬프트
 }
 
 // 대본 타입
@@ -214,15 +217,15 @@ export async function deleteUserById(userId: string): Promise<void> {
 // ==================== SQLite Job 함수들 ====================
 
 // 작업 생성
-export function createJob(userId: string, jobId: string, title?: string, type?: 'longform' | 'shortform' | 'sora2'): Job {
+export function createJob(userId: string, jobId: string, title?: string, type?: 'longform' | 'shortform' | 'sora2', sourceContentId?: string): Job {
   const now = new Date().toISOString();
 
   const stmt = db.prepare(`
-    INSERT INTO jobs (id, user_id, status, progress, created_at, updated_at, title)
-    VALUES (?, ?, 'pending', 0, ?, ?, ?)
+    INSERT INTO jobs (id, user_id, status, progress, created_at, updated_at, title, type, source_content_id)
+    VALUES (?, ?, 'pending', 0, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(jobId, userId, now, now, title || null);
+  stmt.run(jobId, userId, now, now, title || null, type || null, sourceContentId || null);
 
   return {
     id: jobId,
@@ -232,7 +235,9 @@ export function createJob(userId: string, jobId: string, title?: string, type?: 
     step: '준비 중...',
     createdAt: now,
     updatedAt: now,
-    title
+    title,
+    type,
+    sourceContentId
   };
 }
 
@@ -265,7 +270,11 @@ export function findJobById(jobId: string): Job | null {
     videoPath: row.video_path || row.video_url,
     thumbnailPath: row.thumbnail_path,
     error: row.error,
-    logs: row.logs ? row.logs.split('\n') : []
+    logs: row.logs ? row.logs.split('\n') : [],
+    type: row.type,
+    sourceContentId: row.source_content_id,
+    convertedFromJobId: row.converted_from_job_id,
+    prompt: row.prompt
   };
 }
 
@@ -372,7 +381,11 @@ export function getJobsByUserId(userId: string, limit: number = 10, offset: numb
     videoPath: row.video_path || row.video_url,
     thumbnailPath: row.thumbnail_path,
     error: row.error,
-    logs: row.logs ? row.logs.split('\n') : []
+    logs: row.logs ? row.logs.split('\n') : [],
+    type: row.type,
+    sourceContentId: row.source_content_id,
+    convertedFromJobId: row.converted_from_job_id,
+    prompt: row.prompt
   }));
 }
 
@@ -404,7 +417,11 @@ export function getActiveJobsByUserId(userId: string): Job[] {
     videoPath: row.video_path || row.video_url,
     thumbnailPath: row.thumbnail_path,
     error: row.error,
-    logs: row.logs ? row.logs.split('\n') : []
+    logs: row.logs ? row.logs.split('\n') : [],
+    type: row.type,
+    sourceContentId: row.source_content_id,
+    convertedFromJobId: row.converted_from_job_id,
+    prompt: row.prompt
   }));
 }
 

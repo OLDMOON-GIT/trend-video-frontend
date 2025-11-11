@@ -39,12 +39,24 @@ export async function GET(request: NextRequest) {
       })
       .slice(0, limit);
 
+    // 사용자 닉네임 가져오기
+    let nickname: string | undefined;
+    if (userId) {
+      const userInfo = db.prepare('SELECT nickname FROM users WHERE id = ?').get(userId) as { nickname?: string } | undefined;
+      nickname = userInfo?.nickname;
+    } else if (filtered.length > 0 && filtered[0].user_id) {
+      // userId가 없으면 첫 번째 상품의 user_id로 조회
+      const userInfo = db.prepare('SELECT nickname FROM users WHERE id = ?').get(filtered[0].user_id) as { nickname?: string } | undefined;
+      nickname = userInfo?.nickname;
+    }
+
     return NextResponse.json(
       {
         success: true,
         products: filtered,
         count: filtered.length,
         version: versionMeta,
+        nickname: nickname,
       },
       {
         headers: {

@@ -54,14 +54,15 @@ export function parseJsonSafely<T = any>(
   // 1단계: 원본 그대로 파싱 시도
   try {
     const data = JSON.parse(jsonString);
-    if (logErrors) {
-      console.log('✅ JSON 파싱 성공 (원본)');
-    }
+    // 개발 완료 - 디버깅 로그 제거 (개발가이드 9. 로그 관리)
+    // if (logErrors) {
+    //   console.log('✅ JSON 파싱 성공 (원본)');
+    // }
     return { success: true, data, fixed: false };
   } catch (firstError: any) {
-    if (logErrors) {
-      console.warn('⚠️ JSON 파싱 실패, 자동 수정 시도 중...', firstError.message);
-    }
+    // if (logErrors) {
+    //   console.warn('⚠️ JSON 파싱 실패, 자동 수정 시도 중...', firstError.message);
+    // }
 
     // 자동 수정을 시도하지 않는 경우
     if (!attemptFix) {
@@ -76,24 +77,24 @@ export function parseJsonSafely<T = any>(
       const fixed = fixJsonString(jsonString, logErrors);
       const data = JSON.parse(fixed);
 
-      if (logErrors) {
-        console.log('✅ JSON 자동 수정 후 파싱 성공');
-      }
+      // if (logErrors) {
+      //   console.log('✅ JSON 자동 수정 후 파싱 성공');
+      // }
 
       return { success: true, data, fixed: true };
     } catch (secondError: any) {
       // 3단계: 최종 시도 - 더 강력한 수정
-      if (logErrors) {
-        console.warn('⚠️ 2차 수정 시도 중...');
-      }
+      // if (logErrors) {
+      //   console.warn('⚠️ 2차 수정 시도 중...');
+      // }
 
       try {
         const ultraFixed = fixJsonStringUltra(jsonString, logErrors);
         const data = JSON.parse(ultraFixed);
 
-        if (logErrors) {
-          console.log('✅ JSON 강력 수정 후 파싱 성공');
-        }
+        // if (logErrors) {
+        //   console.log('✅ JSON 강력 수정 후 파싱 성공');
+        // }
 
         return { success: true, data, fixed: true };
       } catch (thirdError: any) {
@@ -104,20 +105,21 @@ export function parseJsonSafely<T = any>(
         const isNotJson = thirdError.message.includes('Not a JSON') ||
                           thirdError.message.includes('No JSON object found');
 
+        // 에러만 로그 유지
         if (logErrors && !isNotJson) {
           console.error('❌', errorMessage);
-          console.log('파싱 시도한 내용 (처음 1000자):', jsonString.substring(0, 1000));
-          console.log('파싱 시도한 내용 (마지막 500자):', jsonString.substring(Math.max(0, jsonString.length - 500)));
+          // console.log('파싱 시도한 내용 (처음 1000자):', jsonString.substring(0, 1000));
+          // console.log('파싱 시도한 내용 (마지막 500자):', jsonString.substring(Math.max(0, jsonString.length - 500)));
 
-          // 에러 위치 주변 확인
-          const errorMatch = thirdError.message.match(/position (\d+)/);
-          if (errorMatch) {
-            const errorPos = parseInt(errorMatch[1], 10);
-            const start = Math.max(0, errorPos - 200);
-            const end = Math.min(jsonString.length, errorPos + 200);
-            console.log(`에러 위치 주변 (${start}-${end}):`, jsonString.substring(start, end));
-            console.log(`에러 위치 문자: "${jsonString[errorPos]}" (코드: ${jsonString.charCodeAt(errorPos)})`);
-          }
+          // 에러 위치 주변 확인 (디버깅 시 주석 해제)
+          // const errorMatch = thirdError.message.match(/position (\d+)/);
+          // if (errorMatch) {
+          //   const errorPos = parseInt(errorMatch[1], 10);
+          //   const start = Math.max(0, errorPos - 200);
+          //   const end = Math.min(jsonString.length, errorPos + 200);
+          //   console.log(`에러 위치 주변 (${start}-${end}):`, jsonString.substring(start, end));
+          //   console.log(`에러 위치 문자: "${jsonString[errorPos]}" (코드: ${jsonString.charCodeAt(errorPos)})`);
+          // }
         } else if (logErrors && isNotJson) {
           // JSON이 아닌 경우 간단한 경고만
           console.warn('⚠️ JSON이 아닌 데이터:', jsonString.substring(0, 100) + (jsonString.length > 100 ? '...' : ''));
@@ -130,6 +132,77 @@ export function parseJsonSafely<T = any>(
       }
     }
   }
+}
+
+/**
+ * JSON 문자열 내의 문자열 값에서 제어 문자를 이스케이프
+ * 이미 이스케이프된 문자는 건드리지 않음
+ *
+ * @param jsonString - JSON 문자열
+ * @returns 제어 문자가 이스케이프된 JSON 문자열
+ */
+function escapeControlCharactersInJson(jsonString: string): string {
+  let result = '';
+  let inString = false;
+  let isEscaped = false;
+
+  for (let i = 0; i < jsonString.length; i++) {
+    const char = jsonString[i];
+
+    // 이스케이프 시퀀스 처리
+    if (isEscaped) {
+      result += char;
+      isEscaped = false;
+      continue;
+    }
+
+    // 백슬래시 발견
+    if (char === '\\') {
+      result += char;
+      isEscaped = true;
+      continue;
+    }
+
+    // 문자열 시작/끝 감지
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    // 문자열 내부에서 제어 문자 이스케이프
+    if (inString) {
+      switch (char) {
+        case '\n':
+          result += '\\n';
+          break;
+        case '\r':
+          result += '\\r';
+          break;
+        case '\t':
+          result += '\\t';
+          break;
+        case '\b':
+          result += '\\b';
+          break;
+        case '\f':
+          result += '\\f';
+          break;
+        default:
+          // 기타 제어 문자 (ASCII 0-31) 유니코드 이스케이프
+          const code = char.charCodeAt(0);
+          if (code < 32 && code !== 10 && code !== 13 && code !== 9) {
+            result += '\\u' + ('0000' + code.toString(16)).slice(-4);
+          } else {
+            result += char;
+          }
+      }
+    } else {
+      result += char;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -201,32 +274,91 @@ function fixJsonString(jsonString: string, log: boolean = false): string {
     }
   );
 
-  // 다른 긴 필드들 처리
-  const otherLongFields = ['image_prompt', 'description', 'text', 'visual_description', 'prompt', 'audio_description'];
+  // 다른 긴 필드들 처리 - 더 유도리있는 방식
+  const otherLongFields = ['image_prompt', 'description', 'text', 'visual_description', 'prompt', 'audio_description', 'sora_prompt'];
 
   for (const field of otherLongFields) {
-    // 다음 ," (다음 속성 시작) 또는 } 전의 마지막 " 까지
-    const regex = new RegExp(`"${field}"\\s*:\\s*"([\\s\\S]+?)"\\s*,`, 'g');
+    // 필드 시작 위치 찾기
+    let searchPos = 0;
+    while (true) {
+      const fieldPattern = `"${field}"\\s*:\\s*"`;
+      const fieldRegex = new RegExp(fieldPattern);
+      const fieldIndex = fixed.substring(searchPos).search(fieldRegex);
 
-    fixed = fixed.replace(regex, (match, value) => {
-      let fixedValue = '';
-      for (let i = 0; i < value.length; i++) {
-        if (value[i] === '\\' && i + 1 < value.length) {
-          fixedValue += value[i] + value[i + 1];
-          i++;
-        } else if (value[i] === '"') {
-          fixedValue += '\\"';
-        } else {
-          fixedValue += value[i];
+      if (fieldIndex === -1) break;
+
+      const actualStart = searchPos + fieldIndex;
+      const valueStart = fixed.indexOf('"', actualStart + field.length + 3) + 1;
+
+      // 값의 끝을 찾기 - 다음 속성명이나 }를 찾음
+      let depth = 0;
+      let valueEnd = valueStart;
+      let inEscape = false;
+
+      for (let i = valueStart; i < fixed.length; i++) {
+        if (inEscape) {
+          inEscape = false;
+          continue;
+        }
+
+        if (fixed[i] === '\\') {
+          inEscape = true;
+          continue;
+        }
+
+        if (fixed[i] === '"') {
+          // 다음 문자가 : 이면 새 속성 시작
+          const nextNonSpace = fixed.substring(i + 1).search(/\S/);
+          if (nextNonSpace !== -1 && fixed[i + 1 + nextNonSpace] === ':') {
+            valueEnd = i;
+            break;
+          }
+          // 다음 문자가 , 나 } 면 값 끝
+          if (nextNonSpace !== -1 && (fixed[i + 1 + nextNonSpace] === ',' || fixed[i + 1 + nextNonSpace] === '}')) {
+            valueEnd = i;
+            break;
+          }
         }
       }
-      return `"${field}": "${fixedValue}",`;
-    });
+
+      // 값 추출 및 수정
+      const originalValue = fixed.substring(valueStart, valueEnd);
+      let fixedValue = '';
+      let escaping = false;
+
+      for (let i = 0; i < originalValue.length; i++) {
+        if (escaping) {
+          fixedValue += originalValue[i];
+          escaping = false;
+          continue;
+        }
+
+        if (originalValue[i] === '\\') {
+          fixedValue += '\\';
+          escaping = true;
+          continue;
+        }
+
+        if (originalValue[i] === '"') {
+          fixedValue += '\\"';
+        } else {
+          fixedValue += originalValue[i];
+        }
+      }
+
+      // 교체
+      fixed = fixed.substring(0, valueStart) + fixedValue + fixed.substring(valueEnd);
+      searchPos = valueStart + fixedValue.length + 1;
+    }
   }
+
+  // Step 3.5: 모든 문자열 값에서 제어 문자 이스케이프 (개선된 유연한 파싱)
+  // 문자열 값 내의 제어 문자(newline, tab, carriage return 등)를 이스케이프
+  fixed = escapeControlCharactersInJson(fixed);
 
   // Step 4: 짧은 필드들의 값 내부 따옴표 이스케이프
   // "key": "value" 패턴 (한 줄) - 긴 필드는 이미 처리했으므로 제외
-  const allLongFields = ['narration', 'image_prompt', 'description', 'text', 'visual_description', 'prompt', 'audio_description'];
+  const allLongFields = ['narration', 'image_prompt', 'description', 'text', 'visual_description', 'prompt', 'audio_description', 'sora_prompt'];
 
   fixed = fixed.replace(
     /"([^"]+)"\s*:\s*"([^"\n]*?)"/g,

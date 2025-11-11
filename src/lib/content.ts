@@ -17,7 +17,7 @@ export interface Content {
 
   // 타입 구분
   type: 'script' | 'video';  // 컨텐츠 타입
-  format?: 'longform' | 'shortform' | 'sora2' | 'product';  // 포맷
+  format?: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info';  // 포맷
 
   // 내용
   title: string;
@@ -66,7 +66,7 @@ export function createContent(
   type: 'script' | 'video',
   title: string,
   options?: {
-    format?: 'longform' | 'shortform' | 'sora2' | 'product';
+    format?: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info';
     originalTitle?: string;
     content?: string;
     tokenUsage?: { input_tokens: number; output_tokens: number };
@@ -324,6 +324,16 @@ export function deleteContent(contentId: string, userId?: string): boolean {
 // ==================== 로그 관리 ====================
 
 export function addContentLog(contentId: string, logMessage: string): void {
+  // contentId가 존재하는지 먼저 확인
+  const checkStmt = db.prepare('SELECT id FROM contents WHERE id = ?');
+  const exists = checkStmt.get(contentId);
+
+  if (!exists) {
+    // contentId가 없으면 로그를 추가하지 않음 (FOREIGN KEY 에러 방지)
+    console.warn(`[addContentLog] Content ${contentId} does not exist, skipping log`);
+    return;
+  }
+
   const stmt = db.prepare(`
     INSERT INTO content_logs (content_id, log_message)
     VALUES (?, ?)
@@ -332,6 +342,16 @@ export function addContentLog(contentId: string, logMessage: string): void {
 }
 
 export function addContentLogs(contentId: string, logs: string[]): void {
+  // contentId가 존재하는지 먼저 확인
+  const checkStmt = db.prepare('SELECT id FROM contents WHERE id = ?');
+  const exists = checkStmt.get(contentId);
+
+  if (!exists) {
+    // contentId가 없으면 로그를 추가하지 않음 (FOREIGN KEY 에러 방지)
+    console.warn(`[addContentLogs] Content ${contentId} does not exist, skipping ${logs.length} logs`);
+    return;
+  }
+
   const stmt = db.prepare(`
     INSERT INTO content_logs (content_id, log_message)
     VALUES (?, ?)
