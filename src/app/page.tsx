@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import type { DateFilter, SortOption, VideoItem, VideoType } from "@/types/video";
 import { parseJsonSafely, extractPureJson, parseJsonFile } from "@/lib/json-utils";
@@ -122,6 +123,8 @@ const MAX_LOG_LINES = 50;
 const renderCount = (value: number) => numberFormatter.format(value);
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isMounted, setIsMounted] = useState(false);
   const [viewRange, setViewRange] = useState(defaultViewRange);
   const [subRange, setSubRange] = useState(defaultSubRange);
@@ -1321,6 +1324,22 @@ export default function Home() {
       console.log('🚫 product-info는 임시 모드 - localStorage 저장 스킵');
     }
   }, [promptFormat]);
+
+  // promptFormat 변경 시 URL 파라미터 업데이트 (탭 상태 유지)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && promptFormat) {
+      const currentParams = new URLSearchParams(window.location.search);
+      const currentPromptType = currentParams.get('promptType');
+
+      // 현재 URL의 promptType과 다르면 업데이트
+      if (currentPromptType !== promptFormat) {
+        currentParams.set('promptType', promptFormat);
+        const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
+        router.replace(newUrl, { scroll: false });
+        console.log('🔗 URL 업데이트:', promptFormat);
+      }
+    }
+  }, [promptFormat, router]);
 
   const pushLog = useCallback((message: string) => {
     setLogs((prev) => {

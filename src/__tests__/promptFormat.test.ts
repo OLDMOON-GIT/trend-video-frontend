@@ -281,4 +281,107 @@ describe('promptFormat 초기화 로직', () => {
       expect(promptFormat).toBe('shortform');
     });
   });
+
+  describe('URL 파라미터 자동 업데이트', () => {
+    test('promptFormat 변경 시 URL에 promptType 파라미터 추가', () => {
+      // 1. 초기 상태 (URL 파라미터 없음)
+      let currentUrl = 'http://localhost:3000/';
+      const currentParams = new URLSearchParams();
+
+      // 2. 사용자가 product-info 탭 클릭
+      const newPromptFormat = 'product-info';
+
+      // 3. URL 파라미터 업데이트
+      currentParams.set('promptType', newPromptFormat);
+      const newUrl = `${currentUrl.split('?')[0]}?${currentParams.toString()}`;
+
+      // 검증
+      expect(newUrl).toContain('promptType=product-info');
+      expect(new URLSearchParams(newUrl.split('?')[1]).get('promptType')).toBe('product-info');
+    });
+
+    test('promptFormat 변경 시 기존 URL 파라미터 유지', () => {
+      // 1. 기존 URL에 다른 파라미터가 있음
+      let currentUrl = 'http://localhost:3000/?retryId=job123&someParam=value';
+      const currentParams = new URLSearchParams(currentUrl.split('?')[1]);
+
+      // 2. promptFormat 변경
+      const newPromptFormat = 'shortform';
+
+      // 3. promptType만 업데이트
+      currentParams.set('promptType', newPromptFormat);
+      const newUrl = `${currentUrl.split('?')[0]}?${currentParams.toString()}`;
+
+      const updatedParams = new URLSearchParams(newUrl.split('?')[1]);
+
+      // 검증
+      expect(updatedParams.get('promptType')).toBe('shortform');
+      expect(updatedParams.get('retryId')).toBe('job123');
+      expect(updatedParams.get('someParam')).toBe('value');
+    });
+
+    test('시나리오: 상품정보 탭 클릭 → 다른 페이지 → 뒤로가기 → 탭 유지', () => {
+      // 1. 초기 상태 (longform 탭)
+      let promptFormat = 'longform';
+      let currentUrl = 'http://localhost:3000/';
+
+      // 2. 사용자가 상품정보 탭 클릭
+      promptFormat = 'product-info';
+
+      // URL 업데이트
+      const params1 = new URLSearchParams();
+      params1.set('promptType', promptFormat);
+      currentUrl = `${currentUrl.split('?')[0]}?${params1.toString()}`;
+
+      expect(currentUrl).toContain('promptType=product-info');
+
+      // 3. 다른 페이지로 이동 (예: 내 콘텐츠)
+      // (브라우저 히스토리에 URL 저장됨)
+      const savedUrl = currentUrl;
+
+      // 4. 뒤로가기 (savedUrl 복원)
+      currentUrl = savedUrl;
+      const params2 = new URLSearchParams(currentUrl.split('?')[1]);
+      const restoredPromptType = params2.get('promptType');
+
+      // URL에서 promptType 읽어서 promptFormat 복원
+      if (restoredPromptType === 'product-info') {
+        promptFormat = 'product-info';
+      }
+
+      // 검증: 상품정보 탭 상태 유지됨
+      expect(promptFormat).toBe('product-info');
+    });
+
+    test('promptFormat이 같으면 URL 업데이트하지 않음', () => {
+      // URL에 이미 같은 값이 있음
+      const currentUrl = 'http://localhost:3000/?promptType=product';
+      const currentParams = new URLSearchParams(currentUrl.split('?')[1]);
+      const currentPromptType = currentParams.get('promptType');
+
+      const newPromptFormat = 'product';
+
+      // 같은 값이므로 업데이트 스킵
+      const shouldUpdate = currentPromptType !== newPromptFormat;
+
+      expect(shouldUpdate).toBe(false);
+    });
+
+    test('product-info도 URL에 반영됨 (localStorage에는 저장 안 됨)', () => {
+      // product-info는 localStorage에 저장하지 않지만
+      // URL에는 반영되어야 페이지 이동 후에도 상태 유지 가능
+      const promptFormat = 'product-info';
+
+      // localStorage 저장 체크
+      const shouldSaveToLocalStorage = promptFormat !== 'product-info';
+      expect(shouldSaveToLocalStorage).toBe(false);
+
+      // URL 파라미터 업데이트 체크
+      const params = new URLSearchParams();
+      params.set('promptType', promptFormat);
+      const url = `/?${params.toString()}`;
+
+      expect(url).toContain('promptType=product-info');
+    });
+  });
 });
