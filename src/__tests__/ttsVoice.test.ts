@@ -170,17 +170,17 @@ describe('TTS 음성 시스템', () => {
   describe('음성 목록 구조', () => {
     test('여성 음성 5개 확인', () => {
       const femaleVoices = [
-        { id: 'ko-KR-SunHiNeural', name: '선희', gender: '여성', emoji: '👩‍🦰' },
-        { id: 'ko-KR-JiMinNeural', name: '지민', gender: '여성', emoji: '👩‍🦰' },
-        { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩‍🦰' },
-        { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩‍🦰' },
-        { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩‍🦰' },
+        { id: 'ko-KR-SunHiNeural', name: '선희', gender: '여성', emoji: '👩' },
+        { id: 'ko-KR-JiMinNeural', name: '지민', gender: '여성', emoji: '👩' },
+        { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩' },
+        { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩' },
+        { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩' },
       ];
 
       expect(femaleVoices.length).toBe(5);
       femaleVoices.forEach(voice => {
         expect(voice.gender).toBe('여성');
-        expect(voice.emoji).toBe('👩‍🦰'); // 명확한 여성 이모티콘
+        expect(voice.emoji).toBe('👩'); // 여성 이모티콘
         expect(voice.id).toContain('ko-KR-');
         expect(voice.id).toContain('Neural');
       });
@@ -188,29 +188,27 @@ describe('TTS 음성 시스템', () => {
 
     test('남성 음성 5개 확인', () => {
       const maleVoices = [
-        { id: 'ko-KR-InJoonNeural', name: '인준', gender: '남성', emoji: '👨‍💼' },
-        { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', gender: '남성', emoji: '👨‍💼' },
-        { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨‍💼' },
-        { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨‍💼' },
-        { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨‍💼' },
+        { id: 'ko-KR-InJoonNeural', name: '인준', gender: '남성', emoji: '👨' },
+        { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', gender: '남성', emoji: '👨' },
+        { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨' },
+        { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨' },
+        { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨' },
       ];
 
       expect(maleVoices.length).toBe(5);
       maleVoices.forEach(voice => {
         expect(voice.gender).toBe('남성');
-        expect(voice.emoji).toBe('👨‍💼'); // 명확한 남성 이모티콘
+        expect(voice.emoji).toBe('👨'); // 남성 이모티콘
         expect(voice.id).toContain('ko-KR-');
         expect(voice.id).toContain('Neural');
       });
     });
 
-    test('남녀 이모티콘이 명확히 구분됨', () => {
-      const femaleEmoji = '👩‍🦰';
-      const maleEmoji = '👨‍💼';
+    test('남녀 이모티콘이 구분됨', () => {
+      const femaleEmoji = '👩';
+      const maleEmoji = '👨';
 
       expect(femaleEmoji).not.toBe(maleEmoji);
-      expect(femaleEmoji).not.toBe('👩'); // 이전 버전
-      expect(maleEmoji).not.toBe('👨'); // 이전 버전
     });
   });
 
@@ -284,20 +282,17 @@ describe('TTS 음성 시스템', () => {
       expect(correctFilename).toBe('sample_ko-KR-SunHiNeural_1.0.mp3'); // 올바른 파일명
     });
 
-    test('BUG FIX: 남녀 구분 이모티콘 명확화', () => {
-      // 이전 버전: 구분이 불명확했던 이모티콘
-      const oldFemaleEmoji = '👩';
-      const oldMaleEmoji = '👨';
+    test('BUG FIX: Tailwind CSS 호환성을 위해 단순 이모티콘 사용', () => {
+      // Composite emojis (woman-with-red-hair, businessman) caused
+      // "Invalid code point 9061000" error in Tailwind CSS parser,
+      // so reverted to simple emojis
+      const femaleEmoji = '👩';
+      const maleEmoji = '👨';
 
-      // 새 버전: 명확히 구분되는 이모티콘
-      const newFemaleEmoji = '👩‍🦰';
-      const newMaleEmoji = '👨‍💼';
-
-      // 새 이모티콘이 사용되고 있는지 확인
-      expect(newFemaleEmoji).not.toBe(oldFemaleEmoji);
-      expect(newMaleEmoji).not.toBe(oldMaleEmoji);
-      expect(newFemaleEmoji.length).toBeGreaterThan(oldFemaleEmoji.length); // composite emoji
-      expect(newMaleEmoji.length).toBeGreaterThan(oldMaleEmoji.length); // composite emoji
+      // 단순 이모티콘이 사용되고 있는지 확인
+      expect(femaleEmoji).toBe('👩');
+      expect(maleEmoji).toBe('👨');
+      expect(femaleEmoji).not.toBe(maleEmoji);
     });
   });
 });

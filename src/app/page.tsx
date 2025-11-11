@@ -2061,16 +2061,16 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2">
                 {/* 여성 음성 */}
                 {[
-                  { id: 'ko-KR-SunHiNeural', name: '선희', gender: '여성', emoji: '👩‍🦰', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
-                  { id: 'ko-KR-JiMinNeural', name: '지민', gender: '여성', emoji: '👩‍🦰', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩‍🦰', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩‍🦰', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
-                  { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩‍🦰', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-SunHiNeural', name: '선희', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
+                  { id: 'ko-KR-JiMinNeural', name: '지민', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
+                  { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
                   ...(isAdmin ? [
-                    { id: 'google-ko-KR-Neural2-A', name: '구글A', gender: '여성', emoji: '👩‍🦰💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
-                    { id: 'google-ko-KR-Neural2-B', name: '구글B', gender: '여성', emoji: '👩‍🦰💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
-                    { id: 'aws-Seoyeon', name: 'AWS서연', gender: '여성', emoji: '👩‍🦰💎', provider: 'AWS Polly Neural', pricing: '분당 $0.006', adminOnly: true },
-                    { id: 'aws-Jihye', name: 'AWS지혜', gender: '여성', emoji: '👩‍🦰💎', provider: 'AWS Polly Neural', pricing: '분당 $0.006', adminOnly: true },
+                    { id: 'google-ko-KR-Neural2-A', name: '구글A', gender: '여성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
+                    { id: 'google-ko-KR-Neural2-B', name: '구글B', gender: '여성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
+                    { id: 'aws-Seoyeon', name: 'AWS서연', gender: '여성', emoji: '💎', provider: 'AWS Polly Neural', pricing: '분당 $0.006', adminOnly: true },
+                    { id: 'aws-Jihye', name: 'AWS지혜', gender: '여성', emoji: '💎', provider: 'AWS Polly Neural', pricing: '분당 $0.006', adminOnly: true },
                   ] : []),
                 ].map((voice) => (
                   <div key={voice.id} className="relative">
@@ -2141,14 +2141,14 @@ export default function Home() {
 
                 {/* 남성 음성 */}
                 {[
-                  { id: 'ko-KR-InJoonNeural', name: '인준', gender: '남성', emoji: '👨‍💼', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', gender: '남성', emoji: '👨‍💼', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨‍💼', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨‍💼', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨‍💼', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-InJoonNeural', name: '인준', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
                   ...(isAdmin ? [
-                    { id: 'google-ko-KR-Neural2-C', name: '구글C', gender: '남성', emoji: '👨‍💼💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
-                    { id: 'google-ko-KR-Wavenet-D', name: '구글D', gender: '남성', emoji: '👨‍💼💎', provider: 'Google WaveNet', pricing: '분당 $0.006', adminOnly: true },
+                    { id: 'google-ko-KR-Neural2-C', name: '구글C', gender: '남성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
+                    { id: 'google-ko-KR-Wavenet-D', name: '구글D', gender: '남성', emoji: '💎', provider: 'Google WaveNet', pricing: '분당 $0.006', adminOnly: true },
                   ] : []),
                 ].map((voice) => (
                   <div key={voice.id} className="relative">
