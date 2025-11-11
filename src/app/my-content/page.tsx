@@ -876,7 +876,7 @@ export default function MyContentPage() {
           const data = await safeJsonResponse(response);
 
           if (response.ok) {
-            toast.success('쇼츠 변환이 시작되었습니다!');
+            toast.success('✅ 쇼츠 변환이 시작되었습니다!\n비디오 탭에서 진행 상황을 확인하세요.', { duration: 3000 });
             // 비디오 탭으로 전환
             setActiveTab('videos');
             // 목록 새로고침
@@ -886,11 +886,11 @@ export default function MyContentPage() {
               setExpandedLogJobId(data.jobId);
             }
           } else {
-            toast.error('쇼츠 변환 실패: ' + (data.error || '알 수 없는 오류'));
+            toast.error('❌ 쇼츠 변환 실패: ' + (data.error || '알 수 없는 오류'), { id: toastId });
           }
         } catch (error) {
           console.error('Convert to shorts error:', error);
-          toast.error('쇼츠 변환 중 오류가 발생했습니다.');
+          toast.error('❌ 쇼츠 변환 중 오류가 발생했습니다.', { id: toastId });
         }
       },
       '변환 시작',
@@ -899,6 +899,25 @@ export default function MyContentPage() {
   };
 
   const handleRestartScript = async (scriptId: string, title: string) => {
+    // 스크립트 정보를 찾아서 메인 페이지로 이동
+    const script = scripts.find(s => s.id === scriptId);
+    if (!script) {
+      toast.error('스크립트 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 메인 페이지로 이동하면서 제목과 타입 정보 전달
+    const params = new URLSearchParams();
+    params.set('retryTitle', script.title);
+    if (script.type) {
+      params.set('retryType', script.type);
+    }
+
+    window.location.href = `/?${params.toString()}`;
+  };
+
+  // 기존 API 방식의 재시도 함수 (백업용)
+  const handleRestartScriptAPI = async (scriptId: string, title: string) => {
     showConfirmModal(
       '대본 재생성',
       `"${title}" 대본을 다시 생성하시겠습니까?\n\n크레딧이 다시 차감됩니다.`,
@@ -2240,6 +2259,13 @@ export default function MyContentPage() {
                                     {expandedLogJobId === item.data.id ? '📋 닫기' : `📋 로그 (${item.data.logs.length})`}
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => handleImageCrawling(item.data.sourceContentId || '', item.data.id)}
+                                  className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer"
+                                  title="이미지 생성"
+                                >
+                                  🎨 이미지크롤링
+                                </button>
                                 <a
                                   href={`/api/download-video?jobId=${item.data.id}`}
                                   download
@@ -3798,6 +3824,16 @@ export default function MyContentPage() {
                               <span>📥</span>
                               <span>저장</span>
                             </a>
+                            {/* 쇼츠 버튼: 롱폼 영상에만 표시 */}
+                            {job.type === 'longform' && (
+                              <button
+                                onClick={() => handleConvertToShorts(job.id, job.title || '제목 없음')}
+                                className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                title="쇼츠로 변환 (200 크레딧)"
+                              >
+                                ⚡ 쇼츠
+                              </button>
+                            )}
                             <button
                               onClick={() => handleRestartVideo(job.id)}
                               className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"

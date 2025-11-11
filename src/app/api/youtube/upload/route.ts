@@ -90,10 +90,55 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: '비디오 파일을 찾을 수 없습니다' }, { status: 404 });
     }
 
+    // 비디오 해상도 확인하여 Shorts 자동 감지
+    let isShorts = false;
+    try {
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      const { stdout } = await execAsync(
+        `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${fullVideoPath}"`
+      );
+
+      const [width, height] = stdout.trim().split(',').map(Number);
+      console.log(`📐 비디오 해상도: ${width}x${height}`);
+
+      // 세로 비율 (높이 > 너비)이면 Shorts로 간주
+      if (height > width) {
+        const ratio = height / width;
+        // 9:16 = 1.77, 실제로는 1.5~2.0 사이면 세로 영상으로 간주
+        if (ratio >= 1.5 && ratio <= 2.0) {
+          isShorts = true;
+          console.log('✅ YouTube Shorts 형식 감지 (세로 비율)');
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ 비디오 해상도 확인 실패 (계속 진행):', error);
+    }
+
+    // Shorts인 경우 제목과 설명 자동 수정
+    let finalTitle = title;
+    let finalDescription = description;
+
+    if (isShorts) {
+      // 제목에 #Shorts 추가 (이미 있으면 추가 안 함)
+      if (!finalTitle.includes('#Shorts') && !finalTitle.includes('#shorts')) {
+        finalTitle = `${finalTitle} #Shorts`;
+        console.log('📝 제목에 #Shorts 추가:', finalTitle);
+      }
+
+      // 설명에 Shorts 관련 내용 추가
+      if (!finalDescription.includes('#Shorts')) {
+        finalDescription = `${finalDescription}\n\n#Shorts`;
+        console.log('📝 설명에 #Shorts 추가');
+      }
+    }
+
     // 메타데이터 JSON 생성
     const metadata = {
-      title,
-      description,
+      title: finalTitle,
+      description: finalDescription,
       tags,
       category_id: categoryId,
       privacy_status: privacy,
