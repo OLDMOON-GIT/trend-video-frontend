@@ -110,127 +110,40 @@
 
 【🎨 감정 색채 심리학 (Color Psychology for Emotions)】
 
-**분노/복수 감정 → 붉은 계열**
-- 메인 컬러: deep red, burning orange, intense crimson
-- 심리 효과: 아드레날린 +200%, 각성 상태, 분노 공감
-- 조명: high contrast, dramatic shadows, backlight fire glow
-- 예시: "복수하는 순간", "정의 구현 장면"
-
-**슬픔/비극 감정 → 차갑고 탈색된 톤**
-- 메인 컬러: cold blue, desaturated grey, muted teal
-- 심리 효과: 우울감 전달, 고립감, 눈물 유발 +180%
-- 조명: soft overcast, dim light, cold window light
-- 예시: "억울한 피해자", "고통받는 순간"
-
-**희망/치유 감정 → 따뜻한 황금빛**
-- 메인 컬러: warm golden hour, soft amber, pastel pink
-- 심리 효과: 안도감, 치유, 감동 +220%
-- 조명: natural sunlight, gentle glow, warm backlight
-- 예시: "해피엔딩", "화해 장면", "희망의 순간"
-
-**긴장/미스터리 감정 → 어두운 보라/청록**
-- 메인 컬러: moody teal, mysterious purple, dark navy
-- 심리 효과: 불안감, 호기심 +300%, 긴장 유지
-- 조명: dramatic low-key, single source light, unexpected angles
-- 예시: "반전 직전", "비밀 공개 순간"
+**분노/복수** → deep red, burning orange (아드레날린 +200%), high contrast, dramatic shadows
+**슬픔/비극** → cold blue, desaturated grey (눈물 유발 +180%), soft overcast, dim light
+**희망/치유** → warm golden hour, soft amber (감동 +220%), natural sunlight, gentle glow
+**긴장/미스터리** → moody teal, mysterious purple (호기심 +300%), dramatic low-key, unexpected angles
 
 【🎬 카메라 워크 심리학 (Camera Movement Psychology)】
 
-**pushing in (푸시인) → 긴장/집중 강제**
-- 심리: 시청자를 강제로 몰입시킴
-- 효과: 리텐션 +150%, 스킵률 -80%
-- 사용: 씬0 훅, 중요한 감정 순간
-
-**tracking (트래킹) → 공감/동행 느낌**
-- 심리: "나도 함께 있다" 느낌
-- 효과: 감정 이입 +200%, 몰입도 증가
-- 사용: 씬1 몰입, 감정 따라가기
-
-**orbiting (오빗) → 불안/긴장감 증폭**
-- 심리: 무언가 잘못되고 있다는 불안
-- 효과: 긴장감 +250%, 반전 기대
-- 사용: 씬2 반전 직전
-
-**pullback (풀백) → 여운/성찰 유도**
-- 심리: "큰 그림 보기", 여운 극대화
-- 효과: 기억 강화 +180%, 재시청률 +120%
-- 사용: 씬3 마무리
+**pushing in** → 강제 몰입 (리텐션 +150%, 스킵률 -80%) - 씬0 훅, 중요 감정
+**tracking** → 공감/동행 (감정 이입 +200%) - 씬1 몰입, 감정 따라가기
+**orbiting** → 불안/긴장 (긴장감 +250%) - 씬2 반전 직전
+**pullback** → 여운/성찰 (기억 강화 +180%, 재시청률 +120%) - 씬3 마무리
 
 【⚡ 슬로우 모션 중독 공식】
 
 **극적 슬로우 모션 = 시간 왜곡 → 감정 증폭 300%**
 
-**씬0 (훅):** extreme slow motion
-- 0.25x 속도로 충격적 순간
-- 효과: "헐 대박" 순간 극대화
-- 예: 눈물 떨어지는 순간, 충격 받는 표정
-
-**씬1 (몰입):** slow motion
-- 0.5x 속도로 감정 포착
-- 효과: 아름다움 강조, 감성 극대화
-- 예: 웃는 얼굴, 포옹하는 순간
-
-**씬2 (반전):** slow motion with sudden speed shift
-- 0.5x → 1.0x 속도 변화
-- 효과: 충격 강화, "헐" 유발
-- 예: 반전 순간, 진실 드러나는 순간
-
-**씬3 (마무리):** dreamy slow motion
-- 0.4x 속도로 여운 극대화
-- 효과: 기억에 각인, 재시청 욕구
-- 예: 마지막 미소, 사라지는 뒷모습
+**씬0** - extreme slow motion (0.25x, "헐 대박" 극대화)
+**씬1** - slow motion (0.5x, 아름다움 강조, 감성 극대화)
+**씬2** - speed shift (0.5x→1.0x, 충격 강화, "헐" 유발)
+**씬3** - dreamy slow motion (0.4x, 기억 각인, 재시청 욕구)
 
 【🔥 바이럴 비주얼 트리거 (Visual Triggers)】
 
-**1. 대비 트리거 (Contrast Trigger)**
-- 극명한 빛과 어둠 대비
-- 효과: 시각적 충격 +300%, 기억 강화
-- 예: dramatic backlight, harsh shadows
-
-**2. 색감 변화 트리거 (Color Shift Trigger)**
-- 씬 간 감정 색조 변화
-- 효과: 감정 전환 명확화, 몰입 +200%
-- 예: cold blue → warm golden hour
-
-**3. 인물 감정 트리거 (Facial Expression Trigger)**
-- 극단적 감정 표현 클로즈업
-- 효과: 공감 +250%, 눈물 유발
-- 예: close-up of tears, shocked expression
-
-**4. 상징 트리거 (Symbolic Trigger)**
-- 감정을 상징하는 비주얼 요소
-- 효과: 예술성 +180%, 기억 각인
-- 예: falling rain (슬픔), golden sunlight (희망)
+**대비 트리거** - 극명한 빛/어둠 대비 (시각적 충격 +300%, 기억 강화)
+**색감 변화 트리거** - 씬 간 감정 색조 변화 (감정 전환 명확화, 몰입 +200%)
+**인물 감정 트리거** - 극단적 감정 표현 클로즈업 (공감 +250%, 눈물 유발)
+**상징 트리거** - 감정 상징 비주얼 요소 (예술성 +180%, 기억 각인)
 
 【🎯 씬별 감정 증폭 전략】
 
-**씬0 (훅): 즉각 충격**
-- 컬러: 극적 대비 (high contrast)
-- 카메라: 강렬한 pushing in
-- 조명: dramatic backlight
-- 속도: extreme slow motion
-- 목표: 3초 안에 스크롤 정지
-
-**씬1 (몰입): 감정 이입**
-- 컬러: 따뜻하거나 슬픈 톤 (감정 맞춤)
-- 카메라: 부드러운 tracking
-- 조명: soft natural light
-- 속도: gentle slow motion
-- 목표: "나도 저 기분이야" 공감
-
-**씬2 (반전): WTF 순간**
-- 컬러: 급격한 색조 변화
-- 카메라: 긴장감 있는 orbiting
-- 조명: sudden dramatic shift
-- 속도: slow motion → normal
-- 목표: "헐 대박 진짜?"
-
-**씬3 (중독): 여운 각인**
-- 컬러: 만족스러운 마무리 톤
-- 카메라: 여유로운 pullback
-- 조명: magical dreamy light
-- 속도: dreamy slow motion
-- 목표: "한번 더 봐야지"
+**씬0 (훅)** - high contrast, pushing in, dramatic backlight, extreme slow motion → 3초 스크롤 정지
+**씬1 (몰입)** - 감정 맞춤 톤, tracking, soft natural light, gentle slow motion → 공감
+**씬2 (반전)** - 급격한 색조 변화, orbiting, sudden shift, slow→normal → "헐 대박"
+**씬3 (중독)** - 마무리 톤, pullback, magical light, dreamy slow motion → 재시청 욕구
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎨 **비주얼 디렉팅 시스템 (영화 같은 일관성)**
