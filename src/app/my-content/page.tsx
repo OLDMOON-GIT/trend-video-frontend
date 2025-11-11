@@ -2230,7 +2230,7 @@ export default function MyContentPage() {
                                   return sourceScript && sourceScript.content ? (
                                     <button
                                       onClick={() => handleSpeak(item.data.id, sourceScript.content)}
-                                      className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition cursor-pointer whitespace-nowrap ${
+                                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition cursor-pointer whitespace-nowrap ${
                                         speakingId === item.data.id
                                           ? 'bg-red-600 hover:bg-red-500'
                                           : 'bg-indigo-600 hover:bg-indigo-500'
@@ -2244,7 +2244,7 @@ export default function MyContentPage() {
                                 {user?.isAdmin && (
                                   <button
                                     onClick={() => handleOpenFolder(item.data.id)}
-                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
                                     title="폴더 열기"
                                   >
                                     📁 폴더
@@ -2253,7 +2253,7 @@ export default function MyContentPage() {
                                 {item.data.logs && item.data.logs.length > 0 && (
                                   <button
                                     onClick={() => setExpandedLogJobId(expandedLogJobId === item.data.id ? null : item.data.id)}
-                                    className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
+                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
                                     title="로그 보기"
                                   >
                                     {expandedLogJobId === item.data.id ? '📋 닫기' : `📋 로그 (${item.data.logs.length})`}
@@ -2261,7 +2261,7 @@ export default function MyContentPage() {
                                 )}
                                 <button
                                   onClick={() => handleImageCrawling(item.data.sourceContentId || '', item.data.id)}
-                                  className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer"
+                                  className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
                                   title="이미지 생성"
                                 >
                                   🎨 이미지크롤링
@@ -2269,7 +2269,7 @@ export default function MyContentPage() {
                                 <a
                                   href={`/api/download-video?jobId=${item.data.id}`}
                                   download
-                                  className="flex items-center justify-center gap-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer"
+                                  className="flex items-center justify-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
                                 >
                                   <span>📥</span>
                                   <span>저장</span>
@@ -2278,7 +2278,7 @@ export default function MyContentPage() {
                                 {item.data.type === 'longform' && (
                                   <button
                                     onClick={() => handleConvertToShorts(item.data.id, item.data.title || '제목 없음')}
-                                    className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
+                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
                                     title="쇼츠로 변환 (200 크레딧)"
                                   >
                                     ⚡ 쇼츠
@@ -2286,14 +2286,14 @@ export default function MyContentPage() {
                                 )}
                                 <button
                                   onClick={() => handleRestartVideo(item.data.id)}
-                                  className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer"
+                                  className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
                                   title="재시도"
                                 >
                                   🔄 재시도
                                 </button>
                                 <button
                                   onClick={() => handleDeleteVideo(item.data.id, item.data.title || item.data.id)}
-                                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer"
+                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
                                 >
                                   🗑️
                                 </button>
