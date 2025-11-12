@@ -33,7 +33,20 @@ function initializeSchema() {
   }
 }
 
-// 마이그레이션 실행
+// ⛔ CRITICAL: DB 마이그레이션 - 위험한 작업 금지!
+// 버그 이력: 2025-01-12 - DROP TABLE로 데이터 완전 손실 (207 jobs, 333 contents 날아감)
+//
+// ❌ 절대 금지:
+//   - DROP TABLE (데이터 손실!)
+//   - DELETE FROM ... (대량 삭제)
+//   - TRUNCATE (데이터 삭제)
+//
+// ✅ 허용:
+//   - ALTER TABLE ... ADD COLUMN (컬럼 추가)
+//   - CREATE TABLE IF NOT EXISTS (새 테이블)
+//   - UPDATE (조건부 수정)
+//
+// 관련 문서: CRITICAL_FEATURES.md
 function runMigrations() {
   // jobs 테이블에 type 컬럼 추가 (기존 테이블에 없을 경우)
   try {
@@ -42,6 +55,36 @@ function runMigrations() {
   } catch (e: any) {
     if (!e.message.includes('duplicate column')) {
       console.error('❌ jobs.type 컬럼 추가 실패:', e.message);
+    }
+  }
+
+  // jobs 테이블에 source_content_id 컬럼 추가
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN source_content_id TEXT`);
+    console.log('✅ jobs.source_content_id 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ jobs.source_content_id 컬럼 추가 실패:', e.message);
+    }
+  }
+
+  // jobs 테이블에 tts_voice 컬럼 추가
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN tts_voice TEXT`);
+    console.log('✅ jobs.tts_voice 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ jobs.tts_voice 컬럼 추가 실패:', e.message);
+    }
+  }
+
+  // jobs 테이블에 video_path 컬럼 추가
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN video_path TEXT`);
+    console.log('✅ jobs.video_path 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ jobs.video_path 컬럼 추가 실패:', e.message);
     }
   }
 
@@ -89,6 +132,50 @@ function runMigrations() {
     // 로그 제거
   } catch (e: any) {
     console.error('❌ wordpress_oauth_tokens 테이블 생성 실패:', e.message);
+  }
+
+  // contents 테이블 생성 (통합된 대본/영상 테이블)
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS contents (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('script', 'video')),
+        format TEXT CHECK(format IN ('longform', 'shortform', 'sora2', 'product', 'product-info')),
+        title TEXT NOT NULL,
+        original_title TEXT,
+        content TEXT,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
+        progress INTEGER DEFAULT 0,
+        error TEXT,
+        pid INTEGER,
+        video_path TEXT,
+        thumbnail_path TEXT,
+        published INTEGER DEFAULT 0,
+        published_at TEXT,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        use_claude_local INTEGER DEFAULT 0,
+        source_content_id TEXT,
+        conversion_type TEXT,
+        is_regenerated INTEGER DEFAULT 0,
+        model TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_user_id ON contents(user_id)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_type ON contents(type)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_format ON contents(format)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_status ON contents(status)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_created_at ON contents(created_at)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_published ON contents(published)`);
+    console.log('✅ contents 테이블 생성 완료');
+  } catch (e: any) {
+    if (!e.message.includes('already exists')) {
+      console.error('❌ contents 테이블 생성 실패:', e.message);
+    }
   }
 
   // coupang_products 테이블 생성 (쿠팡 쇼핑몰 상품)
@@ -271,88 +358,9 @@ function runMigrations() {
     }
   }
 
-  // contents 테이블에 'product' 및 'product-info' 포맷 추가 (CHECK constraint 업데이트)
-  try {
-    // CHECK constraint 확인
-    const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='contents'").get() as any;
-
-    if (tableInfo && tableInfo.sql && !tableInfo.sql.includes("'product-info'")) {
-      console.log('🔄 contents 테이블에 product-info 포맷 추가 중...');
-
-      // 백업 테이블 생성
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS contents_backup AS SELECT * FROM contents;
-      `);
-
-      // 기존 테이블 삭제
-      db.exec(`DROP TABLE IF EXISTS contents;`);
-
-      // 새 스키마로 테이블 재생성
-      db.exec(`
-        CREATE TABLE contents (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          type TEXT NOT NULL CHECK(type IN ('script', 'video')),
-          format TEXT CHECK(format IN ('longform', 'shortform', 'sora2', 'product', 'product-info')),
-          title TEXT NOT NULL,
-          original_title TEXT,
-          content TEXT,
-          status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
-          progress INTEGER DEFAULT 0,
-          error TEXT,
-          pid INTEGER,
-          video_path TEXT,
-          thumbnail_path TEXT,
-          published INTEGER DEFAULT 0,
-          published_at TEXT,
-          input_tokens INTEGER,
-          output_tokens INTEGER,
-          use_claude_local INTEGER DEFAULT 0,
-          source_content_id TEXT,
-          conversion_type TEXT,
-          is_regenerated INTEGER DEFAULT 0,
-          created_at TEXT DEFAULT (datetime('now')),
-          updated_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-      `);
-
-      // 데이터 복원 (명시적 컬럼 지정)
-      db.exec(`
-        INSERT INTO contents (
-          id, user_id, type, format, title, original_title, content,
-          status, progress, error, pid,
-          video_path, thumbnail_path, published, published_at,
-          input_tokens, output_tokens, use_claude_local,
-          source_content_id, conversion_type, is_regenerated,
-          created_at, updated_at, model
-        )
-        SELECT
-          id, user_id, type, format, title, original_title, content,
-          status, progress, error, pid,
-          video_path, thumbnail_path, published, published_at,
-          input_tokens, output_tokens, use_claude_local,
-          source_content_id, conversion_type, is_regenerated,
-          created_at, updated_at, model
-        FROM contents_backup;
-      `);
-
-      // 백업 테이블 삭제
-      db.exec(`DROP TABLE contents_backup;`);
-
-      // 인덱스 재생성
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_user_id ON contents(user_id)`);
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_type ON contents(type)`);
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_format ON contents(format)`);
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_status ON contents(status)`);
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_created_at ON contents(created_at)`);
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_contents_published ON contents(published)`);
-
-      console.log('✅ contents 테이블에 product, product-info 포맷 추가 완료');
-    }
-  } catch (e: any) {
-    console.error('❌ contents 테이블 마이그레이션 실패:', e.message);
-  }
+  // ⚠️ 위험한 DROP TABLE 마이그레이션 제거됨
+  // contents 테이블 스키마는 schema-sqlite.sql에서 관리
+  // CHECK constraint 변경이 필요하면 ALTER TABLE 사용 (DROP TABLE 금지)
 
   // coupang_crawl_queue 테이블에 destination 컬럼 추가
   try {
@@ -440,6 +448,77 @@ function runMigrations() {
     console.log('✅ social_media_uploads 테이블 생성 완료');
   } catch (e: any) {
     console.error('❌ social_media_uploads 테이블 생성 실패:', e.message);
+  }
+
+  // scripts 테이블 데이터를 contents 테이블로 마이그레이션
+  try {
+    const scriptsCount = db.prepare('SELECT COUNT(*) as count FROM scripts').get() as { count: number };
+    const contentsScriptsCount = db.prepare("SELECT COUNT(*) as count FROM contents WHERE type = 'script'").get() as { count: number };
+
+    if (scriptsCount.count > 0 && contentsScriptsCount.count === 0) {
+      const scripts = db.prepare('SELECT * FROM scripts').all();
+      const insertStmt = db.prepare(`
+        INSERT INTO contents (
+          id, user_id, type, title, content, status, created_at, updated_at,
+          input_tokens, output_tokens, format
+        ) VALUES (?, ?, 'script', ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const script of scripts as any[]) {
+        insertStmt.run(
+          script.id,
+          script.user_id,
+          script.title,
+          script.content,
+          script.status || 'completed',
+          script.created_at,
+          script.updated_at,
+          script.input_tokens || null,
+          script.output_tokens || null,
+          script.type || 'longform'
+        );
+      }
+
+      console.log(`✅ scripts 테이블에서 ${scriptsCount.count}개 대본을 contents로 마이그레이션 완료`);
+    }
+  } catch (e: any) {
+    console.error('❌ scripts → contents 마이그레이션 실패:', e.message);
+  }
+
+  // jobs 테이블 데이터를 contents 테이블로 마이그레이션
+  try {
+    const jobsCount = db.prepare('SELECT COUNT(*) as count FROM jobs').get() as { count: number };
+    const contentsVideosCount = db.prepare("SELECT COUNT(*) as count FROM contents WHERE type = 'video'").get() as { count: number };
+
+    if (jobsCount.count > 0 && contentsVideosCount.count === 0) {
+      const jobs = db.prepare('SELECT * FROM jobs').all();
+      const insertStmt = db.prepare(`
+        INSERT INTO contents (
+          id, user_id, type, title, status, progress, created_at, updated_at,
+          video_path, thumbnail_path, format, error
+        ) VALUES (?, ?, 'video', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const job of jobs as any[]) {
+        insertStmt.run(
+          job.id,
+          job.user_id,
+          job.title || '제목 없음',
+          job.status || 'pending',
+          job.progress || 0,
+          job.created_at,
+          job.updated_at,
+          job.video_path || job.video_url || null,
+          job.thumbnail_path || null,
+          job.type || 'longform',
+          job.error || null
+        );
+      }
+
+      console.log(`✅ jobs 테이블에서 ${jobsCount.count}개 영상을 contents로 마이그레이션 완료`);
+    }
+  } catch (e: any) {
+    console.error('❌ jobs → contents 마이그레이션 실패:', e.message);
   }
 }
 

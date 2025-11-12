@@ -181,6 +181,7 @@ export default function MyContentPage() {
   const [searchQuery, setSearchQuery] = useState(''); // 입력 중인 검색어
   const [activeSearchQuery, setActiveSearchQuery] = useState(''); // 실제 검색에 사용되는 검색어
   const jobLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const jobLastLogRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -327,6 +328,21 @@ export default function MyContentPage() {
       }
     });
   }, [scripts, expandedScriptLogId]);
+
+  // 진행 중인 작업 로그 자동 스크롤 - 마지막 항목으로 스크롤
+  useEffect(() => {
+    jobs.forEach(job => {
+      if ((job.status === 'processing' || job.status === 'pending') && job.logs && job.logs.length > 0 && expandedLogJobId === job.id) {
+        // DOM 업데이트를 기다린 후 마지막 로그 항목으로 스크롤
+        setTimeout(() => {
+          const lastLogRef = jobLastLogRefs.current.get(job.id);
+          if (lastLogRef) {
+            lastLogRef.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 100);
+      }
+    });
+  }, [jobs, expandedLogJobId]);
 
   // 진행 중인 대본만 개별적으로 폴링 (메인 페이지 방식)
   useEffect(() => {
@@ -1244,6 +1260,15 @@ export default function MyContentPage() {
     };
 
     utterance.onerror = (event) => {
+      // ⛔ CRITICAL FEATURE: TTS 중지 에러 처리
+      // 버그 이력: 2025-01-12 - 사용자가 중지하면 콘솔에 에러 출력됨
+      // ❌ 이 조건문 제거 금지! (interrupted/canceled는 에러가 아님)
+      // 관련 문서: CRITICAL_FEATURES.md
+      if (event.error === 'interrupted' || event.error === 'canceled') {
+        console.log('ℹ️ TTS stopped by user');
+        return;
+      }
+
       console.error('❌ TTS error:', {
         error: event.error,
         message: event.type,
@@ -2601,7 +2626,7 @@ export default function MyContentPage() {
                                     className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
                                     title="로그 보기"
                                   >
-                                    {expandedLogJobId === item.data.id ? '📋 로그 닫기' : '📋 로그 보기'} ({item.data.logs.length})
+                                    {expandedLogJobId === item.data.id ? '📋 닫기' : '📋 로그'}
                                   </button>
                                 )}
                                 <button
@@ -2621,24 +2646,7 @@ export default function MyContentPage() {
                             )}
                             </div>
 
-                            {/* 로그 표시 영역 - 영상 */}
-                            {expandedLogJobId === item.data.id && (
-                              <div className="mt-4 rounded-lg bg-black/50 p-4 font-mono text-xs">
-                                {item.data.logs && item.data.logs.length > 0 ? (
-                                  <div className="max-h-96 overflow-y-auto space-y-1">
-                                    {item.data.logs.map((log: string, idx: number) => (
-                                      <div key={idx} className="text-green-400 whitespace-pre-wrap break-all">
-                                        {log}
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="text-slate-400 text-center py-4">
-                                    로그가 아직 없습니다. 잠시 후 다시 확인해주세요.
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            {/* 작은 로그창 제거 - 큰 로그창(3096 라인)만 사용 */}
                           </div>
                         </div>
                       ) : (
@@ -2968,7 +2976,7 @@ export default function MyContentPage() {
                                     className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
                                     title="로그 보기"
                                   >
-                                    {expandedScriptLogId === item.data.id ? '📋 닫기' : `📋 로그 (${item.data.logs.length})`}
+                                    {expandedScriptLogId === item.data.id ? '📋 닫기' : '📋 로그'}
                                   </button>
                                 )}
                                 <button
@@ -3800,7 +3808,7 @@ export default function MyContentPage() {
                                 className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
                                 title="로그 보기"
                               >
-                                {expandedScriptLogId === script.id ? '📋 닫기' : `📋 로그 (${script.logs.length})`}
+                                {expandedScriptLogId === script.id ? '📋 닫기' : '📋 로그'}
                               </button>
                             )}
                             <button

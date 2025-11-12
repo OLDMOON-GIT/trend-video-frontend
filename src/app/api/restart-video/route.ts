@@ -75,15 +75,19 @@ export async function POST(request: NextRequest) {
     // 크레딧 히스토리 기록
     await addCreditHistory(user.userId, 'use', -cost, '영상 재생성');
 
-    // 프로젝트 폴더명 및 타입 추출
+    // ⛔ CRITICAL FEATURE: 영상 재생성 - uploads 폴더 지원
+    // 버그 이력: 2025-01-12 - uploads 폴더 미지원으로 "폴더를 찾을 수 없습니다" 에러
+    // ❌ 절대 'uploads' 타입 제거 금지!
+    // 관련 문서: CRITICAL_FEATURES.md
     let oldProjectName: string;
-    let folderType: 'input' | 'output' = 'input'; // 기본값은 input
+    let folderType: 'input' | 'output' | 'uploads' = 'input'; // 기본값은 input
 
     if (job.videoPath) {
       // videoPath가 있으면 거기서 추출
       // videoPath 예시:
       // - input: ../trend-video-backend/input/uploaded_upload_123.../generated_videos/final_video.mp4
       // - output: ../trend-video-backend/output/merge_xxxxx/최종영상.mp4
+      // - uploads: ../trend-video-backend/uploads/uploaded_upload_123.../최종영상.mp4
       //   또는: C:\Users\...\trend-video-backend\output\merge_xxxxx\최종영상.mp4 (Windows 절대 경로)
 
       console.log(`🔍 videoPath 원본: ${job.videoPath}`);
@@ -92,31 +96,39 @@ export async function POST(request: NextRequest) {
       const normalizedPath = job.videoPath.replace(/\\/g, '/');
       const pathParts = normalizedPath.split('/');
 
-      // input 폴더 체크
-      const inputIndex = pathParts.findIndex(p => p === 'input');
-      if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
-        oldProjectName = pathParts[inputIndex + 1];
-        folderType = 'input';
-        console.log(`🔍 input 폴더에서 프로젝트명 추출: ${oldProjectName}`);
+      // uploads 폴더 체크 (업로드로 생성된 경우)
+      const uploadsIndex = pathParts.findIndex(p => p === 'uploads');
+      if (uploadsIndex !== -1 && uploadsIndex + 1 < pathParts.length) {
+        oldProjectName = pathParts[uploadsIndex + 1];
+        folderType = 'uploads';
+        console.log(`🔍 uploads 폴더에서 프로젝트명 추출: ${oldProjectName}`);
       } else {
-        // output 폴더 체크 (video-merge로 생성된 경우)
-        const outputIndex = pathParts.findIndex(p => p === 'output');
-        if (outputIndex !== -1 && outputIndex + 1 < pathParts.length) {
-          oldProjectName = pathParts[outputIndex + 1];
-          folderType = 'output';
-          console.log(`🔍 output 폴더에서 프로젝트명 추출: ${oldProjectName}`);
-        } else {
-          // videoPath 파싱 실패 시 jobId로 폴백
-          oldProjectName = `uploaded_${jobId}`;
+        // input 폴더 체크
+        const inputIndex = pathParts.findIndex(p => p === 'input');
+        if (inputIndex !== -1 && inputIndex + 1 < pathParts.length) {
+          oldProjectName = pathParts[inputIndex + 1];
           folderType = 'input';
-          console.log(`⚠️ videoPath 파싱 실패, jobId로 폴백: ${oldProjectName}`);
-          console.log(`   pathParts:`, pathParts);
+          console.log(`🔍 input 폴더에서 프로젝트명 추출: ${oldProjectName}`);
+        } else {
+          // output 폴더 체크 (video-merge로 생성된 경우)
+          const outputIndex = pathParts.findIndex(p => p === 'output');
+          if (outputIndex !== -1 && outputIndex + 1 < pathParts.length) {
+            oldProjectName = pathParts[outputIndex + 1];
+            folderType = 'output';
+            console.log(`🔍 output 폴더에서 프로젝트명 추출: ${oldProjectName}`);
+          } else {
+            // videoPath 파싱 실패 시 jobId로 폴백
+            oldProjectName = `uploaded_${jobId}`;
+            folderType = 'uploads';
+            console.log(`⚠️ videoPath 파싱 실패, jobId로 폴백: ${oldProjectName}`);
+            console.log(`   pathParts:`, pathParts);
+          }
         }
       }
     } else {
       // videoPath가 없으면 jobId로 추출 (upload_xxx... -> uploaded_upload_xxx...)
       oldProjectName = `uploaded_${jobId}`;
-      folderType = 'input';
+      folderType = 'uploads';
       console.log(`🔍 jobId로 프로젝트 폴더명 생성: ${oldProjectName}`);
     }
 
@@ -266,7 +278,7 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-async function restartVideoGeneration(newJobId: string, userId: string, creditCost: number, oldProjectName: string, newProjectName: string, isAdmin: boolean, folderType: 'input' | 'output' = 'input') {
+async function restartVideoGeneration(newJobId: string, userId: string, creditCost: number, oldProjectName: string, newProjectName: string, isAdmin: boolean, folderType: 'input' | 'output' | 'uploads' = 'input') {
   try {
     // 작업 시작 로그
     await updateJob(newJobId, {
@@ -286,8 +298,10 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       return;
     }
 
-    // 이하 기존 로직 (input 폴더 롱폼 재생성)
-    const oldFolderPath = path.join(backendPath, 'input', oldProjectName);
+    // 이하 기존 로직 (input 또는 uploads 폴더 롱폼 재생성)
+    // uploads 폴더도 input처럼 처리 (같은 구조)
+    const sourceFolderType = folderType === 'uploads' ? 'uploads' : 'input';
+    const oldFolderPath = path.join(backendPath, sourceFolderType, oldProjectName);
     const newFolderPath = path.join(backendPath, 'input', newProjectName);
 
     // 기존 폴더 존재 확인
@@ -325,9 +339,9 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       storyJsonFile = storyFiles.find(f => f === 'original_story.json');
       await addJobLog(newJobId, `🔍 output 폴더에서 original_story.json 검색...`);
     } else {
-      // input 폴더에서는 story.json을 찾습니다
+      // input, uploads 폴더에서는 story.json을 찾습니다
       storyJsonFile = storyFiles.find(f => f.includes('story') && f.endsWith('.json'));
-      await addJobLog(newJobId, `🔍 input 폴더에서 story.json 검색...`);
+      await addJobLog(newJobId, `🔍 ${folderType} 폴더에서 story.json 검색...`);
     }
 
     if (storyJsonFile) {
@@ -368,7 +382,13 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       f.endsWith('.jpg') || f.endsWith('.png') || f.endsWith('.jpeg')
     );
 
+    // 모든 비디오 파일들 복사 (.mp4, .mov, .avi, .mkv)
+    const videoFiles = storyFiles.filter(f =>
+      f.endsWith('.mp4') || f.endsWith('.mov') || f.endsWith('.avi') || f.endsWith('.mkv')
+    );
+
     let hasImages = false;
+    let hasVideos = false;
 
     if (imageFiles.length > 0) {
       await addJobLog(newJobId, `\n📷 이미지 파일 ${imageFiles.length}개 복사 중...`);
@@ -380,9 +400,22 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       }
       await addJobLog(newJobId, `✅ 이미지 ${imageFiles.length}개 복사 완료`);
       hasImages = true;
-    } else {
-      await addJobLog(newJobId, `⚠️  복사할 이미지 파일이 없습니다. DALL-E로 생성합니다.`);
-      hasImages = false;
+    }
+
+    if (videoFiles.length > 0) {
+      await addJobLog(newJobId, `\n🎬 비디오 파일 ${videoFiles.length}개 복사 중...`);
+      for (const videoFile of videoFiles) {
+        await fs.copyFile(
+          path.join(oldFolderPath, videoFile),
+          path.join(newFolderPath, videoFile)
+        );
+      }
+      await addJobLog(newJobId, `✅ 비디오 ${videoFiles.length}개 복사 완료`);
+      hasVideos = true;
+    }
+
+    if (!hasImages && !hasVideos) {
+      await addJobLog(newJobId, `⚠️  복사할 이미지/비디오 파일이 없습니다. DALL-E로 생성합니다.`);
     }
 
     await updateJob(newJobId, {
@@ -390,14 +423,26 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       step: '영상 생성 시작...'
     });
 
-    // 이미지가 있으면 none, 없으면 dalle
-    const imageSourceArg = hasImages ? ['--image-source', 'none'] : ['--image-source', 'dalle'];
+    // 이미지 또는 비디오가 있으면 none, 없으면 dalle
+    const hasMedia = hasImages || hasVideos;
+    const imageSourceArg = hasMedia ? ['--image-source', 'none'] : ['--image-source', 'dalle'];
     const isAdminArg = isAdmin ? ['--is-admin'] : [];
 
     // 비율 설정 (16:9 가로형 롱폼)
     const aspectRatioArg = ['--aspect-ratio', '16:9'];
 
-    await addJobLog(newJobId, `\n🎨 이미지 소스: ${hasImages ? 'none (기존 이미지 사용)' : 'dalle (새로 생성)'}`);
+    let mediaInfo = '';
+    if (hasImages && hasVideos) {
+      mediaInfo = `none (기존 이미지 ${imageFiles.length}개 + 비디오 ${videoFiles.length}개 사용)`;
+    } else if (hasImages) {
+      mediaInfo = `none (기존 이미지 ${imageFiles.length}개 사용)`;
+    } else if (hasVideos) {
+      mediaInfo = `none (기존 비디오 ${videoFiles.length}개 사용)`;
+    } else {
+      mediaInfo = 'dalle (새로 생성)';
+    }
+
+    await addJobLog(newJobId, `\n🎨 이미지 소스: ${mediaInfo}`);
     await addJobLog(newJobId, `📐 비율: 16:9 (가로형 롱폼)`);
 
     const pythonArgs = ['create_video_from_folder.py', '--folder', `input/${newProjectName}`, ...imageSourceArg, ...aspectRatioArg, ...isAdminArg];
@@ -480,10 +525,9 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
         if (code === 0) {
           console.log(`✅ 작업 재시작 성공: ${newJobId}`);
 
-          // 실제 생성된 영상 파일 찾기
+          // 실제 생성된 영상 파일 찾기 (프로젝트 루트)
           try {
-            const generatedPath = path.join(newFolderPath, 'generated_videos');
-            const files = await fs.readdir(generatedPath);
+            const files = await fs.readdir(newFolderPath);
 
             // story.json에서 제목 가져와서 파일명 생성 (유도리있는 파서 사용)
             let expectedFileName: string | null = null;
@@ -526,10 +570,10 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
             }
 
             if (videoFile) {
-              const videoPath = path.join(generatedPath, videoFile);
+              const videoPath = path.join(newFolderPath, videoFile);
               await addJobLog(newJobId, `\n✅ 최종 영상 발견: ${videoFile}`);
 
-              // 썸네일 찾기
+              // 썸네일 찾기 (영상과 같은 위치)
               let thumbnailPath: string | undefined;
               const thumbnailFile = files.find(f =>
                 (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
@@ -537,17 +581,7 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
               );
 
               if (thumbnailFile) {
-                thumbnailPath = path.join(generatedPath, thumbnailFile);
-              } else {
-                // generated_videos에 없으면 상위 폴더에서 찾기
-                const inputFiles = await fs.readdir(newFolderPath);
-                const inputThumbnailFile = inputFiles.find(f =>
-                  (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
-                   f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
-                );
-                if (inputThumbnailFile) {
-                  thumbnailPath = path.join(newFolderPath, inputThumbnailFile);
-                }
+                thumbnailPath = path.join(newFolderPath, thumbnailFile);
               }
 
               await updateJob(newJobId, {

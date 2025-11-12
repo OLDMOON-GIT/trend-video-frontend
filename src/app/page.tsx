@@ -560,9 +560,11 @@ export default function Home() {
               const promptData = await promptRes.json();
               let promptTemplate = promptData.content;
 
-              // ⭐ 타입 안전성: extractedProductInfo는 ProductInfo | undefined
-              // 만약 DB 스키마가 변경되어 productInfo → product_info로 바뀌면
-              // TypeScript 컴파일 에러 발생! 즉시 발견 가능!
+              // ⛔ CRITICAL FEATURE: 상품정보 전달
+              // 버그 이력: 2025-01-12 - script.content를 파싱하던 코드로 인해 데이터 전달 안됨
+              // ❌ 절대 JSON.parse(script.content)로 product_info 추출 금지!
+              // ✅ script.productInfo를 직접 사용 (API가 이미 파싱해서 반환)
+              // 관련 문서: PRODUCT_INFO_FLOW.md, CRITICAL_FEATURES.md
               const extractedProductInfo: ProductInfo | undefined = script.productInfo;
 
               // product_info가 있으면 state에 저장 (backend에서 플레이스홀더 치환)
@@ -623,10 +625,6 @@ export default function Home() {
             } catch (promptError) {
               console.error('❌ 프롬프트 로드 실패:', promptError);
               showToast('상품정보 프롬프트를 불러오지 못했습니다.', 'error');
-            }
-            } else {
-              console.error('❌ 대본 로드 실패:', data.error);
-              showToast('상품 대본을 찾을 수 없습니다.', 'error');
             }
           })
           .catch(error => {
@@ -2060,12 +2058,7 @@ export default function Home() {
                   { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
                   { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
                   { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
-                  ...(user?.isAdmin ? [
-                    { id: 'google-ko-KR-Neural2-A', name: '구글A', gender: '여성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
-                    { id: 'google-ko-KR-Neural2-B', name: '구글B', gender: '여성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
-                    { id: 'aws-Seoyeon', name: 'AWS서연', gender: '여성', emoji: '💎', provider: 'AWS Polly Neural', pricing: '분당 $0.006', adminOnly: true },
-                    { id: 'aws-Jihye', name: 'AWS지혜', gender: '여성', emoji: '💎', provider: 'AWS Polly Neural', pricing: '분당 $0.006', adminOnly: true },
-                  ] : []),
+                  // Google/AWS TTS는 현재 지원하지 않음 (Edge TTS만 지원)
                 ].map((voice) => (
                   <div key={voice.id} className="relative">
                     <button
@@ -2146,10 +2139,7 @@ export default function Home() {
                   { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
                   { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
                   { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
-                  ...(user?.isAdmin ? [
-                    { id: 'google-ko-KR-Neural2-C', name: '구글C', gender: '남성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
-                    { id: 'google-ko-KR-Wavenet-D', name: '구글D', gender: '남성', emoji: '💎', provider: 'Google WaveNet', pricing: '분당 $0.006', adminOnly: true },
-                  ] : []),
+                  // Google/AWS TTS는 현재 지원하지 않음 (Edge TTS만 지원)
                 ].map((voice) => (
                   <div key={voice.id} className="relative">
                     <button
