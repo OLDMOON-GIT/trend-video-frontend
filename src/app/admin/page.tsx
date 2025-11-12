@@ -218,21 +218,6 @@ export default function AdminPage() {
               확인하기 →
             </div>
           </Link>
-
-          {/* 쿠팡 상품 관리 */}
-          <Link
-            href="/admin/coupang-products"
-            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-amber-500/20 to-orange-500/20 p-8 backdrop-blur transition hover:border-amber-500/50 hover:shadow-2xl hover:shadow-amber-500/20"
-          >
-            <div className="mb-4 text-5xl">🛍️</div>
-            <h2 className="mb-2 text-2xl font-bold text-white">쿠팡 상품 관리</h2>
-            <p className="text-sm text-slate-300">
-              쿠팡 파트너스 상품 등록, 검색, 관리 및 퍼블리시
-            </p>
-            <div className="mt-4 flex items-center text-sm font-semibold text-amber-300 transition group-hover:translate-x-2">
-              관리하기 →
-            </div>
-          </Link>
         </div>
 
         {/* 안내 */}
@@ -247,7 +232,6 @@ export default function AdminPage() {
             <p>• <strong>YouTube Credentials:</strong> 모든 사용자가 공용으로 사용하는 YouTube API 인증 정보 설정</p>
             <p>• <strong>시스템 아키텍처:</strong> Frontend-Backend 구조, 데이터 흐름도, 워크플로우, 핵심 패턴 문서</p>
             <p>• <strong>테스트 커버리지:</strong> 코드 테스트 커버리지 통계 및 모듈별 현황 확인</p>
-            <p>• <strong>쿠팡 상품 관리:</strong> 쿠팡 파트너스 상품 등록, 검색, 대량 편집 및 퍼블리시</p>
             <p>• <strong>권한:</strong> 이 페이지는 관리자만 접근할 수 있습니다.</p>
           </div>
         </div>
