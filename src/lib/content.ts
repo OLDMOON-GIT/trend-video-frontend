@@ -1,6 +1,17 @@
 // 통합 Content 관리 (scripts + jobs 통합)
 import crypto from 'crypto';
 import db from './sqlite';
+// ⭐ 중앙화된 타입 정의 사용 (src/types/content.ts)
+import type {
+  Content,
+  ContentType,
+  ContentFormat,
+  ContentStatus,
+  ProductInfo,
+  TokenUsage,
+  CreateContentOptions,
+  ContentUpdateFields
+} from '@/types/content';
 
 try {
   db.exec(`ALTER TABLE contents ADD COLUMN model TEXT`);
@@ -10,84 +21,19 @@ try {
   }
 }
 
-// 통합 Content 타입
-export interface Content {
-  id: string;
-  userId: string;
+// ⚠️ Content 타입 정의는 src/types/content.ts로 이동됨
+// DB 스키마 변경 시 src/types/content.ts를 먼저 업데이트하세요!
 
-  // 타입 구분
-  type: 'script' | 'video';  // 컨텐츠 타입
-  format?: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info';  // 포맷
-
-  // 내용
-  title: string;
-  originalTitle?: string;  // 사용자 입력 원본 제목
-  content?: string;  // 대본 내용 (type='script'일 때)
-
-  // 변환/재생성 정보
-  sourceContentId?: string;  // 원본 컨텐츠 ID (변환/재생성인 경우)
-  conversionType?: string;   // 변환 타입 (예: 'longform-to-shortform', 'longform-to-sora2')
-  isRegenerated?: boolean;   // 재생성 여부
-
-  // 상태
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;  // 0-100
-  error?: string;
-
-  // 프로세스 관리
-  pid?: number;  // 프로세스 ID (취소용)
-
-  // 영상 관련 (type='video'일 때)
-  videoPath?: string;
-  thumbnailPath?: string;
-  published?: boolean;  // 유튜브 업로드 여부
-  publishedAt?: string;
-
-  // AI 사용량
-  tokenUsage?: {
-    input_tokens: number;
-    output_tokens: number;
-  };
-  useClaudeLocal?: boolean;  // 로컬 Claude 사용 여부
-  model?: string;
-
-  // 상품 정보 (product, product-info 타입일 때만)
-  productInfo?: {
-    thumbnail?: string;
-    product_link?: string;
-    description?: string;
-  };
-
-  // 로그
-  logs?: string[];
-
-  // 시간
-  createdAt: string;
-  updatedAt: string;
-}
+// Re-export for backward compatibility
+export type { Content, ContentType, ContentFormat, ContentStatus, ProductInfo, TokenUsage };
 
 // ==================== Content 생성 ====================
 
 export function createContent(
   userId: string,
-  type: 'script' | 'video',
+  type: ContentType,
   title: string,
-  options?: {
-    format?: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info';
-    originalTitle?: string;
-    content?: string;
-    tokenUsage?: { input_tokens: number; output_tokens: number };
-    useClaudeLocal?: boolean;
-    sourceContentId?: string;  // 원본 컨텐츠 ID
-    conversionType?: string;   // 변환 타입
-    isRegenerated?: boolean;   // 재생성 여부
-    model?: string;
-    productInfo?: {
-      thumbnail?: string;
-      product_link?: string;
-      description?: string;
-    };
-  }
+  options?: CreateContentOptions
 ): Content {
   const contentId = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -226,10 +172,7 @@ export function getActiveContentsByUserId(userId: string): Content[] {
 
 export function updateContent(
   contentId: string,
-  updates: Partial<Pick<Content,
-    'status' | 'progress' | 'error' | 'content' | 'videoPath' |
-    'thumbnailPath' | 'pid' | 'published' | 'publishedAt' | 'tokenUsage' | 'model'
-  >>
+  updates: ContentUpdateFields
 ): Content | null {
   const now = new Date().toISOString();
 

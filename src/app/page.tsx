@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { useRouter, useSearchParams } from "next/navigation";
 
 import type { DateFilter, SortOption, VideoItem, VideoType } from "@/types/video";
+import type { GetScriptResponse, ProductInfo } from "@/types/content";
 import { parseJsonSafely, extractPureJson, parseJsonFile } from "@/lib/json-utils";
 
 const fallbackVideos: VideoItem[] = [];
@@ -532,104 +533,97 @@ export default function Home() {
         setProductionMode('create'); // 영상 생성 모드로 설정 (병합 아님)
         console.log('📝 상품정보 모드 강제 설정 (영상 생성)');
 
-        // 대본 내용 로드
+        // 대본 내용 로드 (⭐ 타입 안전성 추가)
         fetch(`/api/scripts/${scriptId}`)
           .then(res => {
             if (!res.ok) {
               throw new Error('대본을 찾을 수 없습니다.');
             }
-            return res.json();
+            return res.json() as Promise<GetScriptResponse>;
           })
-          .then(async data => {
-            if (data.script) {
-              const script = data.script;
-              console.log('✅ 상품 대본 로드 완료:', script.title);
+          .then(async (data: GetScriptResponse) => {
+            // ⭐ 타입 체크: data.script는 Content 타입
+            // script.productInfo는 ProductInfo | undefined 타입
+            const script = data.script;
+            console.log('✅ 상품 대본 로드 완료:', script.title);
 
-              // 상품정보 제목 설정
-              const productInfoTitle = `${script.title} - 상품 기입 정보`;
-              setManualTitle(productInfoTitle);
+            // 상품정보 제목 설정
+            const productInfoTitle = `${script.title} - 상품 기입 정보`;
+            setManualTitle(productInfoTitle);
 
-              // API에서 상품정보 프롬프트 템플릿 가져오기
-              try {
-                const promptRes = await fetch('/api/product-info-prompt');
-                if (!promptRes.ok) {
-                  throw new Error('프롬프트 템플릿을 불러올 수 없습니다.');
-                }
-                const promptData = await promptRes.json();
-                let promptTemplate = promptData.content;
-
-                // 상품 대본 내용에서 product_info 추출 (JSON 형식으로 저장되어 있을 수 있음)
-                let extractedProductInfo = null;
-                try {
-                  // 대본이 JSON인지 확인
-                  const scriptData = JSON.parse(script.content);
-                  if (scriptData.product_info) {
-                    extractedProductInfo = scriptData.product_info;
-                  }
-                } catch (e) {
-                  // JSON이 아니면 그냥 텍스트로 처리
-                  console.log('대본이 JSON 형식이 아님, 텍스트로 처리');
-                }
-
-                // product_info가 있으면 state에 저장 (backend에서 플레이스홀더 치환)
-                if (extractedProductInfo) {
-                  console.log('✅ product_info 추출 완료:');
-                  console.log('  📌 제목:', script.title);
-                  console.log('  📌 상품 링크:', extractedProductInfo.product_link?.trim() || '없음');
-                  console.log('  📌 썸네일:', extractedProductInfo.thumbnail?.trim() || '없음');
-                  console.log('  📌 설명:', extractedProductInfo.description?.trim() || '없음');
-
-                  // ⭐ STATE + localStorage에 저장 - API 호출 시 backend에서 치환하도록
-                  const productInfoData = {
-                    title: script.title,
-                    thumbnail: extractedProductInfo.thumbnail || '',
-                    product_link: extractedProductInfo.product_link || '',
-                    description: extractedProductInfo.description || ''
-                  };
-                  setProductInfo(productInfoData);
-                  localStorage.setItem('pendingProductInfoData', JSON.stringify(productInfoData));
-                  localStorage.setItem('current_product_info', JSON.stringify(productInfoData));
-                  console.log('✅ productInfo state + localStorage 저장 완료! (backend에서 치환 예정)');
-                } else {
-                  // product_info가 없으면 경고
-                  console.log('⚠️ product_info 없음');
-                }
-
-                // 프롬프트 템플릿은 치환하지 않고 그대로 사용 (backend에서 치환)
-                const finalPrompt = promptTemplate;
-                console.log('✅ 상품정보 프롬프트 템플릿 로드 완료');
-
-                // AI 대본 생성 섹션 표시
-                setShowTitleInput(true);
-                setTitleInputMode('generate');
-
-                // localStorage에 프롬프트 저장 및 UI 업데이트
-                localStorage.setItem('pendingProductInfoPrompt', finalPrompt);
-
-                setTimeout(() => {
-                  // 상품 정보 섹션으로 스크롤 (없으면 AI 섹션으로)
-                  const productInfoSection = document.querySelector('[data-product-info-section]');
-                  const aiSection = document.querySelector('[data-ai-script-section]');
-
-                  if (productInfoSection) {
-                    productInfoSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    console.log('📜 상품 정보 섹션으로 이동');
-                  } else if (aiSection) {
-                    aiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    console.log('📜 AI 대본 생성 섹션으로 이동');
-                  }
-
-                  console.log('✅ 상품정보 프롬프트 준비 완료');
-                  console.log('📝 제목:', productInfoTitle);
-                  console.log('📝 프롬프트 길이:', finalPrompt.length);
-
-                  // 토스트 메시지
-                  showToast(`🛍️ "${productInfoTitle}" - 상품 기입 정보 생성 준비 완료! 아래 "🤖 AI 대본 생성" 버튼을 클릭하세요.`, 'success');
-                }, 500);
-              } catch (promptError) {
-                console.error('❌ 프롬프트 로드 실패:', promptError);
-                showToast('상품정보 프롬프트를 불러오지 못했습니다.', 'error');
+            // API에서 상품정보 프롬프트 템플릿 가져오기
+            try {
+              const promptRes = await fetch('/api/product-info-prompt');
+              if (!promptRes.ok) {
+                throw new Error('프롬프트 템플릿을 불러올 수 없습니다.');
               }
+              const promptData = await promptRes.json();
+              let promptTemplate = promptData.content;
+
+              // ⭐ 타입 안전성: extractedProductInfo는 ProductInfo | undefined
+              // 만약 DB 스키마가 변경되어 productInfo → product_info로 바뀌면
+              // TypeScript 컴파일 에러 발생! 즉시 발견 가능!
+              const extractedProductInfo: ProductInfo | undefined = script.productInfo;
+
+              // product_info가 있으면 state에 저장 (backend에서 플레이스홀더 치환)
+              if (extractedProductInfo) {
+                console.log('✅ product_info 추출 완료:');
+                console.log('  📌 제목:', script.title);
+                console.log('  📌 상품 링크:', extractedProductInfo.product_link?.trim() || '없음');
+                console.log('  📌 썸네일:', extractedProductInfo.thumbnail?.trim() || '없음');
+                console.log('  📌 설명:', extractedProductInfo.description?.trim() || '없음');
+
+                // ⭐ STATE + localStorage에 저장 - API 호출 시 backend에서 치환하도록
+                const productInfoData: ProductInfo = {
+                  title: script.title,
+                  thumbnail: extractedProductInfo.thumbnail || '',
+                  product_link: extractedProductInfo.product_link || '',
+                  description: extractedProductInfo.description || ''
+                };
+                setProductInfo(productInfoData);
+                localStorage.setItem('pendingProductInfoData', JSON.stringify(productInfoData));
+                localStorage.setItem('current_product_info', JSON.stringify(productInfoData));
+                console.log('✅ productInfo state + localStorage 저장 완료! (backend에서 치환 예정)');
+              } else {
+                // product_info가 없으면 경고
+                console.log('⚠️ product_info 없음');
+              }
+
+              // 프롬프트 템플릿은 치환하지 않고 그대로 사용 (backend에서 치환)
+              const finalPrompt = promptTemplate;
+              console.log('✅ 상품정보 프롬프트 템플릿 로드 완료');
+
+              // AI 대본 생성 섹션 표시
+              setShowTitleInput(true);
+              setTitleInputMode('generate');
+
+              // localStorage에 프롬프트 저장 및 UI 업데이트
+              localStorage.setItem('pendingProductInfoPrompt', finalPrompt);
+
+              setTimeout(() => {
+                // 상품 정보 섹션으로 스크롤 (없으면 AI 섹션으로)
+                const productInfoSection = document.querySelector('[data-product-info-section]');
+                const aiSection = document.querySelector('[data-ai-script-section]');
+
+                if (productInfoSection) {
+                  productInfoSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  console.log('📜 상품 정보 섹션으로 이동');
+                } else if (aiSection) {
+                  aiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  console.log('📜 AI 대본 생성 섹션으로 이동');
+                }
+
+                console.log('✅ 상품정보 프롬프트 준비 완료');
+                console.log('📝 제목:', productInfoTitle);
+                console.log('📝 프롬프트 길이:', finalPrompt.length);
+
+                // 토스트 메시지
+                showToast(`🛍️ "${productInfoTitle}" - 상품 기입 정보 생성 준비 완료! 아래 "🤖 AI 대본 생성" 버튼을 클릭하세요.`, 'success');
+              }, 500);
+            } catch (promptError) {
+              console.error('❌ 프롬프트 로드 실패:', promptError);
+              showToast('상품정보 프롬프트를 불러오지 못했습니다.', 'error');
+            }
             } else {
               console.error('❌ 대본 로드 실패:', data.error);
               showToast('상품 대본을 찾을 수 없습니다.', 'error');
@@ -2066,7 +2060,7 @@ export default function Home() {
                   { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
                   { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
                   { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
-                  ...(isAdmin ? [
+                  ...(user?.isAdmin ? [
                     { id: 'google-ko-KR-Neural2-A', name: '구글A', gender: '여성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
                     { id: 'google-ko-KR-Neural2-B', name: '구글B', gender: '여성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
                     { id: 'aws-Seoyeon', name: 'AWS서연', gender: '여성', emoji: '💎', provider: 'AWS Polly Neural', pricing: '분당 $0.006', adminOnly: true },
@@ -2102,11 +2096,17 @@ export default function Home() {
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            const audioUrl = preloadedAudio.get(voice.id);
+                            let audioUrl = preloadedAudio.get(voice.id);
 
+                            // 프리로드된 오디오가 없으면 실시간 로딩 (구글/AWS TTS)
                             if (!audioUrl) {
-                              showToast('⏳ 미리듣기 준비 중...', 'info');
-                              return;
+                              showToast('⏳ 미리듣기 로딩 중...', 'info');
+                              const response = await fetch(`/api/tts-preview?voice=${voice.id}&speed=1.0`);
+                              if (!response.ok) {
+                                throw new Error('미리듣기 로딩 실패');
+                              }
+                              const blob = await response.blob();
+                              audioUrl = URL.createObjectURL(blob);
                             }
 
                             const audio = new Audio(audioUrl);
@@ -2146,7 +2146,7 @@ export default function Home() {
                   { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
                   { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
                   { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
-                  ...(isAdmin ? [
+                  ...(user?.isAdmin ? [
                     { id: 'google-ko-KR-Neural2-C', name: '구글C', gender: '남성', emoji: '💎', provider: 'Google Neural2', pricing: '분당 $0.006', adminOnly: true },
                     { id: 'google-ko-KR-Wavenet-D', name: '구글D', gender: '남성', emoji: '💎', provider: 'Google WaveNet', pricing: '분당 $0.006', adminOnly: true },
                   ] : []),
@@ -2179,11 +2179,17 @@ export default function Home() {
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            const audioUrl = preloadedAudio.get(voice.id);
+                            let audioUrl = preloadedAudio.get(voice.id);
 
+                            // 프리로드된 오디오가 없으면 실시간 로딩 (구글/AWS TTS)
                             if (!audioUrl) {
-                              showToast('⏳ 미리듣기 준비 중...', 'info');
-                              return;
+                              showToast('⏳ 미리듣기 로딩 중...', 'info');
+                              const response = await fetch(`/api/tts-preview?voice=${voice.id}&speed=1.0`);
+                              if (!response.ok) {
+                                throw new Error('미리듣기 로딩 실패');
+                              }
+                              const blob = await response.blob();
+                              audioUrl = URL.createObjectURL(blob);
                             }
 
                             const audio = new Audio(audioUrl);
@@ -4044,9 +4050,9 @@ export default function Home() {
                   return;
                 }
 
-                // SORA2가 아니고 직접 업로드 모드일 때만 이미지 필수
-                if (promptFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0) {
-                  showToast('최소 1개 이상의 이미지를 업로드해주세요.', 'error');
+                // SORA2가 아니고 직접 업로드 모드일 때만 이미지 또는 비디오 필수
+                if (promptFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0 && uploadedVideos.length === 0) {
+                  showToast('최소 1개 이상의 이미지 또는 비디오를 업로드해주세요.', 'error');
                   return;
                 }
 
@@ -4058,14 +4064,15 @@ export default function Home() {
                   cost,
                   currentCredits,
                   jsonName: uploadedJson.name,
-                  imageCount: imageSource === 'none' ? uploadedImages.length : 0
+                  imageCount: imageSource === 'none' ? uploadedImages.length : 0,
+                  videoCount: imageSource === 'none' ? uploadedVideos.length : 0
                 });
                 setShowConfirmModal(true);
               }}
               disabled={
                 isGeneratingVideo ||
                 (productionMode === 'merge' ? uploadedVideos.length === 0 :
-                  (!uploadedJson || (promptFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0)))
+                  (!uploadedJson || (promptFormat !== 'sora2' && imageSource === 'none' && uploadedImages.length === 0 && uploadedVideos.length === 0)))
               }
               className="w-full rounded-xl bg-purple-600 px-6 py-3 font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -4389,6 +4396,9 @@ export default function Home() {
                             ? 'DALL-E 자동 생성'
                             : 'Google 검색'}
                       </p>
+                      {imageSource === 'none' && confirmModalData.videoCount && confirmModalData.videoCount > 0 && (
+                        <p className="text-white">🎬 비디오: {confirmModalData.videoCount}개 업로드됨</p>
+                      )}
                     </>
                   )}
                 </div>
@@ -4610,14 +4620,23 @@ export default function Home() {
                       formData.append('ttsVoice', selectedTtsVoice); // TTS 음성 선택 추가
                       formData.append('ttsSpeed', ttsSpeed.toString()); // TTS 속도 추가
 
-                      // 직접 업로드 모드일 때만 이미지 추가
+                      // 직접 업로드 모드일 때만 이미지+비디오 함께 처리
                       if (imageSource === 'none') {
                         console.log('\n' + '='.repeat(70));
-                        console.log('📷 이미지 정렬 시작 (총 ' + uploadedImages.length + '개)');
+                        console.log('📷🎬 이미지+비디오 통합 정렬 시작 (이미지: ' + uploadedImages.length + '개, 비디오: ' + uploadedVideos.length + '개)');
                         console.log('='.repeat(70));
+
+                        // 이미지와 비디오를 함께 정렬: 명확한 시퀀스 패턴이 있으면 시퀀스 우선, 없으면 시간 순서
+                        type MediaFile = File & { mediaType: 'image' | 'video' };
+                        const allMediaFiles: MediaFile[] = [
+                          ...uploadedImages.map(f => Object.assign(f, { mediaType: 'image' as const })),
+                          ...uploadedVideos.map(f => Object.assign(f, { mediaType: 'video' as const }))
+                        ];
+
                         console.log('\n🔵 원본 순서 (사용자가 선택한 순서):');
-                        uploadedImages.forEach((img, i) => {
-                          const date = new Date(img.lastModified);
+                        allMediaFiles.forEach((file, i) => {
+                          const icon = file.mediaType === 'image' ? '🖼️' : '🎬';
+                          const date = new Date(file.lastModified);
                           const timeStr = date.toLocaleString('ko-KR', {
                             year: 'numeric',
                             month: '2-digit',
@@ -4627,11 +4646,10 @@ export default function Home() {
                             second: '2-digit',
                             fractionalSecondDigits: 3
                           });
-                          console.log(`  [${i}] ${img.name.padEnd(30)} | ${timeStr} | ${(img.size / 1024).toFixed(1)}KB`);
+                          console.log(`  [${i}] ${icon} ${file.name.padEnd(30)} | ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
                         });
 
-                        // 이미지 정렬: 명확한 시퀀스 패턴이 있으면 시퀀스 우선, 없으면 시간 순서
-                        const sortedImages = [...uploadedImages].sort((a, b) => {
+                        const sortedMediaFiles = allMediaFiles.sort((a, b) => {
                           // 명확한 시퀀스 번호만 추출:
                           // - image_01, scene_1, img_5 등
                           // - image(1), scene(2) 등
@@ -4674,10 +4692,11 @@ export default function Home() {
                           return timeDiff;
                         });
 
-                        console.log('\n🟢 정렬 후 순서 (오래된 파일부터 image_00):');
-                        console.log('   ※ 첫 번째 파일(image_00)이 씬 0 또는 첫 씬이 됩니다!');
-                        sortedImages.forEach((img, i) => {
-                          const date = new Date(img.lastModified);
+                        console.log('\n🟢 정렬 후 순서 (시퀀스 번호 우선, 이미지+비디오 통합):');
+                        console.log('   ※ 01.image, 02.mp4, 03.mp4, 04.image → 01, 02, 03, 04 순서로 정렬됩니다!');
+                        sortedMediaFiles.forEach((file, i) => {
+                          const icon = file.mediaType === 'image' ? '🖼️' : '🎬';
+                          const date = new Date(file.lastModified);
                           const timeStr = date.toLocaleString('ko-KR', {
                             year: 'numeric',
                             month: '2-digit',
@@ -4687,8 +4706,9 @@ export default function Home() {
                             second: '2-digit',
                             fractionalSecondDigits: 3
                           });
-                          const newName = `image_${String(i).padStart(2, '0')}.${img.name.split('.').pop()}`;
-                          console.log(`  [${i}] ${img.name.padEnd(30)} → ${newName.padEnd(15)} | ${timeStr}`);
+                          const prefix = file.mediaType === 'image' ? 'image' : 'video';
+                          const newName = `${prefix}_${String(i).padStart(2, '0')}.${file.name.split('.').pop()}`;
+                          console.log(`  [${i}] ${icon} ${file.name.padEnd(30)} → ${newName.padEnd(15)} | ${timeStr}`);
                         });
 
                         console.log('\n📤 FormData에 추가되는 순서:');
@@ -4696,45 +4716,35 @@ export default function Home() {
                         // 원본 파일명 매핑 정보 생성
                         const originalNames: Record<number, string> = {};
 
-                        // 정렬된 이미지를 image_00.ext, image_01.ext 형식으로 파일명 변경하여 전송
-                        sortedImages.forEach((img, idx) => {
-                          const ext = img.name.split('.').pop() || 'jpg';
-                          const newFileName = `image_${String(idx).padStart(2, '0')}.${ext}`;
+                        // 정렬된 미디어 파일들을 타입별로 image_XX 또는 video_XX 형식으로 전송
+                        let imageIndex = 0;
+                        let videoIndex = 0;
+                        sortedMediaFiles.forEach((file, idx) => {
+                          const ext = file.name.split('.').pop() || (file.mediaType === 'image' ? 'jpg' : 'mp4');
 
                           // 원본 파일명 저장
-                          originalNames[idx] = img.name;
+                          originalNames[idx] = file.name;
 
-                          // 새로운 File 객체 생성 (파일명 변경)
-                          const renamedFile = new File([img], newFileName, { type: img.type });
-
-                          formData.append(`image_${idx}`, renamedFile);
-                          console.log(`  FormData.append('image_${idx}', ${newFileName}) - 원본: ${img.name}`);
+                          if (file.mediaType === 'image') {
+                            const newFileName = `image_${String(imageIndex).padStart(2, '0')}.${ext}`;
+                            const renamedFile = new File([file], newFileName, { type: file.type });
+                            formData.append(`image_${imageIndex}`, renamedFile);
+                            console.log(`  FormData.append('image_${imageIndex}', ${newFileName}) - 원본: ${file.name}`);
+                            imageIndex++;
+                          } else {
+                            const newFileName = `video_${String(videoIndex).padStart(2, '0')}.${ext}`;
+                            const renamedFile = new File([file], newFileName, { type: file.type });
+                            formData.append(`video_${videoIndex}`, renamedFile);
+                            console.log(`  FormData.append('video_${videoIndex}', ${newFileName}) - 원본: ${file.name}`);
+                            videoIndex++;
+                          }
                         });
 
                         // 원본 파일명 매핑 정보 추가
                         formData.append('originalNames', JSON.stringify(originalNames));
 
                         console.log('\n' + '='.repeat(70));
-                        console.log('✅ 이미지 정렬 및 FormData 추가 완료');
-                        console.log('='.repeat(70) + '\n');
-                      }
-
-                      // 비디오 파일 처리
-                      if (uploadedVideos.length > 0) {
-                        console.log('\n' + '='.repeat(70));
-                        console.log('🎬 비디오 파일 FormData 추가 시작');
-                        console.log('='.repeat(70));
-
-                        uploadedVideos.forEach((vid, idx) => {
-                          const ext = vid.name.split('.').pop() || 'mp4';
-                          const newFileName = `video_${String(idx).padStart(2, '0')}.${ext}`;
-                          const renamedFile = new File([vid], newFileName, { type: vid.type });
-                          formData.append(`video_${idx}`, renamedFile);
-                          console.log(`  FormData.append('video_${idx}', ${newFileName}) - 원본: ${vid.name}`);
-                        });
-
-                        console.log('\n' + '='.repeat(70));
-                        console.log('✅ 비디오 FormData 추가 완료');
+                        console.log(`✅ 미디어 정렬 및 FormData 추가 완료 (이미지: ${imageIndex}개, 비디오: ${videoIndex}개)`);
                         console.log('='.repeat(70) + '\n');
                       }
 

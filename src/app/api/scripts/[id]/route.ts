@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import type { GetScriptResponse, GetScriptErrorResponse } from '@/types/content';
 
 const execAsync = promisify(exec);
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
@@ -12,12 +13,12 @@ const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse<GetScriptResponse | GetScriptErrorResponse>> {
   try {
     // 사용자 인증
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json(
+      return NextResponse.json<GetScriptErrorResponse>(
         { error: '로그인이 필요합니다.' },
         { status: 401 }
       );
@@ -27,7 +28,7 @@ export async function GET(
     const { id: contentId } = await params;
 
     if (!contentId) {
-      return NextResponse.json(
+      return NextResponse.json<GetScriptErrorResponse>(
         { error: 'contentId가 필요합니다.' },
         { status: 400 }
       );
@@ -36,7 +37,7 @@ export async function GET(
     const content = findContentById(contentId);
 
     if (!content || content.type !== 'script') {
-      return NextResponse.json(
+      return NextResponse.json<GetScriptErrorResponse>(
         { error: 'Script not found' },
         { status: 404 }
       );
@@ -44,17 +45,18 @@ export async function GET(
 
     // 본인의 대본만 조회 가능 (관리자는 모두 조회 가능)
     if (!user.isAdmin && content.userId !== user.userId) {
-      return NextResponse.json(
+      return NextResponse.json<GetScriptErrorResponse>(
         { error: '권한이 없습니다.' },
         { status: 403 }
       );
     }
 
+    // ⭐ 타입 안전성: content.productInfo는 자동으로 타입 체크됨
     // Return as 'script' for backward compatibility
-    return NextResponse.json({ script: content });
+    return NextResponse.json<GetScriptResponse>({ script: content });
   } catch (error) {
     console.error('Error fetching script:', error);
-    return NextResponse.json(
+    return NextResponse.json<GetScriptErrorResponse>(
       { error: 'Failed to fetch script' },
       { status: 500 }
     );
