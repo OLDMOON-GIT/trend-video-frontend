@@ -44,6 +44,12 @@ export default function YouTubeUploadButton({
   const [channels, setChannels] = useState<YouTubeChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [loadingChannels, setLoadingChannels] = useState(false);
+  const [scheduleType, setScheduleType] = useState<'now' | 'scheduled'>('now');
+  const [publishAt, setPublishAt] = useState(() => {
+    // 기본값: 현재 + 3분
+    const defaultTime = new Date(Date.now() + 3 * 60 * 1000);
+    return defaultTime.toISOString().slice(0, 16);
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -87,7 +93,15 @@ export default function YouTubeUploadButton({
   };
 
   const handleCancelUpload = async () => {
+    // 이미 중지 중이면 무시
+    if (!isUploading || uploadStatus !== 'uploading') {
+      return;
+    }
+
     try {
+      // 중지 상태로 즉시 변경하여 중복 클릭 방지
+      setUploadStatus('error');
+      setIsUploading(false);
       addLog('🛑 업로드 중지 요청 중...');
 
       const res = await fetch(`/api/youtube/upload?jobId=${jobId}`, {
@@ -97,7 +111,6 @@ export default function YouTubeUploadButton({
       const data = await res.json();
 
       if (data.success || res.ok) {
-        setUploadStatus('error');
         addLog('✅ 업로드가 중지되었습니다.');
         toast.success('YouTube 업로드가 중지되었습니다.');
       } else {
@@ -108,8 +121,6 @@ export default function YouTubeUploadButton({
       const errorMessage = error?.message || '알 수 없는 오류';
       addLog(`❌ 중지 중 오류: ${errorMessage}`);
       toast.error('중지 중 오류가 발생했습니다.');
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -124,6 +135,25 @@ export default function YouTubeUploadButton({
       return;
     }
 
+    if (scheduleType === 'scheduled') {
+      if (!publishAt) {
+        toast.error('예약 시간을 선택해주세요');
+        return;
+      }
+
+      // 예약 시간이 현재로부터 최소 3분 이후인지 확인
+      const publishTime = new Date(publishAt).getTime();
+      const minTime = Date.now() + 3 * 60 * 1000; // 3분 후
+
+      if (publishTime < minTime) {
+        toast.error('예약 시간은 최소 3분 이후로 설정해야 합니다');
+        return;
+      }
+    }
+
+    let progressInterval: NodeJS.Timeout | null = null;
+    let messageTimer: NodeJS.Timeout;
+
     try {
       setIsUploading(true);
       setShowModal(false);
@@ -132,7 +162,11 @@ export default function YouTubeUploadButton({
       setUploadProgress(0);
       setUploadStatus('uploading');
 
-      addLog('YouTube 업로드 시작');
+      if (scheduleType === 'scheduled') {
+        addLog('⏰ 예약 업로드 시작 (비디오는 지금 업로드, 예약 시간에 자동 공개)');
+      } else {
+        addLog('YouTube 업로드 시작');
+      }
 
       // 업로드 시작 콜백 호출
       if (onUploadStart) {
@@ -144,6 +178,31 @@ export default function YouTubeUploadButton({
       addLog('업로드 요청 준비 중...');
       addLog(`제목: ${title}`);
       addLog(`공개 설정: ${privacy}`);
+      if (scheduleType === 'scheduled') {
+        addLog(`⏰ 예약 공개 시간: ${new Date(publishAt).toLocaleString('ko-KR')}`);
+      }
+
+      // 90% 이후 메시지 추가를 위한 타이머
+      const messageTimer = setTimeout(() => {
+        addLog('📤 YouTube 서버에 업로드 중... (비디오 크기에 따라 시간이 소요될 수 있습니다)');
+      }, 15000); // 15초 후
+
+      // 진행률 시뮬레이션 (업로드 중 증가)
+      progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 98) {
+            return 98; // 98%에서 멈춤 (완료 시 100으로 설정)
+          }
+          // 점진적으로 증가 (빠르게 시작, 아주 느리게 증가)
+          const increment = prev < 30 ? 10 : prev < 60 ? 5 : prev < 90 ? 2 : 0.2;
+          return Math.min(prev + increment, 98);
+        });
+      }, 1000);
+
+      // publishAt을 ISO 8601 형식으로 변환
+      const publishAtISO = scheduleType === 'scheduled' && publishAt
+        ? new Date(publishAt).toISOString()
+        : undefined;
 
       const res = await fetch('/api/youtube/upload', {
         method: 'POST',
@@ -156,9 +215,14 @@ export default function YouTubeUploadButton({
           tags: tagList,
           privacy,
           channelId: selectedChannelId,
-          jobId
+          jobId,
+          publishAt: publishAtISO
         })
       });
+
+      // API 응답 받으면 타이머 중지
+      if (progressInterval) clearInterval(progressInterval);
+      clearTimeout(messageTimer);
 
       addLog('서버 응답 대기 중...');
 
@@ -169,7 +233,14 @@ export default function YouTubeUploadButton({
       if (data.success) {
         setUploadStatus('success');
         setUploadProgress(100);
-        addLog('✅ YouTube 업로드 완료!');
+
+        if (scheduleType === 'scheduled') {
+          addLog('✅ YouTube 업로드 완료! (예약 시간에 자동 공개됩니다)');
+          addLog(`🔒 현재 상태: Private (${new Date(publishAt).toLocaleString('ko-KR')}에 공개)`);
+        } else {
+          addLog('✅ YouTube 업로드 완료!');
+        }
+
         addLog(`비디오 ID: ${data.videoId}`);
         addLog(`URL: ${data.videoUrl}`);
 
@@ -186,6 +257,8 @@ export default function YouTubeUploadButton({
         }, 3000);
       } else {
         setUploadStatus('error');
+        if (progressInterval) clearInterval(progressInterval);
+        clearTimeout(messageTimer);
         const errorMsg = data.error || '업로드 실패';
         const detailsMsg = data.details || '';
 
@@ -225,6 +298,8 @@ export default function YouTubeUploadButton({
         }
       }
     } catch (error: any) {
+      if (progressInterval) clearInterval(progressInterval);
+      clearTimeout(messageTimer);
       setUploadStatus('error');
       const errorMessage = error?.message || error?.toString() || '알 수 없는 오류';
       addLog(`❌ 오류 발생: ${errorMessage}`);
@@ -237,6 +312,8 @@ export default function YouTubeUploadButton({
         onUploadError(errorMessage);
       }
     } finally {
+      if (progressInterval) clearInterval(progressInterval);
+      clearTimeout(messageTimer);
       setIsUploading(false);
     }
   };
@@ -336,6 +413,52 @@ export default function YouTubeUploadButton({
                 </select>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  업로드 시점
+                </label>
+                <div className="flex gap-4 mb-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="now"
+                      checked={scheduleType === 'now'}
+                      onChange={(e) => setScheduleType(e.target.value as 'now')}
+                      className="w-4 h-4 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-white">지금 업로드</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="scheduled"
+                      checked={scheduleType === 'scheduled'}
+                      onChange={(e) => setScheduleType(e.target.value as 'scheduled')}
+                      className="w-4 h-4 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-white">예약 업로드</span>
+                  </label>
+                </div>
+
+                {scheduleType === 'scheduled' && (
+                  <div>
+                    <input
+                      type="datetime-local"
+                      value={publishAt}
+                      onChange={(e) => setPublishAt(e.target.value)}
+                      min={new Date(Date.now() + 3 * 60 * 1000).toISOString().slice(0, 16)}
+                      className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">
+                      ⏰ 예약 시간에 자동으로 공개됩니다 (기본값: 3분 후)
+                    </p>
+                    <p className="text-xs text-yellow-400 mt-1">
+                      ⚠️ 비디오는 지금 바로 업로드되어 private 상태로 유지되다가 예약 시간에 공개됩니다
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                 <p className="text-sm text-blue-400">
                   💡 비디오: {videoPath}
@@ -405,6 +528,26 @@ export default function YouTubeUploadButton({
                 </button>
               )}
             </div>
+
+            {/* 진행바 */}
+            {uploadStatus === 'uploading' && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">업로드 진행률</span>
+                  <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 transition-all duration-500 ease-out rounded-full flex items-center justify-end pr-1"
+                    style={{ width: `${uploadProgress}%` }}
+                  >
+                    {uploadProgress > 10 && (
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 로그 영역 */}

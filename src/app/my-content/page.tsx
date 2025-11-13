@@ -2390,6 +2390,16 @@ export default function MyContentPage() {
                                   <span className="text-slate-500">•</span>
                                   <span>{formatDate(item.data.createdAt)}</span>
                                 </p>
+                                {/* 카테고리 표시 */}
+                                {item.data.category && (
+                                  <p className="flex items-center gap-2">
+                                    <span className="text-slate-500">•</span>
+                                    <span className="inline-flex items-center gap-1">
+                                      <span className="text-purple-400">🎭</span>
+                                      <span className="text-purple-300 font-medium">{item.data.category}</span>
+                                    </span>
+                                  </p>
+                                )}
                                 {/* From 링크 (대본에서 생성된 영상인 경우) */}
                                 {item.data.sourceContentId && (
                                   <p className="flex items-center gap-2">
@@ -2714,6 +2724,16 @@ export default function MyContentPage() {
                                   <span className="text-slate-500">•</span>
                                   <span>{formatDate(item.data.createdAt)}</span>
                                 </p>
+                                {/* 카테고리 표시 */}
+                                {item.data.category && (
+                                  <p className="flex items-center gap-2">
+                                    <span className="text-slate-500">•</span>
+                                    <span className="inline-flex items-center gap-1">
+                                      <span className="text-purple-400">🎭</span>
+                                      <span className="text-purple-300 font-medium">{item.data.category}</span>
+                                    </span>
+                                  </p>
+                                )}
                                 {/* From 링크 (변환된 대본인 경우) */}
                                 {item.data.sourceContentId && (
                                   <p className="flex items-center gap-2">
@@ -2757,6 +2777,249 @@ export default function MyContentPage() {
                                   </p>
                                 )}
                               </div>
+
+                              {/* 버튼 영역 - 길이 정보 바로 다음 */}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                              {(item.data.status === 'pending' || item.data.status === 'processing') && (
+                                <>
+                                  {item.data.logs && item.data.logs.length > 0 && (
+                                    <button
+                                      onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
+                                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                                    >
+                                      {expandedScriptLogId === item.data.id ? '📋 로그 닫기' : '📋 로그'}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleCancelScript(item.data.id, item.data.title)}
+                                    className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
+                                  >
+                                    🛑 중지
+                                  </button>
+                                </>
+                              )}
+                              {item.data.status === 'completed' && (
+                                <>
+                                  {/* === 보기 === */}
+                                  {item.data.logs && item.data.logs.length > 0 && (
+                                    <button
+                                      onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
+                                      className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                      title="로그 보기"
+                                    >
+                                      {expandedScriptLogId === item.data.id ? '📋 닫기' : `📋 로그`}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => toggleContent(item.data.id)}
+                                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                                  >
+                                    {expandedScriptId === item.data.id ? '📄 닫기' : '📖 대본'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleSpeak(item.data.id, item.data.content)}
+                                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition cursor-pointer whitespace-nowrap ${
+                                      speakingId === item.data.id
+                                        ? 'bg-red-600 hover:bg-red-500'
+                                        : 'bg-indigo-600 hover:bg-indigo-500'
+                                    }`}
+                                    title={speakingId === item.data.id ? '읽기 중지' : '나레이션 읽어보기'}
+                                  >
+                                    {speakingId === item.data.id ? '⏹️ 중지' : '🔊 읽어보기'}
+                                  </button>
+
+                                  {/* 구분선 */}
+                                  <div className="w-px h-8 bg-slate-600"></div>
+
+                                  {/* === 제작 === */}
+                                  {user?.isAdmin && !isMobile && (
+                                    <button
+                                      onClick={() => handleImageCrawling(item.data.id, '')}
+                                      className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
+                                      title="이미지 생성"
+                                    >
+                                      🎨 이미지크롤링
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={async () => {
+                                      console.log('🎬 [내 콘텐츠] 영상 제작 버튼 클릭됨');
+                                      console.log('📝 대본 제목:', item.data.title);
+
+                                      // JSON 파싱 후 메인 페이지로 이동하며 파이프라인 시작
+                                      try {
+                                        // 마크다운 코드 블록 제거
+                                        const formattedContent = await formatScriptContent(item.data.id, item.data.content, { showToast: false });
+                                        let content = formattedContent
+                                          .replace(/^```json\s*/i, '')
+                                          .replace(/\s*```\s*$/i, '')
+                                          .trim();
+
+                                        // { 이전의 모든 텍스트 제거 (Claude가 추가한 설명 텍스트 제거)
+                                        const jsonStart = content.indexOf('{');
+                                        if (jsonStart > 0) {
+                                          console.log('⚠️ JSON 시작 전 텍스트 발견, 제거 중...');
+                                          content = content.substring(jsonStart);
+                                        }
+
+                                        console.log('📄 원본 content 길이:', item.data.content.length);
+                                        console.log('📄 정제된 content 길이:', content.length);
+
+                                        // JSON 파싱 (유틸리티 함수 사용)
+                                        const parseResult = parseJsonSafely(content);
+
+                                        if (!parseResult.success) {
+                                          throw new Error(parseResult.error || 'JSON 파싱 실패');
+                                        }
+
+                                        const scriptJson = parseResult.data;
+
+                                        if (parseResult.fixed) {
+                                          console.log('⚠️ JSON 자동 수정이 적용되었습니다');
+                                        }
+
+                                        console.log('📦 파싱된 JSON:', {
+                                          title: scriptJson.title,
+                                          scenesCount: scriptJson.scenes?.length
+                                        });
+
+                                        // 로컬 스토리지에 저장 (포맷 타입 포함)
+                                        const pipelineData = {
+                                          title: item.data.title,
+                                          content: scriptJson,
+                                          type: item.data.type || 'longform' // 기본값은 longform
+                                        };
+                                        localStorage.setItem('pipelineScript', JSON.stringify(pipelineData));
+                                        console.log('💾 localStorage에 저장 완료');
+                                        console.log('📦 저장된 데이터:', pipelineData);
+
+                                        // 메인 페이지로 이동
+                                        console.log('🔄 메인 페이지로 이동 시작...');
+                                        window.location.href = '/';
+                                      } catch (error) {
+                                        console.error('❌ 영상 제작 실패:', error);
+                                        alert('JSON 파싱 오류: ' + error);
+                                      }
+                                    }}
+                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                  >
+                                    🎬 영상제작
+                                  </button>
+                                  {item.data.type === 'product' && (
+                                    <button
+                                      onClick={() => {
+                                        // 메인 페이지로 이동하면서 상품정보 대본 생성 트리거
+                                        window.location.href = `/?promptType=product-info&generateProductInfo=${item.data.id}`;
+                                      }}
+                                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-500 cursor-pointer whitespace-nowrap"
+                                      title="상품 기입 정보 생성 (YouTube/릴스용)"
+                                    >
+                                      🛍️ 상품정보
+                                    </button>
+                                  )}
+
+                                  {/* 구분선 */}
+                                  <div className="w-px h-8 bg-slate-600"></div>
+
+                                  {/* === 편집 === */}
+                                  <button
+                                    onClick={() => handleCopyScript(item.data.content, item.data.title)}
+                                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                                    title="대본 복사"
+                                  >
+                                    📋 복사
+                                  </button>
+                                  <button
+                                    onClick={() => formatScriptContent(item.data.id, item.data.content)}
+                                    disabled={isScriptFormatting(item.data.id)}
+                                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition whitespace-nowrap ${
+                                      isScriptFormatting(item.data.id)
+                                        ? 'bg-pink-600/60 cursor-not-allowed'
+                                        : 'bg-pink-600 hover:bg-pink-500 cursor-pointer'
+                                    }`}
+                                    title="JSON 포멧팅"
+                                  >
+                                    {isScriptFormatting(item.data.id) ? '✨ 포멧팅 중...' : '✨ 포멧팅'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDownload(item.data.id)}
+                                    className="flex items-center justify-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
+                                    title="대본 다운로드"
+                                  >
+                                    📥 다운로드
+                                  </button>
+                                  {/* 변환 버튼: longform/shortform 타입에만 표시 */}
+                                  {(item.data.type === 'longform' || item.data.type === 'shortform') && (
+                                    <button
+                                      onClick={() => handleConvertScript(item.data.id, item.data.type || 'longform', item.data.title)}
+                                      className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-500 cursor-pointer whitespace-nowrap"
+                                      title={item.data.type === 'longform' ? '쇼츠로 변환' : '롱폼으로 변환'}
+                                    >
+                                      🔄 변환
+                                    </button>
+                                  )}
+                                  {user?.isAdmin && (
+                                    <button
+                                      onClick={() => editingScriptId === item.data.id ? handleCancelEdit() : handleEditScript(item.data.id, item.data.content)}
+                                      className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                      title={editingScriptId === item.data.id ? "편집 닫기" : "대본 편집 (관리자 전용)"}
+                                    >
+                                      {editingScriptId === item.data.id ? '✕ 닫기' : '✏️ 편집'}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleRestartScript(item.data.id, item.data.title)}
+                                    className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
+                                    title="대본 재생성"
+                                  >
+                                    🔄 재시도
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      console.log('🔴 삭제 버튼 클릭됨 (All 탭)');
+                                      handleDeleteScript(item.data.id, item.data.title);
+                                    }}
+                                    className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
+                                    title="대본 삭제"
+                                  >
+                                    🗑️ 삭제
+                                  </button>
+                                </>
+                              )}
+                              {(item.data.status === 'failed' || item.data.status === 'cancelled') && (
+                                <>
+                                  {item.data.logs && item.data.logs.length > 0 && (
+                                    <button
+                                      onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
+                                      className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                      title="로그 보기"
+                                    >
+                                      {expandedScriptLogId === item.data.id ? '📋 닫기' : '📋 로그'}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleRestartScript(item.data.id, item.data.title)}
+                                    className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
+                                    title="재시도"
+                                  >
+                                    🔄 재시도
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDeleteScript(item.data.id, item.data.title);
+                                    }}
+                                    className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
+                                  >
+                                    🗑️ 삭제
+                                  </button>
+                                </>
+                              )}
+                            </div>
+
                               {/* 진행 중 상태 표시 */}
                               {item.data.status === 'processing' && (
                               <>
@@ -2829,248 +3092,6 @@ export default function MyContentPage() {
                                 <ErrorMessage message={item.data.error} />
                               )}
                             </div>
-
-                            {/* 버튼 영역 - 하단 */}
-                            <div className="flex flex-wrap gap-2 mt-4">
-                            {(item.data.status === 'pending' || item.data.status === 'processing') && (
-                              <>
-                                {item.data.logs && item.data.logs.length > 0 && (
-                                  <button
-                                    onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
-                                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
-                                  >
-                                    {expandedScriptLogId === item.data.id ? '📋 로그 닫기' : '📋 로그'}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleCancelScript(item.data.id, item.data.title)}
-                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
-                                >
-                                  🛑 중지
-                                </button>
-                              </>
-                            )}
-                            {item.data.status === 'completed' && (
-                              <>
-                                {/* === 보기 === */}
-                                {item.data.logs && item.data.logs.length > 0 && (
-                                  <button
-                                    onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
-                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                    title="로그 보기"
-                                  >
-                                    {expandedScriptLogId === item.data.id ? '📋 닫기' : `📋 로그`}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => toggleContent(item.data.id)}
-                                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
-                                >
-                                  {expandedScriptId === item.data.id ? '📄 닫기' : '📖 대본'}
-                                </button>
-                                <button
-                                  onClick={() => handleSpeak(item.data.id, item.data.content)}
-                                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition cursor-pointer whitespace-nowrap ${
-                                    speakingId === item.data.id
-                                      ? 'bg-red-600 hover:bg-red-500'
-                                      : 'bg-indigo-600 hover:bg-indigo-500'
-                                  }`}
-                                  title={speakingId === item.data.id ? '읽기 중지' : '나레이션 읽어보기'}
-                                >
-                                  {speakingId === item.data.id ? '⏹️ 중지' : '🔊 읽어보기'}
-                                </button>
-
-                                {/* 구분선 */}
-                                <div className="w-px h-8 bg-slate-600"></div>
-
-                                {/* === 제작 === */}
-                                {user?.isAdmin && !isMobile && (
-                                  <button
-                                    onClick={() => handleImageCrawling(item.data.id, '')}
-                                    className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
-                                    title="이미지 생성"
-                                  >
-                                    🎨 이미지크롤링
-                                  </button>
-                                )}
-                                <button
-                                  onClick={async () => {
-                                    console.log('🎬 [내 콘텐츠] 영상 제작 버튼 클릭됨');
-                                    console.log('📝 대본 제목:', item.data.title);
-
-                                    // JSON 파싱 후 메인 페이지로 이동하며 파이프라인 시작
-                                    try {
-                                      // 마크다운 코드 블록 제거
-                                      const formattedContent = await formatScriptContent(item.data.id, item.data.content, { showToast: false });
-                                      let content = formattedContent
-                                        .replace(/^```json\s*/i, '')
-                                        .replace(/\s*```\s*$/i, '')
-                                        .trim();
-
-                                      // { 이전의 모든 텍스트 제거 (Claude가 추가한 설명 텍스트 제거)
-                                      const jsonStart = content.indexOf('{');
-                                      if (jsonStart > 0) {
-                                        console.log('⚠️ JSON 시작 전 텍스트 발견, 제거 중...');
-                                        content = content.substring(jsonStart);
-                                      }
-
-                                      console.log('📄 원본 content 길이:', item.data.content.length);
-                                      console.log('📄 정제된 content 길이:', content.length);
-
-                                      // JSON 파싱 (유틸리티 함수 사용)
-                                      const parseResult = parseJsonSafely(content);
-
-                                      if (!parseResult.success) {
-                                        throw new Error(parseResult.error || 'JSON 파싱 실패');
-                                      }
-
-                                      const scriptJson = parseResult.data;
-
-                                      if (parseResult.fixed) {
-                                        console.log('⚠️ JSON 자동 수정이 적용되었습니다');
-                                      }
-
-                                      console.log('📦 파싱된 JSON:', {
-                                        title: scriptJson.title,
-                                        scenesCount: scriptJson.scenes?.length
-                                      });
-
-                                      // 로컬 스토리지에 저장 (포맷 타입 포함)
-                                      const pipelineData = {
-                                        title: item.data.title,
-                                        content: scriptJson,
-                                        type: item.data.type || 'longform' // 기본값은 longform
-                                      };
-                                      localStorage.setItem('pipelineScript', JSON.stringify(pipelineData));
-                                      console.log('💾 localStorage에 저장 완료');
-                                      console.log('📦 저장된 데이터:', pipelineData);
-
-                                      // 메인 페이지로 이동
-                                      console.log('🔄 메인 페이지로 이동 시작...');
-                                      window.location.href = '/';
-                                    } catch (error) {
-                                      console.error('❌ 영상 제작 실패:', error);
-                                      alert('JSON 파싱 오류: ' + error);
-                                    }
-                                  }}
-                                  className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                >
-                                  🎬 영상제작
-                                </button>
-                                {item.data.type === 'product' && (
-                                  <button
-                                    onClick={() => {
-                                      // 메인 페이지로 이동하면서 상품정보 대본 생성 트리거
-                                      window.location.href = `/?promptType=product-info&generateProductInfo=${item.data.id}`;
-                                    }}
-                                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-500 cursor-pointer whitespace-nowrap"
-                                    title="상품 기입 정보 생성 (YouTube/릴스용)"
-                                  >
-                                    🛍️ 상품정보
-                                  </button>
-                                )}
-
-                                {/* 구분선 */}
-                                <div className="w-px h-8 bg-slate-600"></div>
-
-                                {/* === 편집 === */}
-                                <button
-                                  onClick={() => handleCopyScript(item.data.content, item.data.title)}
-                                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
-                                  title="대본 복사"
-                                >
-                                  📋 복사
-                                </button>
-                                <button
-                                  onClick={() => formatScriptContent(item.data.id, item.data.content)}
-                                  disabled={isScriptFormatting(item.data.id)}
-                                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition whitespace-nowrap ${
-                                    isScriptFormatting(item.data.id)
-                                      ? 'bg-pink-600/60 cursor-not-allowed'
-                                      : 'bg-pink-600 hover:bg-pink-500 cursor-pointer'
-                                  }`}
-                                  title="JSON 포멧팅"
-                                >
-                                  {isScriptFormatting(item.data.id) ? '✨ 포멧팅 중...' : '✨ 포멧팅'}
-                                </button>
-                                <button
-                                  onClick={() => handleDownload(item.data.id)}
-                                  className="flex items-center justify-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
-                                  title="대본 다운로드"
-                                >
-                                  📥 다운로드
-                                </button>
-                                {/* 변환 버튼: longform/shortform 타입에만 표시 */}
-                                {(item.data.type === 'longform' || item.data.type === 'shortform') && (
-                                  <button
-                                    onClick={() => handleConvertScript(item.data.id, item.data.type || 'longform', item.data.title)}
-                                    className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-500 cursor-pointer whitespace-nowrap"
-                                    title={item.data.type === 'longform' ? '쇼츠로 변환' : '롱폼으로 변환'}
-                                  >
-                                    🔄 변환
-                                  </button>
-                                )}
-                                {user?.isAdmin && (
-                                  <button
-                                    onClick={() => editingScriptId === item.data.id ? handleCancelEdit() : handleEditScript(item.data.id, item.data.content)}
-                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                    title={editingScriptId === item.data.id ? "편집 닫기" : "대본 편집 (관리자 전용)"}
-                                  >
-                                    {editingScriptId === item.data.id ? '✕ 닫기' : '✏️ 편집'}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleRestartScript(item.data.id, item.data.title)}
-                                  className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
-                                  title="대본 재생성"
-                                >
-                                  🔄 재시도
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    console.log('🔴 삭제 버튼 클릭됨 (All 탭)');
-                                    handleDeleteScript(item.data.id, item.data.title);
-                                  }}
-                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
-                                  title="대본 삭제"
-                                >
-                                  🗑️ 삭제
-                                </button>
-                              </>
-                            )}
-                            {(item.data.status === 'failed' || item.data.status === 'cancelled') && (
-                              <>
-                                {item.data.logs && item.data.logs.length > 0 && (
-                                  <button
-                                    onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
-                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                    title="로그 보기"
-                                  >
-                                    {expandedScriptLogId === item.data.id ? '📋 닫기' : '📋 로그'}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleRestartScript(item.data.id, item.data.title)}
-                                  className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
-                                  title="재시도"
-                                >
-                                  🔄 재시도
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleDeleteScript(item.data.id, item.data.title);
-                                  }}
-                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
-                                >
-                                  🗑️ 삭제
-                                </button>
-                              </>
-                            )}
-                          </div>
                         </div>
                           </div>
                       )}
@@ -3388,231 +3409,8 @@ export default function MyContentPage() {
                             )}
                           </div>
 
-                        {/* 진행 중 상태 표시 */}
-                        {script.status === 'processing' && (
-                          <>
-                            <div className="mb-3">
-                              <div className="mb-1 flex justify-between text-xs text-slate-400">
-                                <span>대본 생성 중...</span>
-                                <span>{script.progress}%</span>
-                              </div>
-                              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                                <div
-                                  className="h-full bg-emerald-500 transition-all duration-300"
-                                  style={{ width: `${script.progress}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* 로그 표시 */}
-                            {script.logs && script.logs.length > 0 && (
-                              <div
-                                ref={(el) => {
-                                  if (el) {
-                                    scriptLogRefs.current.set(script.id, el);
-                                  } else {
-                                    scriptLogRefs.current.delete(script.id);
-                                  }
-                                }}
-                                className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4"
-                              >
-                                <div className="space-y-1">
-                                  {script.logs.map((log: any, idx: number) => {
-                                    const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
-                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
-
-                                    // API 사용 여부 감지
-                                    const isUsingAPI = logMessage.includes('Claude API') ||
-                                                      logMessage.includes('API 호출') ||
-                                                      logMessage.includes('Using Claude API') ||
-                                                      logMessage.includes('💰');
-                                    const isUsingLocal = logMessage.includes('로컬 Claude') ||
-                                                        logMessage.includes('Local Claude') ||
-                                                        logMessage.includes('python') ||
-                                                        logMessage.includes('🖥️');
-
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className="text-sm text-slate-300 font-mono"
-                                        ref={(el) => {
-                                          // 마지막 로그 항목에만 ref 추가
-                                          if (idx === script.logs!.length - 1 && el) {
-                                            scriptLastLogRefs.current.set(script.id, el);
-                                          }
-                                        }}
-                                      >
-                                        <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
-                                        {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
-                                        {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
-                                        {logMessage}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* 대기 중 상태 */}
-                        {script.status === 'pending' && (
-                          <>
-                            <div className="mb-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 p-3 text-sm text-yellow-300">
-                              ⏳ 대본 생성 대기 중...
-                            </div>
-
-                            {/* 로그 표시 (대기 중에도) */}
-                            {script.logs && script.logs.length > 0 && (
-                              <div
-                                ref={(el) => {
-                                  if (el) {
-                                    scriptLogRefs.current.set(script.id, el);
-                                  } else {
-                                    scriptLogRefs.current.delete(script.id);
-                                  }
-                                }}
-                                className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4 mb-3"
-                              >
-                                <div className="space-y-1">
-                                  {script.logs.map((log: any, idx: number) => {
-                                    const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
-                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
-
-                                    const isUsingAPI = logMessage.includes('Claude API') ||
-                                                      logMessage.includes('API 호출') ||
-                                                      logMessage.includes('Using Claude API') ||
-                                                      logMessage.includes('💰');
-                                    const isUsingLocal = logMessage.includes('로컬 Claude') ||
-                                                        logMessage.includes('Local Claude') ||
-                                                        logMessage.includes('python') ||
-                                                        logMessage.includes('🖥️');
-
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className="text-sm text-slate-300 font-mono"
-                                        ref={(el) => {
-                                          if (idx === script.logs!.length - 1 && el) {
-                                            scriptLastLogRefs.current.set(script.id, el);
-                                          }
-                                        }}
-                                      >
-                                        <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
-                                        {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
-                                        {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
-                                        {logMessage}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* 에러 상태 */}
-                        {script.error && (
-                          <>
-                            <ErrorMessage message={script.error} />
-
-                            {/* 실패 시 로그 표시 */}
-                            {script.logs && script.logs.length > 0 && (
-                              <div
-                                ref={(el) => {
-                                  if (el) {
-                                    scriptLogRefs.current.set(script.id, el);
-                                  } else {
-                                    scriptLogRefs.current.delete(script.id);
-                                  }
-                                }}
-                                className="max-h-96 overflow-y-auto rounded-lg border border-red-600 bg-slate-900/80 p-4 mb-3"
-                              >
-                                <div className="space-y-1">
-                                  {script.logs.map((log: any, idx: number) => {
-                                    const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
-                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
-
-                                    const isUsingAPI = logMessage.includes('Claude API') ||
-                                                      logMessage.includes('API 호출') ||
-                                                      logMessage.includes('Using Claude API') ||
-                                                      logMessage.includes('💰');
-                                    const isUsingLocal = logMessage.includes('로컬 Claude') ||
-                                                        logMessage.includes('Local Claude') ||
-                                                        logMessage.includes('python') ||
-                                                        logMessage.includes('🖥️');
-
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className="text-sm text-slate-300 font-mono"
-                                      >
-                                        <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
-                                        {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
-                                        {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
-                                        {logMessage}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* 편집 모드 또는 일반 모드 */}
-                        {script.status === 'completed' && (
-                          <>
-                            {expandedScriptId === script.id ? (
-                              /* 펼친 상태: 편집 모드 또는 전체보기 */
-                              editingScriptId === script.id ? (
-                                /* 편집 모드 */
-                                <div className="mt-3 space-y-2">
-                                  <textarea
-                                    value={editedContent}
-                                    onChange={(e) => setEditedContent(e.target.value)}
-                                    className="w-full h-96 rounded-lg border border-purple-500 bg-slate-900 p-4 text-base text-slate-300 font-mono leading-relaxed focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y"
-                                    placeholder="대본 내용을 입력하세요..."
-                                  />
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => handleSaveScript(script.id)}
-                                      disabled={isSavingScript}
-                                      className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                      {isSavingScript ? '⏳ 저장 중...' : '💾 저장'}
-                                    </button>
-                                    <button
-                                      onClick={handleCancelEdit}
-                                      disabled={isSavingScript}
-                                      className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                      ✕ 취소
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                /* 일반 전체보기 */
-                                <div className="mt-3 rounded-lg border border-slate-600 bg-slate-900/80 p-4">
-                                  <pre className="whitespace-pre-wrap text-base text-slate-300 font-mono leading-relaxed">
-                                    {script.content}
-                                  </pre>
-                                </div>
-                              )
-                            ) : (
-                              /* 축소 상태: 미리보기 */
-                              <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/50 p-4">
-                                <p className="text-base text-slate-300 line-clamp-3 leading-relaxed">
-                                  {script.content}
-                                </p>
-                              </div>
-                            )}
-                          </>
-                        )}
-                        </div>
-
-                        {/* 버튼 영역 - 하단 */}
-                        <div className="flex flex-wrap gap-2 mt-4">
+                        {/* 버튼 영역 - 길이 정보 바로 다음 */}
+                        <div className="flex flex-wrap gap-2 mt-2">
                         {(script.status === 'pending' || script.status === 'processing') && (
                           <>
                             {script.logs && script.logs.length > 0 && (
@@ -3918,6 +3716,179 @@ export default function MyContentPage() {
                             >
                               🗑️ 삭제
                             </button>
+                          </>
+                        )}
+                        </div>
+
+                        {/* 진행 중 상태 표시 */}
+                        {script.status === 'processing' && (
+                          <>
+                            <div className="mb-3">
+                              <div className="mb-1 flex justify-between text-xs text-slate-400">
+                                <span>대본 생성 중...</span>
+                                <span>{script.progress}%</span>
+                              </div>
+                              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                                <div
+                                  className="h-full bg-emerald-500 transition-all duration-300"
+                                  style={{ width: `${script.progress}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* 로그 표시 */}
+                            {script.logs && script.logs.length > 0 && (
+                              <div
+                                ref={(el) => {
+                                  if (el) {
+                                    scriptLogRefs.current.set(script.id, el);
+                                  } else {
+                                    scriptLogRefs.current.delete(script.id);
+                                  }
+                                }}
+                                className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4"
+                              >
+                                <div className="space-y-1">
+                                  {script.logs.map((log: any, idx: number) => {
+                                    const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                                    // API 사용 여부 감지
+                                    const isUsingAPI = logMessage.includes('Claude API') ||
+                                                      logMessage.includes('API 호출') ||
+                                                      logMessage.includes('Using Claude API') ||
+                                                      logMessage.includes('💰');
+                                    const isUsingLocal = logMessage.includes('로컬 Claude') ||
+                                                        logMessage.includes('Local Claude') ||
+                                                        logMessage.includes('python') ||
+                                                        logMessage.includes('🖥️');
+
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="text-sm text-slate-300 font-mono"
+                                        ref={(el) => {
+                                          // 마지막 로그 항목에만 ref 추가
+                                          if (idx === script.logs!.length - 1 && el) {
+                                            scriptLastLogRefs.current.set(script.id, el);
+                                          }
+                                        }}
+                                      >
+                                        <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                        {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                                        {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                                        {logMessage}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* 대기 중 상태 */}
+                        {script.status === 'pending' && (
+                          <>
+                            <div className="mb-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 p-3 text-sm text-yellow-300">
+                              ⏳ 대본 생성 대기 중...
+                            </div>
+
+                            {/* 로그 표시 (대기 중에도) */}
+                            {script.logs && script.logs.length > 0 && (
+                              <div
+                                ref={(el) => {
+                                  if (el) {
+                                    scriptLogRefs.current.set(script.id, el);
+                                  } else {
+                                    scriptLogRefs.current.delete(script.id);
+                                  }
+                                }}
+                                className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4 mb-3"
+                              >
+                                <div className="space-y-1">
+                                  {script.logs.map((log: any, idx: number) => {
+                                    const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                                    const isUsingAPI = logMessage.includes('Claude API') ||
+                                                      logMessage.includes('API 호출') ||
+                                                      logMessage.includes('Using Claude API') ||
+                                                      logMessage.includes('💰');
+                                    const isUsingLocal = logMessage.includes('로컬 Claude') ||
+                                                        logMessage.includes('Local Claude') ||
+                                                        logMessage.includes('python') ||
+                                                        logMessage.includes('🖥️');
+
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="text-sm text-slate-300 font-mono"
+                                        ref={(el) => {
+                                          if (idx === script.logs!.length - 1 && el) {
+                                            scriptLastLogRefs.current.set(script.id, el);
+                                          }
+                                        }}
+                                      >
+                                        <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                        {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                                        {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                                        {logMessage}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* 에러 상태 */}
+                        {script.error && (
+                          <>
+                            <ErrorMessage message={script.error} />
+
+                            {/* 실패 시 로그 표시 */}
+                            {script.logs && script.logs.length > 0 && (
+                              <div
+                                ref={(el) => {
+                                  if (el) {
+                                    scriptLogRefs.current.set(script.id, el);
+                                  } else {
+                                    scriptLogRefs.current.delete(script.id);
+                                  }
+                                }}
+                                className="max-h-96 overflow-y-auto rounded-lg border border-red-600 bg-slate-900/80 p-4 mb-3"
+                              >
+                                <div className="space-y-1">
+                                  {script.logs.map((log: any, idx: number) => {
+                                    const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                                    const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                                    const isUsingAPI = logMessage.includes('Claude API') ||
+                                                      logMessage.includes('API 호출') ||
+                                                      logMessage.includes('Using Claude API') ||
+                                                      logMessage.includes('💰');
+                                    const isUsingLocal = logMessage.includes('로컬 Claude') ||
+                                                        logMessage.includes('Local Claude') ||
+                                                        logMessage.includes('python') ||
+                                                        logMessage.includes('🖥️');
+
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="text-sm text-slate-300 font-mono"
+                                      >
+                                        <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                        {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                                        {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                                        {logMessage}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </>
                         )}
                         </div>
