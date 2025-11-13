@@ -100,7 +100,8 @@ export function initAutomationTables() {
       ('max_retry', '3', '실패 시 최대 재시도 횟수'),
       ('alert_email', 'moony75@gmail.com', '알림 받을 이메일'),
       ('default_youtube_privacy', 'private', '유튜브 기본 공개 설정'),
-      ('script_generation_mode', 'chrome', '대본 생성 방식 (api 또는 chrome)')
+      ('script_generation_mode', 'chrome', '대본 생성 방식 (api 또는 chrome)'),
+      ('media_generation_mode', 'upload', '미디어 생성 방식 (upload, dalle, imagen3, sora2)')
   `).run();
 
   db.close();

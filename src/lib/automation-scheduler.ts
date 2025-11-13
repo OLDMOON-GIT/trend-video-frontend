@@ -308,18 +308,66 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
 
 // Stage 2: 영상 생성
 async function generateVideo(scriptId: string, pipelineId: string, maxRetry: number) {
+  const settings = getAutomationSettings();
+  const mediaMode = settings.media_generation_mode || 'upload';
+
   let retryCount = 0;
 
   while (retryCount < maxRetry) {
     try {
-      addPipelineLog(pipelineId, 'info', `Generating video (attempt ${retryCount + 1}/${maxRetry})`);
+      addPipelineLog(pipelineId, 'info', `Generating video via ${mediaMode} (attempt ${retryCount + 1}/${maxRetry})`);
 
-      // TODO: 영상 생성 API 호출
-      // 현재는 스크립트에서 영상 생성 버튼을 클릭하는 방식이므로
-      // 자동화를 위해서는 API 엔드포인트가 필요합니다
+      // 미디어 생성 방식에 따라 다른 API 호출
+      const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/videos/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scriptId,
+          mediaMode, // upload, dalle, imagen3, sora2
+          imageSource: mediaMode === 'upload' ? 'none' : mediaMode,
+          videoSource: mediaMode === 'sora2' ? 'sora2' : undefined
+        })
+      });
 
-      // 임시로 성공 반환 (실제로는 API 구현 필요)
-      return { success: true, videoId: `video_${Date.now()}` };
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Video generation failed');
+      }
+
+      const data = await response.json();
+
+      // 작업이 비동기로 처리되는 경우 폴링
+      if (data.jobId) {
+        addPipelineLog(pipelineId, 'info', `Video generation job started: ${data.jobId}`);
+
+        // 작업 완료 대기 (최대 30분)
+        const maxWaitTime = 30 * 60 * 1000; // 30분
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < maxWaitTime) {
+          await new Promise(resolve => setTimeout(resolve, 10000)); // 10초마다 체크
+
+          const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/videos/status/${data.jobId}`);
+          const statusData = await statusRes.json();
+
+          if (statusData.status === 'completed') {
+            addPipelineLog(pipelineId, 'info', `Video generation completed: ${statusData.videoId}`);
+            return { success: true, videoId: statusData.videoId };
+          } else if (statusData.status === 'failed') {
+            throw new Error(`Video generation failed: ${statusData.error}`);
+          }
+
+          // 진행 상황 로그
+          if (statusData.progress) {
+            addPipelineLog(pipelineId, 'info', `Progress: ${statusData.progress}`);
+          }
+        }
+
+        throw new Error('Video generation timeout (30분 초과)');
+      }
+
+      // 즉시 완료되는 경우
+      return { success: true, videoId: data.videoId };
 
     } catch (error: any) {
       retryCount++;

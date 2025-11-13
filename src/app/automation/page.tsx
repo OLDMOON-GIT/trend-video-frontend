@@ -306,8 +306,9 @@ export default function AutomationPage() {
           <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
             <h2 className="text-2xl font-semibold text-white mb-4">자동화 설정</h2>
             <div className="space-y-4">
+              {/* 대본 생성 방식 */}
               <div className="flex items-center gap-4">
-                <label className="text-slate-300 w-48">대본 생성 방식:</label>
+                <label className="text-slate-300 w-48 font-medium">대본 생성 방식:</label>
                 <select
                   value={settings.script_generation_mode || 'chrome'}
                   onChange={(e) => updateSettings({ script_generation_mode: e.target.value })}
@@ -320,6 +321,27 @@ export default function AutomationPage() {
                   {settings.script_generation_mode === 'api'
                     ? 'API를 통해 자동으로 대본을 생성합니다'
                     : '크롬 브라우저를 열어 AI 대본 생성 도구를 사용합니다'}
+                </span>
+              </div>
+
+              {/* 미디어 생성 방식 */}
+              <div className="flex items-center gap-4">
+                <label className="text-slate-300 w-48 font-medium">미디어 생성 방식:</label>
+                <select
+                  value={settings.media_generation_mode || 'upload'}
+                  onChange={(e) => updateSettings({ media_generation_mode: e.target.value })}
+                  className="px-4 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="upload">직접 업로드</option>
+                  <option value="dalle">DALL-E 3</option>
+                  <option value="imagen3">Imagen 3</option>
+                  <option value="sora2">SORA 2</option>
+                </select>
+                <span className="text-xs text-slate-400">
+                  {settings.media_generation_mode === 'upload' && '이미지/영상 파일을 직접 업로드합니다'}
+                  {settings.media_generation_mode === 'dalle' && 'DALL-E 3로 이미지를 자동 생성합니다'}
+                  {settings.media_generation_mode === 'imagen3' && 'Imagen 3로 이미지를 자동 생성합니다'}
+                  {settings.media_generation_mode === 'sora2' && 'SORA 2로 영상을 자동 생성합니다'}
                 </span>
               </div>
             </div>
