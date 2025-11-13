@@ -3073,169 +3073,186 @@ export default function Home() {
                         </div>
                       )}
 
-                      {/* @stable 이미지 드래그앤드롭 순서 조정 (2025-11-13 완성) */}
+                      {/* @stable 이미지+비디오 통합 드래그앤드롭 순서 조정 (2025-11-13 완성) */}
                       {/* STABLE FEATURE: 완성된 기능 - 개선 요청 없이 수정 금지 */}
-                      {/* ⚠️ CRITICAL FEATURE - DO NOT REMOVE: 이미지 드래그 앤 드롭 순서 조정 */}
-                      {/* 이미지 파일 표시 - 큰 카드 썸네일 미리보기 + 드래그앤드롭 */}
-                      {uploadedImages.length > 0 && (
-                        <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
-                          <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
-                            <span>💡</span>
-                            <span>드래그하여 순서를 변경하세요</span>
-                          </p>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
-                            {uploadedImages.map((img, idx) => (
-                              <div
-                                key={idx}
-                                draggable
-                                onDragStart={(e) => {
-                                  e.dataTransfer.effectAllowed = 'move';
-                                  e.dataTransfer.setData('text/plain', idx.toString());
-                                  (e.currentTarget as HTMLElement).style.opacity = '0.5';
-                                }}
-                                onDragEnd={(e) => {
-                                  (e.currentTarget as HTMLElement).style.opacity = '1';
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.dataTransfer.dropEffect = 'move';
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-                                  const toIdx = idx;
-                                  if (fromIdx === toIdx) return;
+                      {/* ⚠️ CRITICAL FEATURE - DO NOT REMOVE: 이미지+비디오 통합 드래그 앤 드롭 순서 조정 */}
+                      {(uploadedImages.length > 0 || uploadedVideos.length > 0) && (() => {
+                        // 시퀀스 번호 추출 함수 (파일명에서 숫자 추출)
+                        const extractSequence = (filename: string): number | null => {
+                          // scene_01, 001_, _01_ 같은 패턴에서 숫자 추출
+                          const match = filename.match(/(?:scene[_-]?|^)(\d+)/i);
+                          return match ? parseInt(match[1], 10) : null;
+                        };
 
+                        // 이미지와 비디오를 하나의 통합 배열로 합침
+                        let combinedMedia: Array<{type: 'image' | 'video'; file: File; originalIndex: number; sourceArray: 'images' | 'videos'}> = [
+                          ...uploadedImages.map((file, idx) => ({ type: 'image' as const, file, originalIndex: idx, sourceArray: 'images' as const })),
+                          ...uploadedVideos.map((file, idx) => ({ type: 'video' as const, file, originalIndex: idx, sourceArray: 'videos' as const }))
+                        ];
+
+                        // 정렬: 시퀀스 번호 우선 → 오래된 순 (lastModified)
+                        combinedMedia = combinedMedia.sort((a, b) => {
+                          const seqA = extractSequence(a.file.name);
+                          const seqB = extractSequence(b.file.name);
+
+                          // 둘 다 시퀀스 번호가 있으면 시퀀스 순으로 정렬
+                          if (seqA !== null && seqB !== null) {
+                            return seqA - seqB;
+                          }
+
+                          // 하나만 시퀀스 번호가 있으면 그것을 우선
+                          if (seqA !== null) return -1;
+                          if (seqB !== null) return 1;
+
+                          // 둘 다 시퀀스 번호가 없으면 오래된 순 (작은 타임스탬프가 먼저)
+                          return a.file.lastModified - b.file.lastModified;
+                        });
+
+                        return (
+                          <div
+                            className="rounded-lg bg-slate-800/50 p-4 border border-slate-700"
+                            onDragOver={(e) => {
+                              // 파일 드롭 허용
+                              if (e.dataTransfer.types.includes('Files')) {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'copy';
+                              }
+                            }}
+                            onDrop={(e) => {
+                              // 파일 드롭 처리
+                              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                const files = Array.from(e.dataTransfer.files);
+                                const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                                const videoFiles = files.filter(f => f.type.startsWith('video/'));
+
+                                if (imageFiles.length > 0) {
                                   setUploadedImages(prev => {
-                                    const newArr = [...prev];
-                                    const [movedItem] = newArr.splice(fromIdx, 1);
-                                    newArr.splice(toIdx, 0, movedItem);
-                                    return newArr;
+                                    const existingNames = new Set(prev.map(f => f.name));
+                                    const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
+                                    return [...prev, ...newFiles].slice(0, 50);
                                   });
-                                }}
-                                className="relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 hover:border-blue-500 transition-all"
-                              >
-                                {/* 썸네일 이미지 */}
-                                <div className="aspect-[3/4] relative bg-black">
-                                  <img
-                                    src={URL.createObjectURL(img)}
-                                    alt={img.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  {/* 드래그 핸들 */}
-                                  <div className="absolute top-2 left-2 bg-black/70 text-white p-2 rounded cursor-move">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
-                                      <path d="M2 4h12v1H2V4zm0 3.5h12v1H2v-1zM2 11h12v1H2v-1z"/>
-                                    </svg>
-                                  </div>
-                                  {/* 삭제 버튼 */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setUploadedImages(prev => prev.filter((_, i) => i !== idx));
-                                    }}
-                                    className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
-                                    title="삭제"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                                {/* 파일 정보 */}
-                                <div className="p-3 bg-slate-800/80">
-                                  <p className="text-sm text-slate-200 truncate mb-1">{img.name}</p>
-                                  <p className="text-xs text-slate-400">
-                                    {(img.size / 1024).toFixed(1)} KB • 이미지
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* @stable 비디오 드래그앤드롭 순서 조정 (2025-11-13 완성) */}
-                      {/* STABLE FEATURE: 완성된 기능 - 개선 요청 없이 수정 금지 */}
-                      {/* ⚠️ CRITICAL FEATURE - DO NOT REMOVE: 비디오 드래그 앤 드롭 순서 조정 */}
-                      {/* 비디오 파일 표시 - 큰 카드 썸네일 미리보기 + 드래그앤드롭 */}
-                      {uploadedVideos.length > 0 && (
-                        <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
-                          <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
-                            <span>💡</span>
-                            <span>드래그하여 순서를 변경하세요</span>
-                          </p>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
-                            {uploadedVideos.map((vid, idx) => (
-                              <div
-                                key={idx}
-                                draggable
-                                onDragStart={(e) => {
-                                  e.dataTransfer.effectAllowed = 'move';
-                                  e.dataTransfer.setData('text/plain', idx.toString());
-                                  (e.currentTarget as HTMLElement).style.opacity = '0.5';
-                                }}
-                                onDragEnd={(e) => {
-                                  (e.currentTarget as HTMLElement).style.opacity = '1';
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.dataTransfer.dropEffect = 'move';
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-                                  const toIdx = idx;
-                                  if (fromIdx === toIdx) return;
-
+                                }
+                                if (videoFiles.length > 0) {
                                   setUploadedVideos(prev => {
-                                    const newArr = [...prev];
-                                    const [movedItem] = newArr.splice(fromIdx, 1);
-                                    newArr.splice(toIdx, 0, movedItem);
-                                    return newArr;
+                                    const existingNames = new Set(prev.map(f => f.name));
+                                    const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
+                                    return [...prev, ...newFiles];
                                   });
-                                }}
-                                className="relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 hover:border-orange-500 transition-all"
-                              >
-                                {/* 비디오 썸네일 */}
-                                <div className="aspect-[3/4] relative bg-black">
-                                  <video
-                                    src={URL.createObjectURL(vid)}
-                                    className="w-full h-full object-cover"
-                                    muted
-                                    playsInline
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                    <div className="text-5xl text-white/80">▶</div>
+                                }
+                              }
+                            }}
+                          >
+                            <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
+                              <span>💡</span>
+                              <span>이미지와 비디오를 드래그하여 순서를 변경하세요 (여기에 파일을 드롭해도 추가됩니다)</span>
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
+                              {combinedMedia.map((item, globalIdx) => (
+                                <div
+                                  key={`${item.sourceArray}-${item.originalIndex}`}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    e.dataTransfer.setData('application/x-card-index', globalIdx.toString());
+                                    (e.currentTarget as HTMLElement).style.opacity = '0.5';
+                                  }}
+                                  onDragEnd={(e) => {
+                                    (e.currentTarget as HTMLElement).style.opacity = '1';
+                                  }}
+                                  onDragOver={(e) => {
+                                    // 카드 드래그인 경우 (커스텀 타입 확인)
+                                    if (e.dataTransfer.types.includes('application/x-card-index')) {
+                                      e.preventDefault();
+                                      e.dataTransfer.dropEffect = 'move';
+                                      return;
+                                    }
+                                    // 파일 드롭인 경우 상위로 전달
+                                  }}
+                                  onDrop={(e) => {
+                                    // 카드 드래그인지 확인
+                                    const cardIndex = e.dataTransfer.getData('application/x-card-index');
+                                    if (!cardIndex) {
+                                      // 파일 드롭이므로 상위로 전달
+                                      return;
+                                    }
+
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const fromIdx = parseInt(cardIndex);
+                                    const toIdx = globalIdx;
+                                    if (isNaN(fromIdx) || fromIdx === toIdx) return;
+
+                                    // 통합 배열에서 순서 변경
+                                    const newCombined = [...combinedMedia];
+                                    const [movedItem] = newCombined.splice(fromIdx, 1);
+                                    newCombined.splice(toIdx, 0, movedItem);
+
+                                    // 변경된 통합 배열을 다시 이미지/비디오 배열로 분리
+                                    const newImages = newCombined.filter(m => m.type === 'image').map(m => m.file);
+                                    const newVideos = newCombined.filter(m => m.type === 'video').map(m => m.file);
+
+                                    setUploadedImages(newImages);
+                                    setUploadedVideos(newVideos);
+                                  }}
+                                  className={`relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 transition-all ${
+                                    item.type === 'image' ? 'hover:border-blue-500' : 'hover:border-orange-500'
+                                  }`}
+                                >
+                                  <div className={`${promptFormat === 'longform' ? 'aspect-video' : 'aspect-[9/16]'} relative bg-black`}>
+                                    {item.type === 'image' ? (
+                                      <img
+                                        src={URL.createObjectURL(item.file)}
+                                        alt={item.file.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <>
+                                        <video
+                                          src={URL.createObjectURL(item.file)}
+                                          className="w-full h-full object-cover"
+                                          muted
+                                          playsInline
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                          <div className="text-5xl text-white/80">▶</div>
+                                        </div>
+                                      </>
+                                    )}
+                                    <div className="absolute top-2 left-2 bg-black/70 text-white p-2 rounded cursor-move">
+                                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M2 4h12v1H2V4zm0 3.5h12v1H2v-1zM2 11h12v1H2v-1z"/>
+                                      </svg>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (item.type === 'image') {
+                                          setUploadedImages(prev => prev.filter(f => f !== item.file));
+                                        } else {
+                                          setUploadedVideos(prev => prev.filter(f => f !== item.file));
+                                        }
+                                      }}
+                                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
+                                      title="삭제"
+                                    >
+                                      ✕
+                                    </button>
                                   </div>
-                                  {/* 드래그 핸들 */}
-                                  <div className="absolute top-2 left-2 bg-black/70 text-white p-2 rounded cursor-move">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
-                                      <path d="M2 4h12v1H2V4zm0 3.5h12v1H2v-1zM2 11h12v1H2v-1z"/>
-                                    </svg>
+                                  <div className="p-3 bg-slate-800/80">
+                                    <p className="text-sm text-slate-200 truncate mb-1">{item.file.name}</p>
+                                    <p className="text-xs text-slate-400">
+                                      {(item.file.size / 1024).toFixed(1)} KB • {item.type === 'image' ? '이미지' : '비디오'}
+                                    </p>
                                   </div>
-                                  {/* 삭제 버튼 */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
-                                    }}
-                                    className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
-                                    title="삭제"
-                                  >
-                                    ✕
-                                  </button>
                                 </div>
-                                {/* 파일 정보 */}
-                                <div className="p-3 bg-slate-800/80">
-                                  <p className="text-sm text-slate-200 truncate mb-1">{vid.name}</p>
-                                  <p className="text-xs text-slate-400">
-                                    {(vid.size / 1024).toFixed(1)} KB • 비디오
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       <div className="flex gap-2">
                         <label className={`rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition ${
@@ -3663,155 +3680,151 @@ export default function Home() {
                           </span>
                         </div>
                       )}
-                      {uploadedImages.length > 0 && (
-                        <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
-                          <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
-                            <span>💡</span>
-                            <span>드래그하여 순서를 변경하세요</span>
-                            {uploadedImages.length < 50 && (
-                              <span className="text-xs text-amber-400 ml-auto">(최대 50개)</span>
-                            )}
-                          </p>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
-                            {uploadedImages.map((img, idx) => (
-                              <div
-                                key={idx}
-                                draggable
-                                onDragStart={(e) => {
-                                  e.dataTransfer.effectAllowed = 'move';
-                                  e.dataTransfer.setData('text/plain', idx.toString());
-                                  (e.currentTarget as HTMLElement).style.opacity = '0.5';
-                                }}
-                                onDragEnd={(e) => {
-                                  (e.currentTarget as HTMLElement).style.opacity = '1';
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.dataTransfer.dropEffect = 'move';
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-                                  const toIdx = idx;
-                                  if (fromIdx === toIdx) return;
+                      {(uploadedImages.length > 0 || uploadedVideos.length > 0) && (() => {
+                        // 시퀀스 번호 추출 함수 (파일명에서 숫자 추출)
+                        const extractSequence = (filename: string): number | null => {
+                          // scene_01, 001_, _01_ 같은 패턴에서 숫자 추출
+                          const match = filename.match(/(?:scene[_-]?|^)(\d+)/i);
+                          return match ? parseInt(match[1], 10) : null;
+                        };
 
-                                  setUploadedImages(prev => {
-                                    const newArr = [...prev];
-                                    const [movedItem] = newArr.splice(fromIdx, 1);
-                                    newArr.splice(toIdx, 0, movedItem);
-                                    return newArr;
-                                  });
-                                }}
-                                className="relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 hover:border-blue-500 transition-all"
-                              >
-                                <div className="aspect-[3/4] relative bg-black">
-                                  <img
-                                    src={URL.createObjectURL(img)}
-                                    alt={img.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute top-2 left-2 bg-black/70 text-white p-2 rounded cursor-move">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
-                                      <path d="M2 4h12v1H2V4zm0 3.5h12v1H2v-1zM2 11h12v1H2v-1z"/>
-                                    </svg>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setUploadedImages(prev => prev.filter((_, i) => i !== idx));
-                                    }}
-                                    className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
-                                    title="삭제"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                                <div className="p-3 bg-slate-800/80">
-                                  <p className="text-sm text-slate-200 truncate mb-1">{img.name}</p>
-                                  <p className="text-xs text-slate-400">
-                                    {(img.size / 1024).toFixed(1)} KB • 이미지
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {uploadedVideos.length > 0 && (
-                        <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
-                          <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
-                            <span>💡</span>
-                            <span>드래그하여 순서를 변경하세요</span>
-                          </p>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
-                            {uploadedVideos.map((vid, idx) => (
-                              <div
-                                key={idx}
-                                draggable
-                                onDragStart={(e) => {
-                                  e.dataTransfer.effectAllowed = 'move';
-                                  e.dataTransfer.setData('text/plain', idx.toString());
-                                  (e.currentTarget as HTMLElement).style.opacity = '0.5';
-                                }}
-                                onDragEnd={(e) => {
-                                  (e.currentTarget as HTMLElement).style.opacity = '1';
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.dataTransfer.dropEffect = 'move';
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-                                  const toIdx = idx;
-                                  if (fromIdx === toIdx) return;
+                        // 이미지와 비디오를 하나의 통합 배열로 합침
+                        let combinedMedia: Array<{type: 'image' | 'video'; file: File; originalIndex: number; sourceArray: 'images' | 'videos'}> = [
+                          ...uploadedImages.map((file, idx) => ({ type: 'image' as const, file, originalIndex: idx, sourceArray: 'images' as const })),
+                          ...uploadedVideos.map((file, idx) => ({ type: 'video' as const, file, originalIndex: idx, sourceArray: 'videos' as const }))
+                        ];
 
-                                  setUploadedVideos(prev => {
-                                    const newArr = [...prev];
-                                    const [movedItem] = newArr.splice(fromIdx, 1);
-                                    newArr.splice(toIdx, 0, movedItem);
-                                    return newArr;
-                                  });
-                                }}
-                                className="relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 hover:border-orange-500 transition-all"
-                              >
-                                <div className="aspect-[3/4] relative bg-black">
-                                  <video
-                                    src={URL.createObjectURL(vid)}
-                                    className="w-full h-full object-cover"
-                                    muted
-                                    playsInline
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                    <div className="text-5xl text-white/80">▶</div>
+                        // 정렬: 시퀀스 번호 우선 → 오래된 순 (lastModified)
+                        combinedMedia = combinedMedia.sort((a, b) => {
+                          const seqA = extractSequence(a.file.name);
+                          const seqB = extractSequence(b.file.name);
+
+                          // 둘 다 시퀀스 번호가 있으면 시퀀스 순으로 정렬
+                          if (seqA !== null && seqB !== null) {
+                            return seqA - seqB;
+                          }
+
+                          // 하나만 시퀀스 번호가 있으면 그것을 우선
+                          if (seqA !== null) return -1;
+                          if (seqB !== null) return 1;
+
+                          // 둘 다 시퀀스 번호가 없으면 오래된 순 (작은 타임스탬프가 먼저)
+                          return a.file.lastModified - b.file.lastModified;
+                        });
+
+                        return (
+                          <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
+                            <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
+                              <span>💡</span>
+                              <span>이미지와 비디오를 드래그하여 순서를 변경하세요</span>
+                              {uploadedImages.length < 50 && (
+                                <span className="text-xs text-amber-400 ml-auto">(이미지 최대 50개)</span>
+                              )}
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
+                              {combinedMedia.map((item, globalIdx) => (
+                                <div
+                                  key={`${item.sourceArray}-${item.originalIndex}`}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    e.dataTransfer.setData('application/x-card-index', globalIdx.toString());
+                                    (e.currentTarget as HTMLElement).style.opacity = '0.5';
+                                  }}
+                                  onDragEnd={(e) => {
+                                    (e.currentTarget as HTMLElement).style.opacity = '1';
+                                  }}
+                                  onDragOver={(e) => {
+                                    // 카드 드래그인 경우 (커스텀 타입 확인)
+                                    if (e.dataTransfer.types.includes('application/x-card-index')) {
+                                      e.preventDefault();
+                                      e.dataTransfer.dropEffect = 'move';
+                                      return;
+                                    }
+                                    // 파일 드롭인 경우 상위로 전달
+                                  }}
+                                  onDrop={(e) => {
+                                    // 카드 드래그인지 확인
+                                    const cardIndex = e.dataTransfer.getData('application/x-card-index');
+                                    if (!cardIndex) {
+                                      // 파일 드롭이므로 상위로 전달
+                                      return;
+                                    }
+
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const fromIdx = parseInt(cardIndex);
+                                    const toIdx = globalIdx;
+                                    if (isNaN(fromIdx) || fromIdx === toIdx) return;
+
+                                    // 통합 배열에서 순서 변경
+                                    const newCombined = [...combinedMedia];
+                                    const [movedItem] = newCombined.splice(fromIdx, 1);
+                                    newCombined.splice(toIdx, 0, movedItem);
+
+                                    // 변경된 통합 배열을 다시 이미지/비디오 배열로 분리
+                                    const newImages = newCombined.filter(m => m.type === 'image').map(m => m.file);
+                                    const newVideos = newCombined.filter(m => m.type === 'video').map(m => m.file);
+
+                                    setUploadedImages(newImages);
+                                    setUploadedVideos(newVideos);
+                                  }}
+                                  className={`relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 transition-all ${
+                                    item.type === 'image' ? 'hover:border-blue-500' : 'hover:border-orange-500'
+                                  }`}
+                                >
+                                  <div className={`${promptFormat === 'longform' ? 'aspect-video' : 'aspect-[9/16]'} relative bg-black`}>
+                                    {item.type === 'image' ? (
+                                      <img
+                                        src={URL.createObjectURL(item.file)}
+                                        alt={item.file.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <>
+                                        <video
+                                          src={URL.createObjectURL(item.file)}
+                                          className="w-full h-full object-cover"
+                                          muted
+                                          playsInline
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                          <div className="text-5xl text-white/80">▶</div>
+                                        </div>
+                                      </>
+                                    )}
+                                    <div className="absolute top-2 left-2 bg-black/70 text-white p-2 rounded cursor-move">
+                                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M2 4h12v1H2V4zm0 3.5h12v1H2v-1zM2 11h12v1H2v-1z"/>
+                                      </svg>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (item.type === 'image') {
+                                          setUploadedImages(prev => prev.filter(f => f !== item.file));
+                                        } else {
+                                          setUploadedVideos(prev => prev.filter(f => f !== item.file));
+                                        }
+                                      }}
+                                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
+                                      title="삭제"
+                                    >
+                                      ✕
+                                    </button>
                                   </div>
-                                  <div className="absolute top-2 left-2 bg-black/70 text-white p-2 rounded cursor-move">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
-                                      <path d="M2 4h12v1H2V4zm0 3.5h12v1H2v-1zM2 11h12v1H2v-1z"/>
-                                    </svg>
+                                  <div className="p-3 bg-slate-800/80">
+                                    <p className="text-sm text-slate-200 truncate mb-1">{item.file.name}</p>
+                                    <p className="text-xs text-slate-400">
+                                      {(item.file.size / 1024).toFixed(1)} KB • {item.type === 'image' ? '이미지' : '비디오'}
+                                    </p>
                                   </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
-                                    }}
-                                    className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
-                                    title="삭제"
-                                  >
-                                    ✕
-                                  </button>
                                 </div>
-                                <div className="p-3 bg-slate-800/80">
-                                  <p className="text-sm text-slate-200 truncate mb-1">{vid.name}</p>
-                                  <p className="text-xs text-slate-400">
-                                    {(vid.size / 1024).toFixed(1)} KB • 비디오
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                       <div className="flex gap-2 pt-2">
                         <label className={`flex-1 rounded-lg bg-purple-600 px-4 py-2 text-center text-sm font-semibold text-white transition ${
                           isGeneratingVideo
