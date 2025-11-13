@@ -10,20 +10,17 @@ export default function AutomationPage() {
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
   const [titles, setTitles] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [newTitle, setNewTitle] = useState({ title: '', type: 'shortform', category: '', tags: '', productUrl: '' });
-  const [selectedTitleId, setSelectedTitleId] = useState('');
-  const [scheduledTime, setScheduledTime] = useState('');
-  const [youtubePublishTime, setYoutubePublishTime] = useState('');
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [newTitle, setNewTitle] = useState({ title: '', type: 'longform', category: '', tags: '', productUrl: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
 
   useEffect(() => {
     fetchData();
 
-    // URL 파라미터로 titleId가 있으면 자동으로 스케줄 폼 열기
+    // URL 파라미터로 titleId가 있으면 자동으로 수정 모드
     const titleId = searchParams.get('titleId');
     if (titleId) {
-      setSelectedTitleId(titleId);
-      setShowScheduleForm(true);
+      setEditingId(titleId);
     }
   }, [searchParams]);
 
@@ -83,7 +80,7 @@ export default function AutomationPage() {
 
       if (!response.ok) throw new Error('Failed to add title');
 
-      setNewTitle({ title: '', type: 'shortform', category: '', tags: '', productUrl: '' });
+      setNewTitle({ title: '', type: 'longform', category: '', tags: '', productUrl: '' });
       await fetchData();
       alert('제목 추가 완료');
     } catch (error) {
@@ -108,35 +105,6 @@ export default function AutomationPage() {
     }
   }
 
-  async function addSchedule() {
-    if (!selectedTitleId || !scheduledTime) {
-      alert('제목과 예약 시간은 필수입니다');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/automation/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          titleId: selectedTitleId,
-          scheduledTime,
-          youtubePublishTime: youtubePublishTime || null
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to add schedule');
-
-      setSelectedTitleId('');
-      setScheduledTime('');
-      setYoutubePublishTime('');
-      await fetchData();
-      alert('스케줄 추가 완료');
-    } catch (error) {
-      alert('스케줄 추가 실패');
-    }
-  }
-
   async function deleteSchedule(id: string) {
     if (!confirm('정말 삭제하시겠습니까?')) return;
 
@@ -156,6 +124,63 @@ export default function AutomationPage() {
 
   function viewPipelineDetails(scheduleId: string) {
     router.push(`/automation/pipeline/${scheduleId}`);
+  }
+
+  function startEdit(title: any) {
+    const titleSchedules = schedules.filter(s => s.title_id === title.id);
+    setEditingId(title.id);
+    setEditForm({
+      ...title,
+      schedules: titleSchedules
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm({});
+  }
+
+  async function saveEdit() {
+    try {
+      // 제목 업데이트
+      await fetch('/api/automation/titles', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editForm.id,
+          title: editForm.title,
+          category: editForm.category,
+          tags: editForm.tags
+        })
+      });
+
+      alert('저장 완료');
+      cancelEdit();
+      await fetchData();
+    } catch (error) {
+      alert('저장 실패');
+    }
+  }
+
+  async function addScheduleToTitle(titleId: string, scheduledTime: string, youtubePublishTime?: string) {
+    try {
+      const response = await fetch('/api/automation/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titleId,
+          scheduledTime,
+          youtubePublishTime: youtubePublishTime || null
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to add schedule');
+
+      await fetchData();
+      alert('스케줄 추가 완료');
+    } catch (error) {
+      alert('스케줄 추가 실패');
+    }
   }
 
   if (loading) {
@@ -186,11 +211,6 @@ export default function AutomationPage() {
               {schedulerStatus?.isRunning ? '중지' : '시작'}
             </button>
           </div>
-          <div className="mt-4 text-sm text-slate-400">
-            <p>체크 간격: {schedulerStatus?.settings?.check_interval || 60}초</p>
-            <p>최대 재시도: {schedulerStatus?.settings?.max_retry || 3}회</p>
-            <p>알림 이메일: {schedulerStatus?.settings?.alert_email || 'moony75@gmail.com'}</p>
-          </div>
         </div>
 
         {/* 제목 리스트 관리 */}
@@ -201,7 +221,6 @@ export default function AutomationPage() {
           <div className="mb-6 p-4 bg-slate-700 rounded-lg">
             <h3 className="text-lg font-semibold text-white mb-3">새 제목 추가</h3>
             <div className="space-y-4 mb-4">
-              {/* 제목 입력 - 전체 너비 */}
               <input
                 type="text"
                 placeholder="제목"
@@ -210,15 +229,14 @@ export default function AutomationPage() {
                 className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
               />
 
-              {/* 타입, 카테고리, 태그 - 그리드 */}
               <div className="grid grid-cols-3 gap-4">
                 <select
                   value={newTitle.type}
                   onChange={(e) => setNewTitle({ ...newTitle, type: e.target.value })}
                   className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                 >
-                  <option value="shortform">숏폼</option>
                   <option value="longform">롱폼</option>
+                  <option value="shortform">숏폼</option>
                   <option value="product">상품</option>
                 </select>
                 <input
@@ -237,7 +255,6 @@ export default function AutomationPage() {
                 />
               </div>
 
-              {/* 상품 URL - product 타입일 때만 표시 */}
               {newTitle.type === 'product' && (
                 <input
                   type="url"
@@ -257,123 +274,145 @@ export default function AutomationPage() {
           </div>
 
           {/* 제목 리스트 */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             {titles.length === 0 ? (
               <p className="text-slate-400">등록된 제목이 없습니다</p>
             ) : (
-              titles.map((title) => (
-                <div key={title.id} className="p-4 bg-slate-700 rounded-lg flex justify-between items-center">
-                  <div className="flex-1">
-                    <h4 className="text-white font-semibold">{title.title}</h4>
+              titles.map((title) => {
+                const titleSchedules = schedules.filter(s => s.title_id === title.id);
+                const isEditing = editingId === title.id;
+
+                if (isEditing) {
+                  return (
+                    <div key={title.id} className="p-4 bg-slate-700 rounded-lg border-2 border-blue-500">
+                      {/* 제목 수정 폼 */}
+                      <h3 className="text-white font-semibold mb-3">제목 수정</h3>
+                      <div className="space-y-3 mb-4">
+                        <input
+                          type="text"
+                          value={editForm.title || ''}
+                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                          className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                        />
+                        <div className="grid grid-cols-2 gap-4">
+                          <input
+                            type="text"
+                            placeholder="카테고리"
+                            value={editForm.category || ''}
+                            onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                            className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                          />
+                          <input
+                            type="text"
+                            placeholder="태그"
+                            value={editForm.tags || ''}
+                            onChange={(e) => setEditForm({ ...editForm, tags: e.target.value })}
+                            className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 스케줄 목록 */}
+                      {titleSchedules.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-sm text-slate-300 font-semibold mb-2">스케줄:</h4>
+                          {titleSchedules.map(schedule => (
+                            <div key={schedule.id} className="bg-slate-600 rounded p-2 mb-2 flex justify-between items-center">
+                              <div className="text-xs text-slate-200">
+                                {new Date(schedule.scheduled_time).toLocaleString('ko-KR')}
+                              </div>
+                              <button
+                                onClick={() => deleteSchedule(schedule.id)}
+                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 스케줄 추가 */}
+                      <div className="mb-4">
+                        <h4 className="text-sm text-slate-300 font-semibold mb-2">스케줄 추가:</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          <input
+                            type="datetime-local"
+                            id="newScheduleTime"
+                            className="px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+                          />
+                          <input
+                            type="datetime-local"
+                            id="newYoutubeTime"
+                            placeholder="유튜브 공개 (선택)"
+                            className="px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+                          />
+                          <button
+                            onClick={() => {
+                              const scheduleTime = (document.getElementById('newScheduleTime') as HTMLInputElement).value;
+                              const youtubeTime = (document.getElementById('newYoutubeTime') as HTMLInputElement).value;
+                              if (!scheduleTime) {
+                                alert('실행 시간 입력 필요');
+                                return;
+                              }
+                              addScheduleToTitle(title.id, scheduleTime, youtubeTime);
+                              (document.getElementById('newScheduleTime') as HTMLInputElement).value = '';
+                              (document.getElementById('newYoutubeTime') as HTMLInputElement).value = '';
+                            }}
+                            className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm font-semibold"
+                          >
+                            + 추가
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 버튼 */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={saveEdit}
+                          className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition"
+                        >
+                          저장
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="flex-1 px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={() => deleteTitle(title.id)}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={title.id}
+                    onClick={() => startEdit(title)}
+                    className="p-4 bg-slate-700 rounded-lg hover:bg-slate-650 cursor-pointer transition"
+                  >
+                    <h4 className="text-white font-semibold text-lg">{title.title}</h4>
                     <p className="text-sm text-slate-400">
-                      타입: {title.type} | 상태: {title.status}
-                      {title.category && ` | 카테고리: ${title.category}`}
+                      {title.type} | {title.status}
+                      {title.category && ` | ${title.category}`}
                     </p>
                     {title.product_url && (
-                      <p className="text-xs text-blue-400 mt-1">
-                        🔗 {title.product_url}
+                      <p className="text-xs text-blue-400 mt-1">🔗 {title.product_url}</p>
+                    )}
+                    {titleSchedules.length > 0 && (
+                      <p className="text-xs text-green-400 mt-2">
+                        📅 스케줄 {titleSchedules.length}개
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => deleteTitle(title.id)}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm transition"
-                  >
-                    삭제
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* 스케줄 관리 */}
-        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <h2 className="text-2xl font-semibold text-white mb-4">스케줄 관리</h2>
-
-          {/* 스케줄 추가 폼 */}
-          <div className="mb-6 p-4 bg-slate-700 rounded-lg">
-            <h3 className="text-lg font-semibold text-white mb-3">새 스케줄 추가</h3>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <select
-                value={selectedTitleId}
-                onChange={(e) => setSelectedTitleId(e.target.value)}
-                className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-              >
-                <option value="">제목 선택</option>
-                {titles.filter(t => t.status === 'pending').map((title) => (
-                  <option key={title.id} value={title.id}>
-                    {title.title} ({title.type})
-                  </option>
-                ))}
-              </select>
-              <input
-                type="datetime-local"
-                value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-                className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                placeholder="실행 시간"
-              />
-              <input
-                type="datetime-local"
-                value={youtubePublishTime}
-                onChange={(e) => setYoutubePublishTime(e.target.value)}
-                className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                placeholder="유튜브 공개 시간 (선택)"
-              />
-            </div>
-            <button
-              onClick={addSchedule}
-              className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-semibold transition"
-            >
-              스케줄 추가
-            </button>
-          </div>
-
-          {/* 스케줄 리스트 */}
-          <div className="space-y-2">
-            {schedules.length === 0 ? (
-              <p className="text-slate-400">등록된 스케줄이 없습니다</p>
-            ) : (
-              schedules.map((schedule) => (
-                <div key={schedule.id} className="p-4 bg-slate-700 rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 className="text-white font-semibold">{schedule.title}</h4>
-                      <p className="text-sm text-slate-400">
-                        타입: {schedule.type} | 상태: <span className={`font-semibold ${
-                          schedule.status === 'completed' ? 'text-green-400' :
-                          schedule.status === 'failed' ? 'text-red-400' :
-                          schedule.status === 'processing' ? 'text-yellow-400' :
-                          'text-slate-400'
-                        }`}>{schedule.status}</span>
-                      </p>
-                      <p className="text-sm text-slate-400">
-                        예약: {new Date(schedule.scheduled_time).toLocaleString('ko-KR')}
-                      </p>
-                      {schedule.youtube_publish_time && (
-                        <p className="text-sm text-slate-400">
-                          공개: {new Date(schedule.youtube_publish_time).toLocaleString('ko-KR')}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => viewPipelineDetails(schedule.id)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition"
-                      >
-                        상세
-                      </button>
-                      <button
-                        onClick={() => deleteSchedule(schedule.id)}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm transition"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
