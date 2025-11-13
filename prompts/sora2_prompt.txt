@@ -261,7 +261,7 @@
       "word_count": 50,
       "format": "9:16 vertical",
       "hook_type": "shocking/jaw-dropping",
-      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [충격적이고 강렬한 오프닝 - 즉시 시선 사로잡기], full vertical composition with subject centered, [극적인 슬로우 모션 충격 장면], dramatic golden hour lighting with high contrast, slowly pushing in intensely, shocking and jaw-dropping mood, shot on 35mm film, shallow depth of field, intense bokeh, bold and striking color palette, mobile-optimized framing",
+      "sora_prompt": "Korean cinematic film, Vertical 9:16 format, portrait orientation, [충격적이고 강렬한 오프닝 - 즉시 시선 사로잡기], full vertical composition with subject centered, [극적인 슬로우 모션 충격 장면], dramatic golden hour lighting with high contrast, slowly pushing in intensely, shocking and jaw-dropping mood, shot on 35mm film, shallow depth of field, intense bokeh, bold and striking color palette, mobile-optimized framing",
       "narration": "[구체적이고 충격적인 첫 문장 - 약 50자]",
       "technical_specs": {
         "resolution": "1080x1920",
@@ -290,7 +290,7 @@
       "word_count": 150,
       "format": "9:16 vertical",
       "key_emotion": "dreamy/nostalgic/emotional",
-      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [감정적이고 몰입되는 장면], full vertical composition with subject centered, [부드러운 슬로우 모션으로 감정 표현], soft golden hour lighting with dreamy atmosphere, slowly tracking smoothly, nostalgic and emotional mood, shot on 35mm film, shallow depth of field, soft bokeh, warm color palette, mobile-optimized framing",
+      "sora_prompt": "Korean cinematic film, Vertical 9:16 format, portrait orientation, [감정적이고 몰입되는 장면], full vertical composition with subject centered, [부드러운 슬로우 모션으로 감정 표현], soft golden hour lighting with dreamy atmosphere, slowly tracking smoothly, nostalgic and emotional mood, shot on 35mm film, shallow depth of field, soft bokeh, warm color palette, mobile-optimized framing",
       "narration": "[감정 이입을 유도하는 스토리 전개 - 약 150자]",
       "technical_specs": {
         "resolution": "1080x1920",
@@ -319,7 +319,7 @@
       "word_count": 150,
       "format": "9:16 vertical",
       "key_emotion": "shocking/mind-blowing/unexpected",
-      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [완전 예상 밖 반전 - WTF 순간], full vertical composition with subject centered, [믿을 수 없는 슬로우 모션 반전], sudden dramatic lighting shift, slowly orbiting with tension, mind-blowing and unbelievable mood, shot on 35mm film, shallow depth of field, dreamy bokeh, unexpected contrasting color palette, mobile-optimized framing",
+      "sora_prompt": "Korean cinematic film, Vertical 9:16 format, portrait orientation, [완전 예상 밖 반전 - WTF 순간], full vertical composition with subject centered, [믿을 수 없는 슬로우 모션 반전], sudden dramatic lighting shift, slowly orbiting with tension, mind-blowing and unbelievable mood, shot on 35mm film, shallow depth of field, dreamy bokeh, unexpected contrasting color palette, mobile-optimized framing",
       "narration": "[예상 못한 반전을 드러내는 문장 - 약 150자]",
       "technical_specs": {
         "resolution": "1080x1920",
@@ -348,7 +348,7 @@
       "word_count": 150,
       "format": "9:16 vertical",
       "key_emotion": "addictive/satisfying/rewarding",
-      "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [중독성 있는 마무리 - 반복 시청 유도], full vertical composition with subject centered, [만족스러운 슬로우 모션 페이오프], satisfying magical lighting, slowly pulling away with satisfaction, addictive and rewarding mood, shot on 35mm film, shallow depth of field, mesmerizing bokeh, satisfying and vibrant color palette, mobile-optimized framing",
+      "sora_prompt": "Korean cinematic film, Vertical 9:16 format, portrait orientation, [중독성 있는 마무리 - 반복 시청 유도], full vertical composition with subject centered, [만족스러운 슬로우 모션 페이오프], satisfying magical lighting, slowly pulling away with satisfaction, addictive and rewarding mood, shot on 35mm film, shallow depth of field, mesmerizing bokeh, satisfying and vibrant color palette, mobile-optimized framing",
       "narration": "[만족스럽고 기억에 남는 마무리 문장 - 약 150자]",
       "technical_specs": {
         "resolution": "1080x1920",

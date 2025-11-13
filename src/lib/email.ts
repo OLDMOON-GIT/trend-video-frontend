@@ -30,6 +30,9 @@ export async function sendVerificationEmail(email: string, verificationToken: st
 }
 
 
+// 자동화 시스템용 에러 이메일 (HTML 지원)
+export async function sendErrorEmail(to: string, subject: string, html: string): Promise<boolean>;
+// 태스크 에러용 이메일
 export async function sendErrorEmail(errorInfo: {
   taskId: string;
   title: string;
@@ -37,41 +40,49 @@ export async function sendErrorEmail(errorInfo: {
   stdout: string;
   stderr: string;
   timestamp: string;
-}): Promise<boolean> {
+}): Promise<boolean>;
+// 구현
+export async function sendErrorEmail(
+  toOrErrorInfo: string | {
+    taskId: string;
+    title: string;
+    errorMessage: string;
+    stdout: string;
+    stderr: string;
+    timestamp: string;
+  },
+  subject?: string,
+  html?: string
+): Promise<boolean> {
   try {
-    console.log('📧 Python 이메일 스크립트 호출 시작...');
+    // 이메일 전송 비활성화 - 콘솔 로그만 남김
 
-    // Python 스크립트 경로 - 절대 경로 사용
-    const workspaceRoot = 'C:\\Users\\oldmoon\\workspace';
-    const pythonScript = path.join(workspaceRoot, 'trend-video-backend', 'src', 'ai_aggregator', 'send_error_email.py');
-
-    // JSON 데이터 준비
-    const jsonData = JSON.stringify(errorInfo);
-
-    // Python 스크립트 실행
-    console.log('[INFO] Python script path:', pythonScript);
-    console.log('[INFO] Executing Python script...');
-
-    const { stdout, stderr } = await execAsync(`python "${pythonScript}" "${jsonData.replace(/"/g, '\\"')}"`);
-
-    console.log('[INFO] Python stdout:', stdout);
-    if (stderr) {
-      console.log('[INFO] Python stderr:', stderr);
-    }
-
-    // Python 스크립트 응답 파싱
-    const result = JSON.parse(stdout.trim());
-
-    if (result.success) {
-      console.log('✅ 이메일 전송 성공:', result.message);
+    // 자동화 시스템에서 호출된 경우 (3개 파라미터)
+    if (typeof toOrErrorInfo === 'string' && subject && html) {
+      console.log('📧 [Error Email] 알림:');
+      console.log('  To:', toOrErrorInfo);
+      console.log('  Subject:', subject);
+      console.log('  HTML:', html.substring(0, 200) + '...');
+      console.log('✅ Error email logged (email sending disabled)');
       return true;
-    } else {
-      console.error('❌ 이메일 전송 실패:', result.error);
-      return false;
     }
+
+    // 태스크 에러로 호출된 경우 (1개 객체 파라미터)
+    if (typeof toOrErrorInfo === 'object') {
+      console.log('📧 [Error Email] 알림:', {
+        taskId: toOrErrorInfo.taskId,
+        title: toOrErrorInfo.title,
+        error: toOrErrorInfo.errorMessage,
+        timestamp: toOrErrorInfo.timestamp
+      });
+      console.log('✅ Error email logged (email sending disabled)');
+      return true;
+    }
+
+    console.error('❌ Invalid sendErrorEmail parameters');
+    return false;
   } catch (error: any) {
-    console.error('❌ Python 스크립트 실행 오류:', error.message);
-    console.error('Error details:', error);
+    console.error('❌ Error logging failed:', error.message);
     return false;
   }
 }

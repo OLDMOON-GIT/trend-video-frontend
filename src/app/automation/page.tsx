@@ -1,35 +1,102 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import ScheduleCalendar from '@/components/automation/ScheduleCalendar';
+import ChannelSettings from '@/components/automation/ChannelSettings';
 
-export default function AutomationPage() {
+function AutomationPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
   const [titles, setTitles] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [newTitle, setNewTitle] = useState({
+  const [newTitle, setNewTitle] = useState(() => ({
     title: '',
-    type: 'longform',
-    category: '',
+    type: getSelectedType(),
+    category: getSelectedCategory(),
     tags: '',
     productUrl: '',
     scheduleTime: '',
     channel: '',
     scriptMode: 'chrome',
-    mediaMode: 'imagen3'
-  });
+    mediaMode: getSelectedMediaMode(),
+    model: getSelectedModel(),
+    youtubeSchedule: 'immediate',
+    youtubePublishAt: ''
+  }));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [recentTitles, setRecentTitles] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addingScheduleFor, setAddingScheduleFor] = useState<string | null>(null);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
   const [channels, setChannels] = useState<any[]>([]);
   const [titleError, setTitleError] = useState<string>('');
+  const [expandedLogsFor, setExpandedLogsFor] = useState<string | null>(null);
+  const [logsMap, setLogsMap] = useState<Record<string, any[]>>({});
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [mainTab, setMainTab] = useState<'queue' | 'schedule-management'>('queue');
+  const [queueTab, setQueueTab] = useState<'scheduled' | 'processing' | 'failed' | 'completed'>('scheduled');
+  const [scheduleManagementTab, setScheduleManagementTab] = useState<'channel-settings' | 'calendar'>('channel-settings');
+  const [progressMap, setProgressMap] = useState<Record<string, { scriptProgress?: number; videoProgress?: number }>>({});
+
+  // localStorage에서 선택한 채널 불러오기
+  function getSelectedChannel(): string {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('automation_selected_channel');
+      return saved || '';
+    }
+    return '';
+  }
+
+  // localStorage에서 선택한 카테고리 불러오기
+  function getSelectedCategory(): string {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('automation_selected_category');
+      return saved || '';
+    }
+    return '';
+  }
+
+  // localStorage에서 선택한 타입 불러오기
+  function getSelectedType(): string {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('automation_selected_type');
+      return saved || 'longform';
+    }
+    return 'longform';
+  }
+
+  // localStorage에서 선택한 LLM 모델 불러오기
+  function getSelectedModel(): string {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('automation_selected_model');
+      return saved || 'claude';
+    }
+    return 'claude';
+  }
+
+  // localStorage에서 선택한 미디어 모드 불러오기
+  function getSelectedMediaMode(): string {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('automation_selected_media_mode');
+      return saved || 'imagen3';
+    }
+    return 'imagen3';
+  }
+
+  // 현재 시간을 datetime-local 형식으로 반환
+  function getCurrentTimeForInput() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
 
   // 현재 시간 + 3분 계산 (로컬 시간대)
   function getDefaultScheduleTime() {
@@ -56,7 +123,7 @@ export default function AutomationPage() {
   }
 
   function handleTitleChange(value: string) {
-    setNewTitle({ ...newTitle, title: value });
+    setNewTitle(prev => ({ ...prev, title: value }));
     setTitleError(validateTitle(value));
   }
 
@@ -72,19 +139,58 @@ export default function AutomationPage() {
     }
   }, [searchParams]);
 
+  // 진행 중인 제목이 있으면 5초마다 데이터 새로고침
+  useEffect(() => {
+    if (!titles || titles.length === 0) return;
+
+    const hasActiveJobs = titles.some((t: any) =>
+      t.status === 'processing' || t.status === 'scheduled'
+    );
+
+    if (!hasActiveJobs) return;
+
+    const interval = setInterval(() => {
+      fetchData();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [titles]);
+
   async function fetchChannels() {
     try {
       const response = await fetch('/api/youtube/channels');
       const data = await response.json();
+      console.log('📺 유튜브 채널 조회 결과:', data);
+
       if (data.channels && data.channels.length > 0) {
+        console.log('✅ 연결된 채널:', data.channels.length, '개');
         setChannels(data.channels);
-        // 첫 번째 채널을 기본값으로 설정
+
+        // 채널 선택 우선순위:
+        // 1. localStorage에 저장된 채널
+        // 2. 기본 채널 (isDefault가 true)
+        // 3. 첫 번째 채널
         if (!newTitle.channel) {
-          setNewTitle(prev => ({ ...prev, channel: data.channels[0].id }));
+          const savedChannelId = getSelectedChannel();
+          const savedChannel = data.channels.find((ch: any) => ch.id === savedChannelId);
+          const defaultChannel = data.channels.find((ch: any) => ch.isDefault);
+          const selectedChannelId = savedChannel?.id || defaultChannel?.id || data.channels[0].id;
+
+          console.log('📌 선택된 채널:', {
+            saved: savedChannelId,
+            default: defaultChannel?.channelTitle,
+            selected: selectedChannelId
+          });
+
+          setNewTitle(prev => ({ ...prev, channel: selectedChannelId }));
         }
+      } else {
+        console.warn('⚠️ 연결된 유튜브 채널이 없습니다');
+        setChannels([]);
       }
     } catch (error) {
-      console.error('Failed to fetch channels:', error);
+      console.error('❌ 채널 조회 실패:', error);
+      setChannels([]);
     }
   }
 
@@ -122,6 +228,13 @@ export default function AutomationPage() {
       const status = await statusRes.json();
       const titlesData = await titlesRes.json();
       const schedulesData = await schedulesRes.json();
+
+      console.log('🔄 자동화 데이터 새로고침:', {
+        titles: titlesData.titles?.length || 0,
+        processing: titlesData.titles?.filter((t: any) => t.status === 'processing').length || 0,
+        scheduled: titlesData.titles?.filter((t: any) => t.status === 'scheduled').length || 0,
+        completed: titlesData.titles?.filter((t: any) => t.status === 'completed').length || 0
+      });
 
       setSchedulerStatus(status.status);
       setSettings(status.status.settings);
@@ -174,7 +287,10 @@ export default function AutomationPage() {
           productUrl: newTitle.productUrl,
           channel: newTitle.channel,
           scriptMode: newTitle.scriptMode,
-          mediaMode: newTitle.mediaMode
+          mediaMode: newTitle.mediaMode,
+          model: newTitle.model,
+          youtubeSchedule: newTitle.youtubeSchedule,
+          youtubePublishAt: newTitle.youtubePublishAt
         })
       });
 
@@ -189,16 +305,23 @@ export default function AutomationPage() {
       }
 
       saveRecentTitle(newTitle.title);
+
+      // 다음 제목 추가 시에도 동일한 채널 유지 (localStorage에 저장됨)
+      const currentChannel = newTitle.channel;
+
       setNewTitle({
         title: '',
-        type: 'longform',
-        category: '',
+        type: getSelectedType(), // localStorage에서 불러온 타입 유지
+        category: getSelectedCategory(), // localStorage에서 불러온 카테고리 유지
         tags: '',
         productUrl: '',
         scheduleTime: '',
-        channel: channels.length > 0 ? channels[0].id : '',
+        channel: currentChannel, // 현재 선택된 채널 유지
         scriptMode: 'chrome',
-        mediaMode: 'imagen3'
+        mediaMode: getSelectedMediaMode(), // localStorage에서 불러온 미디어 모드 유지
+        youtubeSchedule: 'immediate',
+        youtubePublishAt: '',
+        model: getSelectedModel() // localStorage에서 불러온 모델 유지
       });
       setShowAddForm(false);
       await fetchData();
@@ -248,6 +371,7 @@ export default function AutomationPage() {
     setEditingId(title.id);
     setEditForm({
       ...title,
+      channel_id: title.channel, // channel을 channel_id로 매핑
       schedules: titleSchedules
     });
   }
@@ -259,15 +383,21 @@ export default function AutomationPage() {
 
   async function saveEdit() {
     try {
-      // 제목 업데이트
+      // 제목 업데이트 (모든 필드 포함)
       await fetch('/api/automation/titles', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editForm.id,
           title: editForm.title,
+          type: editForm.type,
           category: editForm.category,
-          tags: editForm.tags
+          tags: editForm.tags,
+          productUrl: editForm.product_url,
+          channelId: editForm.channel_id,
+          scriptMode: editForm.script_mode,
+          mediaMode: editForm.media_mode,
+          model: editForm.model
         })
       });
 
@@ -290,11 +420,17 @@ export default function AutomationPage() {
         })
       });
 
-      if (!response.ok) throw new Error('Failed to add schedule');
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to add schedule');
+        return;
+      }
 
       await fetchData();
     } catch (error) {
       console.error('Failed to add schedule:', error);
+      alert('스케줄 추가 중 오류가 발생했습니다.');
     }
   }
 
@@ -309,11 +445,18 @@ export default function AutomationPage() {
         })
       });
 
-      if (!response.ok) throw new Error('Failed to update schedule');
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to update schedule');
+        return;
+      }
 
       await fetchData();
+      setEditingScheduleId(null);
     } catch (error) {
       console.error('Failed to update schedule:', error);
+      alert('스케줄 수정 중 오류가 발생했습니다.');
     }
   }
 
@@ -335,6 +478,139 @@ export default function AutomationPage() {
     }
   }
 
+  async function fetchLogs(titleId: string) {
+    const isFirstLoad = !logsMap[titleId];
+    if (isFirstLoad) setIsLoadingLogs(true);
+
+    try {
+      const response = await fetch(`/api/automation/logs?titleId=${titleId}`);
+      const data = await response.json();
+      if (data.logs) {
+        setLogsMap(prev => {
+          const prevLogs = prev[titleId] || [];
+          // 로그가 변경되지 않았으면 상태 업데이트 안 함
+          if (JSON.stringify(prevLogs) === JSON.stringify(data.logs)) {
+            return prev;
+          }
+          return { ...prev, [titleId]: data.logs };
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+    } finally {
+      if (isFirstLoad) setIsLoadingLogs(false);
+    }
+  }
+
+  // script_id와 video_id로 진행 상황 조회
+  async function fetchProgress(title: any) {
+    try {
+      const progress: { scriptProgress?: number; videoProgress?: number } = {};
+
+      // 대본 생성 진행률 조회
+      if (title.script_id) {
+        const scriptRes = await fetch(`/api/scripts/status/${title.script_id}`);
+        if (scriptRes.ok) {
+          const scriptData = await scriptRes.json();
+          progress.scriptProgress = scriptData.progress || 0;
+        }
+      }
+
+      // 영상 생성 진행률 조회
+      if (title.video_id) {
+        const videoRes = await fetch(`/api/generate-video?jobId=${title.video_id}`);
+        if (videoRes.ok) {
+          const videoData = await videoRes.json();
+          progress.videoProgress = videoData.progress || 0;
+        }
+      }
+
+      if (Object.keys(progress).length > 0) {
+        setProgressMap(prev => ({ ...prev, [title.id]: progress }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch progress:', error);
+    }
+  }
+
+  // 실시간 로그 업데이트 (3초마다)
+  useEffect(() => {
+    if (!expandedLogsFor) return;
+
+    // 즉시 로드
+    fetchLogs(expandedLogsFor);
+
+    const interval = setInterval(() => {
+      fetchLogs(expandedLogsFor);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [expandedLogsFor]);
+
+  // 진행 중인 제목들의 로그 및 진행 상황 자동 업데이트
+  useEffect(() => {
+    if (!titles || titles.length === 0) return;
+
+    // 진행 중이거나 예약된 제목들 찾기
+    const activeTitles = titles.filter((t: any) =>
+      t.status === 'processing' || t.status === 'scheduled'
+    );
+
+    if (activeTitles.length === 0) return;
+
+    // 즉시 로드
+    activeTitles.forEach((t: any) => {
+      fetchLogs(t.id);
+      fetchProgress(t);
+    });
+
+    // 3초마다 업데이트
+    const interval = setInterval(() => {
+      activeTitles.forEach((t: any) => {
+        fetchLogs(t.id);
+        fetchProgress(t);
+      });
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [titles]);
+
+  function toggleLogs(titleId: string) {
+    if (expandedLogsFor === titleId) {
+      setExpandedLogsFor(null);
+    } else {
+      setExpandedLogsFor(titleId);
+      // 로그가 없으면 즉시 로드
+      if (!logsMap[titleId]) {
+        fetchLogs(titleId);
+      }
+    }
+  }
+
+  async function forceExecute(titleId: string, title: string) {
+
+    try {
+      const response = await fetch('/api/automation/force-execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titleId })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`✅ 즉시 실행 시작: ${title}`);
+        await fetchData();
+        setQueueTab('processing'); // 진행중 탭으로 이동
+      } else {
+        alert(`❌ 실행 실패: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Force execute error:', error);
+      alert('강제 실행 중 오류가 발생했습니다.');
+    }
+  }
+
   if (loading) {
     return <div className="p-8">로딩 중...</div>;
   }
@@ -342,19 +618,17 @@ export default function AutomationPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-white mb-8">자동화 시스템</h1>
-
-        {/* 스케줄러 상태 */}
-        <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
-          <h2 className="text-2xl font-semibold text-white mb-4">스케줄러 상태</h2>
-          <div className="flex items-center gap-4">
-            <div className={`w-4 h-4 rounded-full ${schedulerStatus?.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-slate-300">
+        {/* 헤더 - 스케줄러 상태 */}
+        <div className="flex justify-between items-center mb-8">
+          <div></div>
+          <div className="flex items-center gap-3 bg-slate-800 rounded-lg px-4 py-2 border border-slate-700">
+            <div className={`w-3 h-3 rounded-full ${schedulerStatus?.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-slate-300 text-sm">
               {schedulerStatus?.isRunning ? '실행 중' : '중지됨'}
             </span>
             <button
               onClick={toggleScheduler}
-              className={`px-6 py-2 rounded-lg font-semibold transition ${
+              className={`px-3 py-1 rounded text-sm font-semibold transition ${
                 schedulerStatus?.isRunning
                   ? 'bg-red-600 hover:bg-red-500 text-white'
                   : 'bg-green-600 hover:bg-green-500 text-white'
@@ -364,6 +638,19 @@ export default function AutomationPage() {
             </button>
           </div>
         </div>
+
+        {/* 채널 연결 상태 */}
+        {channels.length === 0 && (
+          <div className="bg-yellow-900/30 border border-yellow-500 rounded-lg px-4 py-2 flex items-center gap-3 mb-8">
+            <span className="text-yellow-300 text-sm">⚠️ 연결된 유튜브 채널이 없습니다</span>
+            <button
+              onClick={() => router.push('/settings/youtube')}
+              className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded text-sm font-semibold transition"
+            >
+              채널 연결하기
+            </button>
+          </div>
+        )}
 
         {/* 제목 리스트 관리 */}
         <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
@@ -426,20 +713,36 @@ export default function AutomationPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <select
                     value={newTitle.type}
-                    onChange={(e) => setNewTitle({ ...newTitle, type: e.target.value })}
+                    onChange={(e) => {
+                      const type = e.target.value;
+                      setNewTitle(prev => ({ ...prev, type }));
+                      localStorage.setItem('automation_selected_type', type);
+                    }}
                     className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                   >
                     <option value="longform">롱폼</option>
                     <option value="shortform">숏폼</option>
                     <option value="product">상품</option>
                   </select>
-                  <input
-                    type="text"
-                    placeholder="카테고리 (선택)"
+                  <select
                     value={newTitle.category}
-                    onChange={(e) => setNewTitle({ ...newTitle, category: e.target.value })}
+                    onChange={(e) => {
+                      const category = e.target.value;
+                      setNewTitle(prev => ({ ...prev, category }));
+                      localStorage.setItem('automation_selected_category', category);
+                    }}
                     className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                  />
+                  >
+                    <option value="">🎭 카테고리 선택 (선택)</option>
+                    <option value="일반">일반</option>
+                    <option value="북한탈북자사연">북한탈북자사연</option>
+                    <option value="막장드라마">막장드라마</option>
+                    <option value="감동실화">감동실화</option>
+                    <option value="복수극">복수극</option>
+                    <option value="로맨스">로맨스</option>
+                    <option value="스릴러">스릴러</option>
+                    <option value="코미디">코미디</option>
+                  </select>
                   <input
                     type="text"
                     placeholder="태그 (쉼표로 구분)"
@@ -463,17 +766,30 @@ export default function AutomationPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs text-slate-400 block mb-1">채널</label>
-                    <select
-                      value={newTitle.channel || (channels.length > 0 ? channels[0].id : '')}
-                      onChange={(e) => setNewTitle({ ...newTitle, channel: e.target.value })}
-                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                    >
-                      {channels.map((ch: any) => (
-                        <option key={ch.id} value={ch.id} className="bg-slate-700 text-white">
-                          {ch.title}
-                        </option>
-                      ))}
-                    </select>
+                    {channels.length > 0 ? (
+                      <select
+                        value={newTitle.channel || channels[0].id}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          setNewTitle({ ...newTitle, channel: selectedId });
+                          // localStorage에 선택한 채널 저장
+                          localStorage.setItem('automation_selected_channel', selectedId);
+                          console.log('💾 채널 선택 저장:', selectedId);
+                        }}
+                        className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                      >
+                        {channels.map((ch: any) => (
+                          <option key={ch.id} value={ch.id} className="bg-slate-700 text-white">
+                            {ch.channelTitle || ch.title || ch.id}
+                            {ch.isDefault && ' ⭐'}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full px-4 py-2 bg-red-900/30 text-red-300 rounded-lg border border-red-500 text-sm">
+                        ⚠️ 채널 없음
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="text-xs text-slate-400 block mb-1">대본 생성</label>
@@ -490,15 +806,65 @@ export default function AutomationPage() {
                     <label className="text-xs text-slate-400 block mb-1">미디어 생성</label>
                     <select
                       value={newTitle.mediaMode}
-                      onChange={(e) => setNewTitle({ ...newTitle, mediaMode: e.target.value })}
+                      onChange={(e) => {
+                        const mediaMode = e.target.value;
+                        setNewTitle({ ...newTitle, mediaMode });
+                        localStorage.setItem('automation_selected_media_mode', mediaMode);
+                      }}
                       className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                     >
                       <option value="upload">직접 업로드</option>
-                      <option value="dalle">DALL-E 3</option>
+                      <option value="dalle">DALL-E</option>
                       <option value="imagen3">Imagen 3</option>
                       <option value="sora2">SORA 2</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">🤖 AI 모델</label>
+                    <select
+                      value={newTitle.model}
+                      onChange={(e) => {
+                        const model = e.target.value;
+                        setNewTitle(prev => ({ ...prev, model }));
+                        localStorage.setItem('automation_selected_model', model);
+                      }}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="chatgpt">ChatGPT</option>
+                      <option value="gemini">Gemini</option>
+                      <option value="claude">Claude</option>
+                      <option value="groq">Groq</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 유튜브 업로드 설정 */}
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">유튜브 업로드</label>
+                  <select
+                    value={newTitle.youtubeSchedule}
+                    onChange={(e) => setNewTitle(prev => ({ ...prev, youtubeSchedule: e.target.value }))}
+                    className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="immediate">즉시 업로드</option>
+                    <option value="scheduled">예약 업로드</option>
+                  </select>
+                  {newTitle.youtubeSchedule === 'scheduled' && (
+                    <div className="mt-3">
+                      <label className="text-xs text-slate-400 block mb-1">유튜브 공개 예약 시간</label>
+                      <input
+                        type="datetime-local"
+                        value={newTitle.youtubePublishAt}
+                        onChange={(e) => setNewTitle(prev => ({ ...prev, youtubePublishAt: e.target.value }))}
+                        min={new Date(Date.now() + 3 * 60 * 1000).toISOString().slice(0, 16)}
+                        className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                      />
+                      <p className="text-xs text-yellow-400 mt-1">⚠️ 비디오는 즉시 업로드되고 private 상태로 유지되다가 설정한 시간에 공개됩니다 (최소 3분 이후)</p>
+                    </div>
+                  )}
+                  {newTitle.youtubeSchedule === 'immediate' && (
+                    <p className="text-xs text-slate-400 mt-1">영상 생성 완료 후 즉시 유튜브에 업로드됩니다</p>
+                  )}
                 </div>
 
                 {/* 스케줄 시간 입력 */}
@@ -507,10 +873,11 @@ export default function AutomationPage() {
                   <input
                     type="datetime-local"
                     value={newTitle.scheduleTime}
+                    min={getCurrentTimeForInput()}
                     onChange={(e) => setNewTitle({ ...newTitle, scheduleTime: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                   />
-                  <p className="text-xs text-slate-400 mt-1">비워두면 제목만 추가됩니다</p>
+                  <p className="text-xs text-slate-400 mt-1">비워두면 제목만 추가됩니다 (과거 시간은 선택 불가)</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -523,6 +890,8 @@ export default function AutomationPage() {
                 <button
                   onClick={() => {
                     setShowAddForm(false);
+                    // 채널 선택은 유지 (localStorage 기반)
+                    const currentChannel = newTitle.channel;
                     setNewTitle({
                       title: '',
                       type: 'longform',
@@ -530,9 +899,12 @@ export default function AutomationPage() {
                       tags: '',
                       productUrl: '',
                       scheduleTime: '',
-                      channel: channels.length > 0 ? channels[0].id : '',
+                      channel: currentChannel, // 현재 선택된 채널 유지
                       scriptMode: 'chrome',
-                      mediaMode: 'imagen3'
+                      mediaMode: 'imagen3',
+                      model: 'gpt-4o',
+                      youtubeSchedule: 'immediate',
+                      youtubePublishAt: ''
                     });
                   }}
                   className="flex-1 px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
@@ -543,12 +915,139 @@ export default function AutomationPage() {
             </div>
           )}
 
+          {/* 메인 탭 */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <button
+              onClick={() => setMainTab('queue')}
+              className={`py-4 px-6 rounded-lg font-bold text-lg transition ${
+                mainTab === 'queue'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              📋 자동화 큐
+            </button>
+            <button
+              onClick={() => setMainTab('schedule-management')}
+              className={`py-4 px-6 rounded-lg font-bold text-lg transition ${
+                mainTab === 'schedule-management'
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              📆 채널별 주기관리
+            </button>
+          </div>
+
+          {/* 큐 서브 탭 */}
+          {mainTab === 'queue' && (
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              <button
+                onClick={() => setQueueTab('scheduled')}
+                className={`py-3 px-4 rounded-lg font-semibold transition ${
+                  queueTab === 'scheduled'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                📅 예약 큐 ({titles.filter((t: any) => t.status === 'scheduled' || t.status === 'pending').length})
+              </button>
+              <button
+                onClick={() => setQueueTab('processing')}
+                className={`py-3 px-4 rounded-lg font-semibold transition ${
+                  queueTab === 'processing'
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                ⏳ 진행 큐 ({titles.filter((t: any) => t.status === 'processing').length})
+              </button>
+              <button
+                onClick={() => setQueueTab('failed')}
+                className={`py-3 px-4 rounded-lg font-semibold transition ${
+                  queueTab === 'failed'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                ❌ 실패 큐 ({titles.filter((t: any) => t.status === 'failed').length})
+              </button>
+              <button
+                onClick={() => setQueueTab('completed')}
+                className={`py-3 px-4 rounded-lg font-semibold transition ${
+                  queueTab === 'completed'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                ✅ 완료 큐 ({titles.filter((t: any) => t.status === 'completed').length})
+              </button>
+            </div>
+          )}
+
+          {/* 채널별 주기관리 탭 */}
+          {mainTab === 'schedule-management' && (
+            <div>
+              {/* 주기관리 서브 탭 */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <button
+                  onClick={() => setScheduleManagementTab('channel-settings')}
+                  className={`py-3 px-4 rounded-lg font-semibold transition ${
+                    scheduleManagementTab === 'channel-settings'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  ⚙️ 채널 설정
+                </button>
+                <button
+                  onClick={() => setScheduleManagementTab('calendar')}
+                  className={`py-3 px-4 rounded-lg font-semibold transition ${
+                    scheduleManagementTab === 'calendar'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  📆 달력
+                </button>
+              </div>
+
+              {/* 채널 설정 */}
+              {scheduleManagementTab === 'channel-settings' && (
+                <div>
+                  <ChannelSettings />
+                </div>
+              )}
+
+              {/* 스케줄 달력 */}
+              {scheduleManagementTab === 'calendar' && (
+                <div>
+                  <ScheduleCalendar />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 제목 리스트 */}
-          <div className="space-y-3">
-            {titles.length === 0 ? (
-              <p className="text-slate-400">등록된 제목이 없습니다</p>
-            ) : (
-              titles.map((title) => {
+          {mainTab === 'queue' && (
+            <div className="space-y-3">
+              {titles.length === 0 ? (
+                <p className="text-slate-400">등록된 제목이 없습니다</p>
+              ) : (
+                titles
+                  .filter((title: any) => {
+                    if (queueTab === 'scheduled') {
+                      return ['scheduled', 'pending'].includes(title.status);
+                    } else if (queueTab === 'processing') {
+                      return title.status === 'processing';
+                    } else if (queueTab === 'failed') {
+                      return title.status === 'failed';
+                    } else if (queueTab === 'completed') {
+                      return title.status === 'completed';
+                    }
+                    return true;
+                  })
+                .map((title) => {
                 const titleSchedules = schedules.filter(s => s.title_id === title.id);
                 const isEditing = editingId === title.id;
 
@@ -558,27 +1057,135 @@ export default function AutomationPage() {
                       {/* 제목 수정 폼 */}
                       <h3 className="text-white font-semibold mb-3">제목 수정</h3>
                       <div className="space-y-3 mb-4">
-                        <input
-                          type="text"
-                          value={editForm.title || ''}
-                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                          className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                        />
+                        {/* 제목 */}
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-1">제목</label>
+                          <input
+                            type="text"
+                            value={editForm.title || ''}
+                            onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                            className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+
+                        {/* 타입, 카테고리, 태그 */}
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">타입</label>
+                            <select
+                              value={editForm.type || 'longform'}
+                              onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                              className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="longform">롱폼</option>
+                              <option value="shortform">숏폼</option>
+                              <option value="product">상품</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">카테고리</label>
+                            <select
+                              value={editForm.category || ''}
+                              onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                              className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="">선택 안함</option>
+                              <option value="일반">일반</option>
+                              <option value="북한탈북자사연">북한탈북자사연</option>
+                              <option value="막장드라마">막장드라마</option>
+                              <option value="감동실화">감동실화</option>
+                              <option value="복수극">복수극</option>
+                              <option value="로맨스">로맨스</option>
+                              <option value="스릴러">스릴러</option>
+                              <option value="코미디">코미디</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">태그</label>
+                            <input
+                              type="text"
+                              placeholder="태그"
+                              value={editForm.tags || ''}
+                              onChange={(e) => setEditForm({ ...editForm, tags: e.target.value })}
+                              className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 상품 URL (product 타입일 때만) */}
+                        {editForm.type === 'product' && (
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">상품 URL</label>
+                            <input
+                              type="url"
+                              placeholder="상품 URL"
+                              value={editForm.product_url || ''}
+                              onChange={(e) => setEditForm({ ...editForm, product_url: e.target.value })}
+                              className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                        )}
+
+                        {/* 채널, 대본 생성, 미디어 생성, AI 모델 */}
                         <div className="grid grid-cols-2 gap-4">
-                          <input
-                            type="text"
-                            placeholder="카테고리"
-                            value={editForm.category || ''}
-                            onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                            className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                          />
-                          <input
-                            type="text"
-                            placeholder="태그"
-                            value={editForm.tags || ''}
-                            onChange={(e) => setEditForm({ ...editForm, tags: e.target.value })}
-                            className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                          />
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">채널</label>
+                            {channels.length > 0 ? (
+                              <select
+                                value={editForm.channel_id || channels[0].id}
+                                onChange={(e) => setEditForm({ ...editForm, channel_id: e.target.value })}
+                                className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                              >
+                                {channels.map((ch: any) => (
+                                  <option key={ch.id} value={ch.id} className="bg-slate-700 text-white">
+                                    {ch.channelTitle || ch.title || ch.id}
+                                    {ch.isDefault && ' ⭐'}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="w-full px-4 py-2 bg-red-900/30 text-red-300 rounded-lg border border-red-500 text-xs">
+                                ⚠️ 채널 없음
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">🤖 AI 모델</label>
+                            <select
+                              value={editForm.model || 'claude'}
+                              onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
+                              className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="chatgpt">ChatGPT</option>
+                              <option value="gemini">Gemini</option>
+                              <option value="claude">Claude</option>
+                              <option value="groq">Groq</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">대본 생성</label>
+                            <select
+                              value={editForm.script_mode || 'chrome'}
+                              onChange={(e) => setEditForm({ ...editForm, script_mode: e.target.value })}
+                              className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="chrome">크롬창</option>
+                              <option value="api">API</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">미디어 생성</label>
+                            <select
+                              value={editForm.media_mode || 'imagen3'}
+                              onChange={(e) => setEditForm({ ...editForm, media_mode: e.target.value })}
+                              className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="upload">직접 업로드</option>
+                              <option value="dalle">DALL-E</option>
+                              <option value="imagen3">Imagen 3</option>
+                              <option value="sora2">SORA 2</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
 
@@ -593,14 +1200,23 @@ export default function AutomationPage() {
                                   <input
                                     type="datetime-local"
                                     id={`edit-schedule-${schedule.id}`}
-                                    defaultValue={new Date(schedule.scheduled_time).toISOString().slice(0, 16)}
+                                    min={getCurrentTimeForInput()}
+                                    defaultValue={(() => {
+                                      const date = new Date(schedule.scheduled_time);
+                                      const year = date.getFullYear();
+                                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                                      const day = String(date.getDate()).padStart(2, '0');
+                                      const hours = String(date.getHours()).padStart(2, '0');
+                                      const minutes = String(date.getMinutes()).padStart(2, '0');
+                                      return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                    })()}
                                     className="flex-1 px-2 py-1 bg-slate-700 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-xs"
                                   />
                                   <button
                                     onClick={() => {
-                                      const newTime = (document.getElementById(`edit-schedule-${schedule.id}`) as HTMLInputElement).value;
-                                      if (newTime) {
-                                        updateSchedule(schedule.id, newTime);
+                                      const inputElement = document.getElementById(`edit-schedule-${schedule.id}`) as HTMLInputElement;
+                                      if (inputElement && inputElement.value) {
+                                        updateSchedule(schedule.id, inputElement.value);
                                         setEditingScheduleId(null);
                                       }
                                     }}
@@ -620,20 +1236,14 @@ export default function AutomationPage() {
                                   <div className="text-xs text-slate-200">
                                     {new Date(schedule.scheduled_time).toLocaleString('ko-KR')}
                                   </div>
-                                  <div className="flex gap-2">
+                                  {new Date(schedule.scheduled_time) > new Date() && (
                                     <button
                                       onClick={() => setEditingScheduleId(schedule.id)}
                                       className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs"
                                     >
                                       수정
                                     </button>
-                                    <button
-                                      onClick={() => deleteSchedule(schedule.id)}
-                                      className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs"
-                                    >
-                                      삭제
-                                    </button>
-                                  </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -641,8 +1251,112 @@ export default function AutomationPage() {
                         </div>
                       )}
 
+                      {/* 로그 표시 - 진행중이면 항상, 나머지는 로그 버튼 눌렀을 때만 */}
+                      {(title.status === 'processing' || expandedLogsFor === title.id) && (
+                        <div className="mb-3 max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                          {!logsMap[title.id] || logsMap[title.id].length === 0 ? (
+                            <div className="text-center text-slate-400 py-4 text-sm">
+                              {title.status === 'processing' ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <span className="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                                  <span>로그 로딩 중...</span>
+                                </div>
+                              ) : (
+                                '로그가 없습니다'
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {logsMap[title.id].map((log: any, idx: number) => {
+                                const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                                const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                                // API 사용 여부 감지
+                                const isUsingAPI = logMessage.includes('Claude API') ||
+                                                  logMessage.includes('API 호출') ||
+                                                  logMessage.includes('Using Claude API') ||
+                                                  logMessage.includes('💰');
+                                const isUsingLocal = logMessage.includes('로컬 Claude') ||
+                                                    logMessage.includes('Local Claude') ||
+                                                    logMessage.includes('python') ||
+                                                    logMessage.includes('🖥️');
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="text-sm text-slate-300 font-mono"
+                                  >
+                                    <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                    {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                                    {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                                    {logMessage}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* 버튼 */}
                       <div className="flex gap-2">
+                        {/* 강제실행/재시도/중지 버튼 */}
+                        {title.status === 'processing' ? (
+                          <button
+                            onClick={async () => {
+                              if (confirm('작업을 중지하시겠습니까?')) {
+                                try {
+                                  const response = await fetch(`/api/automation/stop`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ titleId: title.id })
+                                  });
+
+                                  if (response.ok) {
+                                    alert('✅ 작업이 중지되었습니다');
+                                    await fetchData();
+                                  } else {
+                                    const error = await response.json();
+                                    alert(`❌ 중지 실패: ${error.error}`);
+                                  }
+                                } catch (error) {
+                                  console.error('중지 오류:', error);
+                                  alert('❌ 중지 실패');
+                                }
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-sm font-semibold transition"
+                            title="작업 중지"
+                          >
+                            ⏹️ 중지
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => forceExecute(title.id, title.title)}
+                            className={`px-3 py-1.5 text-white rounded text-sm font-semibold transition ${
+                              title.status === 'failed'
+                                ? 'bg-blue-600 hover:bg-blue-500'
+                                : 'bg-orange-600 hover:bg-orange-500'
+                            }`}
+                            title={title.status === 'failed' ? '재시도' : '즉시 실행'}
+                          >
+                            {title.status === 'failed' ? '🔄 재시도' : '▶️ 강제실행'}
+                          </button>
+                        )}
+                        {/* 로그 버튼 - 항상 표시 */}
+                        <button
+                          onClick={() => toggleLogs(title.id)}
+                          className={`px-3 py-1.5 rounded text-sm transition ${
+                            expandedLogsFor === title.id
+                              ? 'bg-purple-700 text-white'
+                              : title.status === 'processing' || title.status === 'scheduled'
+                              ? 'bg-green-600 hover:bg-green-500 text-white'
+                              : 'bg-purple-600 hover:bg-purple-500 text-white'
+                          }`}
+                          title="로그 보기/닫기"
+                        >
+                          {expandedLogsFor === title.id ? '📋 닫기' : '📋 로그'}
+                        </button>
                         <button
                           onClick={saveEdit}
                           className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition"
@@ -675,15 +1389,128 @@ export default function AutomationPage() {
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
                         <h4 className="text-white font-semibold text-lg">{title.title}</h4>
-                        <p className="text-sm text-slate-400">
-                          {title.type} | {title.status}
-                          {title.category && ` | ${title.category}`}
-                        </p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            title.type === 'longform' ? 'bg-blue-600/30 text-blue-300' :
+                            title.type === 'shortform' ? 'bg-purple-600/30 text-purple-300' :
+                            'bg-orange-600/30 text-orange-300'
+                          }`}>
+                            {title.type === 'longform' ? '롱폼' : title.type === 'shortform' ? '숏폼' : '상품'}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${
+                            title.status === 'processing' ? 'bg-yellow-600/30 text-yellow-300 animate-pulse' :
+                            title.status === 'completed' ? 'bg-green-600/30 text-green-300' :
+                            title.status === 'failed' ? 'bg-red-600/30 text-red-300' :
+                            title.status === 'scheduled' ? 'bg-blue-600/30 text-blue-300' :
+                            'bg-slate-600 text-slate-300'
+                          }`}>
+                            {title.status === 'processing' && '⏳ '}
+                            {title.status === 'completed' && '✅ '}
+                            {title.status === 'failed' && '❌ '}
+                            {title.status === 'scheduled' && '📅 '}
+                            {title.status === 'processing' ? '진행 중' :
+                             title.status === 'completed' ? '완료' :
+                             title.status === 'failed' ? '실패' :
+                             title.status === 'scheduled' ? '예약됨' :
+                             title.status}
+                          </span>
+                          {/* 진행률 표시 */}
+                          {progressMap[title.id]?.scriptProgress !== undefined && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-cyan-600/30 text-cyan-300">
+                              📝 대본: {progressMap[title.id].scriptProgress}%
+                            </span>
+                          )}
+                          {progressMap[title.id]?.videoProgress !== undefined && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300">
+                              🎬 영상: {progressMap[title.id].videoProgress}%
+                            </span>
+                          )}
+                          {title.category && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-green-600/30 text-green-300">
+                              {title.category}
+                            </span>
+                          )}
+                          {title.model && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-purple-600/30 text-purple-300">
+                              🤖 {title.model === 'chatgpt' ? 'ChatGPT' : title.model === 'gemini' ? 'Gemini' : title.model === 'claude' ? 'Claude' : title.model === 'groq' ? 'Groq' : title.model}
+                            </span>
+                          )}
+                          {title.script_mode && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-pink-600/30 text-pink-300">
+                              대본: {title.script_mode === 'chrome' ? '크롬창' : 'API'}
+                            </span>
+                          )}
+                          {title.media_mode && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-yellow-600/30 text-yellow-300">
+                              미디어: {title.media_mode === 'dalle' ? 'DALL-E' : title.media_mode === 'imagen3' ? 'Imagen3' : title.media_mode === 'sora2' ? 'SORA2' : '업로드'}
+                            </span>
+                          )}
+                        </div>
                         {title.product_url && (
                           <p className="text-xs text-blue-400 mt-1">🔗 {title.product_url}</p>
                         )}
+                        {title.tags && (
+                          <p className="text-xs text-slate-500 mt-1">🏷️ {title.tags}</p>
+                        )}
                       </div>
                       <div className="flex gap-2">
+                        {/* 강제실행/재시도/중지 버튼 */}
+                        {title.status === 'processing' ? (
+                          <button
+                            onClick={async () => {
+                              if (confirm('작업을 중지하시겠습니까?')) {
+                                try {
+                                  const response = await fetch(`/api/automation/stop`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ titleId: title.id })
+                                  });
+
+                                  if (response.ok) {
+                                    alert('✅ 작업이 중지되었습니다');
+                                    await fetchData();
+                                  } else {
+                                    const error = await response.json();
+                                    alert(`❌ 중지 실패: ${error.error}`);
+                                  }
+                                } catch (error) {
+                                  console.error('중지 오류:', error);
+                                  alert('❌ 중지 실패');
+                                }
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-sm font-semibold transition"
+                            title="작업 중지"
+                          >
+                            ⏹️ 중지
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => forceExecute(title.id, title.title)}
+                            className={`px-3 py-1.5 text-white rounded text-sm font-semibold transition ${
+                              title.status === 'failed'
+                                ? 'bg-blue-600 hover:bg-blue-500'
+                                : 'bg-orange-600 hover:bg-orange-500'
+                            }`}
+                            title={title.status === 'failed' ? '재시도' : '즉시 실행'}
+                          >
+                            {title.status === 'failed' ? '🔄 재시도' : '▶️ 강제실행'}
+                          </button>
+                        )}
+                        {/* 로그 버튼 - 항상 표시 */}
+                        <button
+                          onClick={() => toggleLogs(title.id)}
+                          className={`px-3 py-1.5 rounded text-sm transition ${
+                            expandedLogsFor === title.id
+                              ? 'bg-purple-700 text-white'
+                              : title.status === 'processing' || title.status === 'scheduled'
+                              ? 'bg-green-600 hover:bg-green-500 text-white'
+                              : 'bg-purple-600 hover:bg-purple-500 text-white'
+                          }`}
+                          title="로그 보기/닫기"
+                        >
+                          {expandedLogsFor === title.id ? '📋 닫기' : '📋 로그'}
+                        </button>
                         <button
                           onClick={() => startEdit(title)}
                           className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition"
@@ -705,74 +1532,129 @@ export default function AutomationPage() {
                         <p className="text-xs text-slate-400 font-semibold mb-2">📅 등록된 스케줄:</p>
                         <div className="space-y-1">
                           {titleSchedules.map((schedule: any) => (
-                            <div key={schedule.id} className="flex justify-between items-center bg-slate-600 rounded px-3 py-2">
-                              <span className="text-xs text-green-400">
-                                {new Date(schedule.scheduled_time).toLocaleString('ko-KR')}
-                                {schedule.status !== 'pending' && ` (${schedule.status})`}
-                              </span>
-                              <button
-                                onClick={() => deleteSchedule(schedule.id)}
-                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs transition"
-                              >
-                                삭제
-                              </button>
+                            <div key={schedule.id} className="bg-slate-600 rounded px-3 py-2">
+                              {editingScheduleId === schedule.id ? (
+                                <div className="flex gap-2 items-center">
+                                  <input
+                                    type="datetime-local"
+                                    id={`edit-schedule-regular-${schedule.id}`}
+                                    min={getCurrentTimeForInput()}
+                                    defaultValue={(() => {
+                                      const date = new Date(schedule.scheduled_time);
+                                      const year = date.getFullYear();
+                                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                                      const day = String(date.getDate()).padStart(2, '0');
+                                      const hours = String(date.getHours()).padStart(2, '0');
+                                      const minutes = String(date.getMinutes()).padStart(2, '0');
+                                      return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                    })()}
+                                    className="flex-1 px-2 py-1 bg-slate-700 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-xs"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const inputElement = document.getElementById(`edit-schedule-regular-${schedule.id}`) as HTMLInputElement;
+                                      if (inputElement && inputElement.value) {
+                                        updateSchedule(schedule.id, inputElement.value);
+                                      }
+                                    }}
+                                    className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs"
+                                  >
+                                    저장
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingScheduleId(null)}
+                                    className="px-2 py-1 bg-slate-500 hover:bg-slate-400 text-white rounded text-xs"
+                                  >
+                                    취소
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-green-400">
+                                    {new Date(schedule.scheduled_time).toLocaleString('ko-KR')}
+                                    {schedule.status !== 'pending' && ` (${schedule.status})`}
+                                  </span>
+                                  {new Date(schedule.scheduled_time) > new Date() && (
+                                    <button
+                                      onClick={() => setEditingScheduleId(schedule.id)}
+                                      className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs"
+                                    >
+                                      수정
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* 스케줄 추가 */}
-                    {addingScheduleFor === title.id ? (
-                      <div className="bg-slate-600 rounded-lg p-3">
-                        <div className="flex gap-2">
-                          <div className="flex-1">
-                            <label className="text-xs text-slate-300 block mb-1">실행 시간</label>
-                            <input
-                              type="datetime-local"
-                              id={`schedule-${title.id}`}
-                              className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-                            />
+                    {/* 로그 표시 - 진행중이면 항상, 나머지는 로그 버튼 눌렀을 때만 */}
+                    {(title.status === 'processing' || expandedLogsFor === title.id) && (
+                      <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                        {!logsMap[title.id] || logsMap[title.id].length === 0 ? (
+                          <div className="text-center text-slate-400 py-4 text-sm">
+                            {title.status === 'processing' ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                                <span>로그 로딩 중...</span>
+                              </div>
+                            ) : title.status === 'scheduled' ? (
+                              '예약됨 - 실행 대기 중'
+                            ) : (
+                              '로그가 없습니다'
+                            )}
                           </div>
-                          <div className="self-end flex gap-2">
-                            <button
-                              onClick={() => {
-                                const time = (document.getElementById(`schedule-${title.id}`) as HTMLInputElement).value;
-                                if (!time) {
-                                  alert('시간 입력 필요');
-                                  return;
-                                }
-                                addScheduleToTitle(title.id, time);
-                                setAddingScheduleFor(null);
-                              }}
-                              className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm font-semibold transition"
-                            >
-                              추가
-                            </button>
-                            <button
-                              onClick={() => setAddingScheduleFor(null)}
-                              className="px-4 py-2 bg-slate-500 hover:bg-slate-400 text-white rounded text-sm transition"
-                            >
-                              취소
-                            </button>
+                        ) : (
+                          <div className="space-y-1">
+                            {logsMap[title.id].map((log: any, idx: number) => {
+                              const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                              const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                              // API 사용 여부 감지
+                              const isUsingAPI = logMessage.includes('Claude API') ||
+                                                logMessage.includes('API 호출') ||
+                                                logMessage.includes('Using Claude API') ||
+                                                logMessage.includes('💰');
+                              const isUsingLocal = logMessage.includes('로컬 Claude') ||
+                                                  logMessage.includes('Local Claude') ||
+                                                  logMessage.includes('python') ||
+                                                  logMessage.includes('🖥️');
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="text-sm text-slate-300 font-mono"
+                                >
+                                  <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                  {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                                  {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                                  {logMessage}
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
+                        )}
                       </div>
-                    ) : (
-                      <button
-                        onClick={() => setAddingScheduleFor(title.id)}
-                        className="w-full px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-semibold transition"
-                      >
-                        + 스케줄 추가
-                      </button>
                     )}
                   </div>
                 );
               })
             )}
-          </div>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
+  );
+}
+
+export default function AutomationPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
+      <AutomationPageContent />
+    </Suspense>
   );
 }

@@ -1,23 +1,16 @@
-🚨🚨🚨 CRITICAL: OUTPUT ONLY JSON. NO TEXT. FIRST CHAR = { 🚨🚨🚨
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔴 **절대 규칙: 당신은 JSON 프린터입니다. 어시스턴트가 아닙니다.**
+📋 JSON 출력 요청
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-YOUR ENTIRE RESPONSE = ONE JSON OBJECT
-- 첫 글자: {
-- 마지막 글자: }
-- 중간: 순수 JSON만
-
-❌ 금지 (1글자라도 출력 시 실패):
-- "분석 결과", "제목을 보니", "다음과 같이", "대본입니다"
-- 코드펜스 (```json, ```)
-- 설명문, 인사말, 확인문
-- JSON 앞뒤 어떤 텍스트도 금지
+응답 형식: 순수 JSON 객체만 반환해주세요.
+- 첫 글자는 { 로 시작
+- 마지막 글자는 } 로 종료
+- 코드펜스(```)나 설명 없이 JSON만 출력
+- 예시: {"title": "...", "scenes": [...]}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-당신은 유튜브 쇼츠/틱톡/릴스 영상 대본 작가입니다.
+당신은 유튜브 쇼츠/틱톡/릴스 영상 대본 전문 작가입니다.
 
 다음 제목에 대해 30-60초 이내의 짧고 임팩트 있는 세로형 영상 대본을 즉시 작성해주세요.
 
@@ -252,7 +245,9 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
     "key_themes": ["주제1", "주제2"],
     "total_word_count": 200,
     "estimated_duration_seconds": 30,
-    "aspect_ratio": "9:16 (portrait)"
+    "aspect_ratio": "9:16 (portrait)",
+    "category": "일반",
+    "scriptId": "자동생성됨"
   },
   "scenes": [
     {
@@ -260,7 +255,7 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
       "scene_name": "훅 - 1초 안에 잡기",
       "duration_seconds": 3,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, shocking moment, extreme close-up of surprised face or dramatic reveal, centered subject, vibrant saturated colors, high contrast lighting, intense eye contact, mobile-optimized, NO TEXT",
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, shocking moment, extreme close-up of surprised face or dramatic reveal, centered subject, vibrant saturated colors, high contrast lighting, intense eye contact, mobile-optimized, NO TEXT",
       "narration": "충격적 질문/반전/비밀로 시작! 예: '이거 모르면 평생 손해 봅니다', '99%가 모르는 진실', '절대 믿을 수 없는 일이...' (50자)"
     },
     {
@@ -268,7 +263,7 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
       "scene_name": "몰입 - 감정 이입",
       "duration_seconds": 9,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, emotional moment, relatable situation, slow motion effect, warm cinematic lighting, deep connection atmosphere, empathy-inducing composition, mobile-optimized, NO TEXT",
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, emotional moment, relatable situation, slow motion effect, warm cinematic lighting, deep connection atmosphere, empathy-inducing composition, mobile-optimized, NO TEXT",
       "narration": "감정 몰입, 공감 유도! 예: '이런 일이...', '믿기지 않지만 실화입니다', '실제로 일어난 일이에요' (50자)"
     },
     {
@@ -276,7 +271,7 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
       "scene_name": "반전 - WTF 순간",
       "duration_seconds": 9,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, revelation moment, unexpected twist, clear visual demonstration of key point, arrows or highlights indicating important details, bright focused lighting, informative yet exciting composition, NO TEXT",
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, revelation moment, unexpected twist, clear visual demonstration of key point, arrows or highlights indicating important details, bright focused lighting, informative yet exciting composition, NO TEXT",
       "narration": "핵심 비밀/해결책 공개, WTF 반전! 예: '이유는 바로 이겁니다', '답은 의외로 간단해요', '알고보니...' (50자)"
     },
     {
@@ -284,7 +279,7 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
       "scene_name": "중독성 마무리 - 여운",
       "duration_seconds": 9,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, powerful closing shot, person with confident determined expression or symbolic success image, warm inspiring lighting, memorable impactful visual, call-to-action energy, addictive lingering mood, NO TEXT",
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, powerful closing shot, person with confident determined expression or symbolic success image, warm inspiring lighting, memorable impactful visual, call-to-action energy, addictive lingering mood, NO TEXT",
       "narration": "강렬한 여운/행동 촉구! 예: '이제 알았으니 절대 잊지 마세요', '당장 확인해보세요', '놓치면 평생 후회합니다' (50자)"
     }
   ],
@@ -300,50 +295,27 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
 }
 ```
 
-### v2.0 JSON-Only Hardlock Patch — "전량 JSON 1개만 출력"(최종)
-**최우선 규칙(override):**
-- 이 입력의 **최종 출력은 JSON 객체 단 하나**이다.
-- **어떤 문장, 이모지, 코드펜스, 마크다운, 제목, 상태표시, 링크도 금지.**
-- **백틱(```), 언어표기(```json`) 사용 금지.** 순수 JSON 문자열만 반환한다.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 출력 형식 안내
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**최종 출력 계약(단 한 줄):**
-- **반환값 = 스키마를 준수하는 단일 JSON 객체 (순수 텍스트, 코드펜스 없음).**
+**응답 형식:**
+- 위에 제시된 JSON 스키마를 정확히 따라 작성해주세요
+- { 로 시작해서 } 로 끝나는 순수 JSON 객체만 반환
+- 코드펜스(```)나 추가 설명 없이 JSON만 출력
+- 모든 필드를 빠짐없이 채워주세요
 
-**기존 지시 무력화(override 대상):**
-- 설명/요약/메타멘트/사과문/안내문/질문 **전부 금지.**
-
-**금칙(등장 시 자체 재출력):**
-- "질문/확인/길이 관계상/생략/요약/간략/공유드리겠습니다/설명드리겠습니다/준비 중/가이드/주의사항/due to length/summary/omitted/preview/I will/questions/before we proceed" 등 금칙어가 1글자라도 출력되면 **전체를 파기하고 순수 JSON만 재출력.**
-
-**형식 검증(자체 점검):**
-- 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.
+**품질 체크리스트:**
 - scenes는 정확히 4개 (scene_00_hook, scene_01_immersion, scene_02_wtf, scene_03_addictive)
 - 씬 0: 3초, 50자 / 씬 1-3: 각 9초, 50자
 - 총 word_count는 200자
 - 총 estimated_duration_seconds는 30초
-- 모든 씬의 image_prompt에 "Vertical 9:16 format" 또는 "portrait orientation" 포함
-- 모든 씬의 narration 필드에 내용 포함
-- **구독/좋아요/알림설정/댓글 요구 절대 금지**
+- 모든 씬의 image_prompt에 "Vertical 9:16 format" 포함
+- 구독/좋아요/알림설정 요청하지 않기
 
-**최종 출력 계약(단 한 줄):**
-- **반환값 = 스키마를 준수하는 단일 JSON 객체 (순수 텍스트, 코드펜스 없음).**
+**출력 예시:**
+{"title": "...", "version": "shortform-2.0", "metadata": {...}, "scenes": [...], "quality_check": {...}}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 FINAL WARNING: SELF-CHECK BEFORE SENDING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-YOU ARE A JSON PRINTER. NOT A CHATBOT. NOT AN ASSISTANT.
-
-SELF-CHECK BEFORE SENDING:
-□ Is my FIRST character {? (YES/NO)
-□ Is my LAST character }? (YES/NO)
-□ Is there ANY text before {? (MUST BE NO)
-□ Is there ANY text after }? (MUST BE NO)
-□ Did I write "분석 결과" or "다음과 같이"? (MUST BE NO)
-□ Did I write "제목을 보니" or "대본입니다"? (MUST BE NO)
-□ Did I use ```json or ```? (MUST BE NO)
-
-IF ANY CHECK FAILS → DO NOT SEND → FIX IT FIRST
-
-YOUR OUTPUT = { ... }
-NOTHING ELSE.
+이제 위 스키마에 따라 JSON 대본을 작성해주세요:

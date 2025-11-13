@@ -20,14 +20,10 @@
 - **의미 있는 갈등**: 실제 삶에서 공감할 수 있는 가족 간 갈등
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-YOUR ENTIRE RESPONSE = ONE JSON OBJECT
-- 첫 글자: {
-- 마지막 글자: }
-- 중간: 순수 JSON만
-
-❌ 금지 (1글자라도 출력 시 실패):
-- "분석 결과", "제목을 보니", "다음과 같이", "대본입니다"
-- 코드펜스 (```json, ```)
+**응답 형식:**
+- { 로 시작해서 } 로 끝나는 순수 JSON 객체로 응답
+- 코드펜스(```)나 추가 설명 없이 JSON만 출력
+- 아래 제시된 스키마를 정확히 따라주세요
 - JSON 앞뒤 어떤 텍스트도 금지
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -268,12 +264,12 @@ SceneMemory 교차검사 활성화 (의미 있는 내용어 3-4개 연속 기준
 
 🆕 **v9.5 압축 템플릿 (50-70 단어, 출력 최적화):** 🆕 간결화
 
-Korean dramatic scene, [인물] [감정] expression direct frontal eye contact looking directly at camera, positioned right frame, [행동], facial close-up eyes facing forward, left space text, asymmetric composition, dramatic tension, sharp focus, strong contrast lighting, desaturated + red accents, freeze frame, NO TEXT
+Photorealistic professional photograph, Korean dramatic scene, realistic photography style, DSLR camera, high resolution, natural skin texture, [인물] [감정] expression direct frontal eye contact looking directly at camera, positioned right frame, [행동], facial close-up eyes facing forward, left space text, asymmetric composition, dramatic tension, sharp focus, strong contrast lighting, desaturated + red accents, freeze frame, NO TEXT
 
 🔥 **v9.5 압축 예시 (ImageFX 안전 필터 + 출력 최적화):**
 
 ```
-Korean dramatic scene, elderly woman 60s shocked expression direct frontal eye contact looking directly at camera, positioned right frame, gripping wrist tension, facial close-up eyes facing forward, left space text, asymmetric composition, dramatic tension, sharp focus face hands, fluorescent strong contrast, desaturated grey + red accents, freeze frame, NO TEXT
+Photorealistic professional photograph, Korean dramatic scene, realistic photography style, DSLR camera, high resolution, natural skin texture, elderly woman 60s shocked expression direct frontal eye contact looking directly at camera, positioned right frame, gripping wrist tension, facial close-up eyes facing forward, left space text, asymmetric composition, dramatic tension, sharp focus face hands, fluorescent strong contrast, desaturated grey + red accents, freeze frame, NO TEXT
 ```
 (55 단어 – 최적화)
 
@@ -410,7 +406,7 @@ Korean dramatic scene, elderly woman 60s shocked expression direct frontal eye c
 **구조:** [스타일] + [감정] + [인물] + [조명] + [앵글/샷] + [오브제] + [색감] + NO TEXT
 
 **필수 요소:**
-1. 스타일: Korean dramatic scene cinematography
+1. 스타일: Photorealistic professional photograph, Korean dramatic scene cinematography, realistic photography style, DSLR camera, high resolution, natural skin texture
 2. 감정 (안전 필터 대응): oppressive, melancholic, tense, isolating, haunting, intense (violent 금지), dramatic (brutal 금지), traumatic, introspective, liminal, accepting, healing, vengeful, ominous, retributive
 3. 인물: elderly woman 60s, middle-aged woman 40s + looking at camera + positioned right side + 자세/표정 구체적
 4. 조명: window light, fluorescent, harsh overhead + 방향 + 질감 (stark shadows, dividing line)
@@ -451,7 +447,9 @@ Korean dramatic scene, elderly woman 60s shocked expression direct frontal eye c
     "symbolic_objects": ["찻잔", "보자기", "거울"],
     "total_word_count": 32000,
     "estimated_tts_duration_seconds": 6400,
-    "recommended_shorts_edit": "60초 내 핵심 발췌"
+    "recommended_shorts_edit": "60초 내 핵심 발췌",
+    "category": "일반",
+    "scriptId": "자동생성됨"
   },
   "scenes": [
     {
