@@ -55,23 +55,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 비디오 파일들 수집
-    console.log('📹 비디오 파일 수집 중...');
+    // 미디어 파일들 수집 (이미지+비디오)
+    console.log('📹 미디어 파일 수집 중...');
     const videoFiles: File[] = [];
     let totalSize = 0;
-    for (let i = 0; i < 20; i++) { // 최대 20개까지 확인
-      const video = formData.get(`video_${i}`) as File;
-      if (video) {
-        videoFiles.push(video);
-        totalSize += video.size;
-        console.log(`  📹 video_${i}: ${video.name} (${(video.size / 1024 / 1024).toFixed(2)}MB)`);
+    for (let i = 0; i < 50; i++) { // 최대 50개까지 확인
+      const media = formData.get(`video_${i}`) as File;
+      if (media) {
+        videoFiles.push(media);
+        totalSize += media.size;
+        const mediaType = media.type.startsWith('image/') ? '🖼️' : '🎬';
+        console.log(`  ${mediaType} video_${i}: ${media.name} (${(media.size / 1024 / 1024).toFixed(2)}MB)`);
       }
     }
-    console.log(`✅ 비디오 파일 수집 완료: ${videoFiles.length}개, 총 ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+    console.log(`✅ 미디어 파일 수집 완료: ${videoFiles.length}개, 총 ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
 
     if (videoFiles.length === 0) {
       return NextResponse.json(
-        { error: '최소 1개 이상의 비디오가 필요합니다.' },
+        { error: '최소 1개 이상의 미디어 파일이 필요합니다.' },
         { status: 400 }
       );
     }
@@ -90,26 +91,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 비디오 파일 정렬: 파일명에서 시퀀스 번호 추출 또는 시간순
-    videoFiles.sort((a, b) => {
-      // 파일명에서 숫자 패턴 추출 (예: "1.mp4", "video_01.mp4", "scene-02.mp4")
-      const extractNumber = (filename: string): number | null => {
-        // 파일명에서 숫자만 추출
-        const match = filename.match(/(\d+)/);
-        return match ? parseInt(match[1], 10) : null;
-      };
-
-      const numA = extractNumber(a.name);
-      const numB = extractNumber(b.name);
-
-      // 둘 다 숫자가 있으면 숫자로 정렬
-      if (numA !== null && numB !== null) {
-        return numA - numB;
-      }
-
-      // 숫자가 없으면 lastModified 시간으로 정렬 (시간순)
-      return a.lastModified - b.lastModified;
-    });
+    // Frontend에서 이미 통합 정렬됨 (시퀀스 번호 우선 → lastModified)
+    // Backend에서 추가 정렬 불필요
 
     // 자막 옵션 확인
     const addSubtitles = formData.get('addSubtitles') === 'true';
@@ -268,17 +251,18 @@ export async function POST(request: NextRequest) {
     const savedVideoPaths: string[] = [];
     for (let i = 0; i < videoFiles.length; i++) {
       const video = videoFiles[i];
-      // 0-패딩된 인덱스 사용 (00, 01, 02, ...)
-      const paddedIndex = String(i).padStart(3, '0');
-      const videoPath = path.join(videoDir, `${paddedIndex}_${video.name}`);
+      // Frontend에서 이미 통합 시퀀스 번호로 정렬되어 전송됨 (01.jpg, 02.mp4, ...)
+      // 파일명 그대로 저장 (Python video_merge.py의 extract_sequence가 제대로 인식)
+      const videoPath = path.join(videoDir, video.name);
       const videoBuffer = Buffer.from(await video.arrayBuffer());
       await fs.writeFile(videoPath, videoBuffer);
       savedVideoPaths.push(videoPath);
-      await addJobLog(jobId, `📹 비디오 ${i + 1} 저장: ${paddedIndex}_${video.name}`);
+
+      const mediaType = video.type.startsWith('image/') ? '🖼️' : '🎬';
+      await addJobLog(jobId, `  ${mediaType} [${i + 1}] ${video.name}`);
     }
 
-    // 저장된 경로를 다시 정렬 (파일명 기준)
-    savedVideoPaths.sort();
+    // 정렬된 순서 그대로 사용 (Frontend에서 이미 정렬됨)
 
     // scenes 배열 추출 (비디오 배치용) - 이미 파싱한 jsonData 사용
     let scenes = null;

@@ -112,7 +112,7 @@ YOUR ENTIRE RESPONSE = ONE JSON OBJECT
 
 【🎣 30초 중독성 루프】
 
-1. 씬0: 갈등+정보 갭 → 2. 씬1: 부분 해소+새 긴장 → 3. 씬2: 폭발적 해소+여운
+1. 씬0: 갈등+정보 갭 → 2. 씬1: 감정 몰입 → 3. 씬2: WTF 반전 → 4. 씬3: 중독성 여운
 
 【💔 감정 조작 기법 (숏폼 특화)】
 
@@ -138,16 +138,18 @@ YOUR ENTIRE RESPONSE = ONE JSON OBJECT
 - **음악 싱크**: 배경 음악과 씬 전환 고려
 
 대본 작성 가이드:
-1. **총 3개 씬 구성** (각 씬당 10초)
-   - 씬 0 (훅): 10초, 50자 - **충격적 질문/반전/비밀 공개**
+1. **총 4개 씬 구성** (30초)
+   - 씬 0 (훅): 3초, 50자 - **충격적 질문/반전/비밀 공개**
      * 예: "이거 모르면 평생 손해 봅니다", "99%가 모르는 진실", "절대 믿을 수 없는 일이..."
      * 금지: 평범한 시작, "오늘은", "여러분"
-   - 씬 1 (전개/핵심): 10초, 50자 - **공감 또는 충격 증폭 + 핵심 비밀/해결책 공개**
-     * 예: "이런 일이...", "이유는 바로 이겁니다", "답은 의외로 간단해요"
-   - 씬 2 (마무리): 10초, 50자 - **강렬한 여운/행동 촉구**
+   - 씬 1 (몰입): 9초, 50자 - **감정 몰입, 공감 유도**
+     * 예: "이런 일이...", "믿기지 않지만 실화입니다", "실제로 일어난 일이에요"
+   - 씬 2 (반전): 9초, 50자 - **핵심 비밀/해결책 공개, WTF 반전**
+     * 예: "이유는 바로 이겁니다", "답은 의외로 간단해요", "알고보니..."
+   - 씬 3 (중독성 마무리): 9초, 50자 - **강렬한 여운/행동 촉구**
      * 예: "이제 알았으니 절대 잊지 마세요", "당장 확인해보세요"
 
-2. **총 150자 분량** (약 30초)
+2. **총 200자 분량** (약 30초)
 
 3. **필수 후킹 요소:**
    - **첫 문장 패턴**: "절대/비밀/충격/반전/몰랐던/숨겨진/99%/놀라운"
@@ -236,7 +238,7 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
 - 최종 JSON이 유효한 JSON 형식이어야 함
 
 
-📋 JSON 출력 스키마 (숏폼 버전 - 5개 씬)
+📋 JSON 출력 스키마 (숏폼 버전 - 4개 씬)
 
 ```json
 {
@@ -246,9 +248,9 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
     "genre": "숏폼 (쇼츠/릴스/틱톡)",
     "format": "세로형 9:16",
     "target_audience": "10-40대 모바일 사용자",
-    "emotional_arc": "훅 → 전개 → 행동유도",
+    "emotional_arc": "훅 → 몰입 → 반전 → 중독성 여운",
     "key_themes": ["주제1", "주제2"],
-    "total_word_count": 150,
+    "total_word_count": 200,
     "estimated_duration_seconds": 30,
     "aspect_ratio": "9:16 (portrait)"
   },
@@ -256,31 +258,39 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
     {
       "scene_id": "scene_00_hook",
       "scene_name": "훅 - 1초 안에 잡기",
-      "duration_seconds": 10,
+      "duration_seconds": 3,
       "word_count": 50,
       "image_prompt": "Vertical 9:16 format, portrait orientation, shocking moment, extreme close-up of surprised face or dramatic reveal, centered subject, vibrant saturated colors, high contrast lighting, intense eye contact, mobile-optimized, NO TEXT",
       "narration": "충격적 질문/반전/비밀로 시작! 예: '이거 모르면 평생 손해 봅니다', '99%가 모르는 진실', '절대 믿을 수 없는 일이...' (50자)"
     },
     {
-      "scene_id": "scene_01_main",
-      "scene_name": "전개/핵심 - 비밀 공개",
-      "duration_seconds": 10,
+      "scene_id": "scene_01_immersion",
+      "scene_name": "몰입 - 감정 이입",
+      "duration_seconds": 9,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, revelation moment, clear visual demonstration of key point, arrows or highlights indicating important details, bright focused lighting, informative yet exciting composition, NO TEXT",
-      "narration": "핵심 비밀/해결책 공개! 예: '이유는 바로 이겁니다', '답은 의외로 간단해요', '이것만 기억하세요' (50자)"
+      "image_prompt": "Vertical 9:16 format, portrait orientation, emotional moment, relatable situation, slow motion effect, warm cinematic lighting, deep connection atmosphere, empathy-inducing composition, mobile-optimized, NO TEXT",
+      "narration": "감정 몰입, 공감 유도! 예: '이런 일이...', '믿기지 않지만 실화입니다', '실제로 일어난 일이에요' (50자)"
     },
     {
-      "scene_id": "scene_02_closing",
-      "scene_name": "마무리 - 강렬한 행동 촉구",
-      "duration_seconds": 10,
+      "scene_id": "scene_02_wtf",
+      "scene_name": "반전 - WTF 순간",
+      "duration_seconds": 9,
       "word_count": 50,
-      "image_prompt": "Vertical 9:16 format, portrait orientation, powerful closing shot, person with confident determined expression or symbolic success image, warm inspiring lighting, memorable impactful visual, call-to-action energy, NO TEXT",
+      "image_prompt": "Vertical 9:16 format, portrait orientation, revelation moment, unexpected twist, clear visual demonstration of key point, arrows or highlights indicating important details, bright focused lighting, informative yet exciting composition, NO TEXT",
+      "narration": "핵심 비밀/해결책 공개, WTF 반전! 예: '이유는 바로 이겁니다', '답은 의외로 간단해요', '알고보니...' (50자)"
+    },
+    {
+      "scene_id": "scene_03_addictive",
+      "scene_name": "중독성 마무리 - 여운",
+      "duration_seconds": 9,
+      "word_count": 50,
+      "image_prompt": "Vertical 9:16 format, portrait orientation, powerful closing shot, person with confident determined expression or symbolic success image, warm inspiring lighting, memorable impactful visual, call-to-action energy, addictive lingering mood, NO TEXT",
       "narration": "강렬한 여운/행동 촉구! 예: '이제 알았으니 절대 잊지 마세요', '당장 확인해보세요', '놓치면 평생 후회합니다' (50자)"
     }
   ],
   "quality_check": {
     "word_count_pass": true,
-    "scene_count": 3,
+    "scene_count": 4,
     "hook_effectiveness": "strong",
     "vertical_format_optimized": true,
     "mobile_friendly": true,
@@ -307,9 +317,9 @@ Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무�
 
 **형식 검증(자체 점검):**
 - 출력은 `{`로 시작해 `}`로 끝나야 하며, 파싱 가능한 **단일 JSON 객체**여야 한다.
-- scenes는 정확히 3개 (scene_00_hook, scene_01_main, scene_02_closing)
-- 모든 씬은 각 50자, 10초
-- 총 word_count는 150자
+- scenes는 정확히 4개 (scene_00_hook, scene_01_immersion, scene_02_wtf, scene_03_addictive)
+- 씬 0: 3초, 50자 / 씬 1-3: 각 9초, 50자
+- 총 word_count는 200자
 - 총 estimated_duration_seconds는 30초
 - 모든 씬의 image_prompt에 "Vertical 9:16 format" 또는 "portrait orientation" 포함
 - 모든 씬의 narration 필드에 내용 포함

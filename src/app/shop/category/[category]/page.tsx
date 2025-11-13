@@ -167,19 +167,20 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
   );
 }
 
-// 정적 경로 생성 (SSG) - Vercel 빌드 시에만
-export async function generateStaticParams() {
-  try {
-    const categories = await fetchAllCategories();
-    return categories.map((category) => ({
-      category: encodeURIComponent(category)
-    }));
-  } catch (error) {
-    console.error('카테고리 목록 생성 실패:', error);
-    return [];
-  }
-}
+// 정적 경로 생성 (SSG) - Client Component에서는 사용 불가
+// export async function generateStaticParams() {
+//   try {
+//     const categories = await fetchAllCategories();
+//     return categories.map((category) => ({
+//       category: encodeURIComponent(category)
+//     }));
+//   } catch (error) {
+//     console.error('카테고리 목록 생성 실패:', error);
+//     return [];
+//   }
+// }
 
 // 개발 모드: 동적 생성, 프로덕션: 정적 생성 + ISR
-export const dynamicParams = true; // 빌드 시 없던 카테고리도 동적 생성 허용
-export const revalidate = 60; // 1분마다 재생성 (상품 업데이트 빠른 반영)
+// Client Component에서는 사용 불가
+// export const dynamicParams = true; // 빌드 시 없던 카테고리도 동적 생성 허용
+// export const revalidate = 60; // 1분마다 재생성 (상품 업데이트 빠른 반영)

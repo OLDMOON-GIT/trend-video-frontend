@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   error TEXT,
   thumbnail_path TEXT,
   type TEXT,
+  source_content_id TEXT,
+  tts_voice TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

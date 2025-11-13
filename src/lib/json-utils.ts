@@ -231,6 +231,17 @@ function fixJsonString(jsonString: string, log: boolean = false): string {
   fixed = fixed.replace(/```\s*$/i, '');
   fixed = fixed.replace(/^\s*json\s*$/im, '');
 
+  // Step 0.5: title 필드의 따옴표 제거 (JSON 파싱 오류 방지)
+  // "title": "값에 "따옴표" 있음" -> "title": "값에 따옴표 있음"
+  fixed = fixed.replace(
+    /"title"\s*:\s*"((?:[^"]|"(?!\s*[,}]))+)"\s*([,}])/g,
+    (match, value, separator) => {
+      // 값 내부의 모든 따옴표 제거
+      const cleanValue = value.replace(/"/g, '');
+      return `"title": "${cleanValue}"${separator}`;
+    }
+  );
+
   // Step 1: JSON 시작점 찾기
   const titleMatch = fixed.match(/\{\s*"title"/);
   if (titleMatch && titleMatch.index !== undefined && titleMatch.index > 0) {

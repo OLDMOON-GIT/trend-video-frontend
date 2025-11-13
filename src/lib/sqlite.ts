@@ -530,4 +530,7 @@ try {
   console.error('❌ SQLite 초기화 오류:', error.message);
 }
 
+// getDb 함수 export (named export)
+export const getDb = () => db;
+
 export default db;

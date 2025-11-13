@@ -3664,60 +3664,150 @@ export default function Home() {
                         </div>
                       )}
                       {uploadedImages.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-emerald-400">
-                              ✓ 이미지: {uploadedImages.length}개
-                            </span>
+                        <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
+                          <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
+                            <span>💡</span>
+                            <span>드래그하여 순서를 변경하세요</span>
                             {uploadedImages.length < 50 && (
-                              <span className="text-xs text-amber-400">(최대 50개)</span>
+                              <span className="text-xs text-amber-400 ml-auto">(최대 50개)</span>
                             )}
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-1">
+                          </p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
                             {uploadedImages.map((img, idx) => (
-                              <span
+                              <div
                                 key={idx}
-                                className="group flex items-center gap-1 rounded bg-white/10 px-2 py-1 text-xs text-slate-400"
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  e.dataTransfer.setData('text/plain', idx.toString());
+                                  (e.currentTarget as HTMLElement).style.opacity = '0.5';
+                                }}
+                                onDragEnd={(e) => {
+                                  (e.currentTarget as HTMLElement).style.opacity = '1';
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = 'move';
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+                                  const toIdx = idx;
+                                  if (fromIdx === toIdx) return;
+
+                                  setUploadedImages(prev => {
+                                    const newArr = [...prev];
+                                    const [movedItem] = newArr.splice(fromIdx, 1);
+                                    newArr.splice(toIdx, 0, movedItem);
+                                    return newArr;
+                                  });
+                                }}
+                                className="relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 hover:border-blue-500 transition-all"
                               >
-                                {img.name}
-                                <button
-                                  onClick={() => {
-                                    setUploadedImages(prev => prev.filter((_, i) => i !== idx));
-                                  }}
-                                  className="ml-1 flex h-3 w-3 items-center justify-center rounded text-xs opacity-60 transition hover:bg-red-500/30 hover:text-red-400 hover:opacity-100"
-                                  aria-label={`${img.name} 삭제`}
-                                >
-                                  ✕
-                                </button>
-                              </span>
+                                <div className="aspect-[3/4] relative bg-black">
+                                  <img
+                                    src={URL.createObjectURL(img)}
+                                    alt={img.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute top-2 left-2 bg-black/70 text-white p-2 rounded cursor-move">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                                      <path d="M2 4h12v1H2V4zm0 3.5h12v1H2v-1zM2 11h12v1H2v-1z"/>
+                                    </svg>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setUploadedImages(prev => prev.filter((_, i) => i !== idx));
+                                    }}
+                                    className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
+                                    title="삭제"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                <div className="p-3 bg-slate-800/80">
+                                  <p className="text-sm text-slate-200 truncate mb-1">{img.name}</p>
+                                  <p className="text-xs text-slate-400">
+                                    {(img.size / 1024).toFixed(1)} KB • 이미지
+                                  </p>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>
                       )}
                       {uploadedVideos.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-emerald-400">
-                              ✓ 비디오: {uploadedVideos.length}개
-                            </span>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-1">
+                        <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
+                          <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
+                            <span>💡</span>
+                            <span>드래그하여 순서를 변경하세요</span>
+                          </p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
                             {uploadedVideos.map((vid, idx) => (
-                              <span
+                              <div
                                 key={idx}
-                                className="group flex items-center gap-1 rounded bg-white/10 px-2 py-1 text-xs text-slate-400"
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  e.dataTransfer.setData('text/plain', idx.toString());
+                                  (e.currentTarget as HTMLElement).style.opacity = '0.5';
+                                }}
+                                onDragEnd={(e) => {
+                                  (e.currentTarget as HTMLElement).style.opacity = '1';
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = 'move';
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+                                  const toIdx = idx;
+                                  if (fromIdx === toIdx) return;
+
+                                  setUploadedVideos(prev => {
+                                    const newArr = [...prev];
+                                    const [movedItem] = newArr.splice(fromIdx, 1);
+                                    newArr.splice(toIdx, 0, movedItem);
+                                    return newArr;
+                                  });
+                                }}
+                                className="relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 hover:border-orange-500 transition-all"
                               >
-                                {vid.name}
-                                <button
-                                  onClick={() => {
-                                    setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
-                                  }}
-                                  className="ml-1 flex h-3 w-3 items-center justify-center rounded text-xs opacity-60 transition hover:bg-red-500/30 hover:text-red-400 hover:opacity-100"
-                                  aria-label={`${vid.name} 삭제`}
-                                >
-                                  ✕
-                                </button>
-                              </span>
+                                <div className="aspect-[3/4] relative bg-black">
+                                  <video
+                                    src={URL.createObjectURL(vid)}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                    playsInline
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                    <div className="text-5xl text-white/80">▶</div>
+                                  </div>
+                                  <div className="absolute top-2 left-2 bg-black/70 text-white p-2 rounded cursor-move">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                                      <path d="M2 4h12v1H2V4zm0 3.5h12v1H2v-1zM2 11h12v1H2v-1z"/>
+                                    </svg>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
+                                    }}
+                                    className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
+                                    title="삭제"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                <div className="p-3 bg-slate-800/80">
+                                  <p className="text-sm text-slate-200 truncate mb-1">{vid.name}</p>
+                                  <p className="text-xs text-slate-400">
+                                    {(vid.size / 1024).toFixed(1)} KB • 비디오
+                                  </p>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>

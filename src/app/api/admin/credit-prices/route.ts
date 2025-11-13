@@ -18,8 +18,8 @@ interface CreditPrices {
 const DEFAULT_PRICES: CreditPrices = {
   scriptGeneration: 100,
   videoGeneration: 500,
-  longformScript: 200,
-  shortformScript: 50,
+  longformScript: 3050,     // 롱폼 대본 + 이미지 8장: 약 1,020원 × 3 = 3,050원
+  shortformScript: 1400,    // 숏폼 대본 + 이미지 4장: 약 461원 × 3 = 1,400원
   sora2Video: 1000,
   productVideo: 300
 };

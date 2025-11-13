@@ -32,14 +32,24 @@ describe('File Sorting Logic', () => {
 
   /**
    * Video sequence number extraction function
-   * (from video-merge/route.ts)
+   * (from video-merge/route.ts - updated to match image logic)
    */
   const extractVideoSequenceNumber = (filename: string): number | null => {
-    // scene_001.mp4, video_002.mp4 등의 패턴
-    const match = filename.match(/[_-](\d{3,})\./);
-    if (match) {
-      return parseInt(match[1], 10);
+    // 1. 파일명이 숫자로 시작: "1.mp4", "02.mp4"
+    const startMatch = filename.match(/^(\d+)\./);
+    if (startMatch) return parseInt(startMatch[1], 10);
+
+    // 2. _숫자. 또는 -숫자. 패턴: "video_01.mp4", "scene-02.mp4"
+    const seqMatch = filename.match(/[_-](\d{1,3})\./);
+    if (seqMatch) return parseInt(seqMatch[1], 10);
+
+    // 3. (숫자) 패턴: "Video_fx (47).mp4"
+    // 단, 랜덤 ID가 없을 때만
+    const parenMatch = filename.match(/\((\d+)\)/);
+    if (parenMatch && !filename.match(/[_-]\w{8,}/)) {
+      return parseInt(parenMatch[1], 10);
     }
+
     return null;
   };
 
@@ -77,7 +87,13 @@ describe('File Sorting Logic', () => {
   });
 
   describe('Video Sequence Number Extraction', () => {
-    test('should extract 3-digit sequence numbers', () => {
+    test('should extract number from start of filename', () => {
+      expect(extractVideoSequenceNumber('1.mp4')).toBe(1);
+      expect(extractVideoSequenceNumber('02.mp4')).toBe(2);
+      expect(extractVideoSequenceNumber('123.mp4')).toBe(123);
+    });
+
+    test('should extract sequence numbers with underscore', () => {
       expect(extractVideoSequenceNumber('scene_001.mp4')).toBe(1);
       expect(extractVideoSequenceNumber('video_000.mp4')).toBe(0);
       expect(extractVideoSequenceNumber('clip_123.mp4')).toBe(123);
@@ -86,6 +102,11 @@ describe('File Sorting Logic', () => {
     test('should extract numbers with dash separator', () => {
       expect(extractVideoSequenceNumber('scene-001.mp4')).toBe(1);
       expect(extractVideoSequenceNumber('video-002.mp4')).toBe(2);
+    });
+
+    test('should extract number from parentheses (without random ID)', () => {
+      expect(extractVideoSequenceNumber('Video_fx (47).mp4')).toBe(47);
+      expect(extractVideoSequenceNumber('Clip (12).mp4')).toBe(12);
     });
 
     test('should return null for files without pattern', () => {
@@ -272,6 +293,69 @@ describe('File Sorting Logic', () => {
       });
 
       expect(sorted.map(f => f.name)).toEqual(['1.jpg', '02.jpg', '10.jpg']);
+    });
+
+    test('should sort mixed images and videos by sequence number', () => {
+      // 사용자의 실제 사용 케이스: 01.image, 02.mp4, 03.mp4, 04.image
+      const files: MockFile[] = [
+        { name: '04.image', lastModified: 4000 },
+        { name: '01.image', lastModified: 1000 },
+        { name: '03.mp4', lastModified: 3000 },
+        { name: '02.mp4', lastModified: 2000 },
+      ];
+
+      // 이미지와 비디오 모두 같은 extractSequenceNumber 로직 사용
+      const sorted = [...files].sort((a, b) => {
+        const numA = extractSequenceNumber(a.name);
+        const numB = extractSequenceNumber(b.name);
+
+        // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
+        if (numA !== null && numB !== null) {
+          return numA - numB;
+        }
+
+        // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
+        if (numA !== null && numB === null) return -1;
+        if (numA === null && numB !== null) return 1;
+
+        // 둘 다 없으면: lastModified로 정렬 (오래된 순)
+        return a.lastModified - b.lastModified;
+      });
+
+      // 예상 결과: 01, 02, 03, 04 순서 (파일 타입과 관계없이)
+      expect(sorted.map(f => f.name)).toEqual(['01.image', '02.mp4', '03.mp4', '04.image']);
+    });
+
+    test('should sort complex mixed media with different naming patterns', () => {
+      const files: MockFile[] = [
+        { name: 'scene_05.mp4', lastModified: 5000 },
+        { name: '01.jpg', lastModified: 1000 },
+        { name: 'video-03.mp4', lastModified: 3000 },
+        { name: 'image_02.png', lastModified: 2000 },
+        { name: '04.mp4', lastModified: 4000 },
+      ];
+
+      const sorted = [...files].sort((a, b) => {
+        const numA = extractSequenceNumber(a.name);
+        const numB = extractSequenceNumber(b.name);
+
+        if (numA !== null && numB !== null) {
+          return numA - numB;
+        }
+
+        if (numA !== null && numB === null) return -1;
+        if (numA === null && numB !== null) return 1;
+
+        return a.lastModified - b.lastModified;
+      });
+
+      expect(sorted.map(f => f.name)).toEqual([
+        '01.jpg',
+        'image_02.png',
+        'video-03.mp4',
+        '04.mp4',
+        'scene_05.mp4'
+      ]);
     });
   });
 });

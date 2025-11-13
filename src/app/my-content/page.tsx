@@ -112,6 +112,7 @@ export default function MyContentPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [user, setUser] = useState<{ id: string; email: string; isAdmin?: boolean } | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   // URL 파라미터에서 탭 읽기
   useEffect(() => {
@@ -120,6 +121,17 @@ export default function MyContentPage() {
     if (tab && ['all', 'videos', 'scripts', 'published', 'settings'].includes(tab)) {
       setActiveTab(tab);
     }
+  }, []);
+
+  // 모바일 감지
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   // 탭 변경 핸들러 (URL 업데이트)
@@ -2358,6 +2370,12 @@ export default function MyContentPage() {
                                      item.data.type}
                                   </span>
                                 )}
+                                {/* 재생성 배지 */}
+                                {item.data.isRegenerated && (
+                                  <span className="px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 bg-amber-500 text-white">
+                                    🔄 재생성
+                                  </span>
+                                )}
                                 {/* 상태 배지 */}
                                 <div className="flex-shrink-0">
                                   {getStatusBadge(item.data.status)}
@@ -2676,6 +2694,12 @@ export default function MyContentPage() {
                                      item.data.type}
                                   </span>
                                 )}
+                                {/* 재생성 배지 */}
+                                {item.data.isRegenerated && (
+                                  <span className="px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 bg-amber-500 text-white">
+                                    🔄 재생성
+                                  </span>
+                                )}
                                 {/* 상태 배지 */}
                                 <div className="flex-shrink-0">
                                   {getStatusBadge(item.data.status)}
@@ -2690,6 +2714,42 @@ export default function MyContentPage() {
                                   <span className="text-slate-500">•</span>
                                   <span>{formatDate(item.data.createdAt)}</span>
                                 </p>
+                                {/* From 링크 (변환된 대본인 경우) */}
+                                {item.data.sourceContentId && (
+                                  <p className="flex items-center gap-2">
+                                    <span className="text-slate-500">•</span>
+                                    <span>
+                                      From:{' '}
+                                      <button
+                                        onClick={() => {
+                                          // Scripts 탭으로 이동
+                                          setActiveTab('scripts');
+                                          // 약간의 지연 후 스크롤
+                                          setTimeout(() => {
+                                            const sourceElement = document.getElementById(`script-${item.data.sourceContentId}`);
+                                            if (sourceElement) {
+                                              sourceElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                              sourceElement.classList.add('ring-2', 'ring-purple-500', 'ring-offset-2', 'ring-offset-slate-900');
+                                              setTimeout(() => {
+                                                sourceElement.classList.remove('ring-2', 'ring-purple-500', 'ring-offset-2', 'ring-offset-slate-900');
+                                              }, 2000);
+                                            } else {
+                                              toast.error('원본 대본을 찾을 수 없습니다.');
+                                            }
+                                          }, 100);
+                                        }}
+                                        className="text-purple-400 hover:text-purple-300 underline cursor-pointer transition"
+                                      >
+                                        원본 대본 보기 🔗
+                                      </button>
+                                      {item.data.conversionType && (
+                                        <span className="ml-1 text-xs text-slate-500">
+                                          ({item.data.conversionType})
+                                        </span>
+                                      )}
+                                    </span>
+                                  </p>
+                                )}
                                 {item.data.status === 'completed' && (
                                   <p className="flex items-center gap-2">
                                     <span className="text-slate-500">•</span>
@@ -2824,13 +2884,15 @@ export default function MyContentPage() {
                                 <div className="w-px h-8 bg-slate-600"></div>
 
                                 {/* === 제작 === */}
-                                <button
-                                  onClick={() => handleImageCrawling(item.data.id, '')}
-                                  className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
-                                  title="이미지 생성"
-                                >
-                                  🎨 이미지크롤링
-                                </button>
+                                {user?.isAdmin && !isMobile && (
+                                  <button
+                                    onClick={() => handleImageCrawling(item.data.id, '')}
+                                    className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
+                                    title="이미지 생성"
+                                  >
+                                    🎨 이미지크롤링
+                                  </button>
+                                )}
                                 <button
                                   onClick={async () => {
                                     console.log('🎬 [내 콘텐츠] 영상 제작 버튼 클릭됨');
@@ -2938,6 +3000,16 @@ export default function MyContentPage() {
                                 >
                                   📥 다운로드
                                 </button>
+                                {/* 변환 버튼: longform/shortform 타입에만 표시 */}
+                                {(item.data.type === 'longform' || item.data.type === 'shortform') && (
+                                  <button
+                                    onClick={() => handleConvertScript(item.data.id, item.data.type || 'longform', item.data.title)}
+                                    className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-500 cursor-pointer whitespace-nowrap"
+                                    title={item.data.type === 'longform' ? '쇼츠로 변환' : '롱폼으로 변환'}
+                                  >
+                                    🔄 변환
+                                  </button>
+                                )}
                                 {user?.isAdmin && (
                                   <button
                                     onClick={() => editingScriptId === item.data.id ? handleCancelEdit() : handleEditScript(item.data.id, item.data.content)}
@@ -3259,6 +3331,12 @@ export default function MyContentPage() {
                                  script.type === 'product' ? '🛍️ 상품' :
                                  script.type === 'product-info' ? '📝 상품정보' :
                                  '🎬 Sora2'}
+                              </span>
+                            )}
+                            {/* 재생성 배지 */}
+                            {script.isRegenerated && (
+                              <span className="px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 bg-amber-500 text-white">
+                                🔄 재생성
                               </span>
                             )}
                             {/* 상태 배지 */}
@@ -3587,13 +3665,15 @@ export default function MyContentPage() {
                             <div className="w-px h-8 bg-slate-600"></div>
 
                             {/* === 제작 === */}
-                            <button
-                              onClick={() => handleImageCrawling(script.id, '')}
-                              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
-                              title="이미지 생성"
-                            >
-                              🎨 이미지크롤링
-                            </button>
+                            {user?.isAdmin && !isMobile && (
+                              <button
+                                onClick={() => handleImageCrawling(script.id, '')}
+                                className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
+                                title="이미지 생성"
+                              >
+                                🎨 이미지크롤링
+                              </button>
+                            )}
                             <button
                               onClick={async () => {
                                 console.log('🎬 [대본 탭] 영상 제작 버튼 클릭됨');
@@ -3770,6 +3850,16 @@ export default function MyContentPage() {
                             >
                               📥 다운로드
                             </button>
+                            {/* 변환 버튼: longform/shortform 타입에만 표시 */}
+                            {(script.type === 'longform' || script.type === 'shortform') && (
+                              <button
+                                onClick={() => handleConvertScript(script.id, script.type || 'longform', script.title)}
+                                className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-500 cursor-pointer whitespace-nowrap"
+                                title={script.type === 'longform' ? '쇼츠로 변환' : '롱폼으로 변환'}
+                              >
+                                🔄 변환
+                              </button>
+                            )}
                             {user?.isAdmin && (
                               <button
                                 onClick={() => editingScriptId === script.id ? handleCancelEdit() : handleEditScript(script.id, script.content)}
@@ -4077,6 +4167,14 @@ export default function MyContentPage() {
                                job.type === 'product' ? '🛍️ 상품' :
                                job.type === 'product-info' ? '📝 상품정보' :
                                '🎬 Sora2'}
+                            </span>
+                          </div>
+                        )}
+                        {/* 재생성 배지 */}
+                        {job.isRegenerated && (
+                          <div className="absolute bottom-2 left-2">
+                            <span className="px-2 py-1 rounded text-xs font-bold shadow-lg bg-amber-500 text-white">
+                              🔄 재생성
                             </span>
                           </div>
                         )}

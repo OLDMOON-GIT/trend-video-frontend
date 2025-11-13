@@ -1732,6 +1732,49 @@ export default function CoupangProductsAdminPage() {
               {selectedProductIds.size > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   <button
+                    onClick={async () => {
+                      const selectedProducts = products.filter(p => selectedProductIds.has(p.id));
+                      let successCount = 0;
+                      let failCount = 0;
+
+                      for (const product of selectedProducts) {
+                        try {
+                          const response = await fetch('/api/automation/titles', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              title: product.title,
+                              type: 'product',
+                              category: product.category,
+                              tags: `상품,쿠팡,${product.category}`,
+                              productUrl: product.deep_link || product.product_url
+                            })
+                          });
+
+                          if (response.ok) {
+                            successCount++;
+                          } else {
+                            failCount++;
+                          }
+                        } catch (error) {
+                          failCount++;
+                        }
+                      }
+
+                      if (successCount > 0) {
+                        toast.success(`${successCount}개 상품이 자동화 목록에 추가됨!`);
+                        // 자동화 페이지로 이동
+                        setTimeout(() => router.push('/automation'), 1000);
+                      }
+                      if (failCount > 0) {
+                        toast.error(`${failCount}개 상품 추가 실패`);
+                      }
+                    }}
+                    className="flex-1 min-w-[180px] rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2.5 text-sm font-bold text-white hover:from-purple-500 hover:to-pink-500 transition shadow-md"
+                  >
+                    🤖 자동화 일괄 추가
+                  </button>
+                  <button
                     onClick={handlePublishSelected}
                     disabled={isPublishing}
                     className="flex-1 min-w-[180px] rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-bold text-white hover:from-indigo-500 hover:to-purple-500 transition disabled:opacity-50 shadow-md"
@@ -1945,22 +1988,56 @@ export default function CoupangProductsAdminPage() {
                   )}
 
                   {/* 주요 액션 버튼 */}
-                  <button
-                    onClick={() => {
-                      const productInfo = {
-                        title: product.title,
-                        thumbnail: product.image_url,
-                        product_link: product.deep_link,
-                        description: product.description
-                      };
-                      localStorage.setItem('product_video_info', JSON.stringify(productInfo));
-                      router.push('/?promptType=product');
-                      toast.success('상품 정보 로드됨!');
-                    }}
-                    className="w-full rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-lg"
-                  >
-                    📝 상품영상대본작성
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        const productInfo = {
+                          title: product.title,
+                          thumbnail: product.image_url,
+                          product_link: product.deep_link,
+                          description: product.description
+                        };
+                        localStorage.setItem('product_video_info', JSON.stringify(productInfo));
+                        router.push('/?promptType=product');
+                        toast.success('상품 정보 로드됨!');
+                      }}
+                      className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-3 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-lg"
+                    >
+                      📝 대본작성
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/automation/titles', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              title: product.title,
+                              type: 'product',
+                              category: product.category,
+                              tags: `상품,쿠팡,${product.category}`,
+                              productUrl: product.deep_link || product.product_url
+                            })
+                          });
+
+                          if (response.ok) {
+                            const data = await response.json();
+                            toast.success('자동화로 이동합니다!');
+                            // titleId와 함께 자동화 페이지로 이동
+                            router.push(`/automation?titleId=${data.titleId}`);
+                          } else {
+                            const data = await response.json();
+                            toast.error(data.error || '자동화 추가 실패');
+                          }
+                        } catch (error) {
+                          toast.error('자동화 추가 오류');
+                        }
+                      }}
+                      className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-3 text-sm font-bold text-white hover:from-purple-500 hover:to-pink-500 transition shadow-lg"
+                    >
+                      🤖 자동화
+                    </button>
+                  </div>
 
                   {/* 보조 버튼들 */}
                   <div className="grid grid-cols-2 gap-2">

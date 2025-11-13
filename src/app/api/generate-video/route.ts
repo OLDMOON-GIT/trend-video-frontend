@@ -19,7 +19,7 @@ const jobs = new Map<string, {
 
 export async function POST(request: NextRequest) {
   try {
-    const { script, title, scenes } = await request.json();
+    const { script, title, scenes, type } = await request.json();
 
     if (!script || !title) {
       return NextResponse.json(
@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
       projectName,
       title,
       script,
-      scenes
+      scenes,
+      type: type || 'longform' // 기본값은 longform
     });
 
     return NextResponse.json({
@@ -75,6 +76,7 @@ async function generateVideoAsync(
     title: string;
     script: string;
     scenes?: any[];
+    type?: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info';
   }
 ) {
   try {
@@ -113,7 +115,11 @@ async function generateVideoAsync(
     job.progress = 40;
     job.step = '영상 생성 중... (몇 분 소요될 수 있습니다)';
 
-    const pythonCommand = `cd "${config.backendPath}" && python create_video_from_folder.py --folder "input/${config.projectName}" --aspect-ratio "16:9" --add-subtitles`;
+    // 타입에 따라 aspect-ratio 결정 (shortform은 9:16, 나머지는 16:9)
+    const aspectRatio = config.type === 'shortform' ? '9:16' : '16:9';
+    console.log(`📐 영상 비율 설정: ${aspectRatio} (타입: ${config.type || 'longform'})`);
+
+    const pythonCommand = `cd "${config.backendPath}" && python create_video_from_folder.py --folder "input/${config.projectName}" --aspect-ratio "${aspectRatio}" --add-subtitles`;
 
     console.log(`Executing: ${pythonCommand}`);
     const { stdout, stderr } = await execAsync(pythonCommand, {

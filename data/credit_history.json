@@ -1732,5 +1732,590 @@
     "balance": 200118680,
     "description": "영상 재생성",
     "createdAt": "2025-11-11T16:27:24.272Z"
+  },
+  {
+    "id": "3f9817c0-608f-4795-8c17-a91a3497a20a",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200118230,
+    "description": "영상 생성",
+    "createdAt": "2025-11-11T20:45:11.449Z"
+  },
+  {
+    "id": "d2f82cf8-8645-4d39-bedc-f8463f22bf85",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200118080,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T02:15:43.160Z"
+  },
+  {
+    "id": "9f1464c6-2209-4451-a661-46b6bd72df0b",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200118230,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-12T02:16:11.947Z"
+  },
+  {
+    "id": "59641f80-badd-41eb-ac75-809dd3173865",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200118080,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T02:56:32.313Z"
+  },
+  {
+    "id": "9a023c99-5dea-4d56-9889-492e90322a9f",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200117930,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T02:56:56.603Z"
+  },
+  {
+    "id": "f1b83195-37cb-4d42-a404-cedcdb9e076b",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200117780,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T03:00:33.010Z"
+  },
+  {
+    "id": "b8509cb5-fdbe-4417-9875-50f447f11384",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200117630,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T03:02:14.931Z"
+  },
+  {
+    "id": "00e8f16a-b897-4844-b275-843e2aa1dede",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200117480,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T03:03:49.081Z"
+  },
+  {
+    "id": "1880ccc9-f70b-4eb7-b8c8-890a77a71fc1",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": 150,
+    "balance": 200117330,
+    "description": "비디오 병합 생성 (2개 비디오)",
+    "createdAt": "2025-11-12T03:07:19.624Z"
+  },
+  {
+    "id": "edc4f124-f469-446c-b0ae-a80f1f040c72",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200117180,
+    "description": "영상 재생성",
+    "createdAt": "2025-11-12T03:09:56.856Z"
+  },
+  {
+    "id": "4f90d106-f61d-4c1e-96a4-55605755c40d",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200117330,
+    "description": "영상 재생성 실패 환불",
+    "createdAt": "2025-11-12T03:09:56.893Z"
+  },
+  {
+    "id": "df25fd12-f8cc-4c76-8e3d-4ad6cc695397",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200117180,
+    "description": "영상 재생성",
+    "createdAt": "2025-11-12T03:11:09.852Z"
+  },
+  {
+    "id": "17eeac2b-27a9-4427-a20f-191449e666d9",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200117330,
+    "description": "영상 재생성 실패 환불",
+    "createdAt": "2025-11-12T03:11:09.878Z"
+  },
+  {
+    "id": "e344431d-0db2-44d3-9e4c-7ab556b0840b",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200117180,
+    "description": "영상 재생성",
+    "createdAt": "2025-11-12T03:11:36.919Z"
+  },
+  {
+    "id": "06743834-1a49-4532-88f7-b15528b95496",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200117330,
+    "description": "영상 재생성 실패 환불",
+    "createdAt": "2025-11-12T03:11:36.945Z"
+  },
+  {
+    "id": "3d4e9702-63ca-4138-8110-5e174754758c",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": 150,
+    "balance": 200117180,
+    "description": "비디오 병합 생성 (4개 비디오)",
+    "createdAt": "2025-11-12T03:12:31.728Z"
+  },
+  {
+    "id": "199ff56f-e1da-46f7-a9d9-9e624d3709cb",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200117030,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T03:27:52.546Z"
+  },
+  {
+    "id": "315f52cb-0bc8-43bb-a92c-630ac48c0185",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200116880,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T03:30:23.608Z"
+  },
+  {
+    "id": "324d5472-5728-486e-a28f-2d6afa5d84e3",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200116730,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T05:16:35.244Z"
+  },
+  {
+    "id": "9c994a2d-25e3-4412-9079-b0fbef530c70",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200116880,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-12T05:16:41.527Z"
+  },
+  {
+    "id": "5630b96c-d064-44d0-8188-da4e3db505fb",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": 150,
+    "balance": 200116730,
+    "description": "비디오 병합 생성 (4개 비디오)",
+    "createdAt": "2025-11-12T05:17:32.991Z"
+  },
+  {
+    "id": "919f5d7d-8c0c-455e-ae2f-15f1ac8277cb",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200116580,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T05:25:50.996Z"
+  },
+  {
+    "id": "4dba0077-3617-48b6-8793-a33eb60eea2b",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200116730,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-12T05:25:59.575Z"
+  },
+  {
+    "id": "c02b0be3-a994-4eaf-972b-02277ddbaa98",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200116580,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T05:40:17.078Z"
+  },
+  {
+    "id": "f1034a25-01b9-4f95-9c19-e4909cabb209",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200116730,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-12T05:40:27.197Z"
+  },
+  {
+    "id": "3695bc18-52db-49d1-9bf2-c837f0a255f2",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": 150,
+    "balance": 200116580,
+    "description": "비디오 병합 생성 (2개 비디오)",
+    "createdAt": "2025-11-12T05:42:50.493Z"
+  },
+  {
+    "id": "2051bae2-91e2-4e8e-8791-a78e9be73153",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200116430,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T05:51:56.262Z"
+  },
+  {
+    "id": "aa7519aa-881d-4850-8c22-cb947f76c829",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200116580,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-12T05:52:03.618Z"
+  },
+  {
+    "id": "23e153a3-2b3f-42a4-af8f-2c17ece05e10",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200116430,
+    "description": "영상 재생성",
+    "createdAt": "2025-11-12T05:56:34.159Z"
+  },
+  {
+    "id": "b4b1d334-a11a-4393-8039-62a3bafe9b22",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200116280,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T05:57:47.739Z"
+  },
+  {
+    "id": "f10a006b-c827-4259-873a-0a9f2d0cccc4",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200116130,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T06:06:37.633Z"
+  },
+  {
+    "id": "6e39c7f2-9f93-4d15-bdca-e0094025a7b9",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115980,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T06:29:56.274Z"
+  },
+  {
+    "id": "6b8c290d-791e-46bb-9e33-2d4d7a3644e8",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200116130,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-12T06:30:02.397Z"
+  },
+  {
+    "id": "c15a5947-5383-4ae6-9571-0a78180bc20f",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115980,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T06:54:24.121Z"
+  },
+  {
+    "id": "b91bf2fe-eecf-4876-b20c-d9f944417c7c",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200116130,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-12T06:54:37.949Z"
+  },
+  {
+    "id": "f5aea90b-5770-4e95-a3d3-27ed1127d18e",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115980,
+    "description": "영상 재생성",
+    "createdAt": "2025-11-12T07:16:56.298Z"
+  },
+  {
+    "id": "1b0f6bbb-3ef8-43b6-a2cf-b6630366c821",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115830,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T07:52:08.090Z"
+  },
+  {
+    "id": "4f6abe0b-c49f-4603-8239-30fae736d307",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115680,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T07:59:50.302Z"
+  },
+  {
+    "id": "bc698ff4-72f4-4360-b579-38553412d760",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115530,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T08:02:23.751Z"
+  },
+  {
+    "id": "29a30067-1909-468c-968b-5d163b1d780c",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115380,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T08:03:43.028Z"
+  },
+  {
+    "id": "0b797d84-eaf3-4f53-ba4f-ba09dcb2b74c",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115230,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T08:20:12.213Z"
+  },
+  {
+    "id": "c8663e55-4bb6-4faa-999b-ac9e1be7bb79",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200115080,
+    "description": "영상 재생성",
+    "createdAt": "2025-11-12T08:31:23.910Z"
+  },
+  {
+    "id": "995e5363-57ce-46a0-80d0-3b7fa66e9e2b",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114930,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T09:00:29.008Z"
+  },
+  {
+    "id": "7d81e786-a1ff-4cf2-bd64-8c26f851e675",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114780,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T14:30:51.146Z"
+  },
+  {
+    "id": "39afbad2-6b5d-4833-8d8b-2c1fca89e480",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114630,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T15:24:56.598Z"
+  },
+  {
+    "id": "30d0d7d9-b06b-42f1-a083-bc865b5a7aba",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114480,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T16:21:37.721Z"
+  },
+  {
+    "id": "3acf9480-a176-499b-b110-3a12962d0bc9",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114330,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T16:26:13.614Z"
+  },
+  {
+    "id": "929ff6b4-9d02-415e-90f2-985963bfedb4",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114180,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T16:28:04.255Z"
+  },
+  {
+    "id": "e50cd620-13c3-46c2-abaa-70c5d5fc92ac",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": 150,
+    "balance": 200114030,
+    "description": "비디오 병합 생성 (1개 비디오)",
+    "createdAt": "2025-11-12T16:29:45.879Z"
+  },
+  {
+    "id": "761479e4-d158-4a3c-8b4f-4e37d2405d81",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200113880,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T16:39:03.958Z"
+  },
+  {
+    "id": "5b58b2fb-5989-4b15-b55e-58e2e895018c",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200113730,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T16:42:48.435Z"
+  },
+  {
+    "id": "e70f6a62-7deb-4b21-be52-acca3556ba32",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200113580,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T16:49:39.197Z"
+  },
+  {
+    "id": "2bfa19b6-9e91-4cc3-bae6-b6d623b9e735",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200113430,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T16:58:10.015Z"
+  },
+  {
+    "id": "16e3666d-8ab8-400f-a3f0-9d9065c476dc",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200113280,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T17:05:52.669Z"
+  },
+  {
+    "id": "bff8a33a-98c7-43df-8615-534e9adbfb1d",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200113130,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T17:11:02.358Z"
+  },
+  {
+    "id": "6ee8a583-0fc1-4aa7-84bc-10d4a6c965c9",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200112980,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T17:12:44.181Z"
+  },
+  {
+    "id": "b7438fc6-fbda-4b01-ad01-5dbd43b58c11",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200112830,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T17:20:16.140Z"
+  },
+  {
+    "id": "cb9f066d-a3bd-4918-87f9-f8e78d2be09a",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200112680,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T17:28:27.230Z"
+  },
+  {
+    "id": "3c0a7d39-5cb5-433c-b347-2116b39443ec",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200112530,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T17:38:55.438Z"
+  },
+  {
+    "id": "bea4605d-c00c-4182-bd9d-9a23738f441e",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200112380,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T17:47:43.822Z"
+  },
+  {
+    "id": "57cef258-1998-47dc-ba5b-4943bdd7e4de",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200112230,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T18:01:54.620Z"
+  },
+  {
+    "id": "d13714c8-9060-43c4-9859-8b7dc361e685",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200112080,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T18:09:21.154Z"
+  },
+  {
+    "id": "901f815e-e07f-4639-8c64-e3d5298eadb5",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200111930,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T18:24:13.312Z"
+  },
+  {
+    "id": "81cc781b-21a4-4f73-bd9f-432ba55d5aa3",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200111780,
+    "description": "영상 생성",
+    "createdAt": "2025-11-12T18:35:24.941Z"
+  },
+  {
+    "id": "4c388f03-ac82-41bd-9358-c1616615860f",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200111630,
+    "description": "영상 생성",
+    "createdAt": "2025-11-13T01:37:06.321Z"
   }
 ]

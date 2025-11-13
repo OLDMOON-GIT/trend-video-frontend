@@ -136,6 +136,15 @@ export default function Navbar() {
                   ⚙️ 상품 관리
                 </a>
 
+                {user.isAdmin && (
+                  <a
+                    href="/automation"
+                    className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-green-500 hover:to-emerald-500"
+                  >
+                    🤖 자동화
+                  </a>
+                )}
+
                 <a
                   href="/settings"
                   className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
@@ -219,6 +228,16 @@ export default function Navbar() {
                 >
                   ⚙️ 상품 관리
                 </a>
+
+                {user.isAdmin && (
+                  <a
+                    href="/automation"
+                    className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:from-green-500 hover:to-emerald-500"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    🤖 자동화
+                  </a>
+                )}
 
                 <a
                   href="/settings"

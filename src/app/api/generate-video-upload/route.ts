@@ -80,6 +80,10 @@ export async function POST(request: NextRequest) {
     const ttsVoice = formData.get('ttsVoice') as string || 'ko-KR-SoonBokNeural';
     console.log('TTS 음성:', ttsVoice);
 
+    // 이미지 모델 선택 확인
+    const imageModel = formData.get('imageModel') as string || 'dalle3';
+    console.log('이미지 모델:', imageModel);
+
     // 상품 타입이면 title 앞에 [광고] 추가
     if (promptFormat === 'product' || promptFormat === 'product-info') {
       if (!videoTitle.startsWith('[광고]')) {
@@ -104,73 +108,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 이미지 파일들 수집
-    const imageFiles: File[] = [];
-    for (let i = 0; i < 50; i++) { // 최대 50개까지 확인
-      const img = formData.get(`image_${i}`) as File;
-      if (img) imageFiles.push(img);
+    // 미디어 파일들 수집 (통합 인덱스로 순서 보존!)
+    type MediaFile = File & { mediaType: 'image' | 'video' };
+    const allMediaFiles: MediaFile[] = [];
+
+    for (let i = 0; i < 100; i++) { // 최대 100개까지 확인
+      const media = formData.get(`media_${i}`) as File;
+      if (media) {
+        const mediaType = media.type.startsWith('image/') ? 'image' : 'video';
+        allMediaFiles.push(Object.assign(media, { mediaType: mediaType as const }));
+      }
     }
 
-    // 비디오 파일들 수집
-    const videoFiles: File[] = [];
-    for (let i = 0; i < 50; i++) { // 최대 50개까지 확인
-      const vid = formData.get(`video_${i}`) as File;
-      if (vid) videoFiles.push(vid);
-    }
+    // Frontend에서 이미 정렬되어 전송됨 (media_0, media_1, media_2... 순서 유지!)
+    // Backend에서 추가 정렬 불필요
 
-    // ⚠️ 중요: 시퀀스 번호 우선, 그 다음 lastModified 오래된 순 정렬
-    // 1. 파일명에서 시퀀스 번호 추출 (01.jpg, image_02.png, scene-03.jpg 등)
-    // 2. 시퀀스 번호가 있으면 시퀀스 순으로 정렬
-    // 3. 시퀀스 번호가 없으면 lastModified 오래된 순으로 정렬
-    const extractSequenceNumber = (filename: string): number | null => {
-      // 1. 파일명이 숫자로 시작: "1.jpg", "02.png"
-      const startMatch = filename.match(/^(\d+)\./);
-      if (startMatch) return parseInt(startMatch[1], 10);
-
-      // 2. _숫자. 또는 -숫자. 패턴: "image_01.jpg", "scene-02.png"
-      const seqMatch = filename.match(/[_-](\d{1,3})\./);
-      if (seqMatch) return parseInt(seqMatch[1], 10);
-
-      // 3. (숫자) 패턴: "Image_fx (47).jpg"
-      // 단, 랜덤 ID가 없을 때만
-      const parenMatch = filename.match(/\((\d+)\)/);
-      if (parenMatch && !filename.match(/[_-]\w{8,}/)) {
-        return parseInt(parenMatch[1], 10);
-      }
-
-      return null;
-    };
-
-    imageFiles.sort((a, b) => {
-      const numA = extractSequenceNumber(a.name);
-      const numB = extractSequenceNumber(b.name);
-
-      // 둘 다 시퀀스 번호가 있으면: 시퀀스 번호로 정렬
-      if (numA !== null && numB !== null) {
-        return numA - numB;
-      }
-
-      // 시퀀스 번호가 하나만 있으면: 시퀀스 번호 있는게 우선
-      if (numA !== null && numB === null) return -1;
-      if (numA === null && numB !== null) return 1;
-
-      // 둘 다 없으면: lastModified로 정렬 (오래된 순)
-      return a.lastModified - b.lastModified;
-    });
-
-    console.log('📷 정렬된 이미지 순서 (시퀀스 우선 → lastModified):');
-    imageFiles.forEach((f, i) => {
-      const sceneNum = i === 0 ? '씬 0 (폭탄)' : i === imageFiles.length - 1 ? '씬 마지막 (구독)' : `씬 ${i}`;
-      const date = new Date(f.lastModified);
-      const timeStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}.${ String(date.getMilliseconds()).padStart(3,'0')}`;
+    console.log('📷 수신된 미디어 순서 (Frontend 정렬 그대로 유지):');
+    allMediaFiles.forEach((f, i) => {
+      const mediaIcon = f.mediaType === 'image' ? '🖼️' : '🎬';
       const originalName = originalNames[i] ? ` (원본: ${originalNames[i]})` : '';
-      const seqNum = extractSequenceNumber(f.name);
-      const seqInfo = seqNum !== null ? ` [시퀀스: ${seqNum}]` : ' [시퀀스 없음]';
-      console.log(`  ${sceneNum}: ${f.name}${originalName}${seqInfo} (lastModified: ${timeStr})`);
+      console.log(`  ${i + 1}. ${mediaIcon} ${f.name}${originalName}`);
     });
 
     // 직접 업로드 모드일 때만 이미지 또는 비디오 필수 체크 (SORA2는 불필요)
-    if (videoFormat !== 'sora2' && imageSource === 'none' && imageFiles.length === 0 && videoFiles.length === 0) {
+    if (videoFormat !== 'sora2' && imageSource === 'none' && allMediaFiles.length === 0) {
       return NextResponse.json(
         { error: '최소 1개 이상의 이미지 또는 비디오가 필요합니다.' },
         { status: 400 }
@@ -216,13 +177,13 @@ export async function POST(request: NextRequest) {
       inputPath,
       projectName,
       jsonFile,
-      imageFiles,
-      videoFiles,
+      allMediaFiles, // 이미지+비디오 통합 정렬된 배열
       imageSource,
       isAdmin: user.isAdmin || false,
       videoFormat, // 롱폼/숏폼 정보 전달
       originalNames, // 원본 파일명 매핑
-      ttsVoice // TTS 음성 선택
+      ttsVoice, // TTS 음성 선택
+      imageModel // 이미지 생성 모델
     });
 
     return NextResponse.json({
@@ -249,13 +210,13 @@ async function generateVideoFromUpload(
     inputPath: string;
     projectName: string;
     jsonFile: File;
-    imageFiles: File[];
-    videoFiles: File[];
+    allMediaFiles: Array<File & { mediaType: 'image' | 'video' }>; // 이미지+비디오 통합 정렬된 배열
     imageSource: string;
     isAdmin: boolean;
     videoFormat: string; // 'longform', 'shortform', 'sora2'
     originalNames?: Record<number, string>; // 원본 파일명 매핑
     ttsVoice: string; // TTS 음성 선택
+    imageModel: string; // 이미지 생성 모델 ('dalle3', 'imagen3')
   }
 ) {
   try {
@@ -303,59 +264,47 @@ async function generateVideoFromUpload(
       JSON.stringify(jsonData, null, 2)
     );
 
-    // 3. 이미지 파일 저장 (직접 업로드 모드일 때만)
-    if (config.imageSource === 'none' && config.imageFiles.length > 0) {
+    // 3. 이미지+비디오 파일 저장 (직접 업로드 모드일 때만)
+    if (config.imageSource === 'none' && config.allMediaFiles.length > 0) {
       await updateJob(jobId, {
         progress: 30,
-        step: '이미지 저장 중...'
+        step: '미디어 파일 저장 중...'
       });
 
-      await addJobLog(jobId, `\n📷 이미지 ${config.imageFiles.length}개를 저장`);
-      await addJobLog(jobId, `⏰ Frontend에서 이미 정렬된 순서대로 저장 (image_00 → 씬 0)`);
+      const imageFiles = config.allMediaFiles.filter(f => f.mediaType === 'image');
+      const videoFiles = config.allMediaFiles.filter(f => f.mediaType === 'video');
 
-      // Frontend에서 이미 image_00, image_01... 형식으로 정렬되어 전송됨
-      // 파일명을 image_01, image_02... 형식으로 변경하여 저장 (Python 코드와 호환)
-      for (let i = 0; i < config.imageFiles.length; i++) {
-        const imgFile = config.imageFiles[i];
-        const imgBuffer = Buffer.from(await imgFile.arrayBuffer());
-        const ext = imgFile.name.split('.').pop() || 'jpg';
+      await addJobLog(jobId, `\n📷🎬 미디어 ${config.allMediaFiles.length}개 저장 (이미지: ${imageFiles.length}개, 비디오: ${videoFiles.length}개)`);
+      await addJobLog(jobId, `⏰ Frontend에서 시퀀스 번호로 통합 정렬된 순서대로 저장 (통합 시퀀스 유지)`);
 
-        // image_01.jpg, image_02.png 형식으로 저장 (1부터 시작)
-        const finalPath = path.join(config.inputPath, `image_${String(i + 1).padStart(2, '0')}.${ext}`);
-        await fs.writeFile(finalPath, imgBuffer);
+      // Frontend에서 이미 시퀀스 번호로 정렬되어 전송됨
+      // 통합 시퀀스 번호를 파일명에 포함하여 저장 (Python backend에서 다시 통합 정렬 시 순서 유지)
+      for (let i = 0; i < config.allMediaFiles.length; i++) {
+        const file = config.allMediaFiles[i];
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const ext = file.name.split('.').pop() || (file.mediaType === 'image' ? 'jpg' : 'mp4');
 
-        const sceneLabel = i === 0 ? '씬 0 (폭탄)' : i === config.imageFiles.length - 1 ? '씬 마지막' : `씬 ${i}`;
+        // 통합 시퀀스 번호 (i+1)를 파일명에 포함
+        const unifiedSeq = String(i + 1).padStart(2, '0');
 
-        // 원본 파일명 정보 추가
-        const originalName = config.originalNames?.[i] ? ` (원본: ${config.originalNames[i]})` : '';
-        await addJobLog(jobId, `  ${sceneLabel}: ${imgFile.name}${originalName} → image_${String(i + 1).padStart(2, '0')}.${ext}`);
+        if (file.mediaType === 'image') {
+          const finalPath = path.join(config.inputPath, `${unifiedSeq}.${ext}`);
+          await fs.writeFile(finalPath, buffer);
+
+          const originalName = config.originalNames?.[i] ? ` (원본: ${config.originalNames[i]})` : '';
+          await addJobLog(jobId, `  🖼️  [통합 #${i + 1}] ${file.name}${originalName} → ${unifiedSeq}.${ext}`);
+        } else {
+          const finalPath = path.join(config.inputPath, `${unifiedSeq}.${ext}`);
+          await fs.writeFile(finalPath, buffer);
+
+          const originalName = config.originalNames?.[i] ? ` (원본: ${config.originalNames[i]})` : '';
+          await addJobLog(jobId, `  🎬 [통합 #${i + 1}] ${file.name}${originalName} → ${unifiedSeq}.${ext} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+        }
       }
     } else if (config.imageSource === 'google') {
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
     } else if (config.imageSource === 'dalle') {
       await addJobLog(jobId, `\n🎨 DALL-E 3를 사용하여 이미지 자동 생성 예정`);
-    }
-
-    // 비디오 파일 저장 (직접 업로드 모드일 때)
-    if (config.imageSource === 'none' && config.videoFiles.length > 0) {
-      await updateJob(jobId, {
-        progress: 35,
-        step: '비디오 저장 중...'
-      });
-
-      await addJobLog(jobId, `\n🎬 비디오 ${config.videoFiles.length}개를 저장`);
-
-      for (let i = 0; i < config.videoFiles.length; i++) {
-        const vidFile = config.videoFiles[i];
-        const vidBuffer = Buffer.from(await vidFile.arrayBuffer());
-        const ext = vidFile.name.split('.').pop() || 'mp4';
-
-        // video_01.mp4, video_02.mp4 형식으로 저장 (1부터 시작)
-        const finalPath = path.join(config.inputPath, `video_${String(i + 1).padStart(2, '0')}.${ext}`);
-        await fs.writeFile(finalPath, vidBuffer);
-
-        await addJobLog(jobId, `  비디오 ${i + 1}: ${vidFile.name} → video_${String(i + 1).padStart(2, '0')}.${ext} (${(vidFile.size / 1024 / 1024).toFixed(1)}MB)`);
-      }
     }
 
     // 4. Python 스크립트 실행 (영상 생성) - 실시간 로그
@@ -432,8 +381,17 @@ async function generateVideoFromUpload(
       const voiceArg = ['--voice', config.ttsVoice];
       console.log(`🎤 TTS 음성: ${config.ttsVoice}`);
 
+      // 이미지 생성 모델 선택 (dalle3 -> openai, imagen3 -> imagen3)
+      const imageProviderMap: Record<string, string> = {
+        'dalle3': 'openai',
+        'imagen3': 'imagen3'
+      };
+      const imageProvider = imageProviderMap[config.imageModel] || 'openai';
+      const imageProviderArg = ['--image-provider', imageProvider];
+      console.log(`🎨 이미지 생성 모델: ${config.imageModel} (provider: ${imageProvider})`);
+
       // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
-      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...voiceArg, ...isAdminArg];
+      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...voiceArg, ...imageProviderArg, ...isAdminArg];
       console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
 
       pythonProcess = spawn('python', pythonArgs, {
@@ -578,9 +536,8 @@ async function generateVideoFromUpload(
       videoPath = path.join(latestOutputDir, videoFile);
       await addJobLog(jobId, `\n✅ SORA2 영상 발견: ${videoFile}`);
     } else {
-      // trend-video-backend generated_videos 폴더에서 찾기 (기존 로직)
-      generatedPath = path.join(config.inputPath, 'generated_videos');
-      const files = await fs.readdir(generatedPath);
+      // 프로젝트 루트에서 최종 영상 찾기 (영상병합과 같은 위치)
+      const files = await fs.readdir(config.inputPath);
 
       // story.json에서 제목 가져와서 파일명 생성
       let expectedFileName: string | null = null;
@@ -614,51 +571,43 @@ async function generateVideoFromUpload(
         throw new Error('생성된 영상 파일을 찾을 수 없습니다.');
       }
 
-      videoPath = path.join(generatedPath, videoFile);
+      videoPath = path.join(config.inputPath, videoFile);
       await addJobLog(jobId, `\n✅ 최종 영상 발견: ${videoFile}`);
     }
 
-    // 썸네일 찾기
+    // 썸네일 찾기 (영상과 같은 위치)
     let thumbnailPath: string | undefined;
 
     console.log('📸 썸네일 검색 시작...');
-    console.log('  영상 폴더:', generatedPath);
+    console.log('  프로젝트 폴더:', config.inputPath);
 
     try {
-      const files = await fs.readdir(generatedPath);
-      console.log('  폴더 파일들:', files);
-
-      // 썸네일 파일 찾기
-      const thumbnailFile = files.find(f =>
-        (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
-         f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
-      );
-
-      if (thumbnailFile) {
-        thumbnailPath = path.join(generatedPath, thumbnailFile);
-        console.log('✅ 썸네일 발견:', thumbnailPath);
-      } else if (config.videoFormat !== 'sora2') {
-        // SORA2가 아닐 때만 상위 input 폴더에서 찾기
-        console.log('⚠️  generated_videos에서 썸네일 없음, 상위 폴더 확인...');
-        try {
-          const inputFiles = await fs.readdir(config.inputPath);
-          console.log('  input 폴더 파일들:', inputFiles);
-          const inputThumbnailFile = inputFiles.find(f =>
-            (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
-             f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
-          );
-
-          if (inputThumbnailFile) {
-            thumbnailPath = path.join(config.inputPath, inputThumbnailFile);
-            console.log('✅ 썸네일 발견 (input):', thumbnailPath);
-          } else {
-            console.log('❌ 썸네일 파일을 찾을 수 없습니다.');
-          }
-        } catch (error) {
-          console.log('❌ 썸네일 검색 중 오류:', error);
+      if (config.videoFormat === 'sora2') {
+        // SORA2는 latestOutputDir에서 찾기
+        const files = await fs.readdir(latestOutputDir);
+        const thumbnailFile = files.find(f =>
+          (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
+           f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
+        );
+        if (thumbnailFile) {
+          thumbnailPath = path.join(latestOutputDir, thumbnailFile);
+          console.log('✅ SORA2 썸네일 발견:', thumbnailPath);
         }
       } else {
-        console.log('⚠️ SORA2: 썸네일 파일 없음');
+        // 일반: inputPath에서 찾기 (영상병합과 같은 위치)
+        const inputFiles = await fs.readdir(config.inputPath);
+        console.log('  폴더 파일들:', inputFiles);
+        const inputThumbnailFile = inputFiles.find(f =>
+          (f === 'thumbnail.jpg' || f === 'thumbnail.png' ||
+           f.includes('thumbnail') && (f.endsWith('.jpg') || f.endsWith('.png')))
+        );
+
+        if (inputThumbnailFile) {
+          thumbnailPath = path.join(config.inputPath, inputThumbnailFile);
+          console.log('✅ 썸네일 발견:', thumbnailPath);
+        } else {
+          console.log('❌ 썸네일 파일을 찾을 수 없습니다.');
+        }
       }
     } catch (error) {
       console.log('❌ 썸네일 검색 중 오류:', error);
