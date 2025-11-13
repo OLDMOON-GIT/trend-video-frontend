@@ -35,6 +35,27 @@ export function initAutomationTables() {
     // 이미 존재하면 무시
   }
 
+  // channel 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE video_titles ADD COLUMN channel TEXT;`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
+  // script_mode 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE video_titles ADD COLUMN script_mode TEXT DEFAULT 'chrome';`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
+  // media_mode 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE video_titles ADD COLUMN media_mode TEXT DEFAULT 'upload';`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
   // 2. 스케줄 테이블
   db.exec(`
     CREATE TABLE IF NOT EXISTS video_schedules (
@@ -116,14 +137,28 @@ export function addVideoTitle(data: {
   tags?: string;
   priority?: number;
   productUrl?: string;
+  channel?: string;
+  scriptMode?: string;
+  mediaMode?: string;
 }) {
   const db = new Database(dbPath);
   const id = `title_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   db.prepare(`
-    INSERT INTO video_titles (id, title, type, category, tags, priority, product_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, data.title, data.type, data.category || null, data.tags || null, data.priority || 0, data.productUrl || null);
+    INSERT INTO video_titles (id, title, type, category, tags, priority, product_url, channel, script_mode, media_mode)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    data.title,
+    data.type,
+    data.category || null,
+    data.tags || null,
+    data.priority || 0,
+    data.productUrl || null,
+    data.channel || null,
+    data.scriptMode || 'chrome',
+    data.mediaMode || 'upload'
+  );
 
   db.close();
   return id;

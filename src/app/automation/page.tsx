@@ -10,7 +10,17 @@ export default function AutomationPage() {
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
   const [titles, setTitles] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [newTitle, setNewTitle] = useState({ title: '', type: 'longform', category: '', tags: '', productUrl: '', scheduleTime: '' });
+  const [newTitle, setNewTitle] = useState({
+    title: '',
+    type: 'longform',
+    category: '',
+    tags: '',
+    productUrl: '',
+    scheduleTime: '',
+    channel: '',
+    scriptMode: 'chrome',
+    mediaMode: 'upload'
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [recentTitles, setRecentTitles] = useState<string[]>([]);
@@ -18,6 +28,7 @@ export default function AutomationPage() {
   const [addingScheduleFor, setAddingScheduleFor] = useState<string | null>(null);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
+  const [channels, setChannels] = useState<any[]>([]);
 
   // 현재 시간 + 3분 계산 (로컬 시간대)
   function getDefaultScheduleTime() {
@@ -34,6 +45,7 @@ export default function AutomationPage() {
   useEffect(() => {
     fetchData();
     loadRecentTitles();
+    fetchChannels();
 
     // URL 파라미터로 titleId가 있으면 자동으로 수정 모드
     const titleId = searchParams.get('titleId');
@@ -41,6 +53,18 @@ export default function AutomationPage() {
       setEditingId(titleId);
     }
   }, [searchParams]);
+
+  async function fetchChannels() {
+    try {
+      const response = await fetch('/api/youtube/channels');
+      const data = await response.json();
+      if (data.channels) {
+        setChannels(data.channels);
+      }
+    } catch (error) {
+      console.error('Failed to fetch channels:', error);
+    }
+  }
 
   function loadRecentTitles() {
     try {
@@ -120,7 +144,10 @@ export default function AutomationPage() {
           type: newTitle.type,
           category: newTitle.category,
           tags: newTitle.tags,
-          productUrl: newTitle.productUrl
+          productUrl: newTitle.productUrl,
+          channel: newTitle.channel,
+          scriptMode: newTitle.scriptMode,
+          mediaMode: newTitle.mediaMode
         })
       });
 
@@ -135,7 +162,17 @@ export default function AutomationPage() {
       }
 
       saveRecentTitle(newTitle.title);
-      setNewTitle({ title: '', type: 'longform', category: '', tags: '', productUrl: '', scheduleTime: '' });
+      setNewTitle({
+        title: '',
+        type: 'longform',
+        category: '',
+        tags: '',
+        productUrl: '',
+        scheduleTime: '',
+        channel: '',
+        scriptMode: 'chrome',
+        mediaMode: 'upload'
+      });
       setShowAddForm(false);
       await fetchData();
     } catch (error) {
@@ -435,6 +472,47 @@ export default function AutomationPage() {
                   />
                 )}
 
+                {/* 채널, 대본 생성, 미디어 생성 방식 */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">채널</label>
+                    <select
+                      value={newTitle.channel}
+                      onChange={(e) => setNewTitle({ ...newTitle, channel: e.target.value })}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">선택 (선택사항)</option>
+                      {channels.map((ch: any) => (
+                        <option key={ch.id} value={ch.id}>{ch.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">대본 생성</label>
+                    <select
+                      value={newTitle.scriptMode}
+                      onChange={(e) => setNewTitle({ ...newTitle, scriptMode: e.target.value })}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="chrome">크롬창</option>
+                      <option value="api">API</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">미디어 생성</label>
+                    <select
+                      value={newTitle.mediaMode}
+                      onChange={(e) => setNewTitle({ ...newTitle, mediaMode: e.target.value })}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="upload">직접 업로드</option>
+                      <option value="dalle">DALL-E 3</option>
+                      <option value="imagen3">Imagen 3</option>
+                      <option value="sora2">SORA 2</option>
+                    </select>
+                  </div>
+                </div>
+
                 {/* 스케줄 시간 입력 */}
                 <div>
                   <label className="text-sm text-slate-300 block mb-2">📅 스케줄 (선택)</label>
@@ -457,7 +535,17 @@ export default function AutomationPage() {
                 <button
                   onClick={() => {
                     setShowAddForm(false);
-                    setNewTitle({ title: '', type: 'longform', category: '', tags: '', productUrl: '', scheduleTime: '' });
+                    setNewTitle({
+                      title: '',
+                      type: 'longform',
+                      category: '',
+                      tags: '',
+                      productUrl: '',
+                      scheduleTime: '',
+                      channel: '',
+                      scriptMode: 'chrome',
+                      mediaMode: 'upload'
+                    });
                   }}
                   className="flex-1 px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
                 >
@@ -564,34 +652,6 @@ export default function AutomationPage() {
                           ))}
                         </div>
                       )}
-
-                      {/* 스케줄 추가 */}
-                      <div className="mb-4">
-                        <div className="flex gap-2">
-                          <div className="flex-1">
-                            <input
-                              type="datetime-local"
-                              id="newScheduleTime"
-                              defaultValue={getDefaultScheduleTime()}
-                              className="w-full px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-                            />
-                          </div>
-                          <button
-                            onClick={() => {
-                              const scheduleTime = (document.getElementById('newScheduleTime') as HTMLInputElement).value;
-                              if (!scheduleTime) {
-                                alert('실행 시간 입력 필요');
-                                return;
-                              }
-                              addScheduleToTitle(title.id, scheduleTime);
-                              (document.getElementById('newScheduleTime') as HTMLInputElement).value = getDefaultScheduleTime();
-                            }}
-                            className="self-end px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm font-semibold transition"
-                          >
-                            + 추가
-                          </button>
-                        </div>
-                      </div>
 
                       {/* 버튼 */}
                       <div className="flex gap-2">

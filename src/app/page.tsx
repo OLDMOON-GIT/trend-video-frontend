@@ -263,6 +263,45 @@ export default function Home() {
     setManuallyOrderedMedia(combined);
   }, [uploadedImages, uploadedVideos]);
 
+  // 정렬 함수들
+  const extractSequence = (filename: string): number | null => {
+    const match = filename.match(/(?:scene[_-]?|^)(\d+)/i);
+    return match ? parseInt(match[1], 10) : null;
+  };
+
+  const sortBySequence = () => {
+    let combined: Array<{type: 'image' | 'video'; file: File}> = [
+      ...uploadedImages.map(file => ({ type: 'image' as const, file })),
+      ...uploadedVideos.map(file => ({ type: 'video' as const, file }))
+    ];
+
+    combined = combined.sort((a, b) => {
+      const seqA = extractSequence(a.file.name);
+      const seqB = extractSequence(b.file.name);
+
+      if (seqA !== null && seqB !== null) return seqA - seqB;
+      if (seqA !== null) return -1;
+      if (seqB !== null) return 1;
+
+      return a.file.lastModified - b.file.lastModified;
+    });
+
+    setManuallyOrderedMedia(combined);
+    setIsManualSort(false);
+  };
+
+  const sortByTimestamp = () => {
+    let combined: Array<{type: 'image' | 'video'; file: File}> = [
+      ...uploadedImages.map(file => ({ type: 'image' as const, file })),
+      ...uploadedVideos.map(file => ({ type: 'video' as const, file }))
+    ];
+
+    combined = combined.sort((a, b) => a.file.lastModified - b.file.lastModified);
+
+    setManuallyOrderedMedia(combined);
+    setIsManualSort(false);
+  };
+
   // 초기 promptFormat을 기억 (URL 파라미터로 설정된 경우 localStorage 복원 방지용)
   const initialVideoFormatRef = useRef<string | null>(null);
 
@@ -3105,6 +3144,24 @@ export default function Home() {
                         </div>
                       )}
 
+                      {/* 정렬 버튼 */}
+                      {manuallyOrderedMedia.length > 0 && (
+                        <div className="flex gap-2 mb-3">
+                          <button
+                            onClick={sortBySequence}
+                            className="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors"
+                          >
+                            순번순
+                          </button>
+                          <button
+                            onClick={sortByTimestamp}
+                            className="px-3 py-1.5 bg-green-600/80 hover:bg-green-500 text-white text-sm rounded-lg transition-colors"
+                          >
+                            시간순
+                          </button>
+                        </div>
+                      )}
+
                       {/* @stable 이미지+비디오 통합 드래그앤드롭 순서 조정 (2025-11-13 완성) */}
                       {/* STABLE FEATURE: 완성된 기능 - 개선 요청 없이 수정 금지 */}
                       {/* ⚠️ CRITICAL FEATURE - DO NOT REMOVE: 이미지+비디오 통합 드래그 앤 드롭 순서 조정 */}
@@ -3691,6 +3748,25 @@ export default function Home() {
                           </span>
                         </div>
                       )}
+
+                      {/* 정렬 버튼 */}
+                      {manuallyOrderedMedia.length > 0 && (
+                        <div className="flex gap-2 mb-3">
+                          <button
+                            onClick={sortBySequence}
+                            className="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors"
+                          >
+                            순번순
+                          </button>
+                          <button
+                            onClick={sortByTimestamp}
+                            className="px-3 py-1.5 bg-green-600/80 hover:bg-green-500 text-white text-sm rounded-lg transition-colors"
+                          >
+                            시간순
+                          </button>
+                        </div>
+                      )}
+
                       {manuallyOrderedMedia.length > 0 && (
                           <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
                             <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
