@@ -219,30 +219,76 @@ async function executePipeline(schedule: any, pipelineIds: string[]) {
 
 // Stage 1: 대본 생성
 async function generateScript(schedule: any, pipelineId: string, maxRetry: number) {
+  const settings = getAutomationSettings();
+  const mode = settings.script_generation_mode || 'chrome';
+
   let retryCount = 0;
 
   while (retryCount < maxRetry) {
     try {
-      addPipelineLog(pipelineId, 'info', `Generating script (attempt ${retryCount + 1}/${maxRetry})`);
+      addPipelineLog(pipelineId, 'info', `Generating script via ${mode} (attempt ${retryCount + 1}/${maxRetry})`);
 
-      // API 호출
-      const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: schedule.title,
-          type: schedule.type,
-          model: 'claude'
-        })
-      });
+      if (mode === 'api') {
+        // API 방식: 기존 API 호출
+        const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: schedule.title,
+            type: schedule.type,
+            model: 'claude'
+          })
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Script generation failed');
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Script generation failed');
+        }
+
+        const data = await response.json();
+        return { success: true, scriptId: data.taskId };
+
+      } else {
+        // 크롬창 방식: Python 스크립트로 크롬 실행
+        const { spawn } = require('child_process');
+        const scriptPath = path.join(process.cwd(), '..', 'trend-video-backend', 'src', 'ai_aggregator', 'main.py');
+
+        // 제목을 임시 파일에 저장
+        const fs = require('fs');
+        const tmpFile = path.join(process.cwd(), 'data', `tmp_${Date.now()}.txt`);
+        fs.writeFileSync(tmpFile, schedule.title);
+
+        return new Promise((resolve, reject) => {
+          const process = spawn('python', ['-m', 'src.ai_aggregator.main', '-f', tmpFile, '-a', 'claude'], {
+            cwd: path.join(process.cwd(), '..', 'trend-video-backend'),
+            stdio: 'pipe'
+          });
+
+          let output = '';
+          process.stdout.on('data', (data: any) => {
+            const text = data.toString();
+            output += text;
+            addPipelineLog(pipelineId, 'debug', text);
+          });
+
+          process.stderr.on('data', (data: any) => {
+            addPipelineLog(pipelineId, 'warn', data.toString());
+          });
+
+          process.on('close', (code: number) => {
+            // 임시 파일 삭제
+            try { fs.unlinkSync(tmpFile); } catch (e) {}
+
+            if (code === 0) {
+              // 성공 - 대본이 저장된 경로를 파싱
+              const scriptId = `script_${Date.now()}`;
+              resolve({ success: true, scriptId });
+            } else {
+              reject(new Error(`Chrome script generation failed with code ${code}`));
+            }
+          });
+        });
       }
-
-      const data = await response.json();
-      return { success: true, scriptId: data.taskId };
 
     } catch (error: any) {
       retryCount++;

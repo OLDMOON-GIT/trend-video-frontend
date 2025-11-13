@@ -232,9 +232,12 @@ export default function Home() {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [draggingCardIndex, setDraggingCardIndex] = useState<number | null>(null);
   const [manuallyOrderedMedia, setManuallyOrderedMedia] = useState<Array<{type: 'image' | 'video'; file: File}>>([]);
+  const [isManualSort, setIsManualSort] = useState(false);
 
   // 파일 업로드 시 통합 배열 업데이트 (시퀀스/타임스탬프 정렬)
   useEffect(() => {
+    // 수동 정렬 후에는 자동 정렬하지 않음
+    if (isManualSort) return;
     const extractSequence = (filename: string): number | null => {
       const match = filename.match(/(?:scene[_-]?|^)(\d+)/i);
       return match ? parseInt(match[1], 10) : null;
@@ -3131,6 +3134,7 @@ export default function Home() {
                                     const newFiles = imageFiles.filter(f => !existingNames.has(f.name));
                                     return [...prev, ...newFiles].slice(0, 50);
                                   });
+                                  setIsManualSort(false); // 새 파일 추가 시 자동 정렬 재활성화
                                 }
                                 if (videoFiles.length > 0) {
                                   setUploadedVideos(prev => {
@@ -3138,6 +3142,7 @@ export default function Home() {
                                     const newFiles = videoFiles.filter(f => !existingNames.has(f.name));
                                     return [...prev, ...newFiles];
                                   });
+                                  setIsManualSort(false); // 새 파일 추가 시 자동 정렬 재활성화
                                 }
                               }
                             }}
@@ -3147,9 +3152,9 @@ export default function Home() {
                               <span>이미지와 비디오를 드래그하여 순서를 변경하세요 (여기에 파일을 드롭해도 추가됩니다)</span>
                             </p>
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
-                              {combinedMedia.map((item, globalIdx) => (
+                              {manuallyOrderedMedia.map((item, globalIdx) => (
                                 <div
-                                  key={`${item.sourceArray}-${item.originalIndex}`}
+                                  key={`${item.type}-${item.file.name}-${globalIdx}`}
                                   draggable
                                   onDragStart={(e) => {
                                     setDraggingCardIndex(globalIdx);
@@ -3180,16 +3185,20 @@ export default function Home() {
                                     if (fromIdx === toIdx) return;
 
                                     // 통합 배열에서 순서 변경
-                                    const newCombined = [...combinedMedia];
+                                    const newCombined = [...manuallyOrderedMedia];
                                     const [movedItem] = newCombined.splice(fromIdx, 1);
                                     newCombined.splice(toIdx, 0, movedItem);
 
-                                    // 변경된 통합 배열을 다시 이미지/비디오 배열로 분리
+                                    // 수동 정렬된 배열 업데이트
+                                    setManuallyOrderedMedia(newCombined);
+                                    setIsManualSort(true);
+
+                                    // 원본 배열도 업데이트
                                     const newImages = newCombined.filter(m => m.type === 'image').map(m => m.file);
                                     const newVideos = newCombined.filter(m => m.type === 'video').map(m => m.file);
-
                                     setUploadedImages(newImages);
                                     setUploadedVideos(newVideos);
+
                                     setDraggingCardIndex(null);
                                   }}
                                   className={`relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 transition-all ${
@@ -3224,11 +3233,17 @@ export default function Home() {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (item.type === 'image') {
-                                          setUploadedImages(prev => prev.filter(f => f !== item.file));
-                                        } else {
-                                          setUploadedVideos(prev => prev.filter(f => f !== item.file));
-                                        }
+
+                                        // 통합 배열에서 삭제
+                                        const newCombined = manuallyOrderedMedia.filter((_, idx) => idx !== globalIdx);
+                                        setManuallyOrderedMedia(newCombined);
+                                        setIsManualSort(true);
+
+                                        // 원본 배열도 업데이트
+                                        const newImages = newCombined.filter(m => m.type === 'image').map(m => m.file);
+                                        const newVideos = newCombined.filter(m => m.type === 'video').map(m => m.file);
+                                        setUploadedImages(newImages);
+                                        setUploadedVideos(newVideos);
                                       }}
                                       className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
                                       title="삭제"
@@ -3246,8 +3261,7 @@ export default function Home() {
                               ))}
                             </div>
                           </div>
-                        );
-                      })()}
+                        )}
 
                       <div className="flex gap-2">
                         <label className={`rounded-lg bg-gradient-to-r from-purple-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white transition ${
@@ -3294,6 +3308,7 @@ export default function Home() {
                                   }
                                   return [...prev, ...newFiles];
                                 });
+                                setIsManualSort(false); // 새 파일 추가 시 자동 정렬 재활성화
                               }
 
                               if (videoFiles.length > 0) {
@@ -3305,6 +3320,7 @@ export default function Home() {
                                   }
                                   return [...prev, ...newFiles];
                                 });
+                                setIsManualSort(false); // 새 파일 추가 시 자동 정렬 재활성화
                               }
 
                               if (jsonFile || videoFiles.length > 0) {
@@ -3685,9 +3701,9 @@ export default function Home() {
                               )}
                             </p>
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2">
-                              {combinedMedia.map((item, globalIdx) => (
+                              {manuallyOrderedMedia.map((item, globalIdx) => (
                                 <div
-                                  key={`${item.sourceArray}-${item.originalIndex}`}
+                                  key={`${item.type}-${item.file.name}-${globalIdx}`}
                                   draggable
                                   onDragStart={(e) => {
                                     setDraggingCardIndex(globalIdx);
@@ -3718,16 +3734,20 @@ export default function Home() {
                                     if (fromIdx === toIdx) return;
 
                                     // 통합 배열에서 순서 변경
-                                    const newCombined = [...combinedMedia];
+                                    const newCombined = [...manuallyOrderedMedia];
                                     const [movedItem] = newCombined.splice(fromIdx, 1);
                                     newCombined.splice(toIdx, 0, movedItem);
 
-                                    // 변경된 통합 배열을 다시 이미지/비디오 배열로 분리
+                                    // 수동 정렬된 배열 업데이트
+                                    setManuallyOrderedMedia(newCombined);
+                                    setIsManualSort(true);
+
+                                    // 원본 배열도 업데이트
                                     const newImages = newCombined.filter(m => m.type === 'image').map(m => m.file);
                                     const newVideos = newCombined.filter(m => m.type === 'video').map(m => m.file);
-
                                     setUploadedImages(newImages);
                                     setUploadedVideos(newVideos);
+
                                     setDraggingCardIndex(null);
                                   }}
                                   className={`relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 transition-all ${
@@ -3762,11 +3782,17 @@ export default function Home() {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (item.type === 'image') {
-                                          setUploadedImages(prev => prev.filter(f => f !== item.file));
-                                        } else {
-                                          setUploadedVideos(prev => prev.filter(f => f !== item.file));
-                                        }
+
+                                        // 통합 배열에서 삭제
+                                        const newCombined = manuallyOrderedMedia.filter((_, idx) => idx !== globalIdx);
+                                        setManuallyOrderedMedia(newCombined);
+                                        setIsManualSort(true);
+
+                                        // 원본 배열도 업데이트
+                                        const newImages = newCombined.filter(m => m.type === 'image').map(m => m.file);
+                                        const newVideos = newCombined.filter(m => m.type === 'video').map(m => m.file);
+                                        setUploadedImages(newImages);
+                                        setUploadedVideos(newVideos);
                                       }}
                                       className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition"
                                       title="삭제"
@@ -3784,8 +3810,7 @@ export default function Home() {
                               ))}
                             </div>
                           </div>
-                        );
-                      })()}
+                        )}
                       <div className="flex gap-2 pt-2">
                         <label className={`flex-1 rounded-lg bg-purple-600 px-4 py-2 text-center text-sm font-semibold text-white transition ${
                           isGeneratingVideo

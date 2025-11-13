@@ -17,6 +17,7 @@ export default function AutomationPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingScheduleFor, setAddingScheduleFor] = useState<string | null>(null);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<any>(null);
 
   // 현재 시간 + 3분 계산 (로컬 시간대)
   function getDefaultScheduleTime() {
@@ -77,11 +78,11 @@ export default function AutomationPage() {
       const schedulesData = await schedulesRes.json();
 
       setSchedulerStatus(status.status);
+      setSettings(status.status.settings);
       setTitles(titlesData.titles || []);
       setSchedules(schedulesData.schedules || []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
-      alert('데이터 로드 실패');
     } finally {
       setLoading(false);
     }
@@ -252,6 +253,24 @@ export default function AutomationPage() {
     }
   }
 
+  async function updateSettings(newSettings: any) {
+    try {
+      const response = await fetch('/api/automation/scheduler', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: newSettings
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to update settings');
+
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to update settings:', error);
+    }
+  }
+
   if (loading) {
     return <div className="p-8">로딩 중...</div>;
   }
@@ -281,6 +300,31 @@ export default function AutomationPage() {
             </button>
           </div>
         </div>
+
+        {/* 자동화 설정 */}
+        {settings && (
+          <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
+            <h2 className="text-2xl font-semibold text-white mb-4">자동화 설정</h2>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <label className="text-slate-300 w-48">대본 생성 방식:</label>
+                <select
+                  value={settings.script_generation_mode || 'chrome'}
+                  onChange={(e) => updateSettings({ script_generation_mode: e.target.value })}
+                  className="px-4 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="chrome">크롬창 (AI 대본 생성)</option>
+                  <option value="api">API 호출</option>
+                </select>
+                <span className="text-xs text-slate-400">
+                  {settings.script_generation_mode === 'api'
+                    ? 'API를 통해 자동으로 대본을 생성합니다'
+                    : '크롬 브라우저를 열어 AI 대본 생성 도구를 사용합니다'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 제목 리스트 관리 */}
         <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
