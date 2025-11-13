@@ -261,7 +261,7 @@ export default function Home() {
     });
 
     setManuallyOrderedMedia(combined);
-  }, [uploadedImages, uploadedVideos]);
+  }, [uploadedImages, uploadedVideos, isManualSort]);
 
   // 정렬 함수들
   const extractSequence = (filename: string): number | null => {
@@ -2157,11 +2157,11 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2">
                 {/* 여성 음성 */}
                 {[
-                  { id: 'ko-KR-SunHiNeural', name: '선희', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
-                  { id: 'ko-KR-JiMinNeural', name: '지민', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
-                  { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '👩', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-SunHiNeural', name: '선희', gender: '여성', emoji: '🙋‍♀️', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
+                  { id: 'ko-KR-JiMinNeural', name: '지민', gender: '여성', emoji: '🙋‍♀️', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-SeoHyeonNeural', name: '서현', gender: '여성', emoji: '🙋‍♀️', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-SoonBokNeural', name: '순복', gender: '여성', emoji: '🙋‍♀️', provider: 'Azure Edge TTS', pricing: '무료', recommended: true },
+                  { id: 'ko-KR-YuJinNeural', name: '유진', gender: '여성', emoji: '🙋‍♀️', provider: 'Azure Edge TTS', pricing: '무료' },
                   // Google/AWS TTS는 현재 지원하지 않음 (Edge TTS만 지원)
                 ].map((voice) => (
                   <div key={voice.id} className="relative">
@@ -2238,11 +2238,11 @@ export default function Home() {
 
                 {/* 남성 음성 */}
                 {[
-                  { id: 'ko-KR-InJoonNeural', name: '인준', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
-                  { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '👨', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-InJoonNeural', name: '인준', gender: '남성', emoji: '🙋‍♂️', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', gender: '남성', emoji: '🙋‍♂️', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-BongJinNeural', name: '봉진', gender: '남성', emoji: '🙋‍♂️', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-GookMinNeural', name: '국민', gender: '남성', emoji: '🙋‍♂️', provider: 'Azure Edge TTS', pricing: '무료' },
+                  { id: 'ko-KR-HyunsuNeural', name: '현수', gender: '남성', emoji: '🙋‍♂️', provider: 'Azure Edge TTS', pricing: '무료' },
                   // Google/AWS TTS는 현재 지원하지 않음 (Edge TTS만 지원)
                 ].map((voice) => (
                   <div key={voice.id} className="relative">
@@ -3068,6 +3068,7 @@ export default function Home() {
                       }
                       return [...prev, ...newFiles];
                     });
+                    setIsManualSort(false); // 새 파일 추가 시 자동 정렬 재활성화
                     showToast(`✅ ${imageFiles.length}개 이미지를 업로드했습니다!`, 'success');
                   }
 
@@ -3080,6 +3081,7 @@ export default function Home() {
                       }
                       return [...prev, ...newFiles];
                     });
+                    setIsManualSort(false); // 새 파일 추가 시 자동 정렬 재활성화
                     showToast(`✅ ${videoFiles.length}개 비디오를 업로드했습니다!`, 'success');
                   }
 
@@ -3454,6 +3456,7 @@ export default function Home() {
                                 }
                                 return [...prev, ...newFiles];
                               });
+                              setIsManualSort(false); // 새 파일 추가 시 자동 정렬 재활성화
                             }
 
                             if (videoFiles.length > 0) {
@@ -3465,6 +3468,7 @@ export default function Home() {
                                 }
                                 return [...prev, ...newFiles];
                               });
+                              setIsManualSort(false); // 새 파일 추가 시 자동 정렬 재활성화
                             }
 
                             if (jsonFile || imageFiles.length > 0 || videoFiles.length > 0) {

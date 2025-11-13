@@ -29,6 +29,7 @@ export default function AutomationPage() {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
   const [channels, setChannels] = useState<any[]>([]);
+  const [titleError, setTitleError] = useState<string>('');
 
   // 현재 시간 + 3분 계산 (로컬 시간대)
   function getDefaultScheduleTime() {
@@ -40,6 +41,23 @@ export default function AutomationPage() {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+
+  // 파일명으로 사용할 수 없는 문자 검증
+  function validateTitle(title: string): string {
+    const invalidChars = /[<>:"/\\|?*]/g;
+    const foundChars = title.match(invalidChars);
+
+    if (foundChars) {
+      const uniqueChars = [...new Set(foundChars)].join(' ');
+      return `파일명으로 사용할 수 없는 문자가 포함되어 있습니다: ${uniqueChars}`;
+    }
+    return '';
+  }
+
+  function handleTitleChange(value: string) {
+    setNewTitle({ ...newTitle, title: value });
+    setTitleError(validateTitle(value));
   }
 
   useEffect(() => {
@@ -136,6 +154,11 @@ export default function AutomationPage() {
   async function addTitle() {
     if (!newTitle.title || !newTitle.type) {
       alert('제목과 타입은 필수입니다');
+      return;
+    }
+
+    if (titleError) {
+      alert(titleError);
       return;
     }
 
@@ -362,13 +385,20 @@ export default function AutomationPage() {
             <div className="mb-6 p-4 bg-slate-700 rounded-lg border-2 border-green-500">
               <h3 className="text-lg font-semibold text-white mb-3">새 제목 추가</h3>
               <div className="space-y-4 mb-4">
-                <input
-                  type="text"
-                  placeholder="제목"
-                  value={newTitle.title}
-                  onChange={(e) => setNewTitle({ ...newTitle, title: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                />
+                <div>
+                  <input
+                    type="text"
+                    placeholder="제목"
+                    value={newTitle.title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    className={`w-full px-4 py-2 bg-slate-600 text-white rounded-lg border focus:outline-none ${
+                      titleError ? 'border-red-500' : 'border-slate-500 focus:border-blue-500'
+                    }`}
+                  />
+                  {titleError && (
+                    <p className="text-red-400 text-xs mt-1">⚠️ {titleError}</p>
+                  )}
+                </div>
 
                 {/* 최근 제목 4개 */}
                 {recentTitles.length > 0 && (
@@ -381,7 +411,7 @@ export default function AutomationPage() {
                         {recentTitles.map((title, idx) => (
                           <button
                             key={idx}
-                            onClick={() => setNewTitle({ ...newTitle, title })}
+                            onClick={() => handleTitleChange(title)}
                             className="rounded-md bg-emerald-600/20 px-3 py-1.5 text-xs text-emerald-300 transition hover:bg-emerald-600/40 hover:text-emerald-100"
                             title={title}
                           >
@@ -439,7 +469,9 @@ export default function AutomationPage() {
                       className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                     >
                       {channels.map((ch: any) => (
-                        <option key={ch.id} value={ch.id}>{ch.title}</option>
+                        <option key={ch.id} value={ch.id} className="bg-slate-700 text-white">
+                          {ch.title}
+                        </option>
                       ))}
                     </select>
                   </div>
