@@ -335,31 +335,26 @@ export default function AutomationPage() {
                       {/* 스케줄 추가 */}
                       <div className="mb-4">
                         <h4 className="text-sm text-slate-300 font-semibold mb-2">스케줄 추가:</h4>
-                        <div className="grid grid-cols-3 gap-2">
-                          <input
-                            type="datetime-local"
-                            id="newScheduleTime"
-                            className="px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-                          />
-                          <input
-                            type="datetime-local"
-                            id="newYoutubeTime"
-                            placeholder="유튜브 공개 (선택)"
-                            className="px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-                          />
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-xs text-slate-400 block mb-1">실행 시간</label>
+                            <input
+                              type="datetime-local"
+                              id="newScheduleTime"
+                              className="w-full px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+                            />
+                          </div>
                           <button
                             onClick={() => {
                               const scheduleTime = (document.getElementById('newScheduleTime') as HTMLInputElement).value;
-                              const youtubeTime = (document.getElementById('newYoutubeTime') as HTMLInputElement).value;
                               if (!scheduleTime) {
                                 alert('실행 시간 입력 필요');
                                 return;
                               }
-                              addScheduleToTitle(title.id, scheduleTime, youtubeTime);
+                              addScheduleToTitle(title.id, scheduleTime);
                               (document.getElementById('newScheduleTime') as HTMLInputElement).value = '';
-                              (document.getElementById('newYoutubeTime') as HTMLInputElement).value = '';
                             }}
-                            className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm font-semibold"
+                            className="self-end px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm font-semibold transition"
                           >
                             + 추가
                           </button>
