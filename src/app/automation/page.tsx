@@ -19,7 +19,7 @@ export default function AutomationPage() {
     scheduleTime: '',
     channel: '',
     scriptMode: 'chrome',
-    mediaMode: 'upload'
+    mediaMode: 'imagen3'
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
@@ -58,8 +58,12 @@ export default function AutomationPage() {
     try {
       const response = await fetch('/api/youtube/channels');
       const data = await response.json();
-      if (data.channels) {
+      if (data.channels && data.channels.length > 0) {
         setChannels(data.channels);
+        // 첫 번째 채널을 기본값으로 설정
+        if (!newTitle.channel) {
+          setNewTitle(prev => ({ ...prev, channel: data.channels[0].id }));
+        }
       }
     } catch (error) {
       console.error('Failed to fetch channels:', error);
@@ -169,9 +173,9 @@ export default function AutomationPage() {
         tags: '',
         productUrl: '',
         scheduleTime: '',
-        channel: '',
+        channel: channels.length > 0 ? channels[0].id : '',
         scriptMode: 'chrome',
-        mediaMode: 'upload'
+        mediaMode: 'imagen3'
       });
       setShowAddForm(false);
       await fetchData();
@@ -430,11 +434,10 @@ export default function AutomationPage() {
                   <div>
                     <label className="text-xs text-slate-400 block mb-1">채널</label>
                     <select
-                      value={newTitle.channel}
+                      value={newTitle.channel || (channels.length > 0 ? channels[0].id : '')}
                       onChange={(e) => setNewTitle({ ...newTitle, channel: e.target.value })}
                       className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                     >
-                      <option value="">선택 (선택사항)</option>
                       {channels.map((ch: any) => (
                         <option key={ch.id} value={ch.id}>{ch.title}</option>
                       ))}
@@ -495,9 +498,9 @@ export default function AutomationPage() {
                       tags: '',
                       productUrl: '',
                       scheduleTime: '',
-                      channel: '',
+                      channel: channels.length > 0 ? channels[0].id : '',
                       scriptMode: 'chrome',
-                      mediaMode: 'upload'
+                      mediaMode: 'imagen3'
                     });
                   }}
                   className="flex-1 px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"

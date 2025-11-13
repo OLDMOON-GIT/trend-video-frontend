@@ -51,7 +51,7 @@ export function initAutomationTables() {
 
   // media_mode 컬럼 추가 (기존 테이블에 없을 경우)
   try {
-    db.exec(`ALTER TABLE video_titles ADD COLUMN media_mode TEXT DEFAULT 'upload';`);
+    db.exec(`ALTER TABLE video_titles ADD COLUMN media_mode TEXT DEFAULT 'imagen3';`);
   } catch (e) {
     // 이미 존재하면 무시
   }
@@ -157,7 +157,7 @@ export function addVideoTitle(data: {
     data.productUrl || null,
     data.channel || null,
     data.scriptMode || 'chrome',
-    data.mediaMode || 'upload'
+    data.mediaMode || 'imagen3'
   );
 
   db.close();
