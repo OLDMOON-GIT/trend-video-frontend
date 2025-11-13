@@ -16,12 +16,18 @@ export default function AutomationPage() {
   const [recentTitles, setRecentTitles] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingScheduleFor, setAddingScheduleFor] = useState<string | null>(null);
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
 
-  // 현재 시간 + 3분 계산
+  // 현재 시간 + 3분 계산 (로컬 시간대)
   function getDefaultScheduleTime() {
     const now = new Date();
     now.setMinutes(now.getMinutes() + 3);
-    return now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm 형식
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   }
 
   useEffect(() => {
@@ -93,9 +99,8 @@ export default function AutomationPage() {
       if (!response.ok) throw new Error('Failed to toggle scheduler');
 
       await fetchData();
-      alert(`스케줄러 ${action === 'start' ? '시작' : '중지'} 완료`);
     } catch (error) {
-      alert(`스케줄러 ${action} 실패`);
+      console.error(`Failed to ${action} scheduler:`, error);
     }
   }
 
@@ -132,9 +137,8 @@ export default function AutomationPage() {
       setNewTitle({ title: '', type: 'longform', category: '', tags: '', productUrl: '', scheduleTime: '' });
       setShowAddForm(false);
       await fetchData();
-      alert(newTitle.scheduleTime ? '제목 및 스케줄 추가 완료' : '제목 추가 완료');
     } catch (error) {
-      alert('제목 추가 실패');
+      console.error('Failed to add title:', error);
     }
   }
 
@@ -149,9 +153,8 @@ export default function AutomationPage() {
       if (!response.ok) throw new Error('Failed to delete title');
 
       await fetchData();
-      alert('삭제 완료');
     } catch (error) {
-      alert('삭제 실패');
+      console.error('Failed to delete title:', error);
     }
   }
 
@@ -166,9 +169,8 @@ export default function AutomationPage() {
       if (!response.ok) throw new Error('Failed to delete schedule');
 
       await fetchData();
-      alert('삭제 완료');
     } catch (error) {
-      alert('삭제 실패');
+      console.error('Failed to delete schedule:', error);
     }
   }
 
@@ -204,11 +206,10 @@ export default function AutomationPage() {
         })
       });
 
-      alert('저장 완료');
       cancelEdit();
       await fetchData();
     } catch (error) {
-      alert('저장 실패');
+      console.error('Failed to save edit:', error);
     }
   }
 
@@ -227,9 +228,27 @@ export default function AutomationPage() {
       if (!response.ok) throw new Error('Failed to add schedule');
 
       await fetchData();
-      alert('스케줄 추가 완료');
     } catch (error) {
-      alert('스케줄 추가 실패');
+      console.error('Failed to add schedule:', error);
+    }
+  }
+
+  async function updateSchedule(scheduleId: string, scheduledTime: string) {
+    try {
+      const response = await fetch('/api/automation/schedules', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: scheduleId,
+          scheduledTime
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to update schedule');
+
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to update schedule:', error);
     }
   }
 
@@ -293,17 +312,24 @@ export default function AutomationPage() {
 
                 {/* 최근 제목 4개 */}
                 {recentTitles.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-xs text-slate-400 self-center">최근:</span>
-                    {recentTitles.map((title, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setNewTitle({ ...newTitle, title })}
-                        className="px-3 py-1 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded text-xs transition"
-                      >
-                        {title.length > 30 ? title.substring(0, 30) + '...' : title}
-                      </button>
-                    ))}
+                  <div>
+                    <label className="mb-2 block text-xs font-medium text-slate-400">
+                      📝 최근 사용한 제목 (클릭하여 재사용)
+                    </label>
+                    <div className="max-h-24 overflow-y-auto rounded-lg border border-white/10 bg-white/5 p-2">
+                      <div className="flex flex-wrap gap-2">
+                        {recentTitles.map((title, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setNewTitle({ ...newTitle, title })}
+                            className="rounded-md bg-emerald-600/20 px-3 py-1.5 text-xs text-emerald-300 transition hover:bg-emerald-600/40 hover:text-emerald-100"
+                            title={title}
+                          >
+                            {title.length > 30 ? title.substring(0, 30) + '...' : title}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -419,16 +445,55 @@ export default function AutomationPage() {
                         <div className="mb-4">
                           <h4 className="text-sm text-slate-300 font-semibold mb-2">스케줄:</h4>
                           {titleSchedules.map(schedule => (
-                            <div key={schedule.id} className="bg-slate-600 rounded p-2 mb-2 flex justify-between items-center">
-                              <div className="text-xs text-slate-200">
-                                {new Date(schedule.scheduled_time).toLocaleString('ko-KR')}
-                              </div>
-                              <button
-                                onClick={() => deleteSchedule(schedule.id)}
-                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs"
-                              >
-                                삭제
-                              </button>
+                            <div key={schedule.id} className="bg-slate-600 rounded p-2 mb-2">
+                              {editingScheduleId === schedule.id ? (
+                                <div className="flex gap-2 items-center">
+                                  <input
+                                    type="datetime-local"
+                                    id={`edit-schedule-${schedule.id}`}
+                                    defaultValue={new Date(schedule.scheduled_time).toISOString().slice(0, 16)}
+                                    className="flex-1 px-2 py-1 bg-slate-700 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-xs"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const newTime = (document.getElementById(`edit-schedule-${schedule.id}`) as HTMLInputElement).value;
+                                      if (newTime) {
+                                        updateSchedule(schedule.id, newTime);
+                                        setEditingScheduleId(null);
+                                      }
+                                    }}
+                                    className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs"
+                                  >
+                                    저장
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingScheduleId(null)}
+                                    className="px-2 py-1 bg-slate-500 hover:bg-slate-400 text-white rounded text-xs"
+                                  >
+                                    취소
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex justify-between items-center">
+                                  <div className="text-xs text-slate-200">
+                                    {new Date(schedule.scheduled_time).toLocaleString('ko-KR')}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => setEditingScheduleId(schedule.id)}
+                                      className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs"
+                                    >
+                                      수정
+                                    </button>
+                                    <button
+                                      onClick={() => deleteSchedule(schedule.id)}
+                                      className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs"
+                                    >
+                                      삭제
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -436,13 +501,12 @@ export default function AutomationPage() {
 
                       {/* 스케줄 추가 */}
                       <div className="mb-4">
-                        <h4 className="text-sm text-slate-300 font-semibold mb-2">스케줄 추가:</h4>
                         <div className="flex gap-2">
                           <div className="flex-1">
-                            <label className="text-xs text-slate-400 block mb-1">실행 시간</label>
                             <input
                               type="datetime-local"
                               id="newScheduleTime"
+                              defaultValue={getDefaultScheduleTime()}
                               className="w-full px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:outline-none focus:border-blue-500 text-sm"
                             />
                           </div>
@@ -454,7 +518,7 @@ export default function AutomationPage() {
                                 return;
                               }
                               addScheduleToTitle(title.id, scheduleTime);
-                              (document.getElementById('newScheduleTime') as HTMLInputElement).value = '';
+                              (document.getElementById('newScheduleTime') as HTMLInputElement).value = getDefaultScheduleTime();
                             }}
                             className="self-end px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm font-semibold transition"
                           >

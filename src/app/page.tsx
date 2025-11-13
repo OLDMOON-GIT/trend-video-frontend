@@ -230,6 +230,35 @@ export default function Home() {
     return false; // 기본값 false (접힌 상태)
   });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [draggingCardIndex, setDraggingCardIndex] = useState<number | null>(null);
+  const [manuallyOrderedMedia, setManuallyOrderedMedia] = useState<Array<{type: 'image' | 'video'; file: File}>>([]);
+
+  // 파일 업로드 시 통합 배열 업데이트 (시퀀스/타임스탬프 정렬)
+  useEffect(() => {
+    const extractSequence = (filename: string): number | null => {
+      const match = filename.match(/(?:scene[_-]?|^)(\d+)/i);
+      return match ? parseInt(match[1], 10) : null;
+    };
+
+    let combined: Array<{type: 'image' | 'video'; file: File}> = [
+      ...uploadedImages.map(file => ({ type: 'image' as const, file })),
+      ...uploadedVideos.map(file => ({ type: 'video' as const, file }))
+    ];
+
+    // 정렬: 시퀀스 번호 우선 → 오래된 순
+    combined = combined.sort((a, b) => {
+      const seqA = extractSequence(a.file.name);
+      const seqB = extractSequence(b.file.name);
+
+      if (seqA !== null && seqB !== null) return seqA - seqB;
+      if (seqA !== null) return -1;
+      if (seqB !== null) return 1;
+
+      return a.file.lastModified - b.file.lastModified;
+    });
+
+    setManuallyOrderedMedia(combined);
+  }, [uploadedImages, uploadedVideos]);
 
   // 초기 promptFormat을 기억 (URL 파라미터로 설정된 경우 localStorage 복원 방지용)
   const initialVideoFormatRef = useRef<string | null>(null);
@@ -3076,51 +3105,19 @@ export default function Home() {
                       {/* @stable 이미지+비디오 통합 드래그앤드롭 순서 조정 (2025-11-13 완성) */}
                       {/* STABLE FEATURE: 완성된 기능 - 개선 요청 없이 수정 금지 */}
                       {/* ⚠️ CRITICAL FEATURE - DO NOT REMOVE: 이미지+비디오 통합 드래그 앤 드롭 순서 조정 */}
-                      {(uploadedImages.length > 0 || uploadedVideos.length > 0) && (() => {
-                        // 시퀀스 번호 추출 함수 (파일명에서 숫자 추출)
-                        const extractSequence = (filename: string): number | null => {
-                          // scene_01, 001_, _01_ 같은 패턴에서 숫자 추출
-                          const match = filename.match(/(?:scene[_-]?|^)(\d+)/i);
-                          return match ? parseInt(match[1], 10) : null;
-                        };
-
-                        // 이미지와 비디오를 하나의 통합 배열로 합침
-                        let combinedMedia: Array<{type: 'image' | 'video'; file: File; originalIndex: number; sourceArray: 'images' | 'videos'}> = [
-                          ...uploadedImages.map((file, idx) => ({ type: 'image' as const, file, originalIndex: idx, sourceArray: 'images' as const })),
-                          ...uploadedVideos.map((file, idx) => ({ type: 'video' as const, file, originalIndex: idx, sourceArray: 'videos' as const }))
-                        ];
-
-                        // 정렬: 시퀀스 번호 우선 → 오래된 순 (lastModified)
-                        combinedMedia = combinedMedia.sort((a, b) => {
-                          const seqA = extractSequence(a.file.name);
-                          const seqB = extractSequence(b.file.name);
-
-                          // 둘 다 시퀀스 번호가 있으면 시퀀스 순으로 정렬
-                          if (seqA !== null && seqB !== null) {
-                            return seqA - seqB;
-                          }
-
-                          // 하나만 시퀀스 번호가 있으면 그것을 우선
-                          if (seqA !== null) return -1;
-                          if (seqB !== null) return 1;
-
-                          // 둘 다 시퀀스 번호가 없으면 오래된 순 (작은 타임스탬프가 먼저)
-                          return a.file.lastModified - b.file.lastModified;
-                        });
-
-                        return (
+                      {manuallyOrderedMedia.length > 0 && (
                           <div
                             className="rounded-lg bg-slate-800/50 p-4 border border-slate-700"
                             onDragOver={(e) => {
-                              // 파일 드롭 허용
-                              if (e.dataTransfer.types.includes('Files')) {
+                              // 카드 드래그 중이 아닐 때만 파일 드롭 허용
+                              if (draggingCardIndex === null && e.dataTransfer.types.includes('Files')) {
                                 e.preventDefault();
                                 e.dataTransfer.dropEffect = 'copy';
                               }
                             }}
                             onDrop={(e) => {
-                              // 파일 드롭 처리
-                              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                              // 카드 드래그 중이 아닐 때만 파일 드롭 처리
+                              if (draggingCardIndex === null && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                                 e.preventDefault();
                                 e.stopPropagation();
 
@@ -3155,35 +3152,32 @@ export default function Home() {
                                   key={`${item.sourceArray}-${item.originalIndex}`}
                                   draggable
                                   onDragStart={(e) => {
+                                    setDraggingCardIndex(globalIdx);
                                     e.dataTransfer.effectAllowed = 'move';
-                                    e.dataTransfer.setData('application/x-card-index', globalIdx.toString());
                                     (e.currentTarget as HTMLElement).style.opacity = '0.5';
                                   }}
                                   onDragEnd={(e) => {
+                                    setDraggingCardIndex(null);
                                     (e.currentTarget as HTMLElement).style.opacity = '1';
                                   }}
                                   onDragOver={(e) => {
-                                    // 카드 드래그인 경우 (커스텀 타입 확인)
-                                    if (e.dataTransfer.types.includes('application/x-card-index')) {
+                                    if (draggingCardIndex !== null) {
                                       e.preventDefault();
+                                      e.stopPropagation();
                                       e.dataTransfer.dropEffect = 'move';
-                                      return;
                                     }
-                                    // 파일 드롭인 경우 상위로 전달
                                   }}
                                   onDrop={(e) => {
-                                    // 카드 드래그인지 확인
-                                    const cardIndex = e.dataTransfer.getData('application/x-card-index');
-                                    if (!cardIndex) {
-                                      // 파일 드롭이므로 상위로 전달
+                                    if (draggingCardIndex === null) {
                                       return;
                                     }
 
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    const fromIdx = parseInt(cardIndex);
+
+                                    const fromIdx = draggingCardIndex;
                                     const toIdx = globalIdx;
-                                    if (isNaN(fromIdx) || fromIdx === toIdx) return;
+                                    if (fromIdx === toIdx) return;
 
                                     // 통합 배열에서 순서 변경
                                     const newCombined = [...combinedMedia];
@@ -3196,6 +3190,7 @@ export default function Home() {
 
                                     setUploadedImages(newImages);
                                     setUploadedVideos(newVideos);
+                                    setDraggingCardIndex(null);
                                   }}
                                   className={`relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 transition-all ${
                                     item.type === 'image' ? 'hover:border-blue-500' : 'hover:border-orange-500'
@@ -3680,39 +3675,7 @@ export default function Home() {
                           </span>
                         </div>
                       )}
-                      {(uploadedImages.length > 0 || uploadedVideos.length > 0) && (() => {
-                        // 시퀀스 번호 추출 함수 (파일명에서 숫자 추출)
-                        const extractSequence = (filename: string): number | null => {
-                          // scene_01, 001_, _01_ 같은 패턴에서 숫자 추출
-                          const match = filename.match(/(?:scene[_-]?|^)(\d+)/i);
-                          return match ? parseInt(match[1], 10) : null;
-                        };
-
-                        // 이미지와 비디오를 하나의 통합 배열로 합침
-                        let combinedMedia: Array<{type: 'image' | 'video'; file: File; originalIndex: number; sourceArray: 'images' | 'videos'}> = [
-                          ...uploadedImages.map((file, idx) => ({ type: 'image' as const, file, originalIndex: idx, sourceArray: 'images' as const })),
-                          ...uploadedVideos.map((file, idx) => ({ type: 'video' as const, file, originalIndex: idx, sourceArray: 'videos' as const }))
-                        ];
-
-                        // 정렬: 시퀀스 번호 우선 → 오래된 순 (lastModified)
-                        combinedMedia = combinedMedia.sort((a, b) => {
-                          const seqA = extractSequence(a.file.name);
-                          const seqB = extractSequence(b.file.name);
-
-                          // 둘 다 시퀀스 번호가 있으면 시퀀스 순으로 정렬
-                          if (seqA !== null && seqB !== null) {
-                            return seqA - seqB;
-                          }
-
-                          // 하나만 시퀀스 번호가 있으면 그것을 우선
-                          if (seqA !== null) return -1;
-                          if (seqB !== null) return 1;
-
-                          // 둘 다 시퀀스 번호가 없으면 오래된 순 (작은 타임스탬프가 먼저)
-                          return a.file.lastModified - b.file.lastModified;
-                        });
-
-                        return (
+                      {manuallyOrderedMedia.length > 0 && (
                           <div className="rounded-lg bg-slate-800/50 p-4 border border-slate-700">
                             <p className="text-sm text-slate-300 mb-3 flex items-center gap-2">
                               <span>💡</span>
@@ -3727,35 +3690,32 @@ export default function Home() {
                                   key={`${item.sourceArray}-${item.originalIndex}`}
                                   draggable
                                   onDragStart={(e) => {
+                                    setDraggingCardIndex(globalIdx);
                                     e.dataTransfer.effectAllowed = 'move';
-                                    e.dataTransfer.setData('application/x-card-index', globalIdx.toString());
                                     (e.currentTarget as HTMLElement).style.opacity = '0.5';
                                   }}
                                   onDragEnd={(e) => {
+                                    setDraggingCardIndex(null);
                                     (e.currentTarget as HTMLElement).style.opacity = '1';
                                   }}
                                   onDragOver={(e) => {
-                                    // 카드 드래그인 경우 (커스텀 타입 확인)
-                                    if (e.dataTransfer.types.includes('application/x-card-index')) {
+                                    if (draggingCardIndex !== null) {
                                       e.preventDefault();
+                                      e.stopPropagation();
                                       e.dataTransfer.dropEffect = 'move';
-                                      return;
                                     }
-                                    // 파일 드롭인 경우 상위로 전달
                                   }}
                                   onDrop={(e) => {
-                                    // 카드 드래그인지 확인
-                                    const cardIndex = e.dataTransfer.getData('application/x-card-index');
-                                    if (!cardIndex) {
-                                      // 파일 드롭이므로 상위로 전달
+                                    if (draggingCardIndex === null) {
                                       return;
                                     }
 
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    const fromIdx = parseInt(cardIndex);
+
+                                    const fromIdx = draggingCardIndex;
                                     const toIdx = globalIdx;
-                                    if (isNaN(fromIdx) || fromIdx === toIdx) return;
+                                    if (fromIdx === toIdx) return;
 
                                     // 통합 배열에서 순서 변경
                                     const newCombined = [...combinedMedia];
@@ -3768,6 +3728,7 @@ export default function Home() {
 
                                     setUploadedImages(newImages);
                                     setUploadedVideos(newVideos);
+                                    setDraggingCardIndex(null);
                                   }}
                                   className={`relative group cursor-move bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700 transition-all ${
                                     item.type === 'image' ? 'hover:border-blue-500' : 'hover:border-orange-500'
