@@ -14,6 +14,7 @@ export default function AutomationPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [recentTitles, setRecentTitles] = useState<string[]>([]);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -107,6 +108,7 @@ export default function AutomationPage() {
 
       saveRecentTitle(newTitle.title);
       setNewTitle({ title: '', type: 'longform', category: '', tags: '', productUrl: '' });
+      setShowAddForm(false);
       await fetchData();
       alert('제목 추가 완료');
     } catch (error) {
@@ -243,77 +245,97 @@ export default function AutomationPage() {
         <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
           <h2 className="text-2xl font-semibold text-white mb-4">제목 리스트</h2>
 
-          {/* 제목 추가 폼 */}
-          <div className="mb-6 p-4 bg-slate-700 rounded-lg">
-            <h3 className="text-lg font-semibold text-white mb-3">새 제목 추가</h3>
-            <div className="space-y-4 mb-4">
-              <input
-                type="text"
-                placeholder="제목"
-                value={newTitle.title}
-                onChange={(e) => setNewTitle({ ...newTitle, title: e.target.value })}
-                className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-              />
-
-              {/* 최근 제목 4개 */}
-              {recentTitles.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-xs text-slate-400 self-center">최근:</span>
-                  {recentTitles.map((title, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setNewTitle({ ...newTitle, title })}
-                      className="px-3 py-1 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded text-xs transition"
-                    >
-                      {title.length > 30 ? title.substring(0, 30) + '...' : title}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-4">
-                <select
-                  value={newTitle.type}
-                  onChange={(e) => setNewTitle({ ...newTitle, type: e.target.value })}
-                  className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="longform">롱폼</option>
-                  <option value="shortform">숏폼</option>
-                  <option value="product">상품</option>
-                </select>
+          {/* 제목 추가 버튼/폼 */}
+          {!showAddForm ? (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="mb-6 w-full px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-semibold transition"
+            >
+              + 새 제목 추가
+            </button>
+          ) : (
+            <div className="mb-6 p-4 bg-slate-700 rounded-lg border-2 border-green-500">
+              <h3 className="text-lg font-semibold text-white mb-3">새 제목 추가</h3>
+              <div className="space-y-4 mb-4">
                 <input
                   type="text"
-                  placeholder="카테고리 (선택)"
-                  value={newTitle.category}
-                  onChange={(e) => setNewTitle({ ...newTitle, category: e.target.value })}
-                  className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                />
-                <input
-                  type="text"
-                  placeholder="태그 (쉼표로 구분)"
-                  value={newTitle.tags}
-                  onChange={(e) => setNewTitle({ ...newTitle, tags: e.target.value })}
-                  className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {newTitle.type === 'product' && (
-                <input
-                  type="url"
-                  placeholder="상품 URL (선택)"
-                  value={newTitle.productUrl}
-                  onChange={(e) => setNewTitle({ ...newTitle, productUrl: e.target.value })}
+                  placeholder="제목"
+                  value={newTitle.title}
+                  onChange={(e) => setNewTitle({ ...newTitle, title: e.target.value })}
                   className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                 />
-              )}
+
+                {/* 최근 제목 4개 */}
+                {recentTitles.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs text-slate-400 self-center">최근:</span>
+                    {recentTitles.map((title, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setNewTitle({ ...newTitle, title })}
+                        className="px-3 py-1 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded text-xs transition"
+                      >
+                        {title.length > 30 ? title.substring(0, 30) + '...' : title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-4">
+                  <select
+                    value={newTitle.type}
+                    onChange={(e) => setNewTitle({ ...newTitle, type: e.target.value })}
+                    className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="longform">롱폼</option>
+                    <option value="shortform">숏폼</option>
+                    <option value="product">상품</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="카테고리 (선택)"
+                    value={newTitle.category}
+                    onChange={(e) => setNewTitle({ ...newTitle, category: e.target.value })}
+                    className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="태그 (쉼표로 구분)"
+                    value={newTitle.tags}
+                    onChange={(e) => setNewTitle({ ...newTitle, tags: e.target.value })}
+                    className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {newTitle.type === 'product' && (
+                  <input
+                    type="url"
+                    placeholder="상품 URL (선택)"
+                    value={newTitle.productUrl}
+                    onChange={(e) => setNewTitle({ ...newTitle, productUrl: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={addTitle}
+                  className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition"
+                >
+                  추가
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewTitle({ title: '', type: 'longform', category: '', tags: '', productUrl: '' });
+                  }}
+                  className="flex-1 px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
+                >
+                  취소
+                </button>
+              </div>
             </div>
-            <button
-              onClick={addTitle}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition"
-            >
-              추가
-            </button>
-          </div>
+          )}
 
           {/* 제목 리스트 */}
           <div className="space-y-3">
