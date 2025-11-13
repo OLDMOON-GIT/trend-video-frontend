@@ -394,22 +394,45 @@ export default function AutomationPage() {
                 return (
                   <div
                     key={title.id}
-                    onClick={() => startEdit(title)}
-                    className="p-4 bg-slate-700 rounded-lg hover:bg-slate-650 cursor-pointer transition"
+                    className="p-4 bg-slate-700 rounded-lg"
                   >
-                    <h4 className="text-white font-semibold text-lg">{title.title}</h4>
-                    <p className="text-sm text-slate-400">
-                      {title.type} | {title.status}
-                      {title.category && ` | ${title.category}`}
-                    </p>
-                    {title.product_url && (
-                      <p className="text-xs text-blue-400 mt-1">🔗 {title.product_url}</p>
-                    )}
-                    {titleSchedules.length > 0 && (
-                      <p className="text-xs text-green-400 mt-2">
-                        📅 스케줄 {titleSchedules.length}개
-                      </p>
-                    )}
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="text-white font-semibold text-lg">{title.title}</h4>
+                        <p className="text-sm text-slate-400">
+                          {title.type} | {title.status}
+                          {title.category && ` | ${title.category}`}
+                        </p>
+                        {title.product_url && (
+                          <p className="text-xs text-blue-400 mt-1">🔗 {title.product_url}</p>
+                        )}
+                        {titleSchedules.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs text-slate-400 font-semibold mb-1">📅 등록된 스케줄:</p>
+                            {titleSchedules.map((schedule: any) => (
+                              <p key={schedule.id} className="text-xs text-green-400">
+                                • {new Date(schedule.scheduled_time).toLocaleString('ko-KR')}
+                                {schedule.status !== 'pending' && ` (${schedule.status})`}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => startEdit(title)}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition"
+                        >
+                          수정
+                        </button>
+                        <button
+                          onClick={() => deleteTitle(title.id)}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm transition"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 );
               })
