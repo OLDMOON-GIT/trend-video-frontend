@@ -13,9 +13,11 @@ export default function AutomationPage() {
   const [newTitle, setNewTitle] = useState({ title: '', type: 'longform', category: '', tags: '', productUrl: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+  const [recentTitles, setRecentTitles] = useState<string[]>([]);
 
   useEffect(() => {
     fetchData();
+    loadRecentTitles();
 
     // URL 파라미터로 titleId가 있으면 자동으로 수정 모드
     const titleId = searchParams.get('titleId');
@@ -23,6 +25,29 @@ export default function AutomationPage() {
       setEditingId(titleId);
     }
   }, [searchParams]);
+
+  function loadRecentTitles() {
+    try {
+      const saved = localStorage.getItem('automation_recent_titles');
+      if (saved) {
+        setRecentTitles(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('Failed to load recent titles:', error);
+    }
+  }
+
+  function saveRecentTitle(title: string) {
+    try {
+      const saved = localStorage.getItem('automation_recent_titles');
+      const recent = saved ? JSON.parse(saved) : [];
+      const updated = [title, ...recent.filter((t: string) => t !== title)].slice(0, 4);
+      localStorage.setItem('automation_recent_titles', JSON.stringify(updated));
+      setRecentTitles(updated);
+    } catch (error) {
+      console.error('Failed to save recent title:', error);
+    }
+  }
 
   async function fetchData() {
     try {
@@ -80,6 +105,7 @@ export default function AutomationPage() {
 
       if (!response.ok) throw new Error('Failed to add title');
 
+      saveRecentTitle(newTitle.title);
       setNewTitle({ title: '', type: 'longform', category: '', tags: '', productUrl: '' });
       await fetchData();
       alert('제목 추가 완료');
@@ -228,6 +254,22 @@ export default function AutomationPage() {
                 onChange={(e) => setNewTitle({ ...newTitle, title: e.target.value })}
                 className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
               />
+
+              {/* 최근 제목 4개 */}
+              {recentTitles.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs text-slate-400 self-center">최근:</span>
+                  {recentTitles.map((title, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setNewTitle({ ...newTitle, title })}
+                      className="px-3 py-1 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded text-xs transition"
+                    >
+                      {title.length > 30 ? title.substring(0, 30) + '...' : title}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-4">
                 <select
