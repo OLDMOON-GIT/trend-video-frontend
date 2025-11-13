@@ -4934,17 +4934,16 @@ export default function Home() {
                       // 직접 업로드 모드일 때만 이미지+비디오 함께 처리
                       if (imageSource === 'none') {
                         console.log('\n' + '='.repeat(70));
-                        console.log('📷🎬 이미지+비디오 통합 정렬 시작 (이미지: ' + uploadedImages.length + '개, 비디오: ' + uploadedVideos.length + '개)');
+                        console.log('📷🎬 이미지+비디오 통합 정렬 시작 (총 미디어: ' + manuallyOrderedMedia.length + '개)');
                         console.log('='.repeat(70));
 
-                        // 이미지와 비디오를 함께 정렬: 명확한 시퀀스 패턴이 있으면 시퀀스 우선, 없으면 시간 순서
+                        // manuallyOrderedMedia 사용 (사용자가 드래그앤드롭으로 정렬한 순서 유지)
                         type MediaFile = File & { mediaType: 'image' | 'video' };
-                        const allMediaFiles: MediaFile[] = [
-                          ...uploadedImages.map(f => Object.assign(f, { mediaType: 'image' as const })),
-                          ...uploadedVideos.map(f => Object.assign(f, { mediaType: 'video' as const }))
-                        ];
+                        const allMediaFiles: MediaFile[] = manuallyOrderedMedia.map(item =>
+                          Object.assign(item.file, { mediaType: item.type })
+                        );
 
-                        console.log('\n🔵 원본 순서 (사용자가 선택한 순서):');
+                        console.log('\n🔵 사용자가 정렬한 최종 순서 (manuallyOrderedMedia):');
                         allMediaFiles.forEach((file, i) => {
                           const icon = file.mediaType === 'image' ? '🖼️' : '🎬';
                           const date = new Date(file.lastModified);
@@ -4960,51 +4959,10 @@ export default function Home() {
                           console.log(`  [${i}] ${icon} ${file.name.padEnd(30)} | ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
                         });
 
-                        const sortedMediaFiles = allMediaFiles.sort((a, b) => {
-                          // 명확한 시퀀스 번호만 추출:
-                          // - image_01, scene_1, img_5 등
-                          // - image(1), scene(2) 등
-                          // - (1), (2) 등
-                          // - 파일명 전체가 숫자 (1.jpg, 2.png)
-                          const extractSequence = (filename: string): number | null => {
-                            const name = filename.replace(/\.\w+$/, ''); // 확장자 제거
+                        // 정렬 없이 바로 사용 (이미 정렬된 순서)
+                        const sortedMediaFiles = allMediaFiles;
 
-                            // image_01, scene_1, img_5 패턴
-                            let match = name.match(/^(image|scene|img)[-_](\d+)$/i);
-                            if (match) return parseInt(match[2], 10);
-
-                            // image(1), scene(2) 패턴
-                            match = name.match(/^(image|scene|img)\((\d+)\)$/i);
-                            if (match) return parseInt(match[2], 10);
-
-                            // (1), (2) 패턴
-                            match = name.match(/^\((\d+)\)$/);
-                            if (match) return parseInt(match[1], 10);
-
-                            // 파일명 전체가 숫자 (1, 2, 3)
-                            match = name.match(/^(\d+)$/);
-                            if (match) return parseInt(match[1], 10);
-
-                            return null;
-                          };
-
-                          const numA = extractSequence(a.name);
-                          const numB = extractSequence(b.name);
-
-                          // 둘 다 명확한 시퀀스 번호가 있으면 시퀀스로 정렬
-                          if (numA !== null && numB !== null) {
-                            console.log(`  정렬 (시퀀스): ${a.name} (seq:${numA}) vs ${b.name} (seq:${numB}) → ${numA - numB > 0 ? 'B가 앞' : 'A가 앞'}`);
-                            return numA - numB;
-                          }
-
-                          // 시퀀스 번호가 없으면 생성/수정 시간으로 정렬 (오래된 것부터)
-                          const timeDiff = a.lastModified - b.lastModified;
-                          console.log(`  정렬 (시간): ${a.name} (${new Date(a.lastModified).toLocaleTimeString('ko-KR')}) vs ${b.name} (${new Date(b.lastModified).toLocaleTimeString('ko-KR')}) → ${timeDiff > 0 ? 'B가 앞' : 'A가 앞'}`);
-                          return timeDiff;
-                        });
-
-                        console.log('\n🟢 정렬 후 순서 (시퀀스 번호 우선, 이미지+비디오 통합):');
-                        console.log('   ※ 01.image, 02.mp4, 03.mp4, 04.image → 01, 02, 03, 04 순서로 정렬됩니다!');
+                        console.log('\n🟢 FormData에 추가될 순서:');
                         sortedMediaFiles.forEach((file, i) => {
                           const icon = file.mediaType === 'image' ? '🖼️' : '🎬';
                           const date = new Date(file.lastModified);
