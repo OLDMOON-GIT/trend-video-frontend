@@ -163,6 +163,16 @@ export default function Home() {
     }
     return 'claude'; // 기본값: Claude
   });
+  const [imageModel, setImageModel] = useState<'dalle3' | 'imagen3'>(() => {
+    // localStorage에서 저장된 이미지 모델 불러오기 (기본값: dalle3)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('imageModel');
+      if (saved === 'dalle3' || saved === 'imagen3') {
+        return saved as 'dalle3' | 'imagen3';
+      }
+    }
+    return 'dalle3'; // 기본값: DALL-E 3
+  });
   const [videos, setVideos] = useState<VideoItem[]>(fallbackVideos);
   const [isFetching, setIsFetching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -280,7 +290,7 @@ export default function Home() {
   const [suggestedTitles, setSuggestedTitles] = useState<string[]>([]);
   const [isSuggestingTitles, setIsSuggestingTitles] = useState(false);
   const [selectedSuggestedTitle, setSelectedSuggestedTitle] = useState<string | null>(null);
-  const [imageSource, setImageSource] = useState<'none' | 'dalle' | 'google'>('none');
+  const [imageSource, setImageSource] = useState<'none' | 'dalle' | 'imagen3'>('none');
   const [originalFormat, setOriginalFormat] = useState<'longform' | 'shortform' | 'sora2' | 'product' | null>(null); // 불러온 대본의 원본 포맷
   const [titleHistory, setTitleHistory] = useState<string[]>([]); // 제목 히스토리
   const [isInitialLoading, setIsInitialLoading] = useState(true); // 초기 로딩 상태
@@ -1024,6 +1034,18 @@ export default function Home() {
             content: statusData.content,
             scriptId: scriptId
           });
+
+          // 대본 생성 완료 알림
+          setToast({
+            message: '✅ 대본 생성이 완료되었습니다!',
+            type: 'success'
+          });
+          setTimeout(() => setToast(null), 3000);
+
+          // 완료 메시지를 보여준 후 로그창 자동 닫기 (1.5초 후)
+          setTimeout(() => {
+            setShowScriptLogs(false);
+          }, 1500);
         } else if (statusData.status === 'failed') {
           clearInterval(checkInterval);
           setIsGeneratingScript(false);
@@ -1161,7 +1183,10 @@ export default function Home() {
 
   const handleCancelScript = async () => {
     if (!currentScriptId) {
-      showToast('취소할 대본이 없습니다.', 'error');
+      // 이미 중지된 상태(에러 등)이면 로그창만 닫기
+      setShowScriptLogs(false);
+      setScriptProgress(null);
+      setIsGeneratingScript(false);
       return;
     }
 
@@ -1325,6 +1350,14 @@ export default function Home() {
       console.log('💾 AI 모델 저장:', scriptModel);
     }
   }, [scriptModel]);
+
+  // imageModel을 localStorage에 저장 (이미지 생성 모델 기억)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && imageModel) {
+      window.localStorage.setItem('imageModel', imageModel);
+      console.log('💾 이미지 모델 저장:', imageModel);
+    }
+  }, [imageModel]);
 
   // promptFormat을 localStorage에 저장 (포맷 선택 기억)
   // 단, product-info는 임시 모드이므로 저장하지 않음
@@ -1804,7 +1837,7 @@ export default function Home() {
 
         {/* AI 콘텐츠 생성 Flow */}
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-white">🎬 AI 콘텐츠 생성 Flow</h3>
               <p className="mt-1 text-xs text-slate-300">
@@ -1812,7 +1845,7 @@ export default function Home() {
               </p>
             </div>
             {/* 롱폼/숏폼/SORA2/상품 선택 */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => handleFormatChange('longform')}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
@@ -1887,7 +1920,7 @@ export default function Home() {
                 <label className="mb-2 block text-xs font-medium text-slate-300">
                   AI 모델 선택
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => setScriptModel('chatgpt')}
@@ -2337,7 +2370,7 @@ export default function Home() {
             <label className="mb-2 block text-sm font-medium text-slate-300">
               영상 제목을 입력하세요
             </label>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
               <input
                 type="text"
                 value={manualTitle}
@@ -2698,7 +2731,7 @@ export default function Home() {
                     }
                     */
                 disabled={!manualTitle.trim() || isGeneratingScript}
-                className="rounded-lg bg-emerald-600 px-8 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-emerald-600 px-8 py-3 font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap"
               >
                 {isGeneratingScript ? '⏳ 생성 중...' : titleInputMode === 'copy' ? '🚀 열기' : '🤖 생성'}
               </button>
@@ -3040,44 +3073,134 @@ export default function Home() {
                         </div>
                       )}
 
-                      {/* 이미지 파일 표시 */}
+                      {/* ⚠️ CRITICAL FEATURE - DO NOT REMOVE: 이미지 드래그 앤 드롭 순서 조정 */}
+                      {/* 이미지 파일 표시 - 썸네일 미리보기 + 드래그앤드롭 */}
                       {uploadedImages.length > 0 && (
                         <div className="rounded-lg bg-blue-500/10 p-3 border border-blue-500/30">
-                          <p className="text-sm text-blue-400 mb-2">🖼️ {uploadedImages.length}개 이미지</p>
-                          <div className="max-h-32 overflow-y-auto space-y-1">
+                          <p className="text-sm text-blue-400 mb-2">🖼️ {uploadedImages.length}개 이미지 (드래그로 순서 변경)</p>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
                             {uploadedImages.map((img, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-xs text-slate-300 bg-white/10 rounded px-2 py-1">
-                                <span>{idx + 1}. {img.name}</span>
-                                <button
-                                  onClick={() => {
-                                    setUploadedImages(prev => prev.filter((_, i) => i !== idx));
-                                  }}
-                                  className="ml-2 text-red-400 hover:text-red-300"
-                                >
-                                  ✕
-                                </button>
+                              <div
+                                key={idx}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  e.dataTransfer.setData('text/plain', idx.toString());
+                                  (e.target as HTMLElement).style.opacity = '0.5';
+                                }}
+                                onDragEnd={(e) => {
+                                  (e.target as HTMLElement).style.opacity = '1';
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = 'move';
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+                                  const toIdx = idx;
+                                  if (fromIdx === toIdx) return;
+
+                                  setUploadedImages(prev => {
+                                    const newArr = [...prev];
+                                    const [movedItem] = newArr.splice(fromIdx, 1);
+                                    newArr.splice(toIdx, 0, movedItem);
+                                    return newArr;
+                                  });
+                                }}
+                                className="relative group cursor-move bg-white/5 rounded-lg overflow-hidden border-2 border-blue-500/20 hover:border-blue-500/50 transition"
+                              >
+                                <div className="aspect-square relative">
+                                  <img
+                                    src={URL.createObjectURL(img)}
+                                    alt={img.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute top-0 left-0 bg-blue-500 text-white text-xs px-1.5 py-0.5 font-bold">
+                                    {idx + 1}
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setUploadedImages(prev => prev.filter((_, i) => i !== idx));
+                                    }}
+                                    className="absolute top-0 right-0 bg-red-500 text-white text-xs px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition"
+                                    title="삭제"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                <div className="text-xs text-slate-300 p-1 truncate bg-black/30">
+                                  {img.name}
+                                </div>
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
 
-                      {/* 비디오 파일 표시 */}
+                      {/* ⚠️ CRITICAL FEATURE - DO NOT REMOVE: 비디오 드래그 앤 드롭 순서 조정 */}
+                      {/* 비디오 파일 표시 - 썸네일 미리보기 + 드래그앤드롭 */}
                       {uploadedVideos.length > 0 && (
                         <div className="rounded-lg bg-orange-500/10 p-3 border border-orange-500/30">
-                          <p className="text-sm text-orange-400 mb-2">🎞️ {uploadedVideos.length}개 비디오</p>
-                          <div className="max-h-32 overflow-y-auto space-y-1">
+                          <p className="text-sm text-orange-400 mb-2">🎞️ {uploadedVideos.length}개 비디오 (드래그로 순서 변경)</p>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
                             {uploadedVideos.map((vid, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-xs text-slate-300 bg-white/10 rounded px-2 py-1">
-                                <span>{idx + 1}. {vid.name}</span>
-                                <button
-                                  onClick={() => {
-                                    setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
-                                  }}
-                                  className="ml-2 text-red-400 hover:text-red-300"
-                                >
-                                  ✕
-                                </button>
+                              <div
+                                key={idx}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  e.dataTransfer.setData('text/plain', idx.toString());
+                                  (e.target as HTMLElement).style.opacity = '0.5';
+                                }}
+                                onDragEnd={(e) => {
+                                  (e.target as HTMLElement).style.opacity = '1';
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = 'move';
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+                                  const toIdx = idx;
+                                  if (fromIdx === toIdx) return;
+
+                                  setUploadedVideos(prev => {
+                                    const newArr = [...prev];
+                                    const [movedItem] = newArr.splice(fromIdx, 1);
+                                    newArr.splice(toIdx, 0, movedItem);
+                                    return newArr;
+                                  });
+                                }}
+                                className="relative group cursor-move bg-white/5 rounded-lg overflow-hidden border-2 border-orange-500/20 hover:border-orange-500/50 transition"
+                              >
+                                <div className="aspect-square relative bg-black">
+                                  <video
+                                    src={URL.createObjectURL(vid)}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                    playsInline
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                    <div className="text-4xl text-white/80">▶</div>
+                                  </div>
+                                  <div className="absolute top-0 left-0 bg-orange-500 text-white text-xs px-1.5 py-0.5 font-bold">
+                                    {idx + 1}
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setUploadedVideos(prev => prev.filter((_, i) => i !== idx));
+                                    }}
+                                    className="absolute top-0 right-0 bg-red-500 text-white text-xs px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition"
+                                    title="삭제"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                <div className="text-xs text-slate-300 p-1 truncate bg-black/30">
+                                  {vid.name}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -3292,6 +3415,7 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setImageSource('dalle');
+                    setImageModel('dalle3');
                     setUploadedImages([]); // 이미지 초기화
                   }}
                   className={`rounded-lg border px-4 py-3 text-sm font-semibold transition ${
@@ -3301,28 +3425,29 @@ export default function Home() {
                   }`}
                 >
                   <div className="text-2xl mb-1">🎨</div>
-                  DALL-E
+                  DALL-E 3
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setImageSource('google');
+                    setImageSource('imagen3' as any);
+                    setImageModel('imagen3');
                     setUploadedImages([]); // 이미지 초기화
                   }}
                   className={`rounded-lg border px-4 py-3 text-sm font-semibold transition ${
-                    imageSource === 'google'
-                      ? 'border-emerald-400 bg-emerald-950/30 text-emerald-300'
+                    imageSource === 'imagen3'
+                      ? 'border-purple-400 bg-purple-950/30 text-purple-300'
                       : 'border-white/20 bg-white/5 text-slate-300 hover:border-white/40 hover:bg-white/10'
                   }`}
                 >
-                  <div className="text-2xl mb-1">🔍</div>
-                  Google 검색
+                  <div className="text-2xl mb-1">🖼️</div>
+                  Imagen 3
                 </button>
               </div>
               <p className="mt-2 text-xs text-slate-400">
                 {imageSource === 'none' && '💡 이미지를 직접 업로드합니다 (최대 50개)'}
-                {imageSource === 'dalle' && '💡 DALL-E가 자동으로 이미지를 생성합니다'}
-                {imageSource === 'google' && '💡 Google에서 관련 이미지를 검색합니다'}
+                {imageSource === 'dalle' && '💡 DALL-E 3가 자동으로 이미지를 생성합니다 ($0.04/장)'}
+                {imageSource === 'imagen3' && '💡 Google Imagen 3가 자동으로 이미지를 생성합니다 ($0.03/장, 포토리얼)'}
               </p>
             </div>
             )}
@@ -4609,6 +4734,7 @@ export default function Home() {
                       formData.append('promptFormat', promptFormat); // 롱폼/숏폼 정보 추가
                       formData.append('ttsVoice', selectedTtsVoice); // TTS 음성 선택 추가
                       formData.append('ttsSpeed', ttsSpeed.toString()); // TTS 속도 추가
+                      formData.append('imageModel', imageModel); // 이미지 생성 모델 추가
 
                       // 직접 업로드 모드일 때만 이미지+비디오 함께 처리
                       if (imageSource === 'none') {
