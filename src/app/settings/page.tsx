@@ -9,7 +9,6 @@ interface CoupangSettings {
   accessKey: string;
   secretKey: string;
   trackingId: string;
-  openaiApiKey?: string;
   isConnected: boolean;
   lastChecked?: string;
 }
@@ -92,7 +91,6 @@ export default function SettingsPage() {
     accessKey: '',
     secretKey: '',
     trackingId: '',
-    openaiApiKey: '',
     isConnected: false
   });
   const [isSavingCoupang, setIsSavingCoupang] = useState(false);
@@ -474,10 +472,6 @@ export default function SettingsPage() {
 
   // Shopping Shorts Automation Functions
   const startShoppingShortsPipeline = async () => {
-    if (!coupangSettings.openaiApiKey?.trim()) {
-      toast('⚠️ OpenAI 미설정 - 기본 번역 사용됩니다 (AI 번역 스킵)', { icon: 'ℹ️' });
-    }
-
     if (!coupangSettings.isConnected) {
       toast('⚠️ 쿠팡 API 미연결 - 프론트엔드 API 사용', { icon: 'ℹ️' });
     }
@@ -493,8 +487,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           productLimit,
           videosPerProduct,
-          category,
-          openaiApiKey: coupangSettings.openaiApiKey
+          category
         })
       });
 
@@ -1421,22 +1414,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-300">
-                        OpenAI API Key
-                      </label>
-                      <input
-                        type="password"
-                        value={coupangSettings.openaiApiKey || ''}
-                        onChange={(e) => setCoupangSettings({ ...coupangSettings, openaiApiKey: e.target.value })}
-                        placeholder="sk-..."
-                        className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
-                      />
-                      <p className="mt-1 text-xs text-slate-500">
-                        쇼핑 쇼츠 자동화에 사용 (GPT-4 제품 분석 및 대본 생성)
-                      </p>
-                    </div>
-
                     <div className="flex gap-3">
                       <button
                         onClick={saveCoupangSettings}
@@ -1630,20 +1607,6 @@ export default function SettingsPage() {
                 {/* Configuration Form */}
                 <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
                   <h2 className="mb-4 text-xl font-bold text-white">⚙️ 파이프라인 설정</h2>
-
-                  {coupangSettings.openaiApiKey && (
-                    <div className="mb-4 rounded-lg bg-emerald-500/20 p-3 text-sm text-emerald-300">
-                      ✅ OpenAI API 키 설정됨 - 전체 파이프라인 (AI 분석 포함) 실행 가능
-                    </div>
-                  )}
-
-                  {!coupangSettings.openaiApiKey && (
-                    <div className="mb-4 rounded-lg bg-blue-500/20 p-3 text-sm text-blue-300">
-                      ℹ️ OpenAI 미설정 - 크롤링/다운로드만 테스트됩니다 (Step 1-2)
-                      <br />
-                      AI 분석/대본 생성은 "파트너스 링크 생성" 탭에서 OpenAI API 키 설정 필요 (Step 3, 5)
-                    </div>
-                  )}
 
                   <div className="space-y-4">
                     <div>

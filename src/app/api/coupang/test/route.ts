@@ -13,7 +13,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { accessKey, secretKey } = body;
 
+    console.log('🔍 Coupang API Test - 요청 받음');
+    console.log('   accessKey:', accessKey ? `${accessKey.substring(0, 10)}...` : 'undefined');
+    console.log('   secretKey:', secretKey ? 'provided' : 'undefined');
+
     if (!accessKey || !secretKey) {
+      console.error('❌ API 키 누락');
       return NextResponse.json({ error: 'API 키를 입력하세요.' }, { status: 400 });
     }
 
@@ -25,7 +30,17 @@ export async function POST(request: NextRequest) {
     const DOMAIN = 'https://api-gateway.coupang.com';
     const URL = '/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/1001';
 
-    const datetime = new Date().toISOString().slice(0, -5) + 'Z';
+    // Datetime format: yymmddTHHMMSSZ (GMT+0)
+    const now = new Date();
+    const year = String(now.getUTCFullYear()).slice(-2);
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(now.getUTCDate()).padStart(2, '0');
+    const hours = String(now.getUTCHours()).padStart(2, '0');
+    const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+    const datetime = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+
+    // Message format: datetime + method + path (no spaces, no query for this endpoint)
     const message = datetime + REQUEST_METHOD + URL;
 
     const signature = crypto
@@ -33,9 +48,16 @@ export async function POST(request: NextRequest) {
       .update(message)
       .digest('hex');
 
+    // HMAC 인증 헤더 - 쉼표 뒤 공백 있어야 함 (CEA 형식)
     const authorization = `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
 
+    console.log('🔐 인증 정보:');
+    console.log('   datetime:', datetime);
+    console.log('   message:', message);
+    console.log('   signature:', signature.substring(0, 20) + '...');
+
     // 실제 API 호출
+    console.log('🌐 쿠팡 API 호출 시작:', DOMAIN + URL);
     const response = await fetch(DOMAIN + URL, {
       method: REQUEST_METHOD,
       headers: {
@@ -44,22 +66,11 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    console.log('📡 쿠팡 API 응답 상태:', response.status);
+
     if (response.ok) {
       const data = await response.json();
-
-      // 설정 파일 업데이트는 별도로 처리하지 않음 (프론트엔드에서 처리)
-      // const settingsResponse = await fetch('/api/coupang/settings', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     accessKey,
-      //     secretKey,
-      //     isConnected: true,
-      //     lastChecked: new Date().toISOString()
-      //   })
-      // });
+      console.log('✅ 쿠팡 API 성공:', data);
 
       return NextResponse.json({
         success: true,
@@ -69,10 +80,20 @@ export async function POST(request: NextRequest) {
         }
       });
     } else {
-      const errorData = await response.json().catch(() => ({}));
+      const errorText = await response.text();
+      console.error('❌ 쿠팡 API 실패 응답:', response.status, errorText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+
       return NextResponse.json({
         success: false,
-        error: errorData.message || 'API 키가 올바르지 않습니다.'
+        error: errorData.message || `API 연결 실패 (${response.status})`,
+        details: errorText
       }, { status: 400 });
     }
   } catch (error: any) {

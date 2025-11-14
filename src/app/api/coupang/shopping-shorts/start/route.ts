@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { productLimit = 5, category = 'electronics', videosPerProduct = 3, openaiApiKey } = body;
+    const { productLimit = 5, category = 'electronics', videosPerProduct = 3 } = body;
 
     // 작업 ID 생성
     const taskId = crypto.randomBytes(16).toString('hex');
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         COUPANG_CATEGORY: category,
         PRODUCT_LIMIT: String(productLimit),
         VIDEOS_PER_PRODUCT: String(videosPerProduct),
-        OPENAI_API_KEY: openaiApiKey || '',
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
         FRONTEND_URL: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}`,
         PYTHONIOENCODING: 'utf-8'
       }
