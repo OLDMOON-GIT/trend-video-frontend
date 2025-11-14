@@ -29,18 +29,88 @@ async function handleOpenFolder(request: NextRequest) {
     if (directPath) {
       console.log(`📁 직접 경로로 폴더 열기: ${directPath}`);
 
+      // 상대 경로를 절대 경로로 변환
+      let folderPath = path.isAbsolute(directPath)
+        ? directPath
+        : path.resolve(process.cwd(), directPath);
+
+      console.log(`📂 절대 경로로 변환: ${folderPath}`);
+
       // 파일 경로인 경우 디렉토리 추출
-      let folderPath = directPath;
-      if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) {
-        folderPath = path.dirname(directPath);
+      if (fs.existsSync(folderPath) && fs.statSync(folderPath).isFile()) {
+        folderPath = path.dirname(folderPath);
       }
 
+      // 폴더가 없으면 생성 (project_ 폴더의 경우 자동화 스크립트 폴더)
       if (!fs.existsSync(folderPath)) {
-        console.error(`❌ 폴더가 존재하지 않습니다: ${folderPath}`);
-        return NextResponse.json(
-          { error: `폴더가 존재하지 않습니다: ${path.basename(folderPath)}` },
-          { status: 404 }
-        );
+        const folderBasename = path.basename(folderPath);
+
+        // project_로 시작하는 폴더인 경우 자동 생성 (자동화 스크립트 폴더)
+        if (folderBasename.startsWith('project_')) {
+          console.log(`📁 자동화 스크립트 폴더 생성 중: ${folderPath}`);
+
+          try {
+            fs.mkdirSync(folderPath, { recursive: true });
+
+            // scriptId 추출 (project_ 이후 부분)
+            const scriptId = folderBasename.replace('project_', '');
+
+            // DB에서 스크립트 내용 가져오기
+            const Database = require('better-sqlite3');
+            const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
+            const db = new Database(dbPath);
+
+            const content = db.prepare(`
+              SELECT content, title
+              FROM contents
+              WHERE id = ? AND type = 'script'
+            `).get(scriptId);
+
+            db.close();
+
+            if (content) {
+              // content 파싱
+              let contentStr = typeof content.content === 'string' ? content.content : JSON.stringify(content.content);
+
+              // JSON 정리
+              contentStr = contentStr.trim();
+              if (contentStr.startsWith('JSON')) {
+                contentStr = contentStr.substring(4).trim();
+              }
+              const jsonStart = contentStr.indexOf('{');
+              if (jsonStart > 0) {
+                contentStr = contentStr.substring(jsonStart);
+              }
+
+              const scriptData = JSON.parse(contentStr);
+
+              // story.json 파일 생성
+              const storyJson = {
+                ...scriptData,
+                scenes: scriptData.scenes || []
+              };
+
+              const storyJsonPath = path.join(folderPath, 'story.json');
+              fs.writeFileSync(storyJsonPath, JSON.stringify(storyJson, null, 2), 'utf-8');
+              console.log(`✅ 폴더와 story.json 생성 완료: ${folderPath}`);
+            } else {
+              console.warn(`⚠️ 스크립트를 찾을 수 없음: ${scriptId}, 빈 폴더만 생성`);
+            }
+          } catch (createError: any) {
+            console.error(`❌ 폴더 생성 실패: ${createError.message}`);
+            return NextResponse.json(
+              { error: `폴더 생성 실패: ${createError.message}` },
+              { status: 500 }
+            );
+          }
+        } else {
+          // project_ 폴더가 아니면 에러 반환
+          console.error(`❌ 폴더가 존재하지 않습니다: ${folderPath}`);
+          return NextResponse.json(
+            { error: `폴더가 존재하지 않습니다: ${path.basename(folderPath)}` },
+            { status: 404 }
+          );
+        }
       }
 
       const windowsPath = folderPath.replace(/\//g, '\\');

@@ -38,9 +38,11 @@ function AutomationPageContent() {
   const [logsMap, setLogsMap] = useState<Record<string, any[]>>({});
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [mainTab, setMainTab] = useState<'queue' | 'schedule-management'>('queue');
-  const [queueTab, setQueueTab] = useState<'scheduled' | 'processing' | 'failed' | 'completed'>('scheduled');
+  const [queueTab, setQueueTab] = useState<'scheduled' | 'processing' | 'waiting_upload' | 'failed' | 'completed'>('scheduled');
   const [scheduleManagementTab, setScheduleManagementTab] = useState<'channel-settings' | 'calendar'>('channel-settings');
   const [progressMap, setProgressMap] = useState<Record<string, { scriptProgress?: number; videoProgress?: number }>>({});
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null); // 업로드 중인 스케줄 ID
+  const [uploadedImagesFor, setUploadedImagesFor] = useState<Record<string, File[]>>({}); // 스케줄별 업로드된 이미지
 
   // localStorage에서 선택한 채널 불러오기
   function getSelectedChannel(): string {
@@ -110,9 +112,9 @@ function AutomationPageContent() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   }
 
-  // 파일명으로 사용할 수 없는 문자 검증
+  // 파일명으로 사용할 수 없는 문자 검증 (? 제외 - YouTube 제목에는 사용 가능)
   function validateTitle(title: string): string {
-    const invalidChars = /[<>:"/\\|?*]/g;
+    const invalidChars = /[<>:"/\\|*]/g; // ? 제거됨
     const foundChars = title.match(invalidChars);
 
     if (foundChars) {
@@ -611,6 +613,66 @@ function AutomationPageContent() {
     }
   }
 
+  // 이미지 파일 선택 핸들러
+  function handleImageSelect(scheduleId: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
+
+    const imageFiles = Array.from(files).filter(file =>
+      file.type.startsWith('image/')
+    );
+
+    setUploadedImagesFor(prev => ({
+      ...prev,
+      [scheduleId]: imageFiles
+    }));
+  }
+
+  // 이미지 업로드 실행
+  async function uploadImages(scheduleId: string, scriptId: string) {
+    const images = uploadedImagesFor[scheduleId];
+
+    if (!images || images.length === 0) {
+      alert('업로드할 이미지를 선택해주세요.');
+      return;
+    }
+
+    try {
+      setUploadingFor(scheduleId);
+
+      const formData = new FormData();
+      formData.append('scheduleId', scheduleId);
+      formData.append('scriptId', scriptId);
+
+      images.forEach((file, index) => {
+        formData.append(`images`, file);
+      });
+
+      const response = await fetch('/api/automation/upload-images', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`✅ ${data.count}개 이미지 업로드 완료! 영상 생성이 자동으로 시작됩니다.`);
+        setUploadedImagesFor(prev => {
+          const newState = { ...prev };
+          delete newState[scheduleId];
+          return newState;
+        });
+        await fetchData();
+      } else {
+        alert(`❌ 업로드 실패: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Image upload error:', error);
+      alert('이미지 업로드 중 오류가 발생했습니다.');
+    } finally {
+      setUploadingFor(null);
+    }
+  }
+
   if (loading) {
     return <div className="p-8">로딩 중...</div>;
   }
@@ -941,7 +1003,7 @@ function AutomationPageContent() {
 
           {/* 큐 서브 탭 */}
           {mainTab === 'queue' && (
-            <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-5 gap-2 mb-4">
               <button
                 onClick={() => setQueueTab('scheduled')}
                 className={`py-3 px-4 rounded-lg font-semibold transition ${
@@ -961,6 +1023,16 @@ function AutomationPageContent() {
                 }`}
               >
                 ⏳ 진행 큐 ({titles.filter((t: any) => t.status === 'processing').length})
+              </button>
+              <button
+                onClick={() => setQueueTab('waiting_upload')}
+                className={`py-3 px-4 rounded-lg font-semibold transition ${
+                  queueTab === 'waiting_upload'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                📤 업로드 대기 ({titles.filter((t: any) => t.status === 'waiting_for_upload').length})
               </button>
               <button
                 onClick={() => setQueueTab('failed')}
@@ -1040,6 +1112,8 @@ function AutomationPageContent() {
                       return ['scheduled', 'pending'].includes(title.status);
                     } else if (queueTab === 'processing') {
                       return title.status === 'processing';
+                    } else if (queueTab === 'waiting_upload') {
+                      return title.status === 'waiting_for_upload';
                     } else if (queueTab === 'failed') {
                       return title.status === 'failed';
                     } else if (queueTab === 'completed') {
@@ -1402,16 +1476,19 @@ function AutomationPageContent() {
                             title.status === 'completed' ? 'bg-green-600/30 text-green-300' :
                             title.status === 'failed' ? 'bg-red-600/30 text-red-300' :
                             title.status === 'scheduled' ? 'bg-blue-600/30 text-blue-300' :
+                            title.status === 'waiting_for_upload' ? 'bg-purple-600/30 text-purple-300 animate-pulse' :
                             'bg-slate-600 text-slate-300'
                           }`}>
                             {title.status === 'processing' && '⏳ '}
                             {title.status === 'completed' && '✅ '}
                             {title.status === 'failed' && '❌ '}
                             {title.status === 'scheduled' && '📅 '}
+                            {title.status === 'waiting_for_upload' && '📤 '}
                             {title.status === 'processing' ? '진행 중' :
                              title.status === 'completed' ? '완료' :
                              title.status === 'failed' ? '실패' :
                              title.status === 'scheduled' ? '예약됨' :
+                             title.status === 'waiting_for_upload' ? '업로드 대기' :
                              title.status}
                           </span>
                           {/* 진행률 표시 */}
@@ -1525,6 +1602,136 @@ function AutomationPageContent() {
                         </button>
                       </div>
                     </div>
+
+                    {/* 이미지 업로드 섹션 (waiting_for_upload 상태일 때만 표시) */}
+                    {titleSchedules.some((s: any) => s.status === 'waiting_for_upload') && titleSchedules.find((s: any) => s.status === 'waiting_for_upload')?.script_id && (
+                      <div className="mb-3 p-6 bg-purple-900/30 border-2 border-purple-500 rounded-lg">
+                        <h5 className="text-purple-300 font-bold text-lg mb-3 flex items-center gap-2">
+                          <span className="text-3xl">📤</span>
+                          <span>이미지 업로드가 필요합니다</span>
+                        </h5>
+                        <p className="text-sm text-slate-300 mb-4">
+                          대본 생성이 완료되었습니다. 영상 제작을 위해 이미지를 업로드해주세요.
+                        </p>
+
+                        {/* 대본 폴더 열기 버튼 */}
+                        <button
+                          onClick={async () => {
+                            const scriptId = titleSchedules.find((s: any) => s.status === 'waiting_for_upload')?.script_id;
+                            if (!scriptId) return;
+                            try {
+                              const folderPath = `../trend-video-backend/input/project_${scriptId}`;
+                              const response = await fetch(`/api/open-folder?path=${encodeURIComponent(folderPath)}`, {
+                                method: 'POST',
+                                credentials: 'include'
+                              });
+                              const data = await response.json();
+                              if (!response.ok) {
+                                alert(`폴더 열기 실패: ${data.error || '알 수 없는 오류'}`);
+                              }
+                            } catch (error) {
+                              console.error('Failed to open folder:', error);
+                              alert('폴더 열기 실패');
+                            }
+                          }}
+                          className="mb-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition flex items-center gap-2"
+                        >
+                          📁 대본 폴더 열기
+                        </button>
+
+                        {/* 드래그앤드롭 영역 */}
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.add('border-purple-400', 'bg-purple-900/50');
+                          }}
+                          onDragLeave={(e) => {
+                            e.currentTarget.classList.remove('border-purple-400', 'bg-purple-900/50');
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.remove('border-purple-400', 'bg-purple-900/50');
+                            const files = Array.from(e.dataTransfer.files).filter((file: File) =>
+                              file.type.startsWith('image/')
+                            );
+                            if (files.length > 0) {
+                              const dt = new DataTransfer();
+                              files.forEach(file => dt.items.add(file));
+                              handleImageSelect(title.id, dt.files);
+                            }
+                          }}
+                          className="border-2 border-dashed border-purple-500 rounded-lg p-8 text-center mb-4 transition-colors"
+                        >
+                          <div className="text-4xl mb-2">🖼️</div>
+                          <p className="text-slate-300 mb-2">이미지 파일을 여기에 드래그하거나</p>
+                          <label className="inline-block px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold cursor-pointer transition">
+                            파일 선택
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(e) => handleImageSelect(title.id, e.target.files)}
+                              className="hidden"
+                            />
+                          </label>
+                          <p className="text-xs text-slate-400 mt-2">PNG, JPG, WEBP 등 지원</p>
+                        </div>
+
+                        {/* 선택된 이미지 미리보기 */}
+                        {uploadedImagesFor[title.id] && uploadedImagesFor[title.id].length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-sm text-slate-300 font-semibold mb-2">
+                              선택된 이미지: {uploadedImagesFor[title.id].length}개
+                            </p>
+                            <div className="grid grid-cols-4 gap-2">
+                              {uploadedImagesFor[title.id].map((file, idx) => (
+                                <div key={idx} className="relative group">
+                                  <div className="aspect-video bg-slate-700 rounded overflow-hidden">
+                                    <img
+                                      src={URL.createObjectURL(file)}
+                                      alt={file.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <button
+                                      onClick={() => {
+                                        setUploadedImagesFor(prev => ({
+                                          ...prev,
+                                          [title.id]: prev[title.id].filter((_, i) => i !== idx)
+                                        }));
+                                      }}
+                                      className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs"
+                                    >
+                                      삭제
+                                    </button>
+                                  </div>
+                                  <p className="text-xs text-slate-400 mt-1 truncate">{file.name}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 업로드 버튼 */}
+                        <button
+                          onClick={() => {
+                            const scriptId = titleSchedules.find((s: any) => s.status === 'waiting_for_upload')?.script_id;
+                            if (scriptId) {
+                              uploadImages(title.id, scriptId);
+                            }
+                          }}
+                          disabled={uploadingFor === title.id || !uploadedImagesFor[title.id] || uploadedImagesFor[title.id].length === 0}
+                          className={`w-full px-4 py-3 rounded-lg font-bold text-lg transition ${
+                            uploadingFor === title.id || !uploadedImagesFor[title.id] || uploadedImagesFor[title.id].length === 0
+                              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                              : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg'
+                          }`}
+                        >
+                          {uploadingFor === title.id ? '⏳ 업로드 중...' : '🚀 이미지 업로드 및 영상 생성 시작'}
+                        </button>
+                      </div>
+                    )}
 
                     {/* 스케줄 목록 */}
                     {titleSchedules.length > 0 && (

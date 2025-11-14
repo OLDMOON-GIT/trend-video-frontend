@@ -21,7 +21,7 @@ export function initAutomationTables() {
       category TEXT,
       tags TEXT,
       product_url TEXT,
-      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'scheduled', 'processing', 'completed', 'failed')),
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'scheduled', 'processing', 'completed', 'failed', 'waiting_for_upload')),
       priority INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -84,7 +84,7 @@ export function initAutomationTables() {
       title_id TEXT NOT NULL,
       scheduled_time DATETIME NOT NULL,
       youtube_publish_time DATETIME,
-      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'cancelled', 'waiting_for_upload')),
       script_id TEXT,
       video_id TEXT,
       youtube_upload_id TEXT,
@@ -317,6 +317,38 @@ export function getPendingSchedules() {
   `).all(nowLocal);
 
   console.log(`[Scheduler] Found ${schedules.length} pending schedules`);
+
+  db.close();
+  return schedules;
+}
+
+// waiting_for_upload 상태의 스케줄 가져오기 (이미지 업로드 대기 중)
+export function getWaitingForUploadSchedules() {
+  const db = new Database(dbPath);
+
+  const schedules = db.prepare(`
+    SELECT
+      s.*,
+      t.title,
+      t.type,
+      t.category,
+      t.tags,
+      t.user_id,
+      t.product_url,
+      t.script_mode,
+      t.media_mode,
+      t.model,
+      t.youtube_schedule,
+      t.channel as channel_settings_id,
+      yc.channel_id as channel
+    FROM video_schedules s
+    JOIN video_titles t ON s.title_id = t.id
+    LEFT JOIN youtube_channel_settings yc ON t.channel = yc.id
+    WHERE s.status = 'waiting_for_upload'
+    ORDER BY s.updated_at ASC
+  `).all();
+
+  console.log(`[Scheduler] Found ${schedules.length} schedules waiting for upload`);
 
   db.close();
   return schedules;

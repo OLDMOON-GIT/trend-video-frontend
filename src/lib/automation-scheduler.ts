@@ -5,6 +5,7 @@
 
 import {
   getPendingSchedules,
+  getWaitingForUploadSchedules,
   createPipeline,
   updatePipelineStatus,
   updateScheduleStatus,
@@ -62,6 +63,7 @@ export function startAutomationScheduler() {
   // 주기적으로 실행
   schedulerInterval = setInterval(() => {
     processPendingSchedules();
+    checkWaitingForUploadSchedules(); // 이미지 업로드 대기 중인 스케줄 체크
   }, checkInterval);
 }
 
@@ -163,6 +165,19 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
     updateScheduleStatus(schedule.id, 'processing', { scriptId: scriptResult.scriptId });
     addPipelineLog(scriptPipelineId, 'info', `Script generated successfully: ${scriptResult.scriptId}`);
     addTitleLog(schedule.title_id, 'info', `✅ Script generated successfully: ${scriptResult.scriptId}`);
+
+    // ============================================================
+    // 직접 업로드 모드 체크: media_mode가 'upload'이면 이미지 업로드 대기
+    // ============================================================
+    if (schedule.media_mode === 'upload') {
+      updateScheduleStatus(schedule.id, 'waiting_for_upload', { scriptId: scriptResult.scriptId });
+      updateTitleStatus(schedule.title_id, 'waiting_for_upload'); // 타이틀 상태도 업데이트
+      addPipelineLog(videoPipelineId, 'info', `⏸️ Waiting for manual image upload...`);
+      addTitleLog(schedule.title_id, 'info', `⏸️ 이미지를 업로드해주세요. 업로드가 완료되면 자동으로 영상 생성이 시작됩니다.`);
+
+      console.log(`[Scheduler] Schedule ${schedule.id} is waiting for manual image upload`);
+      return; // 이미지 업로드 대기, video 단계로 진행하지 않음
+    }
 
     // ============================================================
     // Stage 2: 영상 생성
@@ -739,4 +754,152 @@ export function getSchedulerStatus() {
     isRunning: schedulerInterval !== null,
     settings: getAutomationSettings()
   };
+}
+
+// ============================================================
+// 이미지 업로드 대기 중인 스케줄 확인
+// ============================================================
+
+async function checkWaitingForUploadSchedules() {
+  try {
+    const waitingSchedules = getWaitingForUploadSchedules();
+
+    if (waitingSchedules.length === 0) {
+      return;
+    }
+
+    console.log(`[Scheduler] Checking ${waitingSchedules.length} schedule(s) waiting for upload`);
+
+    for (const schedule of waitingSchedules) {
+      try {
+        // script_id가 있는지 확인
+        if (!schedule.script_id) {
+          console.log(`[Scheduler] Schedule ${schedule.id} has no script_id, skipping`);
+          continue;
+        }
+
+        // 스크립트 폴더에서 이미지 확인
+        const fs = require('fs');
+        const scriptFolderPath = path.join(process.cwd(), '..', 'trend-video-backend', 'input', `project_${schedule.script_id}`);
+
+        // 폴더가 존재하는지 확인
+        if (!fs.existsSync(scriptFolderPath)) {
+          console.log(`[Scheduler] Script folder not found: ${scriptFolderPath}`);
+          continue;
+        }
+
+        // 이미지 파일 확인 (scene_*.png, scene_*.jpg, scene_*.webp 등)
+        const files = fs.readdirSync(scriptFolderPath);
+        const imageFiles = files.filter((file: string) =>
+          /scene_\d+.*\.(png|jpg|jpeg|webp|gif)$/i.test(file)
+        );
+
+        if (imageFiles.length === 0) {
+          console.log(`[Scheduler] No images found in ${scriptFolderPath}, waiting...`);
+          continue;
+        }
+
+        console.log(`[Scheduler] Found ${imageFiles.length} image(s) in ${scriptFolderPath}`);
+        console.log(`[Scheduler] Images: ${imageFiles.join(', ')}`);
+
+        // 이미지가 업로드되었으므로 processing 상태로 변경하고 video 단계 시작
+        addPipelineLog(schedule.id, 'info', `✅ ${imageFiles.length}개 이미지 업로드 확인됨, 영상 생성을 시작합니다`);
+        addTitleLog(schedule.title_id, 'info', `✅ 이미지 ${imageFiles.length}개 업로드 확인됨! 영상 생성을 시작합니다...`);
+
+        updateScheduleStatus(schedule.id, 'processing', { imagesReady: true });
+
+        // video 단계 시작 (비동기)
+        const videoPipelineId = schedule.id + '_video';
+        resumeVideoGeneration(schedule, videoPipelineId).catch((error: any) => {
+          console.error(`[Scheduler] Failed to resume video generation for ${schedule.id}:`, error);
+          addPipelineLog(videoPipelineId, 'error', `Video generation failed: ${error.message}`);
+          addTitleLog(schedule.title_id, 'error', `❌ 영상 생성 실패: ${error.message}`);
+          updatePipelineStatus(videoPipelineId, 'failed');
+          updateScheduleStatus(schedule.id, 'failed');
+        });
+
+      } catch (error: any) {
+        console.error(`[Scheduler] Error checking schedule ${schedule.id}:`, error);
+      }
+    }
+
+  } catch (error: any) {
+    console.error('[Scheduler] Error in checkWaitingForUploadSchedules:', error);
+  }
+}
+
+// 이미지 업로드 후 video 생성 재개
+async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
+  const maxRetry = 3;
+
+  addPipelineLog(videoPipelineId, 'info', `Starting video generation from script: ${schedule.script_id}`);
+  addTitleLog(schedule.title_id, 'info', `🎬 영상 생성 중...`);
+  updatePipelineStatus(videoPipelineId, 'running');
+
+  const videoResult = await generateVideo(schedule.script_id, videoPipelineId, maxRetry, schedule.title_id, schedule);
+
+  if (!videoResult.success) {
+    throw new Error(`Video generation failed: ${videoResult.error}`);
+  }
+
+  updatePipelineStatus(videoPipelineId, 'completed');
+
+  // video_schedules 테이블에 video_id 저장
+  const dbUpdateVideo = new Database(dbPath);
+  dbUpdateVideo.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .run(videoResult.videoId, schedule.id);
+  dbUpdateVideo.close();
+
+  updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId });
+  addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
+  addTitleLog(schedule.title_id, 'info', `✅ 영상 생성 완료: ${videoResult.videoId}`);
+
+  // 이후 upload, publish 단계는 기존 로직 활용
+  // TODO: upload와 publish 단계를 별도 함수로 분리하여 재사용
+  console.log(`[Scheduler] Video generation completed for ${schedule.id}, continuing with upload...`);
+
+  // Upload 단계 시작
+  const uploadPipelineId = schedule.id + '_upload';
+  addPipelineLog(uploadPipelineId, 'info', `Starting YouTube upload for video: ${videoResult.videoId}`);
+  addTitleLog(schedule.title_id, 'info', `📤 YouTube 업로드 중...`);
+  updatePipelineStatus(uploadPipelineId, 'running');
+
+  const uploadResult = await uploadToYouTube(videoResult.videoId, schedule, uploadPipelineId, maxRetry);
+
+  if (!uploadResult.success) {
+    throw new Error(`YouTube upload failed: ${uploadResult.error}`);
+  }
+
+  updatePipelineStatus(uploadPipelineId, 'completed');
+
+  // video_schedules 테이블에 youtube_upload_id 저장
+  const dbUpdateUpload = new Database(dbPath);
+  dbUpdateUpload.prepare(`UPDATE video_schedules SET youtube_upload_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .run(uploadResult.uploadId, schedule.id);
+  dbUpdateUpload.close();
+
+  updateScheduleStatus(schedule.id, 'processing', { youtubeUploadId: uploadResult.uploadId });
+  addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
+  addTitleLog(schedule.title_id, 'info', `✅ YouTube 업로드 완료: ${uploadResult.videoUrl}`);
+
+  // Publish 단계
+  const publishPipelineId = schedule.id + '_publish';
+  addPipelineLog(publishPipelineId, 'info', `Scheduling YouTube publish`);
+  addTitleLog(schedule.title_id, 'info', `📅 퍼블리시 예약 중...`);
+  updatePipelineStatus(publishPipelineId, 'running');
+
+  const publishResult = await scheduleYouTubePublish(uploadResult.uploadId!, schedule, publishPipelineId);
+
+  if (!publishResult.success) {
+    throw new Error(`YouTube publish scheduling failed: ${publishResult.error}`);
+  }
+
+  updatePipelineStatus(publishPipelineId, 'completed');
+  updateScheduleStatus(schedule.id, 'completed');
+  updateTitleStatus(schedule.title_id, 'completed');
+
+  addPipelineLog(publishPipelineId, 'info', `Pipeline completed successfully`);
+  addTitleLog(schedule.title_id, 'info', `🎉 모든 작업이 완료되었습니다!`);
+
+  console.log(`[Scheduler] Pipeline completed for schedule ${schedule.id}`);
 }
