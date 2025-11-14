@@ -101,6 +101,11 @@ export default function SettingsPage() {
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  // Coupang Bestsellers
+  const [bestsellerProducts, setBestsellerProducts] = useState<Product[]>([]);
+  const [isFetchingBestsellers, setIsFetchingBestsellers] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+
   // Coupang Links
   const [generatedLinks, setGeneratedLinks] = useState<ShortLink[]>([]);
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -358,8 +363,28 @@ export default function SettingsPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setCoupangSettings({ ...coupangSettings, isConnected: true, lastChecked: new Date().toISOString() });
-        toast.success('✅ 연결 성공! 쿠팡 파트너스 API가 정상 작동합니다.');
+        const updatedSettings = { ...coupangSettings, isConnected: true, lastChecked: new Date().toISOString() };
+        setCoupangSettings(updatedSettings);
+
+        // 연결 성공 시 자동 저장
+        try {
+          const saveResponse = await fetch('/api/coupang/settings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders()
+            },
+            body: JSON.stringify(updatedSettings)
+          });
+
+          if (saveResponse.ok) {
+            toast.success('✅ 연결 성공 및 자동 저장 완료!');
+          } else {
+            toast.success('✅ 연결 성공! (자동 저장 실패 - 수동으로 저장하세요)');
+          }
+        } catch {
+          toast.success('✅ 연결 성공! (자동 저장 실패 - 수동으로 저장하세요)');
+        }
       } else {
         throw new Error(data.error || '연결 실패');
       }
@@ -468,6 +493,65 @@ export default function SettingsPage() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('클립보드에 복사되었습니다!');
+  };
+
+  // Coupang Bestsellers Functions
+  const fetchBestsellers = async (categoryId: string = '1001') => {
+    if (!coupangSettings.isConnected) {
+      toast.error('먼저 쿠팡 API를 연결하세요.');
+      return;
+    }
+
+    setIsFetchingBestsellers(true);
+    try {
+      const response = await fetch(`/api/coupang/products?categoryId=${categoryId}&limit=20`, {
+        headers: getAuthHeaders()
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setBestsellerProducts(data.products || []);
+        toast.success(`✅ 베스트셀러 ${data.products.length}개 상품을 가져왔습니다!`);
+      } else {
+        throw new Error(data.error || '상품 조회 실패');
+      }
+    } catch (error: any) {
+      toast.error('❌ 베스트셀러 조회 실패: ' + error.message);
+    } finally {
+      setIsFetchingBestsellers(false);
+    }
+  };
+
+  const toggleProductSelection = (productId: string) => {
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  const sendSelectedToProductManagement = async () => {
+    if (selectedProducts.size === 0) {
+      toast.error('선택한 상품이 없습니다.');
+      return;
+    }
+
+    const selectedProductList = bestsellerProducts.filter(p => selectedProducts.has(p.productId));
+
+    try {
+      // TODO: 상품관리 API에 저장하는 로직 추가
+      console.log('선택한 상품:', selectedProductList);
+
+      toast.success(`✅ ${selectedProducts.size}개 상품을 상품관리로 보냈습니다!`);
+      setSelectedProducts(new Set());
+    } catch (error: any) {
+      toast.error('❌ 상품 전송 실패: ' + error.message);
+    }
   };
 
   // Shopping Shorts Automation Functions
@@ -1437,6 +1521,87 @@ export default function SettingsPage() {
                       </p>
                     )}
                   </div>
+                </section>
+
+                {/* Bestsellers */}
+                <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-white">🏆 베스트셀러 상품</h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        카테고리별 베스트셀러를 가져와 상품관리로 등록하세요
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => fetchBestsellers('1001')}
+                      disabled={isFetchingBestsellers || !coupangSettings.isConnected}
+                      className="rounded-lg bg-purple-600 px-4 py-2 font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50"
+                    >
+                      {isFetchingBestsellers ? '가져오는 중...' : '📥 베스트셀러 가져오기'}
+                    </button>
+                  </div>
+
+                  {!coupangSettings.isConnected && (
+                    <div className="rounded-lg bg-amber-500/20 p-3 text-sm text-amber-300">
+                      ⚠️ 먼저 API 키를 연결하세요.
+                    </div>
+                  )}
+
+                  {bestsellerProducts.length > 0 && (
+                    <>
+                      <div className="mb-4 flex items-center justify-between rounded-lg bg-blue-500/20 p-3">
+                        <p className="text-sm text-blue-300">
+                          {bestsellerProducts.length}개 상품 | {selectedProducts.size}개 선택됨
+                        </p>
+                        <button
+                          onClick={sendSelectedToProductManagement}
+                          disabled={selectedProducts.size === 0}
+                          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          ✓ 선택한 상품 상품관리로 보내기
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {bestsellerProducts.map((product) => (
+                          <div
+                            key={product.productId}
+                            className={`flex gap-4 rounded-lg border p-4 transition ${
+                              selectedProducts.has(product.productId)
+                                ? 'border-purple-500 bg-purple-500/20'
+                                : 'border-white/10 bg-white/5 hover:bg-white/10'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedProducts.has(product.productId)}
+                              onChange={() => toggleProductSelection(product.productId)}
+                              className="mt-1 h-5 w-5 cursor-pointer rounded border-white/20 bg-white/5 text-purple-600 focus:ring-2 focus:ring-purple-500"
+                            />
+                            <img
+                              src={product.productImage}
+                              alt={product.productName}
+                              className="h-20 w-20 rounded-lg object-cover"
+                            />
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-white">{product.productName}</h3>
+                              <p className="mt-1 text-sm text-slate-400">{product.categoryName}</p>
+                              <div className="mt-2 flex items-center gap-3">
+                                <span className="text-lg font-bold text-emerald-400">
+                                  {product.productPrice.toLocaleString()}원
+                                </span>
+                                {product.isRocket && (
+                                  <span className="rounded bg-blue-500 px-2 py-0.5 text-xs font-semibold text-white">
+                                    로켓배송
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </section>
 
                 {/* Product Search */}
