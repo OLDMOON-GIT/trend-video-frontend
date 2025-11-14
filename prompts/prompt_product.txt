@@ -140,7 +140,9 @@
     "key_techniques": ["product focus", "lifestyle context", "detail shots", "emotional connection"],
     "target_platform": "mobile shopping",
     "emotional_arc": "관심 → 공감 → 해결 → 구매욕구",
-    "scene_count": 4
+    "scene_count": 4,
+    "category": "일반",
+    "scriptId": "자동생성됨"
   },
   "scenes": [
     {

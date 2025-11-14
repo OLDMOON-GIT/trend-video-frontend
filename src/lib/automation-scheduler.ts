@@ -9,6 +9,7 @@ import {
   updatePipelineStatus,
   updateScheduleStatus,
   addPipelineLog,
+  addTitleLog,
   getAutomationSettings
 } from './automation';
 import { sendErrorEmail } from './email';
@@ -20,6 +21,22 @@ const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 // 스케줄러 인터벌
 let schedulerInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
+
+// 제목 상태 업데이트 헬퍼 함수
+function updateTitleStatus(titleId: string, status: 'pending' | 'scheduled' | 'processing' | 'completed' | 'failed') {
+  try {
+    const db = new Database(dbPath);
+    db.prepare(`
+      UPDATE video_titles
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(status, titleId);
+    db.close();
+    console.log(`📝 [Title Status] ${titleId} → ${status}`);
+  } catch (error) {
+    console.error('Failed to update title status:', error);
+  }
+}
 
 // 스케줄러 시작
 export function startAutomationScheduler() {
@@ -53,7 +70,8 @@ export function stopAutomationScheduler() {
   if (schedulerInterval) {
     clearInterval(schedulerInterval);
     schedulerInterval = null;
-    console.log('✅ Automation scheduler stopped');
+    console.log('⏸️ Automation scheduler stopped (진행 중인 작업은 계속 실행됨)');
+    console.log('💡 Note: 이미 시작된 파이프라인은 크레딧이 차감되었으므로 완료까지 진행됩니다.');
   }
 }
 
@@ -79,24 +97,28 @@ async function processPendingSchedules() {
     for (const schedule of pendingSchedules) {
       try {
         // 스케줄 상태를 'processing'으로 변경
-        updateScheduleStatus(schedule.id, 'processing');
+        updateScheduleStatus((schedule as any).id, 'processing');
+
+        // 제목 상태도 'processing'으로 변경
+        updateTitleStatus((schedule as any).title_id, 'processing');
 
         // 파이프라인 생성
-        const pipelineIds = createPipeline(schedule.id);
-        console.log(`[Scheduler] Created pipeline for schedule ${schedule.id}`);
+        const pipelineIds = createPipeline((schedule as any).id);
+        console.log(`[Scheduler] Created pipeline for schedule ${(schedule as any).id}`);
 
         // 파이프라인 실행 (비동기로 실행)
-        executePipeline(schedule, pipelineIds).catch(error => {
-          console.error(`[Scheduler] Pipeline execution failed for ${schedule.id}:`, error);
+        executePipeline(schedule as any, pipelineIds).catch(error => {
+          console.error(`[Scheduler] Pipeline execution failed for ${(schedule as any).id}:`, error);
         });
 
       } catch (error: any) {
-        console.error(`[Scheduler] Failed to process schedule ${schedule.id}:`, error);
-        updateScheduleStatus(schedule.id, 'failed');
+        console.error(`[Scheduler] Failed to process schedule ${(schedule as any).id}:`, error);
+        updateScheduleStatus((schedule as any).id, 'failed');
+        updateTitleStatus((schedule as any).title_id, 'failed');
 
         // 에러 이메일 전송
         await sendAutomationErrorEmail(
-          schedule.id,
+          (schedule as any).id,
           'schedule_processing',
           error.message,
           { schedule }
@@ -111,7 +133,7 @@ async function processPendingSchedules() {
 }
 
 // 파이프라인 실행
-async function executePipeline(schedule: any, pipelineIds: string[]) {
+export async function executePipeline(schedule: any, pipelineIds: string[]) {
   const [scriptPipelineId, videoPipelineId, uploadPipelineId, publishPipelineId] = pipelineIds;
   const settings = getAutomationSettings();
   const maxRetry = parseInt(settings.max_retry || '3');
@@ -121,6 +143,7 @@ async function executePipeline(schedule: any, pipelineIds: string[]) {
     // Stage 1: 대본 생성
     // ============================================================
     addPipelineLog(scriptPipelineId, 'info', `Starting script generation for: ${schedule.title}`);
+    addTitleLog(schedule.title_id, 'info', `Starting script generation for: ${schedule.title}`);
     updatePipelineStatus(scriptPipelineId, 'running');
 
     const scriptResult = await generateScript(schedule, scriptPipelineId, maxRetry);
@@ -130,29 +153,47 @@ async function executePipeline(schedule: any, pipelineIds: string[]) {
     }
 
     updatePipelineStatus(scriptPipelineId, 'completed');
+
+    // video_schedules 테이블에 script_id 저장
+    const dbUpdate = new Database(dbPath);
+    dbUpdate.prepare(`UPDATE video_schedules SET script_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .run(scriptResult.scriptId, schedule.id);
+    dbUpdate.close();
+
     updateScheduleStatus(schedule.id, 'processing', { scriptId: scriptResult.scriptId });
     addPipelineLog(scriptPipelineId, 'info', `Script generated successfully: ${scriptResult.scriptId}`);
+    addTitleLog(schedule.title_id, 'info', `✅ Script generated successfully: ${scriptResult.scriptId}`);
 
     // ============================================================
     // Stage 2: 영상 생성
     // ============================================================
     addPipelineLog(videoPipelineId, 'info', `Starting video generation from script: ${scriptResult.scriptId}`);
+    addTitleLog(schedule.title_id, 'info', `🎬 Starting video generation...`);
     updatePipelineStatus(videoPipelineId, 'running');
 
-    const videoResult = await generateVideo(scriptResult.scriptId, videoPipelineId, maxRetry);
+    const videoResult = await generateVideo(scriptResult.scriptId, videoPipelineId, maxRetry, schedule.title_id, schedule);
 
     if (!videoResult.success) {
       throw new Error(`Video generation failed: ${videoResult.error}`);
     }
 
     updatePipelineStatus(videoPipelineId, 'completed');
+
+    // video_schedules 테이블에 video_id 저장
+    const dbUpdateVideo = new Database(dbPath);
+    dbUpdateVideo.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .run(videoResult.videoId, schedule.id);
+    dbUpdateVideo.close();
+
     updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId });
     addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
+    addTitleLog(schedule.title_id, 'info', `✅ Video generated successfully: ${videoResult.videoId}`);
 
     // ============================================================
     // Stage 3: 유튜브 업로드
     // ============================================================
     addPipelineLog(uploadPipelineId, 'info', `Starting YouTube upload for video: ${videoResult.videoId}`);
+    addTitleLog(schedule.title_id, 'info', `📤 Uploading to YouTube...`);
     updatePipelineStatus(uploadPipelineId, 'running');
 
     const uploadResult = await uploadToYouTube(videoResult.videoId, schedule, uploadPipelineId, maxRetry);
@@ -162,16 +203,25 @@ async function executePipeline(schedule: any, pipelineIds: string[]) {
     }
 
     updatePipelineStatus(uploadPipelineId, 'completed');
+
+    // video_schedules 테이블에 youtube_upload_id 저장
+    const dbUpdateUpload = new Database(dbPath);
+    dbUpdateUpload.prepare(`UPDATE video_schedules SET youtube_upload_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .run(uploadResult.uploadId, schedule.id);
+    dbUpdateUpload.close();
+
     updateScheduleStatus(schedule.id, 'processing', { youtubeUploadId: uploadResult.uploadId });
     addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
+    addTitleLog(schedule.title_id, 'info', `✅ YouTube upload successful: ${uploadResult.videoUrl}`);
 
     // ============================================================
     // Stage 4: 유튜브 퍼블리시 (예약 시간에 공개)
     // ============================================================
     addPipelineLog(publishPipelineId, 'info', `Scheduling YouTube publish`);
+    addTitleLog(schedule.title_id, 'info', `📅 Scheduling publish...`);
     updatePipelineStatus(publishPipelineId, 'running');
 
-    const publishResult = await scheduleYouTubePublish(uploadResult.uploadId, schedule, publishPipelineId);
+    const publishResult = await scheduleYouTubePublish(uploadResult.uploadId!, schedule, publishPipelineId);
 
     if (!publishResult.success) {
       throw new Error(`YouTube publish scheduling failed: ${publishResult.error}`);
@@ -179,7 +229,9 @@ async function executePipeline(schedule: any, pipelineIds: string[]) {
 
     updatePipelineStatus(publishPipelineId, 'completed');
     updateScheduleStatus(schedule.id, 'completed');
+    updateTitleStatus(schedule.title_id, 'completed');
     addPipelineLog(publishPipelineId, 'info', `Pipeline completed successfully!`);
+    addTitleLog(schedule.title_id, 'info', `🎉 All done! Pipeline completed successfully!`);
 
     console.log(`✅ [Pipeline] Successfully completed for schedule ${schedule.id}`);
 
@@ -202,6 +254,8 @@ async function executePipeline(schedule: any, pipelineIds: string[]) {
     }
 
     updateScheduleStatus(schedule.id, 'failed');
+    updateTitleStatus(schedule.title_id, 'failed');
+    addTitleLog(schedule.title_id, 'error', `❌ Pipeline failed: ${error.message}`);
 
     // 에러 이메일 전송
     await sendAutomationErrorEmail(
@@ -219,203 +273,401 @@ async function executePipeline(schedule: any, pipelineIds: string[]) {
 
 // Stage 1: 대본 생성
 async function generateScript(schedule: any, pipelineId: string, maxRetry: number) {
-  const settings = getAutomationSettings();
-  const mode = settings.script_generation_mode || 'chrome';
+  console.log('🔍 [SCHEDULER] generateScript called with schedule:', {
+    id: schedule.id,
+    title: schedule.title,
+    user_id: schedule.user_id,
+    hasUserId: !!schedule.user_id
+  });
 
-  let retryCount = 0;
+  try {
+    addPipelineLog(pipelineId, 'info', `Generating script`);
 
-  while (retryCount < maxRetry) {
-    try {
-      addPipelineLog(pipelineId, 'info', `Generating script via ${mode} (attempt ${retryCount + 1}/${maxRetry})`);
+    const requestBody = {
+      title: schedule.title,
+      type: schedule.type,
+      productUrl: schedule.product_url,
+      model: schedule.model || 'claude',
+      useClaudeLocal: schedule.script_mode !== 'api',
+      userId: schedule.user_id,
+      category: schedule.category
+    };
 
-      if (mode === 'api') {
-        // API 방식: 기존 API 호출
-        const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: schedule.title,
-            type: schedule.type,
-            model: 'claude'
-          })
-        });
+    console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
 
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Script generation failed');
+    // API 방식으로 대본 생성 (내부 요청 헤더 포함)
+    console.log('📤 [SCHEDULER] Calling /api/scripts/generate...');
+    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Request': 'automation-system'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    console.log(`📥 [SCHEDULER] Script API response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [SCHEDULER] Script API error response: ${errorText}`);
+      let error;
+      try {
+        error = JSON.parse(errorText);
+      } catch (e) {
+        throw new Error(`Script generation failed: ${errorText}`);
+      }
+      throw new Error(error.error || 'Script generation failed');
+    }
+
+    const data = await response.json();
+    console.log('✅ [SCHEDULER] Script API response data:', JSON.stringify(data, null, 2));
+
+    // taskId가 반환되면 작업 완료 대기
+    if (data.taskId) {
+      addPipelineLog(pipelineId, 'info', `Script generation job started: ${data.taskId}`);
+
+      // 작업 완료 대기 (최대 10분)
+      const maxWaitTime = 10 * 60 * 1000;
+      const startTime = Date.now();
+      let lastProgress = 0; // 마지막 진행률 추적
+
+      while (Date.now() - startTime < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5초마다 체크
+
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        console.log(`🔍 [SCHEDULER] Checking script status for ${data.taskId}... (경과시간: ${elapsed}초)`);
+        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/status/${data.taskId}`);
+
+        console.log(`📥 [SCHEDULER] Status API response: ${statusRes.status}`);
+
+        if (!statusRes.ok) {
+          const errorText = await statusRes.text();
+          console.error(`❌ [SCHEDULER] Status API failed: ${statusRes.status}, Response: ${errorText}`);
+          continue;
         }
 
-        const data = await response.json();
-        return { success: true, scriptId: data.taskId };
+        const statusData = await statusRes.json();
+        console.log(`📊 [SCHEDULER] Script Status Response:`, JSON.stringify(statusData, null, 2));
 
-      } else {
-        // 크롬창 방식: Python 스크립트로 크롬 실행
-        const { spawn } = require('child_process');
-        const scriptPath = path.join(process.cwd(), '..', 'trend-video-backend', 'src', 'ai_aggregator', 'main.py');
+        if (statusData.status === 'completed') {
+          addPipelineLog(pipelineId, 'info', `Script generation completed: ${data.taskId}`);
+          addTitleLog(schedule.title_id, 'info', '✅ 대본 생성 완료!');
+          console.log(`✅ [SCHEDULER] Script generation completed!`);
+          return { success: true, scriptId: data.taskId };
+        } else if (statusData.status === 'failed') {
+          console.error(`❌ [SCHEDULER] Script generation failed: ${statusData.error}`);
+          throw new Error(`Script generation failed: ${statusData.error}`);
+        }
 
-        // 제목을 임시 파일에 저장
-        const fs = require('fs');
-        const tmpFile = path.join(process.cwd(), 'data', `tmp_${Date.now()}.txt`);
-        fs.writeFileSync(tmpFile, schedule.title);
-
-        return new Promise((resolve, reject) => {
-          const process = spawn('python', ['-m', 'src.ai_aggregator.main', '-f', tmpFile, '-a', 'claude'], {
-            cwd: path.join(process.cwd(), '..', 'trend-video-backend'),
-            stdio: 'pipe'
-          });
-
-          let output = '';
-          process.stdout.on('data', (data: any) => {
-            const text = data.toString();
-            output += text;
-            addPipelineLog(pipelineId, 'debug', text);
-          });
-
-          process.stderr.on('data', (data: any) => {
-            addPipelineLog(pipelineId, 'warn', data.toString());
-          });
-
-          process.on('close', (code: number) => {
-            // 임시 파일 삭제
-            try { fs.unlinkSync(tmpFile); } catch (e) {}
-
-            if (code === 0) {
-              // 성공 - 대본이 저장된 경로를 파싱
-              const scriptId = `script_${Date.now()}`;
-              resolve({ success: true, scriptId });
-            } else {
-              reject(new Error(`Chrome script generation failed with code ${code}`));
-            }
-          });
-        });
+        // 진행 상황 로그 (progress가 변경될 때만)
+        if (statusData.progress && statusData.progress !== lastProgress) {
+          lastProgress = statusData.progress;
+          const msg = `📝 대본 생성 중... ${statusData.progress}%`;
+          addPipelineLog(pipelineId, 'info', msg);
+          addTitleLog(schedule.title_id, 'info', msg);
+        }
       }
 
-    } catch (error: any) {
-      retryCount++;
-      addPipelineLog(pipelineId, 'warn', `Script generation failed (attempt ${retryCount}): ${error.message}`);
-
-      if (retryCount >= maxRetry) {
-        return { success: false, error: error.message };
-      }
-
-      // 재시도 전 대기
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      throw new Error('Script generation timeout (10분 초과)');
     }
-  }
 
-  return { success: false, error: 'Max retry reached' };
+    return { success: true, scriptId: data.taskId || data.scriptId };
+
+  } catch (error: any) {
+    addPipelineLog(pipelineId, 'error', `Script generation failed: ${error.message}`);
+    return { success: false, error: error.message };
+  }
 }
 
 // Stage 2: 영상 생성
-async function generateVideo(scriptId: string, pipelineId: string, maxRetry: number) {
+async function generateVideo(scriptId: string, pipelineId: string, maxRetry: number, titleId: string, schedule: any) {
   const settings = getAutomationSettings();
-  const mediaMode = settings.media_generation_mode || 'upload';
+  const mediaMode = schedule.media_mode || settings.media_generation_mode || 'upload';
 
-  let retryCount = 0;
+  try {
+    addPipelineLog(pipelineId, 'info', `Generating video via ${mediaMode}`);
 
-  while (retryCount < maxRetry) {
+    // DB에서 대본 조회
+    const db = new Database(dbPath);
+    const content = db.prepare(`
+      SELECT id, title, content, type, user_id
+      FROM contents
+      WHERE id = ? AND type = 'script'
+    `).get(scriptId) as any;
+    db.close();
+
+    if (!content) {
+      throw new Error(`Script not found: ${scriptId}`);
+    }
+
+    // content 파싱
+    let scriptData;
     try {
-      addPipelineLog(pipelineId, 'info', `Generating video via ${mediaMode} (attempt ${retryCount + 1}/${maxRetry})`);
+      let contentStr = typeof content.content === 'string' ? content.content : JSON.stringify(content.content);
 
-      // 미디어 생성 방식에 따라 다른 API 호출
-      const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/videos/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scriptId,
-          mediaMode, // upload, dalle, imagen3, sora2
-          imageSource: mediaMode === 'upload' ? 'none' : mediaMode,
-          videoSource: mediaMode === 'sora2' ? 'sora2' : undefined
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Video generation failed');
+      // JSON 정리
+      contentStr = contentStr.trim();
+      if (contentStr.startsWith('JSON')) {
+        contentStr = contentStr.substring(4).trim();
+      }
+      const jsonStart = contentStr.indexOf('{');
+      if (jsonStart > 0) {
+        contentStr = contentStr.substring(jsonStart);
       }
 
-      const data = await response.json();
+      scriptData = JSON.parse(contentStr);
+    } catch (e: any) {
+      throw new Error(`Failed to parse script content: ${e.message}`);
+    }
 
-      // 작업이 비동기로 처리되는 경우 폴링
-      if (data.jobId) {
-        addPipelineLog(pipelineId, 'info', `Video generation job started: ${data.jobId}`);
+    // story.json 생성
+    const storyJson = {
+      ...scriptData,
+      scenes: scriptData.scenes || []
+    };
 
-        // 작업 완료 대기 (최대 30분)
-        const maxWaitTime = 30 * 60 * 1000; // 30분
-        const startTime = Date.now();
+    // 이미지 소스 설정
+    const imageSource = mediaMode === 'upload' ? 'none' : mediaMode;
 
-        while (Date.now() - startTime < maxWaitTime) {
-          await new Promise(resolve => setTimeout(resolve, 10000)); // 10초마다 체크
+    // 이미지 모델 설정 (imagen3 -> imagen3, 나머지는 dalle3)
+    const imageModel = mediaMode === 'imagen3' ? 'imagen3' : 'dalle3';
 
-          const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/videos/status/${data.jobId}`);
-          const statusData = await statusRes.json();
+    // 비디오 포맷
+    const videoType = schedule.type || scriptData.metadata?.genre || 'shortform';
 
-          if (statusData.status === 'completed') {
-            addPipelineLog(pipelineId, 'info', `Video generation completed: ${statusData.videoId}`);
-            return { success: true, videoId: statusData.videoId };
-          } else if (statusData.status === 'failed') {
-            throw new Error(`Video generation failed: ${statusData.error}`);
-          }
+    // JSON으로 전송 (내부 요청)
+    const requestBody = {
+      storyJson,
+      userId: content.user_id,
+      imageSource,
+      imageModel,
+      videoFormat: videoType,
+      ttsVoice: 'ko-KR-SoonBokNeural',
+      title: content.title
+    };
 
-          // 진행 상황 로그
-          if (statusData.progress) {
-            addPipelineLog(pipelineId, 'info', `Progress: ${statusData.progress}`);
-          }
+    console.log('📤 [SCHEDULER] Calling /api/generate-video-upload...');
+    console.log('🔍 [SCHEDULER] Request body:', {
+      scriptId,
+      userId: content.user_id,
+      imageSource,
+      imageModel,
+      videoFormat: videoType
+    });
+
+    // /api/generate-video-upload 호출
+    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Request': 'automation-system'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    console.log(`📥 [SCHEDULER] Video API response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [SCHEDULER] Video API error response: ${errorText}`);
+      let error;
+      try {
+        error = JSON.parse(errorText);
+      } catch (e) {
+        throw new Error(`Video generation failed: ${errorText}`);
+      }
+      throw new Error(error.error || 'Video generation failed');
+    }
+
+    const data = await response.json();
+    console.log('✅ [SCHEDULER] Video API response data:', JSON.stringify(data, null, 2));
+
+    // 작업이 비동기로 처리되는 경우 폴링
+    if (data.jobId) {
+      addPipelineLog(pipelineId, 'info', `Video generation job started: ${data.jobId}`);
+
+      // 작업 완료 대기 (최대 30분)
+      const maxWaitTime = 30 * 60 * 1000; // 30분
+      const startTime = Date.now();
+      let lastProgress = 0; // 마지막 진행률 추적
+
+      while (Date.now() - startTime < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5초마다 체크
+
+        // 중지 요청 확인 (DB에서 pipeline 상태 체크)
+        const db = new Database(dbPath);
+        const pipeline = db.prepare('SELECT status FROM automation_pipelines WHERE id = ?').get(pipelineId) as any;
+        db.close();
+
+        if (pipeline && (pipeline.status === 'cancelled' || pipeline.status === 'failed')) {
+          console.log(`🛑 [SCHEDULER] Pipeline ${pipelineId} was stopped by user`);
+          throw new Error('작업이 사용자에 의해 중지되었습니다');
         }
 
-        throw new Error('Video generation timeout (30분 초과)');
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        console.log(`🔍 [SCHEDULER] Checking video status for ${data.jobId}... (경과시간: ${elapsed}초)`);
+
+        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload?jobId=${data.jobId}`);
+        console.log(`📥 [SCHEDULER] Video Status API response: ${statusRes.status}`);
+
+        if (!statusRes.ok) {
+          const errorText = await statusRes.text();
+          console.error(`❌ [SCHEDULER] Video Status API failed: ${statusRes.status}, Response: ${errorText}`);
+          continue;
+        }
+
+        const statusData = await statusRes.json();
+        console.log(`📊 [SCHEDULER] Video Status Response:`, JSON.stringify(statusData, null, 2));
+
+        if (statusData.status === 'completed') {
+          addPipelineLog(pipelineId, 'info', `Video generation completed: ${statusData.videoId}`);
+          addTitleLog(titleId, 'info', '✅ 영상 생성 완료!');
+          console.log(`✅ [SCHEDULER] Video generation completed!`);
+          return { success: true, videoId: statusData.videoId };
+        } else if (statusData.status === 'failed') {
+          console.error(`❌ [SCHEDULER] Video generation failed: ${statusData.error}`);
+          throw new Error(`Video generation failed: ${statusData.error}`);
+        }
+
+        // 진행 상황 로그 (progress가 변경될 때만)
+        if (statusData.progress && statusData.progress !== lastProgress) {
+          lastProgress = statusData.progress;
+          const msg = `🎬 영상 생성 중... ${statusData.progress}%`;
+          console.log(`📈 [SCHEDULER] Video Progress: ${statusData.progress}`);
+          addPipelineLog(pipelineId, 'info', msg);
+          addTitleLog(titleId, 'info', msg);
+        }
       }
 
-      // 즉시 완료되는 경우
-      return { success: true, videoId: data.videoId };
-
-    } catch (error: any) {
-      retryCount++;
-      addPipelineLog(pipelineId, 'warn', `Video generation failed (attempt ${retryCount}): ${error.message}`);
-
-      if (retryCount >= maxRetry) {
-        return { success: false, error: error.message };
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      throw new Error('Video generation timeout (30분 초과)');
     }
-  }
 
-  return { success: false, error: 'Max retry reached' };
+    // 즉시 완료되는 경우
+    return { success: true, videoId: data.videoId };
+
+  } catch (error: any) {
+    addPipelineLog(pipelineId, 'error', `Video generation failed: ${error.message}`);
+    return { success: false, error: error.message };
+  }
 }
 
 // Stage 3: 유튜브 업로드
 async function uploadToYouTube(videoId: string, schedule: any, pipelineId: string, maxRetry: number) {
-  let retryCount = 0;
+  try {
+    addPipelineLog(pipelineId, 'info', `Uploading to YouTube`);
+    console.log(`🔍 [YOUTUBE UPLOAD] videoId: ${videoId}`);
 
-  while (retryCount < maxRetry) {
-    try {
-      addPipelineLog(pipelineId, 'info', `Uploading to YouTube (attempt ${retryCount + 1}/${maxRetry})`);
+    // jobs 테이블에서 비디오 정보 조회
+    const db = new Database(dbPath);
+    const job = db.prepare(`SELECT * FROM jobs WHERE id = ?`).get(videoId) as any;
+    db.close();
 
-      // TODO: 유튜브 업로드 API 호출
-      // 현재는 수동으로 업로드하는 방식이므로
-      // 자동화를 위해서는 YouTube API 통합 필요
+    console.log(`🔍 [YOUTUBE UPLOAD] job found:`, {
+      hasJob: !!job,
+      jobId: job?.id,
+      jobVideoPath: job?.video_path,
+      jobTitle: job?.title,
+      jobStatus: job?.status
+    });
 
-      // 임시로 성공 반환
-      return {
-        success: true,
-        uploadId: `upload_${Date.now()}`,
-        videoUrl: 'https://youtube.com/watch?v=EXAMPLE'
-      };
-
-    } catch (error: any) {
-      retryCount++;
-      addPipelineLog(pipelineId, 'warn', `YouTube upload failed (attempt ${retryCount}): ${error.message}`);
-
-      if (retryCount >= maxRetry) {
-        return { success: false, error: error.message };
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 10000));
+    if (!job || !job.video_path) {
+      addPipelineLog(pipelineId, 'error', `Video file not found in jobs table. videoId: ${videoId}, hasJob: ${!!job}, hasVideoPath: ${!!job?.video_path}`);
+      throw new Error('Video file not found');
     }
-  }
 
-  return { success: false, error: 'Max retry reached' };
+    // 비디오 파일 경로 (video_path는 이미 절대 경로)
+    const videoPath = job.video_path;
+    console.log(`🔍 [YOUTUBE UPLOAD] videoPath: ${videoPath}`);
+
+    // 파일 존재 여부 확인
+    const fs = require('fs');
+    const fileExists = fs.existsSync(videoPath);
+    console.log(`🔍 [YOUTUBE UPLOAD] file exists: ${fileExists}`);
+
+    if (!fileExists) {
+      addPipelineLog(pipelineId, 'error', `Video file not found at path: ${videoPath}`);
+      throw new Error(`Video file not found at path: ${videoPath}`);
+    }
+
+    // YouTube API 호출
+    addPipelineLog(pipelineId, 'info', `Calling YouTube upload API for video: ${job.title}`);
+
+    const uploadResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/youtube/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Request': 'automation-system'
+      },
+      body: JSON.stringify({
+        videoPath,
+        title: job.title || schedule.title,
+        description: job.title || schedule.title,
+        tags: schedule.tags ? schedule.tags.split(',').map((t: string) => t.trim()) : [],
+        privacy: schedule.youtube_schedule === 'immediate' ? 'public' : 'private', // immediate면 바로 공개, 아니면 private
+        channelId: schedule.channel,
+        jobId: videoId,
+        publishAt: schedule.youtube_publish_time,
+        userId: schedule.user_id // 내부 요청용 userId 전달
+      })
+    });
+
+    addPipelineLog(pipelineId, 'info', `YouTube upload API response: ${uploadResponse.status}`);
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      addPipelineLog(pipelineId, 'error', `YouTube upload failed: ${errorText}`);
+      throw new Error(`YouTube upload failed: ${errorText}`);
+    }
+
+    const uploadData = await uploadResponse.json();
+
+    if (!uploadData.success) {
+      throw new Error(uploadData.error || 'YouTube upload failed');
+    }
+
+    addPipelineLog(pipelineId, 'info', `✅ YouTube upload successful: ${uploadData.videoUrl}`);
+
+    // DB에 upload 정보 저장 (youtube_uploads 테이블 사용)
+    const uploadDb = new Database(dbPath);
+    const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const uploadRecord = uploadDb.prepare(`
+      INSERT INTO youtube_uploads (
+        id, user_id, job_id, video_id, video_url,
+        title, channel_id, privacy_status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      uploadId,
+      schedule.user_id,
+      videoId,
+      uploadData.videoId,
+      uploadData.videoUrl,
+      schedule.title,
+      schedule.channel,
+      'private'
+    );
+
+    // video_schedules 테이블에 youtube_upload_id 업데이트
+    uploadDb.prepare(`
+      UPDATE video_schedules
+      SET youtube_upload_id = ?
+      WHERE id = ?
+    `).run(uploadId, schedule.id);
+
+    uploadDb.close();
+
+    return {
+      success: true,
+      uploadId: uploadData.videoId,
+      videoUrl: uploadData.videoUrl
+    };
+
+  } catch (error: any) {
+    addPipelineLog(pipelineId, 'error', `YouTube upload failed: ${error.message}`);
+    addTitleLog(schedule.title_id, 'error', `❌ YouTube upload failed: ${error.message}`);
+    return { success: false, error: error.message };
+  }
 }
 
 // Stage 4: 유튜브 퍼블리시 예약
@@ -423,12 +675,19 @@ async function scheduleYouTubePublish(uploadId: string, schedule: any, pipelineI
   try {
     addPipelineLog(pipelineId, 'info', `Scheduling YouTube publish for: ${schedule.youtube_publish_time || 'immediate'}`);
 
-    // TODO: 유튜브 퍼블리시 시간 설정 API
-    // YouTube API의 publishAt 파라미터 사용
+    // youtube_publish_time이 설정되어 있으면 예약, 없으면 즉시 공개
+    if (schedule.youtube_publish_time) {
+      addPipelineLog(pipelineId, 'info', `Video will be published at: ${schedule.youtube_publish_time}`);
+      addTitleLog(schedule.title_id, 'info', `📅 예약됨: ${new Date(schedule.youtube_publish_time).toLocaleString('ko-KR')}`);
+    } else {
+      addPipelineLog(pipelineId, 'info', `Video set to immediate publish`);
+      addTitleLog(schedule.title_id, 'info', `✅ 즉시 공개 설정됨`);
+    }
 
     return { success: true };
 
   } catch (error: any) {
+    addPipelineLog(pipelineId, 'error', `Failed to schedule publish: ${error.message}`);
     return { success: false, error: error.message };
   }
 }

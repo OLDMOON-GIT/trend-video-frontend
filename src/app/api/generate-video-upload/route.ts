@@ -16,25 +16,120 @@ const runningProcesses = new Map<string, ChildProcess>();
 
 export async function POST(request: NextRequest) {
   try {
-    // 사용자 인증 확인
+    // 내부 요청 확인 (자동화 시스템)
+    const isInternal = request.headers.get('X-Internal-Request') === 'automation-system';
     console.log('=== 영상 생성 요청 시작 ===');
-    console.log('쿠키:', request.cookies.getAll());
+    console.log('내부 요청:', isInternal);
 
-    const user = await getCurrentUser(request);
-    console.log('인증된 사용자:', user);
+    let user: any;
+    let userId: string;
+    let jsonFile: File | null = null;
+    let imageSource: string;
+    let imageModel: string;
+    let videoFormat: string;
+    let ttsVoice: string;
+    let videoTitle: string;
+    let promptFormat: string = '';
+    let originalNames: Record<number, string> = {};
 
-    if (!user) {
-      console.log('❌ 인증 실패: 로그인이 필요합니다');
-      return NextResponse.json(
-        { error: '로그인이 필요합니다.' },
-        { status: 401 }
-      );
+    if (isInternal) {
+      // 내부 요청: JSON으로 받음
+      const body = await request.json();
+      userId = body.userId;
+      imageSource = body.imageSource || 'none';
+      imageModel = body.imageModel || 'dalle3';
+      videoFormat = body.videoFormat || 'shortform';
+      ttsVoice = body.ttsVoice || 'ko-KR-SoonBokNeural';
+      videoTitle = body.title || 'Untitled';
+
+      if (!userId) {
+        console.log('❌ 내부 요청: userId가 필요합니다');
+        return NextResponse.json(
+          { error: 'Internal request requires userId' },
+          { status: 400 }
+        );
+      }
+
+      // JSON을 File 객체로 변환
+      const jsonBlob = new Blob([JSON.stringify(body.storyJson, null, 2)], { type: 'application/json' });
+      jsonFile = new File([jsonBlob], 'story.json', { type: 'application/json' });
+
+      // 관리자로 간주 (크레딧 차감 안함)
+      user = {
+        userId,
+        email: 'automation-system',
+        isAdmin: true
+      };
+
+      console.log('✅ 내부 요청 인증:', user);
+    } else {
+      // 일반 요청: 쿠키로 사용자 인증
+      console.log('쿠키:', request.cookies.getAll());
+      user = await getCurrentUser(request);
+      console.log('인증된 사용자:', user);
+
+      if (!user) {
+        console.log('❌ 인증 실패: 로그인이 필요합니다');
+        return NextResponse.json(
+          { error: '로그인이 필요합니다.' },
+          { status: 401 }
+        );
+      }
+
+      userId = user.userId;
+      console.log('✅ 인증 성공:', user.email);
+
+      // FormData 파싱
+      const formDataGeneral = await request.formData();
+      jsonFile = formDataGeneral.get('json') as File;
+      imageSource = formDataGeneral.get('imageSource') as string || 'none';
+      imageModel = formDataGeneral.get('imageModel') as string || 'dalle3';
+      videoFormat = formDataGeneral.get('videoFormat') as string || 'longform';
+      ttsVoice = formDataGeneral.get('ttsVoice') as string || 'ko-KR-SoonBokNeural';
+      promptFormat = formDataGeneral.get('promptFormat') as string || '';
+      const originalNamesStr = formDataGeneral.get('originalNames') as string;
+      if (originalNamesStr) {
+        try {
+          originalNames = JSON.parse(originalNamesStr);
+          console.log('✅ 원본 파일명 매핑 정보 수신:', originalNames);
+        } catch (error) {
+          console.warn('⚠️ 원본 파일명 파싱 실패, 변환된 이름만 사용');
+        }
+      }
+
+      // 미디어 파일을 저장할 배열 생성 (일반 요청용)
+      (global as any).tempMediaFiles = [];
+      for (let i = 0; i < 100; i++) {
+        const media = formDataGeneral.get(`media_${i}`) as File;
+        if (media) {
+          const mediaType: 'image' | 'video' = media.type.startsWith('image/') ? 'image' : 'video';
+          (global as any).tempMediaFiles.push({ file: media, mediaType });
+        }
+      }
+
+      // JSON 파일에서 제목 추출
+      videoTitle = 'Untitled';
+      try {
+        const jsonText = await jsonFile.text();
+        const parseResult = parseJsonSafely(jsonText, { logErrors: true });
+        if (parseResult.success && parseResult.data?.title) {
+          videoTitle = parseResult.data.title;
+          console.log('✅ JSON 제목 추출 성공:', videoTitle);
+        }
+      } catch (error) {
+        console.log('❌ JSON title 추출 중 오류, 기본 제목 사용');
+      }
+
+      console.log('프롬프트 포맷:', promptFormat);
+
+      // 상품 타입이면 title 앞에 [광고] 추가
+      if (promptFormat === 'product' || promptFormat === 'product-info') {
+        if (!videoTitle.startsWith('[광고]')) {
+          videoTitle = `[광고] ${videoTitle}`;
+          console.log('✅ 상품 영상 - title에 [광고] 추가:', videoTitle);
+        }
+      }
     }
-
-    console.log('✅ 인증 성공:', user.email);
-
-    const formData = await request.formData();
-    const jsonFile = formData.get('json') as File;
 
     if (!jsonFile) {
       return NextResponse.json(
@@ -43,92 +138,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // JSON 파일에서 제목 추출 (공통 파싱 함수 사용)
-    let videoTitle = 'Untitled';
-    try {
-      const jsonText = await jsonFile.text();
-
-      // parseJsonSafely로 안전하게 파싱 (AI 설명문, 코드 블록 등 자동 제거)
-      const parseResult = parseJsonSafely(jsonText, { logErrors: true });
-
-      if (parseResult.success && parseResult.data) {
-        if (parseResult.fixed) {
-          console.log('⚠️ JSON 자동 수정이 적용되었습니다 (제목 추출)');
-        }
-
-        const jsonData = parseResult.data;
-        if (jsonData.title) {
-          videoTitle = jsonData.title;
-          console.log('✅ JSON 제목 추출 성공:', videoTitle);
-        }
-      } else {
-        console.log('⚠️ JSON title 추출 실패, 기본 제목 사용:', parseResult.error);
-      }
-    } catch (error) {
-      console.log('❌ JSON title 추출 중 오류, 기본 제목 사용');
-    }
-
-    // 이미지 소스 확인
-    const imageSource = formData.get('imageSource') as string || 'none';
     console.log('이미지 소스:', imageSource);
-
-    // 프롬프트 포맷 확인 (product, product-info)
-    const promptFormat = formData.get('promptFormat') as string || '';
-    console.log('프롬프트 포맷:', promptFormat);
-
-    // TTS 음성 선택 확인
-    const ttsVoice = formData.get('ttsVoice') as string || 'ko-KR-SoonBokNeural';
     console.log('TTS 음성:', ttsVoice);
-
-    // 이미지 모델 선택 확인
-    const imageModel = formData.get('imageModel') as string || 'dalle3';
     console.log('이미지 모델:', imageModel);
 
-    // 상품 타입이면 title 앞에 [광고] 추가
-    if (promptFormat === 'product' || promptFormat === 'product-info') {
-      if (!videoTitle.startsWith('[광고]')) {
-        videoTitle = `[광고] ${videoTitle}`;
-        console.log('✅ 상품 영상 - title에 [광고] 추가:', videoTitle);
-      }
-    }
-
     // 비디오 포맷 확인 (longform, shortform, sora2)
-    const videoFormat = formData.get('videoFormat') as string || 'longform';
     console.log('비디오 포맷:', videoFormat);
-
-    // 원본 파일명 매핑 정보 파싱
-    const originalNamesStr = formData.get('originalNames') as string;
-    let originalNames: Record<number, string> = {};
-    if (originalNamesStr) {
-      try {
-        originalNames = JSON.parse(originalNamesStr);
-        console.log('✅ 원본 파일명 매핑 정보 수신:', originalNames);
-      } catch (error) {
-        console.warn('⚠️ 원본 파일명 파싱 실패, 변환된 이름만 사용');
-      }
-    }
 
     // 미디어 파일들 수집 (통합 인덱스로 순서 보존!)
     type MediaFile = File & { mediaType: 'image' | 'video' };
-    const allMediaFiles: MediaFile[] = [];
+    let allMediaFiles: MediaFile[] = [];
 
-    for (let i = 0; i < 100; i++) { // 최대 100개까지 확인
-      const media = formData.get(`media_${i}`) as File;
-      if (media) {
-        const mediaType = media.type.startsWith('image/') ? 'image' : 'video';
-        allMediaFiles.push(Object.assign(media, { mediaType: mediaType as const }));
-      }
+    if (!isInternal && (global as any).tempMediaFiles) {
+      allMediaFiles = (global as any).tempMediaFiles.map((item: any) =>
+        Object.assign(item.file, { mediaType: item.mediaType })
+      );
+      delete (global as any).tempMediaFiles;
+
+      console.log('📷 수신된 미디어 순서 (Frontend 정렬 그대로 유지):');
+      allMediaFiles.forEach((f, i) => {
+        const mediaIcon = f.mediaType === 'image' ? '🖼️' : '🎬';
+        const originalName = originalNames[i] ? ` (원본: ${originalNames[i]})` : '';
+        console.log(`  ${i + 1}. ${mediaIcon} ${f.name}${originalName}`);
+      });
     }
-
-    // Frontend에서 이미 정렬되어 전송됨 (media_0, media_1, media_2... 순서 유지!)
-    // Backend에서 추가 정렬 불필요
-
-    console.log('📷 수신된 미디어 순서 (Frontend 정렬 그대로 유지):');
-    allMediaFiles.forEach((f, i) => {
-      const mediaIcon = f.mediaType === 'image' ? '🖼️' : '🎬';
-      const originalName = originalNames[i] ? ` (원본: ${originalNames[i]})` : '';
-      console.log(`  ${i + 1}. ${mediaIcon} ${f.name}${originalName}`);
-    });
 
     // 직접 업로드 모드일 때만 이미지 또는 비디오 필수 체크 (SORA2는 불필요)
     if (videoFormat !== 'sora2' && imageSource === 'none' && allMediaFiles.length === 0) {
@@ -138,29 +171,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 크레딧 설정 가져오기
+    // 크레딧 차감 (내부 요청은 차감 안함)
     const settings = await getSettings();
     const cost = settings.videoGenerationCost;
 
-    // 크레딧 차감 시도
-    const deductResult = await deductCredits(user.userId, cost);
+    if (!isInternal) {
+      // 일반 요청만 크레딧 차감
+      const deductResult = await deductCredits(userId, cost);
 
-    if (!deductResult.success) {
-      console.log(`❌ 크레딧 부족: ${user.email}, 필요: ${cost}, 보유: ${deductResult.balance}`);
-      return NextResponse.json(
-        {
-          error: `크레딧이 부족합니다. (필요: ${cost}, 보유: ${deductResult.balance})`,
-          requiredCredits: cost,
-          currentCredits: deductResult.balance
-        },
-        { status: 402 } // 402 Payment Required
-      );
+      if (!deductResult.success) {
+        console.log(`❌ 크레딧 부족: ${user.email}, 필요: ${cost}, 보유: ${deductResult.balance}`);
+        return NextResponse.json(
+          {
+            error: `크레딧이 부족합니다. (필요: ${cost}, 보유: ${deductResult.balance})`,
+            requiredCredits: cost,
+            currentCredits: deductResult.balance
+          },
+          { status: 402 } // 402 Payment Required
+        );
+      }
+
+      console.log(`✅ 크레딧 차감 성공: ${user.email}, ${cost} 크레딧 차감, 잔액: ${deductResult.balance}`);
+
+      // 크레딧 히스토리 기록
+      await addCreditHistory(userId, 'use', -cost, '영상 생성');
+    } else {
+      console.log(`✅ 내부 요청: 크레딧 차감 생략`);
     }
-
-    console.log(`✅ 크레딧 차감 성공: ${user.email}, ${cost} 크레딧 차감, 잔액: ${deductResult.balance}`);
-
-    // 크레딧 히스토리 기록
-    await addCreditHistory(user.userId, 'use', -cost, '영상 생성');
 
     // trend-video-backend 경로
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
@@ -168,11 +205,24 @@ export async function POST(request: NextRequest) {
     const projectName = `uploaded_${jobId}`;
     const inputPath = path.join(backendPath, 'uploads', projectName);
 
-    // Job을 DB에 저장 (JSON의 title과 videoFormat, ttsVoice 사용)
-    await createJob(user.userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2', undefined, ttsVoice);
+    // JSON에서 카테고리 읽기
+    let category: string | undefined;
+    try {
+      const jsonContent = await jsonFile.text();
+      const jsonData = JSON.parse(jsonContent);
+      category = jsonData.metadata?.category || jsonData.category;
+      if (category) {
+        console.log('🎭 대본 카테고리:', category);
+      }
+    } catch (error) {
+      console.log('⚠️ JSON에서 카테고리를 읽을 수 없습니다:', error);
+    }
+
+    // Job을 DB에 저장 (JSON의 title과 videoFormat, ttsVoice, category 사용)
+    await createJob(userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2', undefined, ttsVoice, category);
 
     // 비동기로 영상 생성 시작
-    generateVideoFromUpload(jobId, user.userId, cost, {
+    generateVideoFromUpload(jobId, userId, cost, {
       backendPath,
       inputPath,
       projectName,
@@ -342,9 +392,9 @@ async function generateVideoFromUpload(
         soraOutputDirBefore = [];
       }
 
-      const pythonArgs = ['-m', 'src.sora.main', '-f', `prompts/temp_${jobId}.txt`, '-d', '8', '-s', '720x1280'];
+      const pythonArgs = ['-m', 'src.sora.main', '-f', `prompts/temp_${jobId}.txt`, '-d', '8', '-s', '720x1280', '--job-id', jobId];
       console.log(`🎬 trend-video-backend 명령어: python ${pythonArgs.join(' ')}`);
-      await addJobLog(jobId, `\n🎬 SORA2 모드: trend-video-backend 실행\n📝 프롬프트: ${promptText.substring(0, 100)}...\n`);
+      await addJobLog(jobId, `\n🎬 SORA2 모드: trend-video-backend 실행\n🆔 Job ID: ${jobId}\n📝 프롬프트: ${promptText.substring(0, 100)}...\n`);
 
       pythonProcess = spawn('python', pythonArgs, {
         cwd: backendPath,
@@ -391,7 +441,8 @@ async function generateVideoFromUpload(
       console.log(`🎨 이미지 생성 모델: ${config.imageModel} (provider: ${imageProvider})`);
 
       // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
-      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...voiceArg, ...imageProviderArg, ...isAdminArg];
+      const jobIdArg = ['--job-id', jobId];
+      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...voiceArg, ...imageProviderArg, ...isAdminArg, ...jobIdArg];
       console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
 
       pythonProcess = spawn('python', pythonArgs, {
@@ -491,6 +542,7 @@ async function generateVideoFromUpload(
 
     let videoPath: string;
     let generatedPath: string;
+    let latestOutputDir: string | undefined;
 
     if (config.videoFormat === 'sora2') {
       // trend-video-backend output 폴더에서 찾기
@@ -518,7 +570,7 @@ async function generateVideoFromUpload(
 
       // 새로 생긴 폴더 중 가장 최신 것 선택 (보통 하나만 있겠지만)
       const sortedNewDirs = newDirs.sort().reverse();
-      const latestOutputDir = path.join(outputPath, sortedNewDirs[0]);
+      latestOutputDir = path.join(outputPath, sortedNewDirs[0]);
       generatedPath = latestOutputDir;
 
       await addJobLog(jobId, `\n📁 새 output 폴더 발견: ${sortedNewDirs[0]}`);
@@ -582,7 +634,7 @@ async function generateVideoFromUpload(
     console.log('  프로젝트 폴더:', config.inputPath);
 
     try {
-      if (config.videoFormat === 'sora2') {
+      if (config.videoFormat === 'sora2' && latestOutputDir) {
         // SORA2는 latestOutputDir에서 찾기
         const files = await fs.readdir(latestOutputDir);
         const thumbnailFile = files.find(f =>
@@ -636,7 +688,7 @@ async function generateVideoFromUpload(
     console.error(`Job ${jobId} failed:`, error);
 
     // 에러 로그 추가
-    await addJobLog(jobId, `\n❌ 오류 발생: ${error.message}`);
+    await addJobLog(jobId, `\n${'='.repeat(70)}\n❌ 오류 발생 - Job ID: ${jobId}\n오류 내용: ${error.message}\n${'='.repeat(70)}`);
 
     // 모든 로그를 즉시 플러시
     await flushJobLogs();
@@ -691,6 +743,7 @@ export async function GET(request: NextRequest) {
       status: job.status,
       progress: job.progress,
       step: job.step,
+      videoId: jobId,  // automation에서 사용할 videoId 추가
       videoUrl,
       error: job.error || null,
       logs: job.logs || []
@@ -772,10 +825,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 2. 프로세스 강제 종료
-    const process = runningProcesses.get(jobId);
+    const runningProcess = runningProcesses.get(jobId);
 
-    if (process && process.pid) {
-      const pid = process.pid;
+    if (runningProcess && runningProcess.pid) {
+      const pid = runningProcess.pid;
       console.log(`🛑 프로세스 트리 종료 시작: Job ${jobId}, PID ${pid}`);
 
       try {

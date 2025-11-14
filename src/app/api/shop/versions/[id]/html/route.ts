@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/session';
 import db from '@/lib/sqlite';
 import { generateShopHtml, PublishedProduct } from '@/lib/shop-html';
 
-function ensureAdmin(user: Awaited<ReturnType<typeof getCurrentUser>>) {
+function ensureAdmin(user: Awaited<ReturnType<typeof getCurrentUser>>): asserts user is NonNullable<Awaited<ReturnType<typeof getCurrentUser>>> {
   if (!user || !user.isAdmin) {
     throw new Error('AUTH_REQUIRED');
   }

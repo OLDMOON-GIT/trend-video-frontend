@@ -88,6 +88,9 @@ export interface Content {
   // ⭐ 상품 정보 (format='product' 또는 'product-info'일 때)
   productInfo?: ProductInfo;
 
+  // 카테고리 (대본 스타일 구분)
+  category?: string;
+
   // 로그
   logs?: string[];
 
@@ -136,6 +139,7 @@ export interface CreateContentOptions {
   conversionType?: string;
   isRegenerated?: boolean;
   productInfo?: ProductInfo;  // ⭐ 상품 정보
+  category?: string;  // ⭐ 카테고리 (대본 스타일)
   folderId?: string;
 }
 

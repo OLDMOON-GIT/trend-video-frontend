@@ -2317,5 +2317,23 @@
     "balance": 200111630,
     "description": "영상 생성",
     "createdAt": "2025-11-13T01:37:06.321Z"
+  },
+  {
+    "id": "d336cc32-83ce-48e9-9a03-9734e32f7dc9",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200111480,
+    "description": "영상 생성",
+    "createdAt": "2025-11-13T07:21:45.751Z"
+  },
+  {
+    "id": "8d4ea7e8-ee8e-4e64-a76f-a5ffc37f487a",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200111330,
+    "description": "영상 생성",
+    "createdAt": "2025-11-13T18:24:40.077Z"
   }
 ]

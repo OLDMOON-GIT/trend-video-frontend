@@ -7,6 +7,20 @@ import {
 } from '@/lib/automation-scheduler';
 import { getAutomationSettings, updateAutomationSetting } from '@/lib/automation';
 
+// 서버 시작 시 자동으로 스케줄러 시작
+try {
+  const settings = getAutomationSettings();
+  if (settings.enabled === 'true') {
+    console.log('🚀 [AUTO-START] Starting automation scheduler...');
+    startAutomationScheduler();
+    console.log('✅ [AUTO-START] Automation scheduler started');
+  } else {
+    console.log('⏸️ [AUTO-START] Automation scheduler is disabled in settings');
+  }
+} catch (error) {
+  console.error('❌ [AUTO-START] Failed to start automation scheduler:', error);
+}
+
 // GET: 스케줄러 상태 확인
 export async function GET(request: NextRequest) {
   try {

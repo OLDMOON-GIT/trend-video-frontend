@@ -88,6 +88,16 @@ function runMigrations() {
     }
   }
 
+  // jobs 테이블에 category 컬럼 추가
+  try {
+    db.exec(`ALTER TABLE jobs ADD COLUMN category TEXT`);
+    console.log('✅ jobs.category 컬럼 추가 완료');
+  } catch (e: any) {
+    if (!e.message.includes('duplicate column')) {
+      console.error('❌ jobs.category 컬럼 추가 실패:', e.message);
+    }
+  }
+
   // chinese_converter_jobs 테이블에 title 컬럼 추가
   try {
     db.exec(`ALTER TABLE chinese_converter_jobs ADD COLUMN title TEXT`);
@@ -448,6 +458,30 @@ function runMigrations() {
     console.log('✅ social_media_uploads 테이블 생성 완료');
   } catch (e: any) {
     console.error('❌ social_media_uploads 테이블 생성 실패:', e.message);
+  }
+
+  // api_costs 테이블 생성 (비용 추적)
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS api_costs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        cost_type TEXT NOT NULL CHECK(cost_type IN ('ai_script', 'image_generation', 'tts', 'video_generation')),
+        service_name TEXT NOT NULL,
+        amount REAL NOT NULL,
+        credits_deducted INTEGER,
+        content_id TEXT,
+        metadata TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_api_costs_user_id ON api_costs(user_id)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_api_costs_cost_type ON api_costs(cost_type)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_api_costs_created_at ON api_costs(created_at)`);
+    console.log('✅ api_costs 테이블 생성 완료');
+  } catch (e: any) {
+    console.error('❌ api_costs 테이블 생성 실패:', e.message);
   }
 
   // scripts 테이블 데이터를 contents 테이블로 마이그레이션

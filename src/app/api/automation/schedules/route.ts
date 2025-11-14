@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { titleId, scheduledTime, youtubePublishTime } = body;
+    const { titleId, scheduledTime, youtubePublishTime, forceExecute } = body;
 
     if (!titleId || !scheduledTime) {
       return NextResponse.json({ error: 'Title ID and scheduled time are required' }, { status: 400 });
@@ -51,6 +51,14 @@ export async function POST(request: NextRequest) {
     const scheduledDate = new Date(scheduledTime);
     if (isNaN(scheduledDate.getTime())) {
       return NextResponse.json({ error: 'Invalid scheduled time' }, { status: 400 });
+    }
+
+    // 과거 시간 체크 (강제실행이 아닐 때만)
+    if (!forceExecute) {
+      const now = new Date();
+      if (scheduledDate < now) {
+        return NextResponse.json({ error: '과거 시간으로 스케줄을 설정할 수 없습니다' }, { status: 400 });
+      }
     }
 
     if (youtubePublishTime) {
@@ -131,6 +139,17 @@ export async function PATCH(request: NextRequest) {
       values.push(status);
     }
     if (scheduledTime !== undefined) {
+      // 과거 시간 체크
+      const scheduledDate = new Date(scheduledTime);
+      if (isNaN(scheduledDate.getTime())) {
+        db.close();
+        return NextResponse.json({ error: 'Invalid scheduled time' }, { status: 400 });
+      }
+      const now = new Date();
+      if (scheduledDate < now) {
+        db.close();
+        return NextResponse.json({ error: '과거 시간으로 스케줄을 설정할 수 없습니다' }, { status: 400 });
+      }
       updates.push('scheduled_time = ?');
       values.push(scheduledTime);
     }

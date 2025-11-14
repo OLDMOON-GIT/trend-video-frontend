@@ -23,10 +23,8 @@ function getUserTokenPath(userId: string): string {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
-    }
+    // 내부 요청 확인
+    const isInternalRequest = request.headers.get('X-Internal-Request');
 
     const body = await request.json();
     const {
@@ -40,8 +38,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       captionsPath,
       publishAt,
       channelId, // 업로드할 YouTube 채널 ID (선택사항, 없으면 기본 채널 사용)
-      jobId
+      jobId,
+      userId: internalUserId // automation에서 전달하는 userId
     } = body;
+
+    // 사용자 인증
+    let user;
+    if (isInternalRequest && internalUserId) {
+      // 내부 요청이면 전달받은 userId 사용
+      user = { userId: internalUserId };
+      console.log('🔧 Internal request - using provided userId:', internalUserId);
+    } else {
+      // 일반 요청이면 세션에서 사용자 확인
+      user = await getCurrentUser(request);
+      if (!user) {
+        return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+      }
+    }
 
     if (!videoPath || !title) {
       return NextResponse.json({ error: 'videoPath와 title은 필수입니다' }, { status: 400 });
@@ -106,23 +119,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: '비디오 파일을 찾을 수 없습니다' }, { status: 404 });
     }
 
-    // Shorts인 경우 제목과 설명 자동 수정
-    let finalTitle = title;
-    let finalDescription = description;
-
-    if (isShorts) {
-      // 제목에 #Shorts 추가 (이미 있으면 추가 안 함)
-      if (!finalTitle.includes('#Shorts') && !finalTitle.includes('#shorts')) {
-        finalTitle = `${finalTitle} #Shorts`;
-        console.log('📝 제목에 #Shorts 추가:', finalTitle);
-      }
-
-      // 설명 맨 앞에 #Shorts 추가 (YouTube가 더 잘 인식함)
-      if (!finalDescription.includes('#Shorts') && !finalDescription.includes('#shorts')) {
-        finalDescription = `#Shorts\n\n${finalDescription}`;
-        console.log('📝 설명 맨 앞에 #Shorts 추가');
-      }
-    }
+    // 사용자가 입력한 제목과 설명을 그대로 사용
+    const finalTitle = title;
+    const finalDescription = description;
 
     // 메타데이터 JSON 생성
     const metadata = {

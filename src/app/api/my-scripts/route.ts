@@ -36,28 +36,30 @@ export async function GET(request: NextRequest) {
     try {
       db = new Database(dbPath);
 
-      console.log('🔍 쿼리:', 'SELECT * FROM contents WHERE user_id = ? AND type = "script" ORDER BY created_at DESC');
-      console.log('🔍 파라미터:', user.userId);
+      console.log('🔍 쿼리:', 'SELECT * FROM contents WHERE user_id = ? AND type = "script" ORDER BY created_at DESC LIMIT ? OFFSET ?');
+      console.log('🔍 파라미터:', user.userId, limit, offset);
 
-      // 1. contents 테이블에서 완료된 대본 가져오기
+      // 1. contents 테이블에서 완료된 대본 가져오기 (LIMIT 적용)
       let allScripts = db.prepare(`
         SELECT * FROM contents
         WHERE user_id = ? AND type = 'script'
         ORDER BY created_at DESC
-      `).all(user.userId) as any[];
+        LIMIT ? OFFSET ?
+      `).all(user.userId, limit + offset, 0) as any[];
 
       console.log('📊 조회된 완료 대본 개수:', allScripts.length);
 
-      // 2. scripts_temp 테이블에서 모든 대본 가져오기 (에러, 펜딩, 진행중 등 모두 포함)
+      // 2. scripts_temp 테이블에서 진행 중인 대본만 가져오기
       // DONE이면서 scriptId가 있는 것만 제외 (이미 contents에 저장됨)
-      // scripts_temp는 userId를 저장하지 않으므로 모든 작업을 가져옴
-      const tempScripts = db.prepare(`
+      // limit이 작을 때만 진행 상태 대본 조회 (성능 최적화)
+      const tempScripts = limit <= 10 ? db.prepare(`
         SELECT * FROM scripts_temp
         WHERE NOT (status = 'DONE' AND scriptId IS NOT NULL)
         ORDER BY createdAt DESC
-      `).all() as any[];
+        LIMIT ?
+      `).all(20) as any[] : [];
 
-      console.log('📊 조회된 진행 상태 대본 개수 (전체):', tempScripts.length);
+      console.log('📊 조회된 진행 상태 대본 개수:', tempScripts.length);
 
       // tempScripts를 Script 형식으로 변환
       const tempScriptsConverted = tempScripts.map((row: any) => {
@@ -126,6 +128,7 @@ export async function GET(request: NextRequest) {
           sourceContentId: row.source_content_id,  // 원본 컨텐츠 ID
           conversionType: row.conversion_type,      // 변환 타입
           isRegenerated: row.is_regenerated === 1,  // 재생성 여부
+          category: row.category,  // 카테고리
           createdAt: row.created_at,
           updatedAt: row.updated_at || row.created_at
         };
@@ -136,9 +139,7 @@ export async function GET(request: NextRequest) {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
 
-      console.log('📊 전체 대본 개수 (진행중 + 완료):', allScripts.length);
-
-      // 검색 필터링
+      // 검색이 있을 경우에만 필터링
       if (search) {
         const searchLower = search.toLowerCase();
         allScripts = allScripts.filter(script =>
@@ -150,10 +151,16 @@ export async function GET(request: NextRequest) {
         console.log('검색 후 대본 개수:', allScripts.length);
       }
 
-      // 전체 개수
-      const total = allScripts.length;
+      console.log('📊 전체 대본 개수 (진행중 + 완료):', allScripts.length);
 
-      // 페이징
+      // 전체 개수 (DB에서 COUNT 쿼리로 가져오기 - 더 정확함)
+      const totalRow = db.prepare(`
+        SELECT COUNT(*) as count FROM contents
+        WHERE user_id = ? AND type = 'script'
+      `).get(user.userId) as any;
+      const total = totalRow.count;
+
+      // 페이징 (이미 LIMIT으로 가져왔으므로 offset만 적용)
       const scripts = allScripts.slice(offset, offset + limit);
 
       console.log('대본 목록:', scripts.map(s => ({ id: s.id, title: s.title, status: s.status })));

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
 
   try {
-    const { prompt, topic, suggestTitles, format, productInfo, model } = await request.json();
+    const { prompt, topic, suggestTitles, format, productInfo, model, category } = await request.json();
 
     /**
      * format 파라미터: 프롬프트 포맷 (구 videoFormat)
@@ -184,7 +184,8 @@ export async function POST(request: NextRequest) {
       '', // 초기에는 빈 내용
       undefined, // tokenUsage
       topic, // 사용자가 입력한 원본 제목
-      format || 'longform' // 포맷 전달 (기본값: longform)
+      format || 'longform', // 포맷 전달 (기본값: longform)
+      category // 카테고리 전달
     );
 
     console.log('📝 대본 생성 작업 시작:', script.id);
@@ -240,7 +241,7 @@ export async function POST(request: NextRequest) {
 
             // DB에서 사용자 설정 가져오기
             const db = getDb();
-            const userSettings = db.prepare('SELECT google_sites_home_url, nickname FROM users WHERE id = ?').get(user.id) as { google_sites_home_url?: string; nickname?: string } | undefined;
+            const userSettings = db.prepare('SELECT google_sites_home_url, nickname FROM users WHERE id = ?').get(user.userId) as { google_sites_home_url?: string; nickname?: string } | undefined;
             const homeUrl = userSettings?.google_sites_home_url || 'https://www.youtube.com/@살림남';
             const nickname = userSettings?.nickname || '살림남';
 

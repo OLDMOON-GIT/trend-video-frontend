@@ -21,6 +21,14 @@ try {
   }
 }
 
+try {
+  db.exec(`ALTER TABLE contents ADD COLUMN category TEXT`);
+} catch (error: any) {
+  if (!error?.message?.includes('duplicate column')) {
+    console.error('Failed to ensure contents.category column:', error);
+  }
+}
+
 // ⚠️ Content 타입 정의는 src/types/content.ts로 이동됨
 // DB 스키마 변경 시 src/types/content.ts를 먼저 업데이트하세요!
 
@@ -42,9 +50,9 @@ export function createContent(
     INSERT INTO contents (
       id, user_id, type, format, title, original_title, content,
       status, progress, input_tokens, output_tokens, use_claude_local, model,
-      source_content_id, conversion_type, is_regenerated, product_info,
+      source_content_id, conversion_type, is_regenerated, product_info, category,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
@@ -65,6 +73,7 @@ export function createContent(
     options?.conversionType || null,
     options?.isRegenerated ? 1 : 0,
     options?.productInfo ? JSON.stringify(options.productInfo) : null,
+    options?.category || null,
     now,
     now
   );
@@ -86,6 +95,7 @@ export function createContent(
     conversionType: options?.conversionType,
     isRegenerated: options?.isRegenerated,
     productInfo: options?.productInfo,
+    category: options?.category,
     createdAt: now,
     updatedAt: now
   };
@@ -370,6 +380,7 @@ function rowToContent(row: any): Content {
     useClaudeLocal: row.use_claude_local === 1,
     model: row.model || undefined,
     productInfo: productInfo,
+    category: row.category || undefined,
     sourceContentId: row.source_content_id,
     conversionType: row.conversion_type,
     isRegenerated: row.is_regenerated === 1,

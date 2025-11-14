@@ -217,66 +217,46 @@ export async function POST(
       apiKey: process.env.ANTHROPIC_API_KEY!,
     });
 
-    const prompt = `당신은 영상 대본을 3분 쇼츠로 변환하는 전문가입니다.
+    const prompt = `당신은 영상 대본을 1분 쇼츠로 요약하는 전문가입니다.
 
-주어진 영상 대본을 **처음부터 끝까지 꼼꼼히 분석**하여 **진짜 하이라이트만 엄선**해 180초(3분) 쇼츠로 재구성하세요.
+주어진 영상 대본의 **씬 개수는 그대로 유지**하되, 각 씬의 나레이션을 짧게 요약하여 총 60초(1분)로 맞춰주세요.
 
-**🚨 절대 원칙: "대충 앞부분 가져오기" 금지 🚨**
-- 원본 대본을 **전체적으로** 분석한 후 작업 시작
-- 앞쪽 장면이라고 무조건 중요한 게 아님
-- 중간이나 후반부에 더 강렬한 장면이 있으면 그걸 선택
-- **반전, 클라이맥스, 결말**이 있는지 끝까지 확인
-- 시간순이 아니라 **임팩트 순**으로 장면 선택
+**핵심 원칙:**
+- 씬 개수: 원본과 동일하게 유지
+- 씬 순서: 원본과 동일하게 유지
+- 나레이션: 핵심만 남기고 짧게 요약
+- 이미지: 원본 이미지 재사용 (image_prompt 생성 안 함)
 
-**하이라이트 선별 기준 (중요도 순):**
-1. 🔥 **반전/충격**: 예상을 깨는 반전, 충격적인 사실 공개
-2. 💥 **클라이맥스**: 갈등이 정점에 달하는 순간, 결정적 장면
-3. 😭 **감정 폭발**: 웃음, 분노, 슬픔이 극에 달하는 순간
-4. 🎬 **시각적 강렬함**: 임팩트 있는 장면
-5. 🎯 **결말/여운**: 통쾌한 결말, 생각하게 만드는 엔딩
-6. ❌ **제외 대상**: 평범한 설명, 배경 정보, 지루한 전개
+**시간 계산 (TTS 기준 1초당 15자):**
+- 총 길이: 정확히 60초 (1분)
+- 총 글자 수: 900자 (60초 × 15자)
+- 각 씬 길이: 900자를 씬 개수로 균등 분배
 
-**중요: 시간 계산 (TTS 기준 1초당 15자)**
-1. 총 길이: 정확히 60초 (1분)
-2. 씬0 (훅): 3초 → 나레이션 정확히 45자
-3. 씬1-3: 각 19초 → 나레이션 각 정확히 285자
-4. **계산 검증:** 45 + (285 × 3) = 45 + 855 = 900자 = 60초
+**예시:**
+- 원본 10개 씬 → 쇼츠 10개 씬, 각 90자 (6초)
+- 원본 5개 씬 → 쇼츠 5개 씬, 각 180자 (12초)
+- 원본 4개 씬 → 쇼츠 4개 씬, 각 225자 (15초)
 
-**씬 선택 프로세스:**
-1️⃣ **전체 읽기**: 원본 대본을 처음부터 끝까지 완전히 읽기
-2️⃣ **임팩트 평가**: 각 장면에 임팩트 점수 매기기
-3️⃣ **베스트 4 선택**: 가장 점수 높은 4개 장면 선택
-4️⃣ **스토리 재구성**: 선택한 장면들을 논리적으로 연결
-
-**씬 구성:**
-- 씬 개수: 정확히 4개 (훅 + 메인 3개)
-- 씬0 (훅): 가장 충격적인 순간
-- 씬1-3: 임팩트 순위 2-4위 장면
-
-**narration 작성 규칙:**
-- 씬0: **정확히 45자** (초강력 훅)
-- 씬1-3: **각 정확히 285자** (상세한 상황, 감정, 배경 포함)
-
-**image_prompt 작성 규칙:**
-- **필수: "Photorealistic photography, cinematic lighting" 으로 시작 (실사 사진 스타일)**
-- **금지: cartoon, anime, illustration, drawing, sketch, VERTICAL, PORTRAIT, 9:16, landscape 등 방향/비율 관련 단어 절대 사용 금지 (시스템이 자동으로 세로 9:16으로 생성함)**
-- **인물이 등장하는 경우 반드시 "Korean person", "Korean man/woman", "Korean elderly", "Korean employee" 등 한국인임을 명시**
-- **씬 간 일관성 유지: 같은 인물은 동일한 외모/옷차림으로 묘사 (나이, 머리 스타일, 의상 등)**
-- 구체적인 피사체와 상황 묘사 (최소 2-3문장)
-- 인물의 표정, 자세, 배경, 조명 등 디테일 포함
-- 예시: "Photorealistic photography, cinematic lighting. A Korean elderly man with warm expression, wearing traditional hanbok, standing in a sunlit traditional Korean house courtyard..."
+**나레이션 요약 규칙:**
+1. 핵심 내용만 남기고 불필요한 설명 제거
+2. 감정과 임팩트는 유지
+3. 구어체, 짧은 문장 사용
+4. 각 씬의 글자 수를 균등하게 맞춤
 
 **출력 형식:**
 - 순수 JSON만 출력 (코드펜스 없음)
 - 첫 글자: {, 마지막 글자: }
-- scenes 배열에 4개 씬
-- 각 씬에 scene_number, narration, image_prompt 포함
+- scenes 배열에 원본과 동일한 개수의 씬
+- 각 씬에 scene_number, narration만 포함 (**image_prompt는 생략**)
 - metadata에 type: "shortform" 설정
+
+**중요: image_prompt는 절대 생성하지 마세요!**
+원본 이미지를 재사용하므로 image_prompt 필드는 포함하지 않습니다.
 
 원본 대본:
 ${scriptContent}
 
-1분 쇼츠로 변환된 JSON을 출력하세요:`;
+1분 쇼츠로 요약된 JSON을 출력하세요 (image_prompt 없이):`;
 
     const message = await anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022',
@@ -325,9 +305,9 @@ ${scriptContent}
     const randomStr = Math.random().toString(36).substring(2, 8);
     const newJobId = `job_${timestamp}_${randomStr}`;
 
-    // 작업 타이틀 (원본 제목에서 "(쇼츠)" 제거하고 다시 추가)
+    // 작업 타이틀 (원본 제목 그대로 사용, "(쇼츠)" 추가하지 않음)
     const originalTitle = originalJob.title?.replace(/\s*\(쇼츠\)\s*$/, '') || '제목 없음';
-    const title = `${originalTitle} (쇼츠)`;
+    const title = originalTitle;
 
     // title 추가 (최상위)
     shortsScript.title = title;
@@ -386,6 +366,52 @@ ${scriptContent}
     await fs.mkdir(newProjectPath, { recursive: true });
     console.log('📁 프로젝트 폴더 생성:', newProjectPath);
 
+    // 롱폼 이미지를 쇼츠 형태로 변환 (16:9 → 9:16)
+    console.log('\n🎨 ========== 롱폼 → 쇼츠 이미지 변환 시작 ==========');
+    console.log('📂 원본 폴더 경로:', folderPath);
+
+    try {
+      const convertScript = path.join(backendPath, 'convert_images_to_shorts.py');
+      console.log('🚀 이미지 변환 스크립트 실행:', convertScript);
+
+      await new Promise<void>((resolve, reject) => {
+        const convertProcess = spawn('python', [
+          convertScript,
+          '--folder', folderPath
+        ], {
+          cwd: backendPath,
+          shell: true
+        });
+
+        convertProcess.stdout.on('data', (data: Buffer) => {
+          console.log(`[이미지 변환] ${data.toString('utf-8')}`);
+        });
+
+        convertProcess.stderr.on('data', (data: Buffer) => {
+          console.error(`[이미지 변환 ERROR] ${data.toString('utf-8')}`);
+        });
+
+        convertProcess.on('close', (code: number) => {
+          if (code === 0) {
+            console.log('✅ 이미지 변환 완료 (shorts_images 폴더에 저장됨)');
+            resolve();
+          } else {
+            console.log(`⚠️ 이미지 변환 실패 (코드: ${code}), 기존 이미지 사용`);
+            resolve(); // 실패해도 계속 진행
+          }
+        });
+
+        convertProcess.on('error', (err: Error) => {
+          console.error('❌ 이미지 변환 프로세스 실행 실패:', err);
+          resolve(); // 실패해도 계속 진행
+        });
+      });
+    } catch (err: any) {
+      console.error('⚠️ 이미지 변환 중 오류 (무시하고 계속):', err.message);
+    }
+
+    console.log('🎨 ========== 롱폼 → 쇼츠 이미지 변환 종료 ==========\n');
+
     // 원본 폴더에서 9:16 비율의 이미지 찾아서 복사
     console.log('\n🖼️ ========== 9:16 이미지 복사 시작 ==========');
     console.log('📂 원본 폴더 경로:', folderPath);
@@ -404,22 +430,46 @@ ${scriptContent}
         throw err;
       }
 
-      // 2. shorts_images 서브폴더 확인
+      // 2. shorts_images 서브폴더 확인 (롱폼→쇼츠 변환된 이미지)
       const shortsImagesFolder = path.join(folderPath, 'shorts_images');
       let hasShortsFolder = false;
       console.log(`🔍 shorts_images 폴더 확인 중: ${shortsImagesFolder}`);
       try {
         await fs.access(shortsImagesFolder);
         hasShortsFolder = true;
-        console.log('✅ shorts_images 폴더 발견! 우선적으로 사용합니다.');
+        console.log('✅ shorts_images 폴더 발견! (롱폼 이미지가 9:16으로 변환됨)');
         const shortsFiles = await fs.readdir(shortsImagesFolder);
         console.log(`📁 shorts_images 폴더 내 파일 (${shortsFiles.length}개):`, shortsFiles);
-        // shorts_images 폴더의 파일을 우선 사용
-        files = shortsFiles.map(f => path.join('shorts_images', f));
-        console.log(`   변환된 상대 경로:`, files);
+
+        // shorts_images 폴더의 파일만 사용 (이미 9:16이므로 비율 체크 필요 없음)
+        console.log(`📋 변환된 이미지를 새 프로젝트로 복사합니다...`);
+
+        let copiedCount = 0;
+        for (const file of shortsFiles) {
+          if (/\.(jpg|jpeg|png)$/i.test(file) && !file.includes('thumbnail')) {
+            copiedCount++;
+            const sourcePath = path.join(shortsImagesFolder, file);
+            const targetFileName = `scene_${copiedCount.toString().padStart(2, '0')}_image${path.extname(file)}`;
+            const targetPath = path.join(newProjectPath, targetFileName);
+
+            await fs.copyFile(sourcePath, targetPath);
+            console.log(`   📋 복사: ${file} → ${targetFileName}`);
+          }
+        }
+
+        console.log(`\n✅ 변환된 이미지 복사 완료: ${copiedCount}개`);
+        console.log('💡 원본 이미지를 재사용하므로 DALL-E 생성이 필요 없습니다.');
+
+        // 이미지가 복사되었으므로 추가 처리 건너뛰기
+        console.log('🖼️ ========== 9:16 이미지 복사 종료 ==========\n');
+
       } catch (err: any) {
-        console.log(`ℹ️ shorts_images 폴더 없음 (${err.message}). 메인 폴더의 이미지를 사용합니다.`);
+        console.log(`ℹ️ shorts_images 폴더 없음 (${err.message}). 메인 폴더의 9:16 이미지를 사용합니다.`);
+        hasShortsFolder = false;
       }
+
+      // shorts_images가 없는 경우에만 메인 폴더에서 9:16 이미지 찾기
+      if (!hasShortsFolder) {
 
       const imageFiles = files.filter(f => {
         const basename = path.basename(f);
@@ -538,11 +588,14 @@ ${scriptContent}
       } else {
         console.log('ℹ️ 9:16 이미지가 없어서 모든 씬을 DALL-E로 생성합니다.');
       }
+
+      } // if (!hasShortsFolder) 닫기
+
     } catch (err: any) {
       console.error('\n❌ 이미지 복사 중 오류 발생 (무시하고 계속):');
       console.error('   에러 메시지:', err.message);
       console.error('   에러 스택:', err.stack);
-      console.error('   → 모든 이미지를 DALL-E로 생성합니다.');
+      console.error('   → 원본 이미지를 사용합니다.');
     }
 
     console.log('🖼️ ========== 9:16 이미지 복사 종료 ==========\n');
@@ -566,8 +619,8 @@ ${scriptContent}
       createVideoScript,
       '--folder', newProjectPath,  // 폴더 경로 전달
       '--aspect-ratio', '9:16',     // 세로 비율
-      '--add-subtitles',            // 자막 추가
-      '--image-source', 'dalle'     // DALL-E 이미지 사용
+      '--add-subtitles'             // 자막 추가
+      // --image-source 옵션 없음 → 폴더의 이미지 자동 사용
     ], {
       cwd: backendPath,
       shell: true,
@@ -634,15 +687,37 @@ ${scriptContent}
         const db3 = new Database(dbPath);
 
         if (code === 0) {
-          // 성공: 생성된 비디오 경로 찾기
-          const generatedVideosPath = path.join(newProjectPath, 'generated_videos');
-          const files = await fs.readdir(generatedVideosPath);
+          // 성공: 생성된 비디오 경로 찾기 (루트 폴더에서 먼저 확인)
+          let videoPath: string | null = null;
 
-          // 병합된 최종 비디오 찾기 (scene_XX.mp4가 아닌 파일)
-          const videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+          // 1. 루트 폴더에서 .mp4 파일 찾기 (쇼츠 변환은 여기에 생성됨)
+          try {
+            const rootFiles = await fs.readdir(newProjectPath);
+            const videoFile = rootFiles.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+            if (videoFile) {
+              videoPath = path.join(newProjectPath, videoFile);
+              console.log(`✅ 비디오 파일 발견 (루트): ${videoPath}`);
+            }
+          } catch (err) {
+            console.log('루트 폴더 확인 실패 (무시하고 계속)');
+          }
 
-          if (videoFile) {
-            const videoPath = path.join(generatedVideosPath, videoFile);
+          // 2. generated_videos 폴더 확인 (없으면 넘어감)
+          if (!videoPath) {
+            try {
+              const generatedVideosPath = path.join(newProjectPath, 'generated_videos');
+              const files = await fs.readdir(generatedVideosPath);
+              const videoFile = files.find(f => f.endsWith('.mp4') && !f.includes('scene_'));
+              if (videoFile) {
+                videoPath = path.join(generatedVideosPath, videoFile);
+                console.log(`✅ 비디오 파일 발견 (generated_videos): ${videoPath}`);
+              }
+            } catch (err) {
+              console.log('generated_videos 폴더 확인 실패 (무시하고 계속)');
+            }
+          }
+
+          if (videoPath) {
             const thumbnailPath = path.join(newProjectPath, 'thumbnail.jpg');
 
             // 썸네일 생성
@@ -678,8 +753,9 @@ ${scriptContent}
 
             console.log(`✅ 쇼츠 변환 완료: ${videoPath}${thumbnailGenerated ? ` (썸네일: ${thumbnailPath})` : ' (썸네일 없음)'}`);
           } else {
+            console.error(`❌ 비디오 파일을 찾을 수 없습니다. 프로젝트 경로: ${newProjectPath}`);
             db3.prepare('UPDATE jobs SET status = ?, error = ? WHERE id = ?')
-              .run('failed', '생성된 비디오 파일을 찾을 수 없습니다.', newJobId);
+              .run('failed', `생성된 비디오 파일을 찾을 수 없습니다. (경로: ${newProjectPath})`, newJobId);
           }
         } else if (code !== null) {
           // 실패

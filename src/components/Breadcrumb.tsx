@@ -46,6 +46,10 @@ export default function Breadcrumb() {
       crumbs.push({ label: '상품 관리', href: '/admin/coupang-products' });
     } else if (pathname.startsWith('/admin')) {
       crumbs.push({ label: '관리자', href: '/admin' });
+    } else if (pathname.startsWith('/automation')) {
+      crumbs.push({ label: '자동화', href: '/automation' });
+    } else if (pathname.startsWith('/settings')) {
+      crumbs.push({ label: '설정', href: '/settings' });
     } else if (pathname.startsWith('/auth')) {
       crumbs.push({ label: '로그인', href: '/auth' });
     }

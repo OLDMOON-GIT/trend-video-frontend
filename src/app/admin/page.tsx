@@ -99,6 +99,21 @@ export default function AdminPage() {
             </div>
           </Link>
 
+          {/* 환불 처리 */}
+          <Link
+            href="/admin/refund"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-orange-500/20 to-red-500/20 p-8 backdrop-blur transition hover:border-orange-500/50 hover:shadow-2xl hover:shadow-orange-500/20"
+          >
+            <div className="mb-4 text-5xl">💸</div>
+            <h2 className="mb-2 text-2xl font-bold text-white">수동 환불 처리</h2>
+            <p className="text-sm text-slate-300">
+              자동화 작업 실패 시 수동으로 크레딧 환불 처리
+            </p>
+            <div className="mt-4 flex items-center text-sm font-semibold text-orange-300 transition group-hover:translate-x-2">
+              환불 처리 →
+            </div>
+          </Link>
+
           {/* 사용자 활동 로그 */}
           <Link
             href="/admin/user-activity"
@@ -218,6 +233,21 @@ export default function AdminPage() {
               확인하기 →
             </div>
           </Link>
+
+          {/* API 비용 관리 */}
+          <Link
+            href="/admin/api-costs"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 p-8 backdrop-blur transition hover:border-yellow-500/50 hover:shadow-2xl hover:shadow-yellow-500/20"
+          >
+            <div className="mb-4 text-5xl">💰</div>
+            <h2 className="mb-2 text-2xl font-bold text-white">API 비용 관리</h2>
+            <p className="text-sm text-slate-300">
+              AI, 이미지, TTS 등 서비스별 비용 현황 및 통계
+            </p>
+            <div className="mt-4 flex items-center text-sm font-semibold text-yellow-300 transition group-hover:translate-x-2">
+              확인하기 →
+            </div>
+          </Link>
         </div>
 
         {/* 안내 */}
@@ -227,6 +257,7 @@ export default function AdminPage() {
             <p>• <strong>사용자 관리:</strong> 회원 검색, 정보 조회, 크레딧 부여, 이메일 인증 처리</p>
             <p>• <strong>충전 요청 관리:</strong> 사용자 크레딧 충전 요청 승인/거부 처리</p>
             <p>• <strong>크레딧 설정:</strong> AI 대본 생성 및 영상 생성 시 차감되는 크레딧 금액 설정</p>
+            <p>• <strong>API 비용 관리:</strong> Claude, ChatGPT, Gemini, DALL-E 등 외부 API 사용 비용 추적 및 통계</p>
             <p>• <strong>사용자 활동 로그:</strong> 로그인/로그아웃 기록, 활동 시간, 활성 세션 모니터링</p>
             <p>• <strong>DB 백업 관리:</strong> 데이터베이스 자동/수동 백업, 복원, 무결성 체크</p>
             <p>• <strong>YouTube Credentials:</strong> 모든 사용자가 공용으로 사용하는 YouTube API 인증 정보 설정</p>

@@ -74,6 +74,8 @@ export interface Job {
   convertedFromJobId?: string; // 원본 영상 ID (영상->쇼츠)
   prompt?: string; // 생성 시 사용한 프롬프트
   ttsVoice?: string; // TTS 음성 선택
+  isRegenerated?: boolean; // 재생성된 영상 여부
+  category?: string; // 카테고리
 }
 
 // 대본 타입
@@ -101,6 +103,10 @@ export interface Script {
     product_link?: string;
     description?: string;
   }; // 상품 정보 (product, product-info 타입일 때만)
+  category?: string; // 카테고리
+  sourceContentId?: string; // 원본 컨텐츠 ID (변환된 대본인 경우)
+  conversionType?: string; // 변환 타입 (예: shortform->longform)
+  isRegenerated?: boolean; // 재생성 여부
 }
 
 // 비밀번호 해시
@@ -223,15 +229,15 @@ export async function deleteUserById(userId: string): Promise<void> {
 // ==================== SQLite Job 함수들 ====================
 
 // 작업 생성
-export function createJob(userId: string, jobId: string, title?: string, type?: 'longform' | 'shortform' | 'sora2', sourceContentId?: string, ttsVoice?: string): Job {
+export function createJob(userId: string, jobId: string, title?: string, type?: 'longform' | 'shortform' | 'sora2', sourceContentId?: string, ttsVoice?: string, category?: string): Job {
   const now = new Date().toISOString();
 
   const stmt = db.prepare(`
-    INSERT INTO jobs (id, user_id, status, progress, created_at, updated_at, title, type, source_content_id, tts_voice)
-    VALUES (?, ?, 'pending', 0, ?, ?, ?, ?, ?, ?)
+    INSERT INTO jobs (id, user_id, status, progress, created_at, updated_at, title, type, source_content_id, tts_voice, category)
+    VALUES (?, ?, 'pending', 0, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(jobId, userId, now, now, title || null, type || null, sourceContentId || null, ttsVoice || null);
+  stmt.run(jobId, userId, now, now, title || null, type || null, sourceContentId || null, ttsVoice || null, category || null);
 
   return {
     id: jobId,
@@ -393,7 +399,9 @@ export function getJobsByUserId(userId: string, limit: number = 10, offset: numb
     type: row.type,
     sourceContentId: row.source_content_id,
     convertedFromJobId: row.converted_from_job_id,
-    prompt: row.prompt
+    prompt: row.prompt,
+    category: row.category,
+    ttsVoice: row.tts_voice
   }));
 }
 
@@ -429,7 +437,9 @@ export function getActiveJobsByUserId(userId: string): Job[] {
     type: row.type,
     sourceContentId: row.source_content_id,
     convertedFromJobId: row.converted_from_job_id,
-    prompt: row.prompt
+    prompt: row.prompt,
+    category: row.category,
+    ttsVoice: row.tts_voice
   }));
 }
 
@@ -931,12 +941,13 @@ export async function createScript(
   content: string = '', // 초기에는 빈 문자열
   tokenUsage?: { input_tokens: number; output_tokens: number },
   originalTitle?: string, // 사용자가 입력한 원본 제목
-  format?: 'longform' | 'shortform' | 'sora2' | 'product' // 포맷 타입
+  format?: 'longform' | 'shortform' | 'sora2' | 'product', // 포맷 타입
+  category?: string // 카테고리 (대본 스타일)
 ): Promise<Script> {
   // contents 테이블의 createContent 사용
   const { createContent } = require('./content');
 
-  console.log('📝 createScript 호출 - format:', format);
+  console.log('📝 createScript 호출 - format:', format, 'category:', category);
 
   const contentRecord = createContent(
     userId,
@@ -947,7 +958,8 @@ export async function createScript(
       originalTitle: originalTitle || title,
       content: content,
       tokenUsage: tokenUsage,
-      useClaudeLocal: false // API Claude 사용
+      useClaudeLocal: false, // API Claude 사용
+      category: category // 카테고리 전달
     }
   );
 
@@ -1849,4 +1861,181 @@ export function deleteSocialMediaUpload(uploadId: string): boolean {
   const stmt = db.prepare('DELETE FROM social_media_uploads WHERE id = ?');
   const result = stmt.run(uploadId);
   return result.changes > 0;
+}
+
+// ============================================
+// API 비용 추적
+// ============================================
+
+export type CostType = 'ai_script' | 'image_generation' | 'tts' | 'video_generation';
+
+export interface ApiCost {
+  id: string;
+  userId: string;
+  costType: CostType;
+  serviceName: string; // 'claude', 'chatgpt', 'gemini', 'grok', 'dalle3', 'imagen3', 'azure_tts', 'google_tts', 'aws_polly'
+  amount: number; // 비용 (달러)
+  creditsDeducted?: number; // 차감된 크레딧
+  contentId?: string; // 관련 content ID
+  metadata?: Record<string, any>; // 추가 정보 (토큰 수, 글자 수 등)
+  createdAt: string;
+}
+
+// API 비용 기록 추가
+export function createApiCost(cost: Omit<ApiCost, 'id' | 'createdAt'>): ApiCost {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const stmt = db.prepare(`
+    INSERT INTO api_costs (
+      id, user_id, cost_type, service_name, amount, credits_deducted,
+      content_id, metadata, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    id,
+    cost.userId,
+    cost.costType,
+    cost.serviceName,
+    cost.amount,
+    cost.creditsDeducted || null,
+    cost.contentId || null,
+    cost.metadata ? JSON.stringify(cost.metadata) : null,
+    now
+  );
+
+  return {
+    id,
+    ...cost,
+    createdAt: now
+  };
+}
+
+// 사용자별 API 비용 조회
+export function getUserApiCosts(userId: string, startDate?: string, endDate?: string): ApiCost[] {
+  let query = 'SELECT * FROM api_costs WHERE user_id = ?';
+  const params: any[] = [userId];
+
+  if (startDate) {
+    query += ' AND created_at >= ?';
+    params.push(startDate);
+  }
+
+  if (endDate) {
+    query += ' AND created_at <= ?';
+    params.push(endDate);
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  const stmt = db.prepare(query);
+  const rows = stmt.all(...params) as any[];
+
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    costType: row.cost_type,
+    serviceName: row.service_name,
+    amount: row.amount,
+    creditsDeducted: row.credits_deducted,
+    contentId: row.content_id,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    createdAt: row.created_at
+  }));
+}
+
+// 전체 API 비용 조회 (관리자용)
+export function getAllApiCosts(startDate?: string, endDate?: string, limit?: number): ApiCost[] {
+  let query = 'SELECT * FROM api_costs WHERE 1=1';
+  const params: any[] = [];
+
+  if (startDate) {
+    query += ' AND created_at >= ?';
+    params.push(startDate);
+  }
+
+  if (endDate) {
+    query += ' AND created_at <= ?';
+    params.push(endDate);
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  if (limit) {
+    query += ' LIMIT ?';
+    params.push(limit);
+  }
+
+  const stmt = db.prepare(query);
+  const rows = stmt.all(...params) as any[];
+
+  return rows.map(row => ({
+    id: row.id,
+    userId: row.user_id,
+    costType: row.cost_type,
+    serviceName: row.service_name,
+    amount: row.amount,
+    creditsDeducted: row.credits_deducted,
+    contentId: row.content_id,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    createdAt: row.created_at
+  }));
+}
+
+// 비용 통계 조회 (관리자용)
+export function getApiCostStats(startDate?: string, endDate?: string): {
+  totalCost: number;
+  totalCredits: number;
+  byCostType: Record<CostType, { count: number; totalCost: number; totalCredits: number }>;
+  byService: Record<string, { count: number; totalCost: number; totalCredits: number }>;
+} {
+  let query = 'SELECT * FROM api_costs WHERE 1=1';
+  const params: any[] = [];
+
+  if (startDate) {
+    query += ' AND created_at >= ?';
+    params.push(startDate);
+  }
+
+  if (endDate) {
+    query += ' AND created_at <= ?';
+    params.push(endDate);
+  }
+
+  const stmt = db.prepare(query);
+  const rows = stmt.all(...params) as any[];
+
+  const stats = {
+    totalCost: 0,
+    totalCredits: 0,
+    byCostType: {} as Record<CostType, { count: number; totalCost: number; totalCredits: number }>,
+    byService: {} as Record<string, { count: number; totalCost: number; totalCredits: number }>
+  };
+
+  for (const row of rows) {
+    const amount = row.amount || 0;
+    const credits = row.credits_deducted || 0;
+
+    stats.totalCost += amount;
+    stats.totalCredits += credits;
+
+    // costType별 집계
+    if (!stats.byCostType[row.cost_type]) {
+      stats.byCostType[row.cost_type] = { count: 0, totalCost: 0, totalCredits: 0 };
+    }
+    stats.byCostType[row.cost_type].count++;
+    stats.byCostType[row.cost_type].totalCost += amount;
+    stats.byCostType[row.cost_type].totalCredits += credits;
+
+    // service별 집계
+    if (!stats.byService[row.service_name]) {
+      stats.byService[row.service_name] = { count: 0, totalCost: 0, totalCredits: 0 };
+    }
+    stats.byService[row.service_name].count++;
+    stats.byService[row.service_name].totalCost += amount;
+    stats.byService[row.service_name].totalCredits += credits;
+  }
+
+  return stats;
 }

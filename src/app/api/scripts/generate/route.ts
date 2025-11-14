@@ -241,13 +241,20 @@ async function addLog(taskId: string, message: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    // 사용자 인증 확인
-    const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: '로그인이 필요합니다.' },
-        { status: 401 }
-      );
+    // 내부 요청 확인 (자동화 시스템에서의 호출)
+    const isInternalRequest = request.headers.get('X-Internal-Request') === 'automation-system';
+    console.log('🔍 [AUTH] isInternalRequest:', isInternalRequest);
+
+    // 사용자 인증 확인 (내부 요청이 아닐 경우만)
+    let user: { userId: string; email: string; isAdmin: boolean } | null = null;
+    if (!isInternalRequest) {
+      user = await getCurrentUser(request);
+      if (!user) {
+        return NextResponse.json(
+          { error: '로그인이 필요합니다.' },
+          { status: 401 }
+        );
+      }
     }
 
     // 대본 생성 전 자동 백업 (매 10번째 요청마다)
@@ -261,11 +268,31 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, videoFormat, useClaudeLocal, scriptModel, productInfo } = body;
+    const { title, type, videoFormat, useClaudeLocal, scriptModel, model, productInfo, category, userId: internalUserId } = body;
+
+    console.log('🔍 [AUTH] internalUserId from body:', internalUserId);
+
+    // 내부 요청일 경우 body에서 userId를 가져와 user 객체 생성
+    if (isInternalRequest && internalUserId) {
+      user = { userId: internalUserId, email: '', isAdmin: false };
+      console.log('✅ [AUTH] Created internal user:', user.userId);
+    }
+
+    // user가 여전히 null이면 에러 (내부 요청인데 userId가 없거나, 일반 요청인데 인증 실패)
+    if (!user) {
+      console.error('❌ [AUTH] No user! isInternal:', isInternalRequest, 'userId:', internalUserId);
+      return NextResponse.json(
+        { error: '사용자 인증이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    console.log('✅ [AUTH] Final user:', user.userId);
 
     console.log('🚀 [Scripts Generate] 요청 받음');
     console.log('  📝 제목:', title);
     console.log('  🤖 scriptModel:', scriptModel);
+    console.log('  🤖 model:', model);
     console.log('  📌 useClaudeLocal:', useClaudeLocal);
 
     if (!title || typeof title !== 'string') {
@@ -280,13 +307,16 @@ export async function POST(request: NextRequest) {
       'gpt': 'chatgpt',
       'chatgpt': 'chatgpt',  // 프론트엔드에서 'chatgpt'로 전송
       'gemini': 'gemini',
-      'claude': 'claude'
+      'claude': 'claude',
+      'groq': 'groq'
     };
 
-    const agentName = scriptModel && MODEL_TO_AGENT[scriptModel]
-      ? MODEL_TO_AGENT[scriptModel]
+    const modelInput = scriptModel || model;  // scriptModel 또는 model 둘 다 지원
+    const agentName = modelInput && MODEL_TO_AGENT[modelInput]
+      ? MODEL_TO_AGENT[modelInput]
       : 'claude';
 
+    console.log('  🔍 modelInput:', modelInput);
     console.log('  ✅ Agent 이름:', agentName);
 
     // type 또는 videoFormat에서 스크립트 타입 결정
@@ -321,7 +351,8 @@ export async function POST(request: NextRequest) {
         originalTitle: title,
         useClaudeLocal: useClaudeLocal,
         model: agentName,
-        productInfo: (scriptType === 'product' || scriptType === 'product-info') && productInfo ? productInfo : undefined
+        productInfo: (scriptType === 'product' || scriptType === 'product-info') && productInfo ? productInfo : undefined,
+        category: category || '일반'
       }
     );
 
@@ -400,6 +431,32 @@ export async function POST(request: NextRequest) {
       console.log('✅ 롱폼 프롬프트 사용');
     }
 
+    // 카테고리 스타일 지침 추가 (프롬프트에 직접 삽입)
+    const finalCategory = category || '일반';
+
+    if (category && category !== '일반') {
+      const categoryStyles: Record<string, string> = {
+        '북한탈북자사연': '북한 탈북자의 실제 경험담과 사연을 바탕으로, 감동적이고 진솔한 스토리텔링으로 작성하세요. 탈북 과정의 어려움, 새로운 삶에 대한 희망, 가족에 대한 그리움 등을 담아주세요.',
+        '막장드라마': '막장 드라마 스타일로 극적이고 자극적인 전개를 사용하세요. 배신, 복수, 충격적인 반전, 과장된 감정 표현을 포함하며, 시청자의 몰입을 극대화하세요.',
+        '감동실화': '실화를 바탕으로 한 감동적인 스토리로 작성하세요. 진정성 있는 감정 표현과 희망적인 메시지를 전달하며, 시청자의 공감을 이끌어내세요.',
+        '복수극': '복수를 주제로 한 긴장감 넘치는 스토리로 작성하세요. 치밀한 계획, 카타르시스, 정의의 실현 등을 극적으로 표현하세요.',
+        '로맨스': '로맨틱하고 감성적인 사랑 이야기로 작성하세요. 설렘, 애틋함, 감동적인 순간들을 세심하게 묘사하세요.',
+        '스릴러': '긴장감과 서스펜스가 넘치는 스릴러 스타일로 작성하세요. 예측 불가능한 전개와 반전, 긴박한 상황을 효과적으로 연출하세요.',
+        '코미디': '유머러스하고 재미있는 코미디 스타일로 작성하세요. 웃음 포인트를 적절히 배치하고, 밝고 경쾌한 분위기를 유지하세요.'
+      };
+
+      const categoryInstruction = categoryStyles[category];
+      if (categoryInstruction) {
+        prompt = `${prompt}\n\n[카테고리: ${category}]\n${categoryInstruction}`;
+        console.log(`🎭 카테고리 스타일 적용: ${category}`);
+      }
+    }
+
+    // JSON 스키마에서 category와 scriptId를 직접 치환 (지시문 대신 값 삽입)
+    prompt = prompt.replace('"category": "일반"', `"category": "${finalCategory}"`);
+    prompt = prompt.replace('"scriptId": "자동생성됨"', `"scriptId": "${taskId}"`);
+    console.log(`🎯 JSON 스키마 업데이트: category="${finalCategory}", scriptId="${taskId}"`);
+
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
 
     // 프롬프트 내용 확인 로그
@@ -418,7 +475,7 @@ export async function POST(request: NextRequest) {
     console.log('='.repeat(80) + '\n');
 
     // userId를 클로저에 저장
-    const userId = user.userId;
+    const currentUserId = user.userId;
 
     // 작업 시작 시간 기록 (응답 파일 필터링용)
     const taskStartTime = Date.now();
@@ -650,6 +707,19 @@ export async function POST(request: NextRequest) {
             scriptContent = fullContent;
             addLog(taskId, `✓ 대본 내용 읽기 완료 (${scriptContent.length} 글자)`);
           }
+
+          // "JSON" 텍스트 제거 (AI가 응답 앞에 "JSON"을 붙이는 경우가 있음)
+          if (scriptContent.trim().startsWith('JSON')) {
+            scriptContent = scriptContent.trim().substring(4).trim();
+            addLog(taskId, '🔧 "JSON" 텍스트 제거됨');
+          }
+
+          // { 이전의 불필요한 텍스트 제거
+          const jsonStart = scriptContent.indexOf('{');
+          if (jsonStart > 0) {
+            scriptContent = scriptContent.substring(jsonStart);
+            addLog(taskId, '🔧 JSON 시작 부분 정리됨');
+          }
         } else {
           const errorMsg = `응답 파일을 찾을 수 없음 (작업 시작: ${new Date(taskStartTime).toISOString()})`;
           addLog(taskId, `⚠️ 경고: ${errorMsg}`);
@@ -716,7 +786,7 @@ export async function POST(request: NextRequest) {
             await addLog(taskId, '🎉 모든 작업 완료!');
             console.log('✅ 대본이 contents 테이블에 저장됨:', {
               contentId: taskId,
-              userId,
+              userId: currentUserId,
               title,
               format: scriptType,
               contentLength: scriptContent.length

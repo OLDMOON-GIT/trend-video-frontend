@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, category, tags, priority, productUrl, channel, scriptMode, mediaMode } = body;
+    const { title, type, category, tags, priority, productUrl, channel, scriptMode, mediaMode, youtubeSchedule, model } = body;
 
     if (!title || !type) {
       return NextResponse.json({ error: 'Title and type are required' }, { status: 400 });
@@ -57,7 +57,10 @@ export async function POST(request: NextRequest) {
       productUrl,
       channel,
       scriptMode,
-      mediaMode
+      mediaMode,
+      youtubeSchedule,
+      model: model || 'claude',
+      userId: user.userId
     });
 
     return NextResponse.json({ success: true, titleId });
@@ -106,7 +109,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, title, category, tags, priority, status } = body;
+    const { id, title, type, category, tags, priority, status, productUrl, channelId, scriptMode, mediaMode, model } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Title ID is required' }, { status: 400 });
@@ -124,6 +127,10 @@ export async function PATCH(request: NextRequest) {
       updates.push('title = ?');
       values.push(title);
     }
+    if (type !== undefined) {
+      updates.push('type = ?');
+      values.push(type);
+    }
     if (category !== undefined) {
       updates.push('category = ?');
       values.push(category);
@@ -139,6 +146,26 @@ export async function PATCH(request: NextRequest) {
     if (status !== undefined) {
       updates.push('status = ?');
       values.push(status);
+    }
+    if (productUrl !== undefined) {
+      updates.push('product_url = ?');
+      values.push(productUrl);
+    }
+    if (channelId !== undefined) {
+      updates.push('channel_id = ?');
+      values.push(channelId);
+    }
+    if (scriptMode !== undefined) {
+      updates.push('script_mode = ?');
+      values.push(scriptMode);
+    }
+    if (mediaMode !== undefined) {
+      updates.push('media_mode = ?');
+      values.push(mediaMode);
+    }
+    if (model !== undefined) {
+      updates.push('model = ?');
+      values.push(model);
     }
 
     if (updates.length === 0) {

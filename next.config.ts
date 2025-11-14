@@ -9,8 +9,6 @@ const nextConfig: NextConfig = {
   },
   // 큰 파일 업로드를 위한 설정
   experimental: {
-    // ISR 메모리 캐시 크기 증가
-    isrMemoryCacheSize: 0, // 메모리 캐시 비활성화
     // serverActions body size limit
     serverActions: {
       bodySizeLimit: '2gb', // 2GB로 증가 (대용량 비디오 지원)

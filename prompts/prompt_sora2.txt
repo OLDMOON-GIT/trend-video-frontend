@@ -82,7 +82,9 @@
     "key_techniques": ["slow motion", "golden hour", "shallow depth of field", "dramatic lighting"],
     "target_platform": "mobile shorts",
     "emotional_arc": "충격 → 몰입 → 반전 → 중독",
-    "scene_count": 4
+    "scene_count": 4,
+    "category": "일반",
+    "scriptId": "자동생성됨"
   },
   "scenes": [
     {

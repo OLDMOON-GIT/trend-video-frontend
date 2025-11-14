@@ -1020,6 +1020,73 @@ export default function MyContentPage() {
     );
   };
 
+  const handleConvertToShortform = async (jobId: string, title: string) => {
+    // 이미 변환 중이면 무시
+    if (convertingJobs.has(jobId)) {
+      toast.error('이미 변환 중입니다.');
+      return;
+    }
+
+    showConfirmModal(
+      '⚡ 숏폼으로 변환',
+      `"${title}"\n\n━━━━━━━━━━━━━━━━━━━━━━\n💰 크레딧 차감: 200 크레딧\n━━━━━━━━━━━━━━━━━━━━━━\n\n📝 대본을 요약하여 3분 분량으로 압축\n🎬 씬 개수 유지 (원본과 동일)\n🖼️ 원본 이미지를 9:16으로 자동 변환\n\n영상을 3분 숏폼으로 변환하시겠습니까?`,
+      async () => {
+        // 즉시 변환 중 상태로 설정
+        setConvertingJobs(prev => new Set(prev).add(jobId));
+
+        // 즉시 토스트 표시
+        const toastId = toast.loading('🎬 숏폼 변환 시작 중...');
+
+        try {
+          // localStorage에서 AI 설정 가져오기
+          const selectedAI = localStorage.getItem('selectedAI') || 'chatgpt';
+          const aiModel = localStorage.getItem('aiModel') || '';
+
+          const response = await fetch(`/api/jobs/${jobId}/convert-to-shortform`, {
+            method: 'POST',
+            headers: {
+              ...getAuthHeaders(),
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              agentName: selectedAI,
+              modelName: aiModel
+            })
+          });
+
+          const data = await safeJsonResponse(response);
+
+          if (response.ok) {
+            toast.success('✅ 숏폼 변환이 시작되었습니다!\n비디오 탭에서 진행 상황을 확인하세요.', { id: toastId, duration: 3000 });
+            // 비디오 탭으로 전환
+            setActiveTab('videos');
+            // 목록 새로고침
+            await fetchJobs(true);
+            // 새로운 jobId의 로그를 자동으로 열기
+            if (data.jobId) {
+              setExpandedLogJobId(data.jobId);
+            }
+          } else {
+            toast.error('❌ 숏폼 변환 실패: ' + (data.error || '알 수 없는 오류'), { id: toastId });
+          }
+        } catch (error) {
+          console.error('Convert to shortform error:', error);
+          toast.error('❌ 숏폼 변환 중 오류가 발생했습니다.', { id: toastId });
+        } finally {
+          // 변환 중 상태 제거
+          setConvertingJobs(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(jobId);
+            return newSet;
+          });
+        }
+      },
+      '변환 시작',
+      'bg-blue-600 hover:bg-blue-500'
+    );
+  };
+
   const handleRestartScript = async (scriptId: string, title: string) => {
     // 스크립트 정보를 찾아서 메인 페이지로 이동
     const script = scripts.find(s => s.id === scriptId);
@@ -2371,7 +2438,7 @@ export default function MyContentPage() {
                                   </span>
                                 )}
                                 {/* 재생성 배지 */}
-                                {item.data.isRegenerated && (
+                                {(item.data as any).isRegenerated && (
                                   <span className="px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 bg-amber-500 text-white">
                                     🔄 재생성
                                   </span>
@@ -2391,12 +2458,12 @@ export default function MyContentPage() {
                                   <span>{formatDate(item.data.createdAt)}</span>
                                 </p>
                                 {/* 카테고리 표시 */}
-                                {item.data.category && (
+                                {(item.data as any).category && (
                                   <p className="flex items-center gap-2">
                                     <span className="text-slate-500">•</span>
                                     <span className="inline-flex items-center gap-1">
                                       <span className="text-purple-400">🎭</span>
-                                      <span className="text-purple-300 font-medium">{item.data.category}</span>
+                                      <span className="text-purple-300 font-medium">{(item.data as any).category}</span>
                                     </span>
                                   </p>
                                 )}
@@ -2432,14 +2499,14 @@ export default function MyContentPage() {
                                   </p>
                                 )}
                                 {/* 쇼츠 변환으로 생성된 경우 원본 영상 링크 */}
-                                {item.data.convertedFromJobId && (
+                                {(item.data as any).convertedFromJobId && (
                                   <p className="flex items-center gap-2">
                                     <span className="text-slate-500">•</span>
                                     <span>
                                       From:{' '}
                                       <button
                                         onClick={() => {
-                                          const sourceElement = document.getElementById(`video-${item.data.convertedFromJobId}`);
+                                          const sourceElement = document.getElementById(`video-${(item.data as any).convertedFromJobId}`);
                                           if (sourceElement) {
                                             sourceElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                             sourceElement.classList.add('ring-2', 'ring-purple-500', 'ring-offset-2', 'ring-offset-slate-900');
@@ -2458,7 +2525,7 @@ export default function MyContentPage() {
                                   </p>
                                 )}
                                 {/* 영상 병합으로 생성된 경우 대본 보기 */}
-                                {!item.data.sourceContentId && !item.data.convertedFromJobId && item.data.videoPath && (item.data.videoPath.includes('output/merge_') || item.data.videoPath.includes('output\\merge_')) && (
+                                {!item.data.sourceContentId && !(item.data as any).convertedFromJobId && item.data.videoPath && (item.data.videoPath.includes('output/merge_') || item.data.videoPath.includes('output\\merge_')) && (
                                   <p className="flex items-center gap-2">
                                     <span className="text-slate-500">•</span>
                                     <span>
@@ -2630,6 +2697,21 @@ export default function MyContentPage() {
                                     {convertingJobs.has(item.data.id) ? '⏳ 변환 중...' : '⚡ 쇼츠'}
                                   </button>
                                 )}
+                                {/* 숏폼 버튼: 롱폼 영상에만 표시 */}
+                                {item.data.type === 'longform' && (
+                                  <button
+                                    onClick={() => handleConvertToShortform(item.data.id, item.data.title || '제목 없음')}
+                                    disabled={convertingJobs.has(item.data.id)}
+                                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition whitespace-nowrap ${
+                                      convertingJobs.has(item.data.id)
+                                        ? 'bg-blue-400 cursor-not-allowed opacity-60'
+                                        : 'bg-blue-600 hover:bg-blue-500 cursor-pointer'
+                                    }`}
+                                    title={convertingJobs.has(item.data.id) ? '변환 중...' : '숏폼으로 변환 (200 크레딧)'}
+                                  >
+                                    {convertingJobs.has(item.data.id) ? '⏳ 변환 중...' : '📱 숏폼'}
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleRestartVideo(item.data.id)}
                                   className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-orange-500 cursor-pointer whitespace-nowrap"
@@ -2646,7 +2728,7 @@ export default function MyContentPage() {
                                 </button>
                               </>
                             )}
-                            {(item.data.status === 'failed' || item.data.status === 'cancelled') && (
+                            {(item.data.status === 'failed' || (item.data.status as any) === 'cancelled') && (
                               <>
                                 {item.data.logs && item.data.logs.length > 0 && (
                                   <button
@@ -2705,7 +2787,7 @@ export default function MyContentPage() {
                                   </span>
                                 )}
                                 {/* 재생성 배지 */}
-                                {item.data.isRegenerated && (
+                                {(item.data as any).isRegenerated && (
                                   <span className="px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 bg-amber-500 text-white">
                                     🔄 재생성
                                   </span>
@@ -2725,12 +2807,12 @@ export default function MyContentPage() {
                                   <span>{formatDate(item.data.createdAt)}</span>
                                 </p>
                                 {/* 카테고리 표시 */}
-                                {item.data.category && (
+                                {(item.data as any).category && (
                                   <p className="flex items-center gap-2">
                                     <span className="text-slate-500">•</span>
                                     <span className="inline-flex items-center gap-1">
                                       <span className="text-purple-400">🎭</span>
-                                      <span className="text-purple-300 font-medium">{item.data.category}</span>
+                                      <span className="text-purple-300 font-medium">{(item.data as any).category}</span>
                                     </span>
                                   </p>
                                 )}
@@ -2782,14 +2864,13 @@ export default function MyContentPage() {
                               <div className="flex flex-wrap gap-2 mt-2">
                               {(item.data.status === 'pending' || item.data.status === 'processing') && (
                                 <>
-                                  {item.data.logs && item.data.logs.length > 0 && (
-                                    <button
-                                      onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
-                                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
-                                    >
-                                      {expandedScriptLogId === item.data.id ? '📋 로그 닫기' : '📋 로그'}
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
+                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                    title="로그 보기"
+                                  >
+                                    {expandedScriptLogId === item.data.id ? '📋 닫기' : '📋 로그'}
+                                  </button>
                                   <button
                                     onClick={() => handleCancelScript(item.data.id, item.data.title)}
                                     className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 cursor-pointer whitespace-nowrap"
@@ -2801,15 +2882,13 @@ export default function MyContentPage() {
                               {item.data.status === 'completed' && (
                                 <>
                                   {/* === 보기 === */}
-                                  {item.data.logs && item.data.logs.length > 0 && (
-                                    <button
-                                      onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
-                                      className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                      title="로그 보기"
-                                    >
-                                      {expandedScriptLogId === item.data.id ? '📋 닫기' : `📋 로그`}
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
+                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                    title="로그 보기"
+                                  >
+                                    {expandedScriptLogId === item.data.id ? '📋 닫기' : `📋 로그`}
+                                  </button>
                                   <button
                                     onClick={() => toggleContent(item.data.id)}
                                     className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
@@ -2988,17 +3067,15 @@ export default function MyContentPage() {
                                   </button>
                                 </>
                               )}
-                              {(item.data.status === 'failed' || item.data.status === 'cancelled') && (
+                              {(item.data.status === 'failed' || (item.data.status as any) === 'cancelled') && (
                                 <>
-                                  {item.data.logs && item.data.logs.length > 0 && (
-                                    <button
-                                      onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
-                                      className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                      title="로그 보기"
-                                    >
-                                      {expandedScriptLogId === item.data.id ? '📋 닫기' : '📋 로그'}
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => setExpandedScriptLogId(expandedScriptLogId === item.data.id ? null : item.data.id)}
+                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
+                                    title="로그 보기"
+                                  >
+                                    {expandedScriptLogId === item.data.id ? '📋 닫기' : '📋 로그'}
+                                  </button>
                                   <button
                                     onClick={() => handleRestartScript(item.data.id, item.data.title)}
                                     className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-green-500 cursor-pointer whitespace-nowrap"
@@ -3018,6 +3095,50 @@ export default function MyContentPage() {
                                   </button>
                                 </>
                               )}
+                              {/* completed 상태 로그 표시 */}
+                              {item.data.status === 'completed' && expandedScriptLogId === item.data.id && (
+                                <div className="mb-3 rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                                  {!item.data.logs || item.data.logs.length === 0 ? (
+                                    <p className="text-sm text-slate-400">로그가 없습니다.</p>
+                                  ) : (
+                                    <div className="max-h-96 overflow-y-auto space-y-1">
+                                      {item.data.logs.map((log: any, idx: number) => {
+                                        const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                                        const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                                        return (
+                                          <div key={idx} className="text-sm text-slate-300 font-mono">
+                                            <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                            {logMessage}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {/* failed/cancelled 상태 로그 표시 */}
+                              {(item.data.status === 'failed' || (item.data.status as any) === 'cancelled') && expandedScriptLogId === item.data.id && (
+                                <div className="mb-3 rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                                  {!item.data.logs || item.data.logs.length === 0 ? (
+                                    <p className="text-sm text-slate-400">로그가 없습니다.</p>
+                                  ) : (
+                                    <div className="max-h-96 overflow-y-auto space-y-1">
+                                      {item.data.logs.map((log: any, idx: number) => {
+                                        const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                                        const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                                        return (
+                                          <div key={idx} className="text-sm text-slate-300 font-mono">
+                                            <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                            {logMessage}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                               {/* 진행 중 상태 표시 */}
@@ -3036,20 +3157,23 @@ export default function MyContentPage() {
                                   </div>
                                 </div>
 
-                                {/* 로그 표시 */}
-                                {item.data.logs && item.data.logs.length > 0 && (
-                                  <div
-                                    ref={(el) => {
-                                      if (el) {
-                                        scriptLogRefs.current.set(item.data.id, el);
-                                      } else {
-                                        scriptLogRefs.current.delete(item.data.id);
-                                      }
-                                    }}
-                                    className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4"
-                                  >
-                                    <div className="space-y-1">
-                                      {item.data.logs.map((log: any, idx: number) => {
+                                {/* 로그 표시 - 로그 버튼을 눌렀을 때만 표시 */}
+                                {expandedScriptLogId === item.data.id && (
+                                  <div className="mb-3 rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                                    {!item.data.logs || item.data.logs.length === 0 ? (
+                                      <p className="text-sm text-slate-400">로그가 없습니다.</p>
+                                    ) : (
+                                      <div
+                                        ref={(el) => {
+                                          if (el) {
+                                            scriptLogRefs.current.set(item.data.id, el);
+                                          } else {
+                                            scriptLogRefs.current.delete(item.data.id);
+                                          }
+                                        }}
+                                        className="max-h-96 overflow-y-auto space-y-1"
+                                      >
+                                        {item.data.logs.map((log: any, idx: number) => {
                                         const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
                                         const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
 
@@ -3081,7 +3205,8 @@ export default function MyContentPage() {
                                           </div>
                                         );
                                       })}
-                                    </div>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </>
@@ -3134,41 +3259,6 @@ export default function MyContentPage() {
                             </div>
                           )}
                         </>
-                      )}
-
-                      {/* 대본 로그 표시 (전체 탭) */}
-                      {item.type === 'script' && expandedScriptLogId === item.data.id && item.data.logs && item.data.logs.length > 0 && (
-                        <div className="mt-4 rounded-lg border border-slate-600 bg-slate-900/80 p-3">
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="text-xs font-semibold text-slate-400">📋 생성 로그</span>
-                            <span className="text-xs text-slate-500">{item.data.logs.length}개 항목</span>
-                          </div>
-                          <div
-                            ref={(el) => {
-                              if (el) {
-                                scriptLogRefs.current.set(item.data.id, el);
-                              } else {
-                                scriptLogRefs.current.delete(item.data.id);
-                              }
-                            }}
-                            className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
-                          >
-                            {item.data.logs.map((log: any, idx: number) => (
-                              <div
-                                key={idx}
-                                className="text-emerald-400 whitespace-pre-wrap break-all mb-1"
-                                ref={(el) => {
-                                  // 마지막 로그 항목에만 ref 추가
-                                  if (idx === item.data.logs!.length - 1 && el) {
-                                    scriptLastLogRefs.current.set(item.data.id, el);
-                                  }
-                                }}
-                              >
-                                {typeof log === 'string' ? log : log.message || JSON.stringify(log)}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
                       )}
 
                       {/* 영상 로그 */}
@@ -3370,6 +3460,16 @@ export default function MyContentPage() {
                               <span className="text-slate-500">•</span>
                               <span>{formatDate(script.createdAt)}</span>
                             </p>
+                            {/* 카테고리 표시 */}
+                            {(script as any).category && (
+                              <p className="flex items-center gap-2">
+                                <span className="text-slate-500">•</span>
+                                <span className="inline-flex items-center gap-1">
+                                  <span className="text-purple-400">🎭</span>
+                                  <span className="text-purple-300 font-medium">{(script as any).category}</span>
+                                </span>
+                              </p>
+                            )}
                             {/* From 링크 (변환된 대본인 경우) */}
                             {script.sourceContentId && (
                               <p className="flex items-center gap-2">
@@ -3688,7 +3788,7 @@ export default function MyContentPage() {
                             </button>
                           </>
                         )}
-                        {(script.status === 'failed' || script.status === 'cancelled') && (
+                        {(script.status === 'failed' || (script.status as any) === 'cancelled') && (
                           <>
                             {script.logs && script.logs.length > 0 && (
                               <button
@@ -3736,8 +3836,8 @@ export default function MyContentPage() {
                               </div>
                             </div>
 
-                            {/* 로그 표시 */}
-                            {script.logs && script.logs.length > 0 && (
+                            {/* 로그 표시 - 로그 버튼을 눌렀을 때만 표시 */}
+                            {script.logs && script.logs.length > 0 && expandedScriptLogId === script.id && (
                               <div
                                 ref={(el) => {
                                   if (el) {
@@ -3794,8 +3894,8 @@ export default function MyContentPage() {
                               ⏳ 대본 생성 대기 중...
                             </div>
 
-                            {/* 로그 표시 (대기 중에도) */}
-                            {script.logs && script.logs.length > 0 && (
+                            {/* 로그 표시 - 로그 버튼을 눌렀을 때만 표시 */}
+                            {script.logs && script.logs.length > 0 && expandedScriptLogId === script.id && (
                               <div
                                 ref={(el) => {
                                   if (el) {
@@ -3935,37 +4035,51 @@ export default function MyContentPage() {
                       </>
                     )}
 
-                    {/* 대본 로그 표시 (대본 탭) */}
-                    {expandedScriptLogId === script.id && script.logs && script.logs.length > 0 && (
-                      <div className="mt-4 rounded-lg border border-slate-600 bg-slate-900/80 p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-400">📋 생성 로그</span>
-                          <span className="text-xs text-slate-500">{script.logs.length}개 항목</span>
-                        </div>
-                        <div
-                          ref={(el) => {
-                            if (el) {
-                              scriptLogRefs.current.set(script.id, el);
-                            } else {
-                              scriptLogRefs.current.delete(script.id);
-                            }
-                          }}
-                          className="max-h-96 overflow-y-auto rounded bg-black/50 p-3 font-mono text-xs leading-relaxed"
-                        >
-                          {script.logs.map((log: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="text-emerald-400 whitespace-pre-wrap break-all mb-1"
-                              ref={(el) => {
-                                // 마지막 로그 항목에만 ref 추가
-                                if (idx === script.logs!.length - 1 && el) {
-                                  scriptLastLogRefs.current.set(script.id, el);
-                                }
-                              }}
-                            >
-                              {typeof log === 'string' ? log : log.message || JSON.stringify(log)}
-                            </div>
-                          ))}
+                    {/* 대본 로그 표시 (대본 탭) - 완료/실패/취소 상태일 때만 */}
+                    {(script.status === 'completed' || script.status === 'failed' || (script.status as any) === 'cancelled') && expandedScriptLogId === script.id && script.logs && script.logs.length > 0 && (
+                      <div
+                        ref={(el) => {
+                          if (el) {
+                            scriptLogRefs.current.set(script.id, el);
+                          } else {
+                            scriptLogRefs.current.delete(script.id);
+                          }
+                        }}
+                        className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4 mt-3"
+                      >
+                        <div className="space-y-1">
+                          {script.logs.map((log: any, idx: number) => {
+                            const logMessage = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+                            const logTimestamp = typeof log === 'object' && log !== null && log.timestamp ? log.timestamp : new Date().toISOString();
+
+                            // API 사용 여부 감지
+                            const isUsingAPI = logMessage.includes('Claude API') ||
+                                              logMessage.includes('API 호출') ||
+                                              logMessage.includes('Using Claude API') ||
+                                              logMessage.includes('💰');
+                            const isUsingLocal = logMessage.includes('로컬 Claude') ||
+                                                logMessage.includes('Local Claude') ||
+                                                logMessage.includes('python') ||
+                                                logMessage.includes('🖥️');
+
+                            return (
+                              <div
+                                key={idx}
+                                className="text-sm text-slate-300 font-mono"
+                                ref={(el) => {
+                                  // 마지막 로그 항목에만 ref 추가
+                                  if (idx === script.logs!.length - 1 && el) {
+                                    scriptLastLogRefs.current.set(script.id, el);
+                                  }
+                                }}
+                              >
+                                <span className="text-blue-400">[{new Date(logTimestamp).toLocaleTimeString('ko-KR')}]</span>{' '}
+                                {isUsingAPI && <span className="font-bold text-red-500 mr-1">[💰 API]</span>}
+                                {isUsingLocal && <span className="font-bold text-green-500 mr-1">[🖥️ 로컬]</span>}
+                                {logMessage}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -4142,7 +4256,7 @@ export default function MyContentPage() {
                           </div>
                         )}
                         {/* 재생성 배지 */}
-                        {job.isRegenerated && (
+                        {(job as any).isRegenerated && (
                           <div className="absolute bottom-2 left-2">
                             <span className="px-2 py-1 rounded text-xs font-bold shadow-lg bg-amber-500 text-white">
                               🔄 재생성

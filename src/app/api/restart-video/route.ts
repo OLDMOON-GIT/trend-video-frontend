@@ -332,17 +332,9 @@ async function restartVideoGeneration(newJobId: string, userId: string, creditCo
       }
     }
 
-    // folderType에 따라 다른 JSON 파일 찾기
-    let storyJsonFile: string | undefined;
-    if (folderType === 'output') {
-      // output 폴더에서는 original_story.json을 찾습니다
-      storyJsonFile = storyFiles.find(f => f === 'original_story.json');
-      await addJobLog(newJobId, `🔍 output 폴더에서 original_story.json 검색...`);
-    } else {
-      // input, uploads 폴더에서는 story.json을 찾습니다
-      storyJsonFile = storyFiles.find(f => f.includes('story') && f.endsWith('.json'));
-      await addJobLog(newJobId, `🔍 ${folderType} 폴더에서 story.json 검색...`);
-    }
+    // input, uploads 폴더에서 story.json 찾기 (output은 이미 위에서 early return됨)
+    await addJobLog(newJobId, `🔍 ${folderType} 폴더에서 story.json 검색...`);
+    const storyJsonFile = storyFiles.find(f => f.includes('story') && f.endsWith('.json'));
 
     if (storyJsonFile) {
       // JSON 파일 읽고 scene_number 추가 (유도리있는 파서 사용)

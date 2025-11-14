@@ -152,7 +152,7 @@ export default function YouTubeUploadButton({
     }
 
     let progressInterval: NodeJS.Timeout | null = null;
-    let messageTimer: NodeJS.Timeout;
+    let messageTimer: NodeJS.Timeout | null = null;
 
     try {
       setIsUploading(true);
@@ -183,7 +183,7 @@ export default function YouTubeUploadButton({
       }
 
       // 90% 이후 메시지 추가를 위한 타이머
-      const messageTimer = setTimeout(() => {
+      messageTimer = setTimeout(() => {
         addLog('📤 YouTube 서버에 업로드 중... (비디오 크기에 따라 시간이 소요될 수 있습니다)');
       }, 15000); // 15초 후
 
@@ -222,7 +222,7 @@ export default function YouTubeUploadButton({
 
       // API 응답 받으면 타이머 중지
       if (progressInterval) clearInterval(progressInterval);
-      clearTimeout(messageTimer);
+      if (messageTimer) clearTimeout(messageTimer);
 
       addLog('서버 응답 대기 중...');
 
@@ -258,7 +258,7 @@ export default function YouTubeUploadButton({
       } else {
         setUploadStatus('error');
         if (progressInterval) clearInterval(progressInterval);
-        clearTimeout(messageTimer);
+        if (messageTimer) clearTimeout(messageTimer);
         const errorMsg = data.error || '업로드 실패';
         const detailsMsg = data.details || '';
 
@@ -299,7 +299,7 @@ export default function YouTubeUploadButton({
       }
     } catch (error: any) {
       if (progressInterval) clearInterval(progressInterval);
-      clearTimeout(messageTimer);
+      if (messageTimer) clearTimeout(messageTimer);
       setUploadStatus('error');
       const errorMessage = error?.message || error?.toString() || '알 수 없는 오류';
       addLog(`❌ 오류 발생: ${errorMessage}`);
@@ -313,7 +313,7 @@ export default function YouTubeUploadButton({
       }
     } finally {
       if (progressInterval) clearInterval(progressInterval);
-      clearTimeout(messageTimer);
+      if (messageTimer) clearTimeout(messageTimer);
       setIsUploading(false);
     }
   };
@@ -534,7 +534,7 @@ export default function YouTubeUploadButton({
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600 dark:text-gray-300">업로드 진행률</span>
-                  <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">{uploadProgress}%</span>
+                  <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">{Math.round(uploadProgress)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                   <div

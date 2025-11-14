@@ -11,13 +11,16 @@ function ensureAdmin(user: Awaited<ReturnType<typeof getCurrentUser>>) {
 }
 
 export async function GET(request: NextRequest) {
+  let filePath: string | null = null;
+  let commitHash: string | null = null;
+
   try {
     const user = await getCurrentUser(request);
     ensureAdmin(user);
 
     const { searchParams } = new URL(request.url);
-    const commitHash = searchParams.get('commit_hash');
-    const filePath = searchParams.get('file_path');
+    commitHash = searchParams.get('commit_hash');
+    filePath = searchParams.get('file_path');
 
     if (!commitHash || !filePath) {
       return NextResponse.json(
