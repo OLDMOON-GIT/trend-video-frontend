@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ScheduleCalendar from '@/components/automation/ScheduleCalendar';
 import ChannelSettings from '@/components/automation/ChannelSettings';
+import MediaUploadBox from '@/components/MediaUploadBox';
 
 function AutomationPageContent() {
   const router = useRouter();
@@ -43,6 +44,10 @@ function AutomationPageContent() {
   const [progressMap, setProgressMap] = useState<Record<string, { scriptProgress?: number; videoProgress?: number }>>({});
   const [uploadingFor, setUploadingFor] = useState<string | null>(null); // 업로드 중인 스케줄 ID
   const [uploadedImagesFor, setUploadedImagesFor] = useState<Record<string, File[]>>({}); // 스케줄별 업로드된 이미지
+  const [isManualSortFor, setIsManualSortFor] = useState<Record<string, boolean>>({}); // 스케줄별 수동 정렬 여부
+  const [draggingCardIndexFor, setDraggingCardIndexFor] = useState<Record<string, number | null>>({}); // 스케줄별 드래그 중인 카드 인덱스
+  const [uploadBoxOpenFor, setUploadBoxOpenFor] = useState<Record<string, boolean>>({}); // 스케줄별 업로드 박스 열림 여부
+  const [downloadMenuFor, setDownloadMenuFor] = useState<Record<string, boolean>>({}); // 다운로드 메뉴 열림 여부
 
   // localStorage에서 선택한 채널 불러오기
   function getSelectedChannel(): string {
@@ -141,12 +146,12 @@ function AutomationPageContent() {
     }
   }, [searchParams]);
 
-  // 진행 중인 제목이 있으면 5초마다 데이터 새로고침
+  // 진행 중인 제목이 있으면 5초마다 데이터 새로고침 (완료/실패는 제외)
   useEffect(() => {
     if (!titles || titles.length === 0) return;
 
     const hasActiveJobs = titles.some((t: any) =>
-      t.status === 'processing' || t.status === 'scheduled'
+      ['processing', 'scheduled', 'waiting_for_upload'].includes(t.status)
     );
 
     if (!hasActiveJobs) return;
@@ -327,6 +332,7 @@ function AutomationPageContent() {
       });
       setShowAddForm(false);
       await fetchData();
+      setQueueTab('scheduled'); // 예약 큐 탭으로 자동 전환
     } catch (error) {
       console.error('Failed to add title:', error);
     }
@@ -603,13 +609,75 @@ function AutomationPageContent() {
       if (response.ok) {
         alert(`✅ 즉시 실행 시작: ${title}`);
         await fetchData();
-        setQueueTab('processing'); // 진행중 탭으로 이동
+        setQueueTab('processing'); // 진행 큐 탭으로 자동 전환
       } else {
         alert(`❌ 실행 실패: ${data.error}`);
       }
     } catch (error) {
       console.error('Force execute error:', error);
       alert('강제 실행 중 오류가 발생했습니다.');
+    }
+  }
+
+  async function handleOpenFolder(videoId: string | null, scriptId: string | null, status: string) {
+    try {
+      let url: string;
+
+      if (videoId) {
+        // video_id가 있으면 jobId로 사용
+        url = `/api/open-folder?jobId=${videoId}`;
+      } else if (scriptId) {
+        // scriptId만 있으면 경로 직접 지정
+        const folderType = status === 'completed' ? 'output' : 'input';
+        const folderPath = `../trend-video-backend/${folderType}/project_${scriptId}`;
+        url = `/api/open-folder?path=${encodeURIComponent(folderPath)}`;
+      } else {
+        alert('폴더를 열 수 없습니다: ID를 찾을 수 없습니다');
+        return;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(`폴더 열기 실패: ${data.error || '알 수 없는 오류'}`);
+      }
+    } catch (error) {
+      console.error('폴더 열기 실패:', error);
+      alert('폴더 열기 중 오류가 발생했습니다.');
+    }
+  }
+
+  async function handleDownload(scriptId: string, type: 'video' | 'script' | 'materials' | 'all', title: string) {
+    try {
+      const typeLabels = {
+        video: '영상',
+        script: '대본',
+        materials: '재료',
+        all: '전체'
+      };
+
+      console.log(`📥 ${typeLabels[type]} 다운로드 시작:`, scriptId);
+
+      // API 호출하여 파일 다운로드
+      const url = `/api/automation/download?scriptId=${encodeURIComponent(scriptId)}&type=${type}&title=${encodeURIComponent(title)}`;
+
+      // 숨겨진 a 태그를 만들어서 클릭 (페이지 이동 없이 다운로드)
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      console.log(`✅ ${typeLabels[type]} 다운로드 요청 완료`);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('다운로드 중 오류가 발생했습니다.');
     }
   }
 
@@ -621,23 +689,31 @@ function AutomationPageContent() {
       file.type.startsWith('image/')
     );
 
+    // 순번순으로 자동 정렬
+    const sorted = imageFiles.sort((a, b) => {
+      const getNumber = (filename: string) => {
+        const match = filename.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : 999999;
+      };
+      return getNumber(a.name) - getNumber(b.name);
+    });
+
     setUploadedImagesFor(prev => ({
       ...prev,
-      [scheduleId]: imageFiles
+      [scheduleId]: sorted
     }));
   }
 
   // 이미지 업로드 실행
-  async function uploadImages(scheduleId: string, scriptId: string) {
-    const images = uploadedImagesFor[scheduleId];
+  async function uploadImages(titleId: string, scheduleId: string, scriptId: string) {
+    const images = uploadedImagesFor[titleId];
 
     if (!images || images.length === 0) {
-      alert('업로드할 이미지를 선택해주세요.');
       return;
     }
 
     try {
-      setUploadingFor(scheduleId);
+      setUploadingFor(titleId);
 
       const formData = new FormData();
       formData.append('scheduleId', scheduleId);
@@ -655,19 +731,68 @@ function AutomationPageContent() {
       const data = await response.json();
 
       if (response.ok) {
-        alert(`✅ ${data.count}개 이미지 업로드 완료! 영상 생성이 자동으로 시작됩니다.`);
+        // 업로드 박스 닫기
+        setUploadBoxOpenFor(prev => ({ ...prev, [titleId]: false }));
+
+        // 업로드된 이미지 초기화
         setUploadedImagesFor(prev => {
           const newState = { ...prev };
-          delete newState[scheduleId];
+          delete newState[titleId];
           return newState;
         });
+
+        // 로그창 자동 열기
+        setExpandedLogsFor(titleId);
+
         await fetchData();
+        setQueueTab('waiting_upload'); // 업로드 대기 탭으로 자동 전환
+
+        // 영상 제작 시작 (대본 작성/이미지 생성 건너뛰고 바로 영상 생성)
+        const titleInfo = titles.find((t: any) => t.id === titleId);
+        if (titleInfo) {
+          console.log('📹 [영상 제작] 시작:', titleId);
+
+          // 1. story.json 가져오기
+          const storyRes = await fetch(`/api/automation/get-story?scriptId=${scriptId}`, {
+            credentials: 'include'
+          });
+          if (!storyRes.ok) {
+            console.error('❌ story.json 읽기 실패');
+            return;
+          }
+          const { storyJson } = await storyRes.json();
+
+          // 2. 영상 생성 API 호출 (내부 요청 형식)
+          const videoRes = await fetch('/api/generate-video-upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Internal-Request': 'automation-system'
+            },
+            body: JSON.stringify({
+              storyJson,
+              userId: titleInfo.user_id,
+              imageSource: (titleInfo.media_mode === 'auto' || titleInfo.media_mode === 'upload') ? 'none' : titleInfo.media_mode,
+              imageModel: titleInfo.model || 'dalle3',
+              videoFormat: titleInfo.type || 'shortform',
+              ttsVoice: 'ko-KR-SoonBokNeural',
+              title: titleInfo.title,
+              scriptId
+            })
+          });
+
+          const videoData = await videoRes.json();
+          if (videoRes.ok) {
+            console.log('✅ [영상 제작] 성공:', videoData.jobId);
+          } else {
+            console.error('❌ [영상 제작] 실패:', videoData.error);
+          }
+        }
       } else {
-        alert(`❌ 업로드 실패: ${data.error}`);
+        console.error('❌ 업로드 실패:', data.error || '알 수 없는 오류');
       }
     } catch (error) {
-      console.error('Image upload error:', error);
-      alert('이미지 업로드 중 오류가 발생했습니다.');
+      console.error('❌ Image upload error:', error);
     } finally {
       setUploadingFor(null);
     }
@@ -1374,8 +1499,8 @@ function AutomationPageContent() {
 
                       {/* 버튼 */}
                       <div className="flex gap-2">
-                        {/* 강제실행/재시도/중지 버튼 */}
-                        {title.status === 'processing' ? (
+                        {/* 중지 버튼 (processing 상태일 때만) */}
+                        {title.status === 'processing' && (
                           <button
                             onClick={async () => {
                               if (confirm('작업을 중지하시겠습니까?')) {
@@ -1403,18 +1528,6 @@ function AutomationPageContent() {
                             title="작업 중지"
                           >
                             ⏹️ 중지
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => forceExecute(title.id, title.title)}
-                            className={`px-3 py-1.5 text-white rounded text-sm font-semibold transition ${
-                              title.status === 'failed'
-                                ? 'bg-blue-600 hover:bg-blue-500'
-                                : 'bg-orange-600 hover:bg-orange-500'
-                            }`}
-                            title={title.status === 'failed' ? '재시도' : '즉시 실행'}
-                          >
-                            {title.status === 'failed' ? '🔄 재시도' : '▶️ 강제실행'}
                           </button>
                         )}
                         {/* 로그 버튼 - 항상 표시 */}
@@ -1480,12 +1593,11 @@ function AutomationPageContent() {
                             'bg-slate-600 text-slate-300'
                           }`}>
                             {title.status === 'processing' && '⏳ '}
-                            {title.status === 'completed' && '✅ '}
                             {title.status === 'failed' && '❌ '}
                             {title.status === 'scheduled' && '📅 '}
                             {title.status === 'waiting_for_upload' && '📤 '}
                             {title.status === 'processing' ? '진행 중' :
-                             title.status === 'completed' ? '완료' :
+                             title.status === 'completed' ? '' :
                              title.status === 'failed' ? '실패' :
                              title.status === 'scheduled' ? '예약됨' :
                              title.status === 'waiting_for_upload' ? '업로드 대기' :
@@ -1532,7 +1644,7 @@ function AutomationPageContent() {
                       </div>
                       <div className="flex gap-2">
                         {/* 강제실행/재시도/중지 버튼 */}
-                        {title.status === 'processing' ? (
+                        {title.status === 'processing' && (
                           <button
                             onClick={async () => {
                               if (confirm('작업을 중지하시겠습니까?')) {
@@ -1561,18 +1673,6 @@ function AutomationPageContent() {
                           >
                             ⏹️ 중지
                           </button>
-                        ) : (
-                          <button
-                            onClick={() => forceExecute(title.id, title.title)}
-                            className={`px-3 py-1.5 text-white rounded text-sm font-semibold transition ${
-                              title.status === 'failed'
-                                ? 'bg-blue-600 hover:bg-blue-500'
-                                : 'bg-orange-600 hover:bg-orange-500'
-                            }`}
-                            title={title.status === 'failed' ? '재시도' : '즉시 실행'}
-                          >
-                            {title.status === 'failed' ? '🔄 재시도' : '▶️ 강제실행'}
-                          </button>
                         )}
                         {/* 로그 버튼 - 항상 표시 */}
                         <button
@@ -1588,23 +1688,116 @@ function AutomationPageContent() {
                         >
                           {expandedLogsFor === title.id ? '📋 닫기' : '📋 로그'}
                         </button>
-                        <button
-                          onClick={() => startEdit(title)}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition"
-                        >
-                          수정
-                        </button>
+                        {/* 수정 버튼 (업로드 대기 상태가 아닐 때만) */}
+                        {title.status !== 'waiting_for_upload' && (
+                          <button
+                            onClick={() => startEdit(title)}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition"
+                          >
+                            수정
+                          </button>
+                        )}
                         <button
                           onClick={() => deleteTitle(title.id)}
                           className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-sm transition"
                         >
                           삭제
                         </button>
+                        {/* 즉시 실행 버튼 (업로드 대기 상태가 아닐 때만) */}
+                        {title.status !== 'waiting_for_upload' && (
+                          <button
+                            onClick={() => forceExecute(title.id, title.title)}
+                            className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm transition"
+                          >
+                            ▶️ 즉시 실행
+                          </button>
+                        )}
+                        {/* 폴더 버튼 - script_id나 video_id가 있을 때만 표시 */}
+                        {(() => {
+                          const schedule = titleSchedules.find((s: any) => s.script_id || s.video_id);
+                          return schedule && (title.status === 'processing' || title.status === 'waiting_for_upload' || title.status === 'failed' || title.status === 'completed') && (
+                            <button
+                              onClick={() => {
+                                handleOpenFolder(schedule.video_id || null, schedule.script_id || null, title.status);
+                              }}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition cursor-pointer"
+                              title="폴더 열기"
+                            >
+                              📁 폴더
+                            </button>
+                          );
+                        })()}
+                        {/* 다운로드 버튼 (완료 상태이고 script_id가 있을 때만) */}
+                        {(() => {
+                          const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
+                          return title.status === 'completed' && scriptId && (
+                            <div className="relative">
+                              <button
+                                onClick={() => setDownloadMenuFor(prev => ({ ...prev, [title.id]: !prev[title.id] }))}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm transition"
+                              >
+                                ⬇️ 다운로드
+                              </button>
+                              {downloadMenuFor[title.id] && (
+                                <div className="absolute top-full mt-1 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 min-w-[150px]">
+                                  <button
+                                    onClick={async () => {
+                                      await handleDownload(scriptId, 'video', title.title);
+                                      setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
+                                    }}
+                                    className="w-full text-left px-4 py-2 hover:bg-slate-700 text-white text-sm transition"
+                                  >
+                                    🎬 영상만
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      await handleDownload(scriptId, 'script', title.title);
+                                      setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
+                                    }}
+                                    className="w-full text-left px-4 py-2 hover:bg-slate-700 text-white text-sm transition"
+                                  >
+                                    📄 대본만
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      await handleDownload(scriptId, 'materials', title.title);
+                                      setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
+                                    }}
+                                    className="w-full text-left px-4 py-2 hover:bg-slate-700 text-white text-sm transition"
+                                  >
+                                    🖼️ 재료만
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      await handleDownload(scriptId, 'all', title.title);
+                                      setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
+                                    }}
+                                    className="w-full text-left px-4 py-2 hover:bg-slate-700 text-white text-sm transition rounded-b-lg"
+                                  >
+                                    📦 전체 (ZIP)
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {/* 업로드 버튼 (waiting_for_upload 또는 failed 상태이고 script_id가 있을 때만) */}
+                        {(() => {
+                          const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
+                          return (title.status === 'waiting_for_upload' || title.status === 'failed') && scriptId && (
+                            <button
+                              onClick={() => setUploadBoxOpenFor(prev => ({ ...prev, [title.id]: !prev[title.id] }))}
+                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-sm transition"
+                            >
+                              {uploadBoxOpenFor[title.id] ? '📤 닫기' : '📤 업로드'}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
 
-                    {/* 이미지 업로드 섹션 (waiting_for_upload 상태일 때만 표시) */}
-                    {titleSchedules.some((s: any) => s.status === 'waiting_for_upload') && titleSchedules.find((s: any) => s.status === 'waiting_for_upload')?.script_id && (
+                    {/* 이미지 업로드 섹션 (업로드 버튼을 눌렀을 때만 표시) */}
+                    {uploadBoxOpenFor[title.id] && (title.status === 'waiting_for_upload' || title.status === 'failed') && titleSchedules.find((s: any) => s.script_id)?.script_id && (
                       <div className="mb-3 p-6 bg-purple-900/30 border-2 border-purple-500 rounded-lg">
                         <h5 className="text-purple-300 font-bold text-lg mb-3 flex items-center gap-2">
                           <span className="text-3xl">📤</span>
@@ -1614,122 +1807,42 @@ function AutomationPageContent() {
                           대본 생성이 완료되었습니다. 영상 제작을 위해 이미지를 업로드해주세요.
                         </p>
 
-                        {/* 대본 폴더 열기 버튼 */}
-                        <button
-                          onClick={async () => {
-                            const scriptId = titleSchedules.find((s: any) => s.status === 'waiting_for_upload')?.script_id;
-                            if (!scriptId) return;
-                            try {
-                              const folderPath = `../trend-video-backend/input/project_${scriptId}`;
-                              const response = await fetch(`/api/open-folder?path=${encodeURIComponent(folderPath)}`, {
-                                method: 'POST',
-                                credentials: 'include'
-                              });
-                              const data = await response.json();
-                              if (!response.ok) {
-                                alert(`폴더 열기 실패: ${data.error || '알 수 없는 오류'}`);
-                              }
-                            } catch (error) {
-                              console.error('Failed to open folder:', error);
-                              alert('폴더 열기 실패');
-                            }
-                          }}
-                          className="mb-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition flex items-center gap-2"
-                        >
-                          📁 대본 폴더 열기
-                        </button>
+                        {/* 이미지 업로드 박스 (MediaUploadBox 컴포넌트 사용) */}
+                        <div className="mb-4">
+                          <MediaUploadBox
+                            uploadedImages={uploadedImagesFor[title.id] || []}
+                            uploadedVideos={[]}
+                            onImagesChange={(files) => {
+                              setUploadedImagesFor(prev => ({ ...prev, [title.id]: files }));
+                            }}
+                            onVideosChange={() => {}}
+                            acceptJson={false}
+                            acceptImages={true}
+                            acceptVideos={false}
+                            mode={title.type === 'shortform' ? 'shortform' : 'longform'}
+                            maxImages={50}
+                          />
 
-                        {/* 드래그앤드롭 영역 */}
-                        <div
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.currentTarget.classList.add('border-purple-400', 'bg-purple-900/50');
-                          }}
-                          onDragLeave={(e) => {
-                            e.currentTarget.classList.remove('border-purple-400', 'bg-purple-900/50');
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            e.currentTarget.classList.remove('border-purple-400', 'bg-purple-900/50');
-                            const files = Array.from(e.dataTransfer.files).filter((file: File) =>
-                              file.type.startsWith('image/')
-                            );
-                            if (files.length > 0) {
-                              const dt = new DataTransfer();
-                              files.forEach(file => dt.items.add(file));
-                              handleImageSelect(title.id, dt.files);
-                            }
-                          }}
-                          className="border-2 border-dashed border-purple-500 rounded-lg p-8 text-center mb-4 transition-colors"
-                        >
-                          <div className="text-4xl mb-2">🖼️</div>
-                          <p className="text-slate-300 mb-2">이미지 파일을 여기에 드래그하거나</p>
-                          <label className="inline-block px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold cursor-pointer transition">
-                            파일 선택
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={(e) => handleImageSelect(title.id, e.target.files)}
-                              className="hidden"
-                            />
-                          </label>
-                          <p className="text-xs text-slate-400 mt-2">PNG, JPG, WEBP 등 지원</p>
+                          {/* 업로드 버튼 */}
+                          {uploadedImagesFor[title.id] && uploadedImagesFor[title.id].length > 0 && (
+                            <button
+                              onClick={() => {
+                                const schedule = titleSchedules.find((s: any) => s.script_id);
+                                if (schedule?.script_id) {
+                                  uploadImages(title.id, schedule.id, schedule.script_id);
+                                }
+                              }}
+                              disabled={uploadingFor === title.id}
+                              className={`w-full px-4 py-3 rounded-lg font-bold text-lg transition mt-4 ${
+                                uploadingFor === title.id
+                                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg'
+                              }`}
+                            >
+                              {uploadingFor === title.id ? '⏳ 업로드 중...' : '🚀 영상 제작'}
+                            </button>
+                          )}
                         </div>
-
-                        {/* 선택된 이미지 미리보기 */}
-                        {uploadedImagesFor[title.id] && uploadedImagesFor[title.id].length > 0 && (
-                          <div className="mb-4">
-                            <p className="text-sm text-slate-300 font-semibold mb-2">
-                              선택된 이미지: {uploadedImagesFor[title.id].length}개
-                            </p>
-                            <div className="grid grid-cols-4 gap-2">
-                              {uploadedImagesFor[title.id].map((file, idx) => (
-                                <div key={idx} className="relative group">
-                                  <div className="aspect-video bg-slate-700 rounded overflow-hidden">
-                                    <img
-                                      src={URL.createObjectURL(file)}
-                                      alt={file.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <button
-                                      onClick={() => {
-                                        setUploadedImagesFor(prev => ({
-                                          ...prev,
-                                          [title.id]: prev[title.id].filter((_, i) => i !== idx)
-                                        }));
-                                      }}
-                                      className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs"
-                                    >
-                                      삭제
-                                    </button>
-                                  </div>
-                                  <p className="text-xs text-slate-400 mt-1 truncate">{file.name}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 업로드 버튼 */}
-                        <button
-                          onClick={() => {
-                            const scriptId = titleSchedules.find((s: any) => s.status === 'waiting_for_upload')?.script_id;
-                            if (scriptId) {
-                              uploadImages(title.id, scriptId);
-                            }
-                          }}
-                          disabled={uploadingFor === title.id || !uploadedImagesFor[title.id] || uploadedImagesFor[title.id].length === 0}
-                          className={`w-full px-4 py-3 rounded-lg font-bold text-lg transition ${
-                            uploadingFor === title.id || !uploadedImagesFor[title.id] || uploadedImagesFor[title.id].length === 0
-                              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                              : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg'
-                          }`}
-                        >
-                          {uploadingFor === title.id ? '⏳ 업로드 중...' : '🚀 이미지 업로드 및 영상 생성 시작'}
-                        </button>
                       </div>
                     )}
 

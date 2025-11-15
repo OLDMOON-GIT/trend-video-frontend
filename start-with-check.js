@@ -44,6 +44,16 @@ async function checkLogins() {
 async function startServer() {
   console.log('🚀 Next.js 개발 서버 시작 중...\n');
 
+  // 로그 로테이션 실행
+  try {
+    const rotateScript = path.join(__dirname, 'scripts', 'rotate-logs.js');
+    if (fs.existsSync(rotateScript)) {
+      require(rotateScript);
+    }
+  } catch (err) {
+    console.error('⚠️ 로그 로테이션 중 오류:', err.message);
+  }
+
   // 로그 디렉토리 생성
   const logsDir = path.join(__dirname, 'logs');
   if (!fs.existsSync(logsDir)) {

@@ -114,7 +114,9 @@ async function handleOpenFolder(request: NextRequest) {
       }
 
       const windowsPath = folderPath.replace(/\//g, '\\');
-      const explorerProcess = spawn('explorer', [windowsPath], {
+
+      // explorer.exe를 직접 실행 (포그라운드로 올라옴)
+      const explorerProcess = spawn('explorer.exe', [windowsPath], {
         detached: true,
         stdio: 'ignore'
       });
@@ -243,8 +245,8 @@ async function handleOpenFolder(request: NextRequest) {
 
     console.log(`🔍 폴더 열기: ${windowsPath}`);
 
-    // spawn을 사용하여 explorer 실행 (인자를 배열로 전달)
-    const explorerProcess = spawn('explorer', [windowsPath], {
+    // explorer.exe를 직접 실행 (포그라운드로 올라옴)
+    const explorerProcess = spawn('explorer.exe', [windowsPath], {
       detached: true,
       stdio: 'ignore'
     });

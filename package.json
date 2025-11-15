@@ -12,6 +12,8 @@
     "lint": "eslint",
     "watch-tasks": "node watch-tasks.js",
     "test": "jest",
+    "logs:rotate": "node scripts/rotate-logs.js",
+    "logs:clean": "node -e \"const fs=require('fs');const path=require('path');const dir=path.join(__dirname,'logs');fs.readdirSync(dir).filter(f=>f.startsWith('server-')&&f.endsWith('.log')).forEach(f=>fs.unlinkSync(path.join(dir,f)));console.log('✅ 백업 로그 모두 삭제됨')\"",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },

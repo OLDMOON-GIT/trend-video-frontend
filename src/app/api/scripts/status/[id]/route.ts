@@ -46,14 +46,31 @@ export async function GET(
         }
 
         const parsedContent = JSON.parse(contentStr);
-        // scenes가 없거나 비어있으면 아직 완료되지 않은 것
+        // scenes가 없거나 비어있으면 failed로 처리 (무한 루프 방지)
         if (!parsedContent.scenes || parsedContent.scenes.length === 0) {
-          console.warn(`⚠️ Script ${id} marked as completed but has no scenes`);
-          actualStatus = 'processing';
+          console.error(`❌ Script ${id} marked as completed but has no scenes - marking as failed`);
+          actualStatus = 'failed';
+          // DB에서도 failed로 업데이트
+          const dbUpdate = new Database(dbPath);
+          dbUpdate.prepare(`
+            UPDATE contents
+            SET status = 'failed', error = 'No scenes in generated script', updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).run(id);
+          dbUpdate.close();
         }
       } catch (e) {
-        console.warn(`⚠️ Script ${id} marked as completed but content is not valid JSON`);
-        actualStatus = 'processing';
+        console.error(`❌ Script ${id} marked as completed but content is not valid JSON - marking as failed`);
+        // 불완전한 JSON이면 failed로 처리
+        actualStatus = 'failed';
+        // DB에서도 failed로 업데이트
+        const dbUpdate = new Database(dbPath);
+        dbUpdate.prepare(`
+          UPDATE contents
+          SET status = 'failed', error = 'Invalid JSON content', updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(id);
+        dbUpdate.close();
       }
     }
 
