@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, category, tags, priority, productUrl, channel, scriptMode, mediaMode, youtubeSchedule, model } = body;
+    const { title, type, category, tags, priority, productUrl, productData, channel, scriptMode, mediaMode, youtubeSchedule, model } = body;
 
     if (!title || !type) {
       return NextResponse.json({ error: 'Title and type are required' }, { status: 400 });
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       tags,
       priority: priority || 0,
       productUrl,
+      productData,
       channel,
       scriptMode,
       mediaMode,

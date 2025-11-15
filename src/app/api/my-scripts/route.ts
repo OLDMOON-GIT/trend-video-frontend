@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       console.log('📊 조회된 진행 상태 대본 개수:', tempScripts.length);
 
       // 자동화 DB에서 스크립트 ID들의 큐 상태 조회 (진행중 + 완료 모두)
-      const automationDbPath = path.join(process.cwd(), 'data', 'automation.db');
+      const automationDbPath = path.join(process.cwd(), 'data', 'database.sqlite');
       let automationDb: Database.Database | null = null;
       const queueStatusMap: Record<string, any> = {};
 
@@ -276,7 +276,7 @@ export async function DELETE(request: NextRequest) {
       db = new Database(dbPath);
 
       // 1. 자동화 데이터베이스에서 해당 스크립트와 연결된 스케줄 취소
-      const automationDbPath = path.join(process.cwd(), 'data', 'automation.db');
+      const automationDbPath = path.join(process.cwd(), 'data', 'database.sqlite');
       let automationDb: Database.Database | null = null;
 
       try {

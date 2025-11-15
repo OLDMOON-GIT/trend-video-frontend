@@ -216,6 +216,15 @@ export async function POST(request: NextRequest) {
       projectName = `project_${scriptId}`;
       inputPath = path.join(backendPath, 'input', projectName);
       console.log(`🔄 [자동화] 기존 폴더 사용: ${inputPath}`);
+
+      // 기존 generated_videos 폴더 삭제 (backup 방지)
+      const generatedVideosPath = path.join(inputPath, 'generated_videos');
+      try {
+        await fs.rm(generatedVideosPath, { recursive: true, force: true });
+        console.log(`🗑️ 기존 generated_videos 폴더 삭제됨`);
+      } catch (err) {
+        // 폴더가 없으면 무시
+      }
     } else {
       // 일반: 새 폴더 생성
       jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import { getJobsByUserId, getActiveJobsByUserId, deleteJob, findJobById } from '@/lib/db';
+import Database from 'better-sqlite3';
+import path from 'path';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +27,53 @@ export async function GET(request: NextRequest) {
     } else {
       allJobs = getJobsByUserId(user.userId, 999999, 0); // 모든 데이터 가져오기
     }
+
+    // 자동화 DB에서 영상(job) ID들의 큐 상태 조회
+    const automationDbPath = path.join(process.cwd(), 'data', 'database.sqlite');
+    let automationDb: Database.Database | null = null;
+    const queueStatusMap: Record<string, any> = {};
+
+    try {
+      automationDb = new Database(automationDbPath);
+      const allJobIds = allJobs.map(j => j.id);
+
+      if (allJobIds.length > 0) {
+        const placeholders = allJobIds.map(() => '?').join(',');
+        const queueQuery = `
+          SELECT video_id, status, scheduled_time
+          FROM video_schedules
+          WHERE video_id IN (${placeholders})
+          ORDER BY created_at DESC
+        `;
+        const queueRows = automationDb.prepare(queueQuery).all(...allJobIds) as any[];
+
+        queueRows.forEach((row: any) => {
+          if (row.video_id && !queueStatusMap[row.video_id]) {
+            queueStatusMap[row.video_id] = {
+              inQueue: true,
+              queueStatus: row.status,
+              scheduledTime: row.scheduled_time
+            };
+          }
+        });
+      }
+    } catch (autoError) {
+      console.warn('⚠️ 자동화 큐 상태 조회 실패 (무시됨):', autoError);
+    } finally {
+      if (automationDb) {
+        try {
+          automationDb.close();
+        } catch (e) {
+          console.error('⚠️ 자동화 DB close 실패:', e);
+        }
+      }
+    }
+
+    // 각 영상에 자동화 큐 정보 추가
+    allJobs = allJobs.map((job: any) => ({
+      ...job,
+      automationQueue: queueStatusMap[job.id]
+    }));
 
     // 검색 필터링
     let filteredJobs = allJobs;

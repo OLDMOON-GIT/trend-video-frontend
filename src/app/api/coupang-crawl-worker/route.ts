@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/sqlite';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const COUPANG_SETTINGS_FILE = path.join(DATA_DIR, 'coupang-settings.json');
 
 /**
  * 쿠팡 크롤링 Worker API
@@ -10,6 +16,118 @@ import { v4 as uuidv4 } from 'uuid';
  * - 크롤링 수행 (재시도 횟수에 따라 타임아웃 증가)
  * - 성공: done, 실패: 재시도 또는 failed
  */
+
+// 사용자 쿠팡 설정 로드
+async function loadUserSettings(userId: string) {
+  try {
+    const data = await fs.readFile(COUPANG_SETTINGS_FILE, 'utf-8');
+    const allSettings = JSON.parse(data);
+    return allSettings[userId];
+  } catch {
+    return null;
+  }
+}
+
+// 쿠팡 파트너스 서명 생성
+function generateCoupangSignature(method: string, url: string, secretKey: string) {
+  const datetime = new Date().toISOString().slice(0, -5) + 'Z';
+  const message = datetime + method + url;
+  const signature = crypto
+    .createHmac('sha256', secretKey)
+    .update(message)
+    .digest('hex');
+  return { datetime, signature };
+}
+
+// URL에서 상품 ID 추출
+function extractProductId(url: string): string | null {
+  try {
+    // 1. productId 쿼리 파라미터에서 추출
+    const urlObj = new URL(url);
+    const productIdParam = urlObj.searchParams.get('productId');
+    if (productIdParam) return productIdParam;
+
+    // 2. URL 경로에서 추출 (/vp/products/{productId})
+    const pathMatch = url.match(/\/vp\/products\/(\d+)/);
+    if (pathMatch) return pathMatch[1];
+
+    // 3. itemId 파라미터에서 추출 (일부 링크)
+    const itemId = urlObj.searchParams.get('itemId');
+    if (itemId) return itemId;
+
+    return null;
+  } catch (error) {
+    console.error('상품 ID 추출 실패:', error);
+    return null;
+  }
+}
+
+// 사용자의 쿠팡 파트너스 딥링크 생성
+async function generateDeepLink(productUrl: string, userId: string): Promise<string> {
+  try {
+    console.log(`🔗 사용자 ${userId}의 딥링크 생성 시도: ${productUrl}`);
+
+    const settings = await loadUserSettings(userId);
+    if (!settings || !settings.accessKey || !settings.secretKey) {
+      console.warn('⚠️ 쿠팡 API 설정이 없어 원본 URL 사용');
+      return productUrl;
+    }
+
+    // 상품 ID 추출
+    const productId = extractProductId(productUrl);
+    if (!productId) {
+      console.warn('⚠️ 상품 ID를 추출할 수 없어 원본 URL 사용');
+      return productUrl;
+    }
+
+    // 일반 쿠팡 상품 URL 생성 (파트너스 태그 없는 순수 URL)
+    const cleanUrl = `https://www.coupang.com/vp/products/${productId}`;
+    console.log(`🧹 정리된 URL: ${cleanUrl}`);
+
+    const REQUEST_METHOD = 'POST';
+    const DOMAIN = 'https://api-gateway.coupang.com';
+    const URL = '/v2/providers/affiliate_open_api/apis/openapi/v1/deeplink';
+
+    const { datetime, signature } = generateCoupangSignature(REQUEST_METHOD, URL, settings.secretKey);
+    const authorization = `CEA algorithm=HmacSHA256, access-key=${settings.accessKey}, signed-date=${datetime}, signature=${signature}`;
+
+    const requestBody = {
+      coupangUrls: [cleanUrl]
+    };
+
+    console.log('📤 딥링크 API 요청:', requestBody);
+
+    const response = await fetch(DOMAIN + URL, {
+      method: REQUEST_METHOD,
+      headers: {
+        'Authorization': authorization,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('📥 딥링크 API 응답:', data);
+
+      if (data.rCode === '0' && data.data && data.data.length > 0) {
+        const shortUrl = data.data[0].shortenUrl;
+        console.log(`✅ 딥링크 생성 완료: ${shortUrl}`);
+        return shortUrl;
+      } else {
+        console.warn(`⚠️ 딥링크 생성 실패 (API 응답): ${JSON.stringify(data)}, 원본 URL 사용`);
+        return productUrl;
+      }
+    } else {
+      const errorText = await response.text();
+      console.warn(`⚠️ 딥링크 생성 실패 (HTTP ${response.status}): ${errorText}, 원본 URL 사용`);
+      return productUrl;
+    }
+  } catch (error: any) {
+    console.error('❌ 딥링크 생성 오류:', error.message, '원본 URL 사용');
+    return productUrl;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -77,8 +195,9 @@ export async function GET(request: NextRequest) {
       const productId = uuidv4();
 
       if (destination === 'pending_list') {
-        // 대기 목록 (crawled_product_links)에 저장
+        // 대기 목록 (crawled_product_links)에 저장 - 원본 URL 사용
         console.log('💾 대기 목록에 저장 중...');
+
         db.prepare(`
           INSERT INTO crawled_product_links (
             id, user_id, product_url, source_url, title, description,
@@ -87,7 +206,7 @@ export async function GET(request: NextRequest) {
         `).run(
           productId,
           queueItem.user_id,
-          queueItem.product_url,
+          queueItem.product_url, // 원본 URL 사용
           queueItem.source_url || queueItem.product_url,
           productInfo.title,
           detailedDescription,
@@ -100,6 +219,10 @@ export async function GET(request: NextRequest) {
       } else {
         // 내 목록 (coupang_products)에 저장
         console.log('💾 내 목록에 저장 중...');
+
+        // 사용자의 쿠팡 파트너스 딥링크 생성
+        const deepLink = await generateDeepLink(queueItem.product_url, queueItem.user_id);
+
         db.prepare(`
           INSERT INTO coupang_products (
             id, user_id, queue_id, product_url, deep_link, title, description,
@@ -110,7 +233,7 @@ export async function GET(request: NextRequest) {
           queueItem.user_id,
           queueItem.id,
           queueItem.product_url,
-          queueItem.product_url, // deep_link는 동일하게
+          deepLink, // 사용자의 파트너스 딥링크
           productInfo.title,
           detailedDescription,
           category,
@@ -119,6 +242,7 @@ export async function GET(request: NextRequest) {
           productInfo.imageUrl
         );
         console.log(`✅ 내 목록에 저장 완료: ${productId}`);
+        console.log(`🔗 딥링크: ${deepLink}`);
       }
 
       // 9. 다음 항목이 있는지 확인

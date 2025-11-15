@@ -608,9 +608,14 @@ function HomeContent() {
 
             // 상품 정보를 state에 저장 (UI 표시 및 프롬프트 생성 시 사용)
             setProductInfo(loadedProductInfo);
+            // ⭐ current_product_info에 영구 저장 (대본 생성 시 계속 사용)
             localStorage.setItem('current_product_info', productInfoStr);
 
             console.log('🛍️ 상품 정보 로드 완료:', loadedProductInfo);
+            console.log('🛍️ productInfo.title:', loadedProductInfo.title);
+            console.log('🛍️ productInfo.thumbnail:', loadedProductInfo.thumbnail);
+            console.log('🛍️ productInfo.product_link:', loadedProductInfo.product_link);
+            console.log('🛍️ productInfo.description:', loadedProductInfo.description);
 
             // AI 대본 생성 섹션 열기 및 스크롤
             setShowTitleInput(true);
@@ -630,8 +635,8 @@ function HomeContent() {
               }
             }, 300);
 
-            // localStorage 클리어 (일회용)
-            localStorage.removeItem('product_video_info');
+            // ⭐ product_video_info는 유지 (대본 재생성 시 필요)
+            // localStorage.removeItem('product_video_info'); // 삭제하지 않음!
           } catch (e) {
             console.error('❌ 상품 정보 로드 실패:', e);
           }
@@ -644,6 +649,68 @@ function HomeContent() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const scriptId = searchParams?.get('generateProductInfo');
+      const fromCoupang = searchParams?.get('fromCoupang');
+
+      // 상품관리에서 온 경우 (scriptId 없이 localStorage 사용)
+      if (fromCoupang === 'true' && !scriptId) {
+        console.log('🛍️ 상품관리에서 상품정보 생성 요청');
+
+        // 상품정보 포맷으로 강제 설정
+        initialVideoFormatRef.current = 'product-info-from-url';
+        setPromptFormat('product-info');
+        setProductionMode('create');
+
+        // localStorage에서 상품 정보 로드
+        const productInfoStr = localStorage.getItem('product_video_info');
+        if (productInfoStr) {
+          try {
+            const loadedProductInfo = JSON.parse(productInfoStr);
+            console.log('✅ 상품 정보 로드 완료:', loadedProductInfo);
+
+            // 제목 설정
+            const productInfoTitle = `${loadedProductInfo.title} - 상품 기입 정보`;
+            setManualTitle(productInfoTitle);
+
+            // 상품 정보 state에 저장
+            setProductInfo(loadedProductInfo);
+            localStorage.setItem('current_product_info', productInfoStr);
+            localStorage.setItem('pendingProductInfoData', productInfoStr);
+
+            // AI 대본 생성 섹션 표시
+            setShowTitleInput(true);
+            setTitleInputMode('generate');
+
+            // API에서 상품정보 프롬프트 템플릿 가져오기
+            fetch('/api/product-info-prompt')
+              .then(res => res.json())
+              .then(promptData => {
+                const promptTemplate = promptData.content;
+                localStorage.setItem('pendingProductInfoPrompt', promptTemplate);
+                console.log('✅ 상품정보 프롬프트 템플릿 로드 완료');
+
+                // 스크롤
+                setTimeout(() => {
+                  const aiSection = document.querySelector('[data-ai-script-section]');
+                  if (aiSection) {
+                    aiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }, 300);
+              })
+              .catch(err => {
+                console.error('❌ 프롬프트 템플릿 로드 실패:', err);
+              });
+
+            // ⭐ product_video_info는 유지 (대본 재생성 시 필요)
+            // localStorage.removeItem('product_video_info'); // 삭제하지 않음!
+
+            // URL 파라미터 제거
+            window.history.replaceState({}, '', '/');
+          } catch (e) {
+            console.error('❌ 상품 정보 로드 실패:', e);
+          }
+        }
+        return; // 아래 scriptId 로직 실행 안 함
+      }
 
       if (scriptId) {
         console.log('🛍️ 상품정보 생성 요청 감지:', scriptId);

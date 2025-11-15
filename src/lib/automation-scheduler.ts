@@ -99,8 +99,20 @@ async function processPendingSchedules() {
 
     for (const schedule of pendingSchedules) {
       try {
-        // 원자적으로 스케줄 상태를 'processing'으로 변경 (중복 실행 방지)
+        // 파이프라인이 이미 존재하는지 먼저 확인 (DB 잠금으로 race condition 방지)
         const db = new Database(dbPath);
+
+        const existingPipeline = db.prepare(`
+          SELECT id FROM automation_pipelines WHERE schedule_id = ? LIMIT 1
+        `).get((schedule as any).id);
+
+        if (existingPipeline) {
+          console.log(`[Scheduler] Pipeline already exists for schedule ${(schedule as any).id}, skipping`);
+          db.close();
+          continue;
+        }
+
+        // 원자적으로 스케줄 상태를 'processing'으로 변경 (중복 실행 방지)
         const result = db.prepare(`
           UPDATE video_schedules
           SET status = 'processing', updated_at = CURRENT_TIMESTAMP
@@ -114,24 +126,45 @@ async function processPendingSchedules() {
           continue;
         }
 
-        // 파이프라인이 이미 존재하는지 확인
-        const existingPipeline = db.prepare(`
-          SELECT id FROM automation_pipelines WHERE schedule_id = ? LIMIT 1
-        `).get((schedule as any).id);
+        // 즉시 파이프라인 생성 (같은 DB 연결 사용하여 원자성 보장)
+        const stages = ['script', 'video', 'upload', 'publish'];
+        const pipelineIds: string[] = [];
+
+        try {
+          for (const stage of stages) {
+            const id = `pipeline_${Date.now()}_${stage}_${Math.random().toString(36).substr(2, 9)}`;
+            try {
+              db.prepare(`
+                INSERT INTO automation_pipelines (id, schedule_id, stage, status)
+                VALUES (?, ?, ?, 'pending')
+              `).run(id, (schedule as any).id, stage);
+              pipelineIds.push(id);
+            } catch (insertError: any) {
+              // UNIQUE 제약조건 위반 (이미 다른 스케줄러가 생성함)
+              if (insertError.code === 'SQLITE_CONSTRAINT_UNIQUE' || insertError.message?.includes('UNIQUE')) {
+                console.log(`[Scheduler] Pipeline for stage ${stage} already exists for schedule ${(schedule as any).id}, using existing one`);
+                // 기존 파이프라인 ID 가져오기
+                const existing = db.prepare(`
+                  SELECT id FROM automation_pipelines WHERE schedule_id = ? AND stage = ?
+                `).get((schedule as any).id, stage) as any;
+                if (existing) {
+                  pipelineIds.push(existing.id);
+                }
+              } else {
+                throw insertError;
+              }
+            }
+          }
+        } catch (pipelineError) {
+          db.close();
+          throw pipelineError;
+        }
 
         db.close();
-
-        if (existingPipeline) {
-          console.log(`[Scheduler] Pipeline already exists for schedule ${(schedule as any).id}, skipping`);
-          continue;
-        }
+        console.log(`[Scheduler] Created/Retrieved pipeline for schedule ${(schedule as any).id}`);
 
         // 제목 상태도 'processing'으로 변경
         updateTitleStatus((schedule as any).title_id, 'processing');
-
-        // 파이프라인 생성
-        const pipelineIds = createPipeline((schedule as any).id);
-        console.log(`[Scheduler] Created pipeline for schedule ${(schedule as any).id}`);
 
         // 파이프라인 실행 (비동기로 실행)
         executePipeline(schedule as any, pipelineIds).catch(error => {
@@ -328,10 +361,22 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     addPipelineLog(pipelineId, 'info', `📝 대본 생성 시작...`);
     addTitleLog(schedule.title_id, 'info', `📝 대본 생성 시작...`);
 
+    // product_data가 있으면 JSON 파싱
+    let productInfo = undefined;
+    if (schedule.product_data) {
+      try {
+        productInfo = JSON.parse(schedule.product_data);
+        console.log('🛍️ [SCHEDULER] Product data found:', productInfo);
+      } catch (e) {
+        console.error('❌ [SCHEDULER] Failed to parse product_data:', e);
+      }
+    }
+
     const requestBody = {
       title: schedule.title,
       type: schedule.type,
       productUrl: schedule.product_url,
+      productInfo: productInfo,
       model: schedule.model || 'claude',
       useClaudeLocal: schedule.script_mode !== 'api',
       userId: schedule.user_id,
@@ -704,17 +749,17 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
 
     addPipelineLog(pipelineId, 'info', `✅ YouTube upload successful: ${uploadData.videoUrl}`);
 
-    // video_schedules 테이블에 youtube_upload_id 업데이트
+    // video_schedules 테이블에 youtube_upload_id와 youtube_url 업데이트
     // YouTube API에서 이미 youtube_uploads 테이블에 저장했으므로 중복 저장하지 않음
-    if (uploadData.uploadId) {
+    if (uploadData.uploadId || uploadData.videoUrl) {
       const uploadDb = new Database(dbPath);
       uploadDb.prepare(`
         UPDATE video_schedules
-        SET youtube_upload_id = ?
+        SET youtube_upload_id = ?, youtube_url = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(uploadData.uploadId, schedule.id);
+      `).run(uploadData.uploadId || null, uploadData.videoUrl || null, schedule.id);
       uploadDb.close();
-      console.log(`✅ video_schedules 업데이트: youtube_upload_id = ${uploadData.uploadId}`);
+      console.log(`✅ video_schedules 업데이트: youtube_upload_id = ${uploadData.uploadId}, youtube_url = ${uploadData.videoUrl}`);
     }
 
     return {
@@ -917,8 +962,15 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
 
   updatePipelineStatus(uploadPipelineId, 'completed');
 
-  // video_schedules 테이블에 youtube_upload_id 저장
-  // uploadToYouTube에서 이미 업데이트했으므로 중복 업데이트하지 않음
+  // video_schedules 테이블에 youtube_url 저장
+  const db = new Database(dbPath);
+  db.prepare(`
+    UPDATE video_schedules
+    SET youtube_url = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(uploadResult.videoUrl, schedule.id);
+  db.close();
+
   addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
   addTitleLog(schedule.title_id, 'info', `✅ YouTube 업로드 완료: ${uploadResult.videoUrl}`);
 

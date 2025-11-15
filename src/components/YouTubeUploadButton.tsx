@@ -53,10 +53,25 @@ export default function YouTubeUploadButton({
 
   useEffect(() => {
     setMounted(true);
-    // localStorage에서 저장된 공개 설정 불러오기
+    // localStorage에서 저장된 설정 불러오기
     const savedPrivacy = localStorage.getItem('youtube_privacy_setting');
     if (savedPrivacy && ['public', 'unlisted', 'private'].includes(savedPrivacy)) {
       setPrivacy(savedPrivacy as 'public' | 'unlisted' | 'private');
+    }
+
+    const savedTitle = localStorage.getItem('youtube_last_title');
+    if (savedTitle && !defaultTitle) {
+      setTitle(savedTitle);
+    }
+
+    const savedDescription = localStorage.getItem('youtube_last_description');
+    if (savedDescription) {
+      setDescription(savedDescription);
+    }
+
+    const savedTags = localStorage.getItem('youtube_last_tags');
+    if (savedTags) {
+      setTags(savedTags);
     }
   }, []);
 
@@ -85,6 +100,9 @@ export default function YouTubeUploadButton({
 
   const handleUploadClick = async () => {
     setShowModal(true);
+    // 모달 열 때마다 예약 시간을 3분 후로 리셋
+    const defaultTime = new Date(Date.now() + 3 * 60 * 1000);
+    setPublishAt(defaultTime.toISOString().slice(0, 16));
     await loadChannels();
   };
 
@@ -244,8 +262,11 @@ export default function YouTubeUploadButton({
         addLog(`비디오 ID: ${data.videoId}`);
         addLog(`URL: ${data.videoUrl}`);
 
-        // 성공 시 공개 설정 저장
+        // 성공 시 설정 저장
         localStorage.setItem('youtube_privacy_setting', privacy);
+        localStorage.setItem('youtube_last_title', title);
+        localStorage.setItem('youtube_last_description', description);
+        localStorage.setItem('youtube_last_tags', tags);
 
         if (onUploadSuccess) {
           onUploadSuccess({ videoId: data.videoId, videoUrl: data.videoUrl });
@@ -433,7 +454,12 @@ export default function YouTubeUploadButton({
                       type="radio"
                       value="scheduled"
                       checked={scheduleType === 'scheduled'}
-                      onChange={(e) => setScheduleType(e.target.value as 'scheduled')}
+                      onChange={(e) => {
+                        setScheduleType(e.target.value as 'scheduled');
+                        // 예약 업로드 선택 시 자동으로 3분 후로 설정
+                        const defaultTime = new Date(Date.now() + 3 * 60 * 1000);
+                        setPublishAt(defaultTime.toISOString().slice(0, 16));
+                      }}
                       className="w-4 h-4 text-purple-600 focus:ring-purple-500"
                     />
                     <span className="text-white">예약 업로드</span>

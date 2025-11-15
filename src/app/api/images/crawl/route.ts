@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { scenes, contentId } = body;
+    const { scenes, contentId, useImageFX } = body;
 
     if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
       return NextResponse.json({ error: '씬 데이터가 필요합니다.' }, { status: 400 });
@@ -64,11 +64,20 @@ export async function POST(request: NextRequest) {
     const task = crawlingTasks.get(taskId);
     if (task) {
       task.status = 'processing';
-      task.logs.push(`🚀 Python 자동화 시작 (${scenes.length}개 씬)`);
+      if (useImageFX) {
+        task.logs.push(`🚀 ImageFX + Whisk 자동화 시작 (${scenes.length}개 씬)`);
+      } else {
+        task.logs.push(`🚀 Whisk 자동화 시작 (${scenes.length}개 씬)`);
+      }
     }
 
     // 백그라운드로 Python 실행 (시스템 Python 사용)
-    const pythonProcess = spawn('python', [pythonScript, scenesFilePath], {
+    const pythonArgs = [pythonScript, scenesFilePath];
+    if (useImageFX) {
+      pythonArgs.push('--use-imagefx');
+    }
+
+    const pythonProcess = spawn('python', pythonArgs, {
       cwd: backendPath,
       detached: false,
       shell: true
@@ -120,7 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       taskId,
-      message: 'Whisk 자동화가 시작되었습니다.'
+      message: useImageFX ? 'ImageFX + Whisk 자동화가 시작되었습니다.' : 'Whisk 자동화가 시작되었습니다.'
     });
 
   } catch (error: any) {

@@ -77,6 +77,13 @@ export function initAutomationTables() {
     // 이미 존재하면 무시
   }
 
+  // product_data 컬럼 추가 (상품 정보를 JSON으로 저장)
+  try {
+    db.exec(`ALTER TABLE video_titles ADD COLUMN product_data TEXT;`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
   // 2. 스케줄 테이블
   db.exec(`
     CREATE TABLE IF NOT EXISTS video_schedules (
@@ -88,11 +95,19 @@ export function initAutomationTables() {
       script_id TEXT,
       video_id TEXT,
       youtube_upload_id TEXT,
+      youtube_url TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (title_id) REFERENCES video_titles(id) ON DELETE CASCADE
     );
   `);
+
+  // youtube_url 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE video_schedules ADD COLUMN youtube_url TEXT;`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
 
   // 3. 파이프라인 실행 기록 테이블
   db.exec(`
@@ -106,7 +121,8 @@ export function initAutomationTables() {
       started_at DATETIME,
       completed_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (schedule_id) REFERENCES video_schedules(id) ON DELETE CASCADE
+      FOREIGN KEY (schedule_id) REFERENCES video_schedules(id) ON DELETE CASCADE,
+      UNIQUE(schedule_id, stage)
     );
   `);
 
@@ -219,6 +235,7 @@ export function addVideoTitle(data: {
   tags?: string;
   priority?: number;
   productUrl?: string;
+  productData?: string; // JSON 문자열 (상품 정보)
   channel?: string;
   scriptMode?: string;
   mediaMode?: string;
@@ -230,8 +247,8 @@ export function addVideoTitle(data: {
   const id = `title_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   db.prepare(`
-    INSERT INTO video_titles (id, title, type, category, tags, priority, product_url, channel, script_mode, media_mode, youtube_schedule, model, user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO video_titles (id, title, type, category, tags, priority, product_url, product_data, channel, script_mode, media_mode, youtube_schedule, model, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     data.title,
@@ -240,6 +257,7 @@ export function addVideoTitle(data: {
     data.tags || null,
     data.priority || 0,
     data.productUrl || null,
+    data.productData || null,
     data.channel || null,
     data.scriptMode || 'chrome',
     data.mediaMode || 'imagen3',
@@ -302,6 +320,7 @@ export function getPendingSchedules() {
       t.tags,
       t.user_id,
       t.product_url,
+      t.product_data,
       t.script_mode,
       t.media_mode,
       t.model,
@@ -333,6 +352,7 @@ export function getWaitingForUploadSchedules() {
       t.tags,
       t.user_id,
       t.product_url,
+      t.product_data,
       t.script_mode,
       t.media_mode,
       t.model,
@@ -506,16 +526,34 @@ export function getAllVideoTitles() {
   // video_titles와 최신 schedule을 JOIN하여 script_id, video_id 정보도 가져오기
   const titles = db.prepare(`
     SELECT
-      t.*,
+      t.id,
+      t.title,
+      t.type,
+      t.category,
+      t.tags,
+      t.priority,
+      t.product_url,
+      t.product_data,
+      COALESCE(yc.channel_name, t.channel) as channel,
+      t.script_mode,
+      t.media_mode,
+      t.model,
+      t.youtube_schedule,
+      t.created_at,
+      t.updated_at,
+      t.status,
+      t.user_id,
       s.id as schedule_id,
       s.script_id,
       s.video_id,
       s.youtube_upload_id,
+      s.youtube_url,
       s.scheduled_time,
       s.youtube_publish_time
     FROM video_titles t
+    LEFT JOIN youtube_channel_settings yc ON t.channel = yc.channel_id AND t.user_id = yc.user_id
     LEFT JOIN (
-      SELECT title_id, id, script_id, video_id, youtube_upload_id, scheduled_time, youtube_publish_time,
+      SELECT title_id, id, script_id, video_id, youtube_upload_id, youtube_url, scheduled_time, youtube_publish_time,
              ROW_NUMBER() OVER (PARTITION BY title_id ORDER BY created_at DESC) as rn
       FROM video_schedules
     ) s ON t.id = s.title_id AND s.rn = 1
@@ -531,7 +569,17 @@ export function getAllSchedules() {
   const db = new Database(dbPath);
   const schedules = db.prepare(`
     SELECT
-      s.*,
+      s.id,
+      s.title_id,
+      s.scheduled_time,
+      s.youtube_publish_time,
+      s.status,
+      s.script_id,
+      s.video_id,
+      s.youtube_upload_id,
+      s.youtube_url,
+      s.created_at,
+      s.updated_at,
       t.title,
       t.type
     FROM video_schedules s

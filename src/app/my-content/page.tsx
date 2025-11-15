@@ -49,9 +49,14 @@ interface Job {
   type?: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info';
   logs?: string[];
   sourceContentId?: string;  // 원본 대본 ID
+  automationQueue?: {         // 자동화 큐 정보
+    inQueue: boolean;
+    queueStatus: string;
+    scheduledTime?: string;
+  };
 }
 
-type TabType = 'all' | 'videos' | 'scripts' | 'coupang' | 'published' | 'settings';
+type TabType = 'all' | 'videos' | 'scripts' | 'published' | 'settings';
 
 interface YouTubeChannel {
   id: string;
@@ -151,13 +156,22 @@ export default function MyContentPage() {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [user, setUser] = useState<{ id: string; email: string; isAdmin?: boolean } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
-  // URL 파라미터에서 탭 읽기
+  // URL 파라미터에서 탭과 ID 읽기
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab') as TabType;
-    if (tab && ['all', 'videos', 'scripts', 'coupang', 'published', 'settings'].includes(tab)) {
+    const id = urlParams.get('id');
+
+    if (tab && ['all', 'videos', 'scripts', 'published', 'settings'].includes(tab)) {
       setActiveTab(tab);
+    }
+
+    if (id) {
+      setHighlightedId(id);
+      // 3초 후 하이라이트 제거
+      setTimeout(() => setHighlightedId(null), 3000);
     }
   }, []);
 
@@ -252,6 +266,12 @@ export default function MyContentPage() {
     options: { value: string; label: string }[];
   } | null>(null);
 
+  // 이미지 크롤링 모달 상태
+  const [imageCrawlModal, setImageCrawlModal] = useState<{
+    scriptId: string;
+    title: string;
+  } | null>(null);
+
   // TTS (읽어보기) 상태
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -287,7 +307,7 @@ export default function MyContentPage() {
 
   // 대본 편집 상태 (관리자 전용)
   const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
-  const [editedContent, setEditedContent] = useState<string>('');
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null); // 비제어 컴포넌트로 변경하여 성능 향상
   const [isSavingScript, setIsSavingScript] = useState(false);
 
   // 쿠키 기반 인증 사용 - 쿠키가 자동으로 전송됨
@@ -578,13 +598,7 @@ export default function MyContentPage() {
     return () => clearInterval(interval);
   }, [user, activeTab, scripts, jobs]);
 
-  // Load Coupang settings and links when user is loaded or activeTab changes to coupang
-  useEffect(() => {
-    if (user && activeTab === 'coupang') {
-      loadCoupangSettings();
-      loadCoupangLinks();
-    }
-  }, [user, activeTab]);
+  // Coupang 기능 제거됨
 
   const checkAuth = async () => {
     try {
@@ -1872,7 +1886,7 @@ export default function MyContentPage() {
   };
 
 
-  const handleImageCrawling = async (scriptId: string, jobId?: string) => {
+  const handleImageCrawling = async (scriptId: string, jobId?: string, useImageFX: boolean = false) => {
     // 이미 실행 중이면 리턴 (중복 실행 방지)
     if (isImageCrawling) {
       toast.error('이미 이미지 생성이 진행 중입니다.');
@@ -1914,7 +1928,8 @@ export default function MyContentPage() {
         return;
       }
 
-      toast.success(`🤖 자동 이미지 생성 시작... (${scenes.length}개 씬)`);
+      const mode = useImageFX ? 'ImageFX + Whisk' : 'Whisk';
+      toast.success(`🤖 자동 이미지 생성 시작 (${mode})... (${scenes.length}개 씬)`);
 
       // API 호출 (credentials 추가)
       const response = await fetch('/api/images/crawl', {
@@ -1926,7 +1941,8 @@ export default function MyContentPage() {
         credentials: 'include', // 쿠키 자동 전송
         body: JSON.stringify({
           scenes,
-          contentId: scriptId
+          contentId: scriptId,
+          useImageFX
         })
       });
 
@@ -2066,18 +2082,24 @@ export default function MyContentPage() {
   // 대본 편집 시작 (관리자 전용)
   const handleEditScript = (scriptId: string, currentContent: string) => {
     setEditingScriptId(scriptId);
-    setEditedContent(currentContent);
     setExpandedScriptId(scriptId); // 편집 모드 진입 시 대본 펼치기
+    // textarea가 렌더링된 후 값 설정 (비제어 컴포넌트)
+    setTimeout(() => {
+      if (editTextareaRef.current) {
+        editTextareaRef.current.value = currentContent;
+      }
+    }, 0);
   };
 
   // 대본 편집 취소
   const handleCancelEdit = () => {
     setEditingScriptId(null);
-    setEditedContent('');
   };
 
   // 대본 저장 (관리자 전용)
   const handleSaveScript = async (scriptId: string) => {
+    const editedContent = editTextareaRef.current?.value || '';
+
     if (!editedContent.trim()) {
       toast.error('대본 내용이 비어있습니다.');
       return;
@@ -2114,7 +2136,6 @@ export default function MyContentPage() {
 
       toast.success('대본이 저장되었습니다!');
       setEditingScriptId(null);
-      setEditedContent('');
 
     } catch (error: any) {
       console.error('대본 저장 오류:', error);
@@ -2554,16 +2575,6 @@ export default function MyContentPage() {
             📝 대본 {scriptsTotal > 0 && `(${scriptsTotal})`}
           </button>
           <button
-            onClick={() => handleTabChange('coupang')}
-            className={`rounded-lg px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
-              activeTab === 'coupang'
-                ? 'bg-purple-600 text-white'
-                : 'bg-white/10 text-slate-300 hover:bg-white/20'
-            }`}
-          >
-            🛒 쿠팡상품 {generatedLinks.length > 0 && `(${generatedLinks.length})`}
-          </button>
-          <button
             onClick={() => handleTabChange('published')}
             className={`rounded-lg px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
               activeTab === 'published'
@@ -2707,7 +2718,18 @@ export default function MyContentPage() {
                     <div
                       key={`${item.type}-${item.data.id}`}
                       id={item.type === 'video' ? `video-${item.data.id}` : `script-${item.data.id}`}
-                      className="group rounded-xl border border-white/10 bg-white/5 backdrop-blur transition hover:bg-white/10 hover:border-purple-500/50 overflow-hidden"
+                      className={`group rounded-xl border transition overflow-hidden ${
+                        highlightedId === item.data.id
+                          ? 'border-yellow-500 bg-yellow-500/20 animate-pulse'
+                          : 'border-white/10 bg-white/5 backdrop-blur hover:bg-white/10 hover:border-purple-500/50'
+                      }`}
+                      ref={(el) => {
+                        if (el && highlightedId === item.data.id) {
+                          setTimeout(() => {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 300);
+                        }
+                      }}
                     >
                       {item.type === 'video' ? (
                         // 영상 카드 - 리스트 수평 레이아웃
@@ -2785,6 +2807,22 @@ export default function MyContentPage() {
                                 <div className="flex-shrink-0">
                                   {getStatusBadge(item.data.status)}
                                 </div>
+                                {/* 자동화 큐 배지 */}
+                                {(item.data as Job).automationQueue?.inQueue && (
+                                  <span className={`px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 ${
+                                    (item.data as Job).automationQueue?.queueStatus === 'pending' ? 'bg-yellow-500 text-black' :
+                                    (item.data as Job).automationQueue?.queueStatus === 'processing' ? 'bg-blue-500 text-white' :
+                                    (item.data as Job).automationQueue?.queueStatus === 'waiting_for_upload' ? 'bg-purple-500 text-white' :
+                                    (item.data as Job).automationQueue?.queueStatus === 'cancelled' ? 'bg-gray-500 text-white' :
+                                    'bg-green-500 text-white'
+                                  }`}>
+                                    {(item.data as Job).automationQueue?.queueStatus === 'pending' ? '⏳ 큐 대기' :
+                                     (item.data as Job).automationQueue?.queueStatus === 'processing' ? '⚙️ 자동화 중' :
+                                     (item.data as Job).automationQueue?.queueStatus === 'waiting_for_upload' ? '📤 업로드 대기' :
+                                     (item.data as Job).automationQueue?.queueStatus === 'cancelled' ? '❌ 큐 취소됨' :
+                                     '✅ 자동화 완료'}
+                                  </span>
+                                )}
                               </div>
                               <div className="space-y-1 text-sm text-slate-400">
                                 <p className="flex items-center gap-2">
@@ -3267,7 +3305,12 @@ export default function MyContentPage() {
                                   {/* === 제작 === */}
                                   {user?.isAdmin && !isMobile && (
                                     <button
-                                      onClick={() => handleImageCrawling(item.data.id, '')}
+                                      onClick={() => {
+                                        setImageCrawlModal({
+                                          scriptId: item.data.id,
+                                          title: item.data.title
+                                        });
+                                      }}
                                       className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
                                       title="이미지 생성"
                                     >
@@ -3582,8 +3625,8 @@ export default function MyContentPage() {
                             /* 편집 모드 (확장 상태) */
                             <div className="mt-4 space-y-3">
                               <textarea
-                                value={editedContent}
-                                onChange={(e) => setEditedContent(e.target.value)}
+                                ref={editTextareaRef}
+                                defaultValue=""
                                 className="w-full h-96 rounded-lg border border-purple-500 bg-slate-900 p-4 text-sm text-slate-300 font-mono leading-relaxed focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y"
                                 placeholder="대본 내용을 입력하세요..."
                               />
@@ -3773,7 +3816,18 @@ export default function MyContentPage() {
                   <div
                     key={script.id}
                     id={`script-${script.id}`}
-                    className="group rounded-xl border border-white/10 bg-white/5 backdrop-blur transition hover:bg-white/10 hover:border-purple-500/50 overflow-hidden"
+                    className={`group rounded-xl border transition overflow-hidden ${
+                      highlightedId === script.id
+                        ? 'border-yellow-500 bg-yellow-500/20 animate-pulse'
+                        : 'border-white/10 bg-white/5 backdrop-blur hover:bg-white/10 hover:border-purple-500/50'
+                    }`}
+                    ref={(el) => {
+                      if (el && highlightedId === script.id) {
+                        setTimeout(() => {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 300);
+                      }
+                    }}
                   >
                     <div className="p-4">
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
@@ -3919,7 +3973,12 @@ export default function MyContentPage() {
                             {/* === 제작 === */}
                             {user?.isAdmin && !isMobile && (
                               <button
-                                onClick={() => handleImageCrawling(script.id, '')}
+                                onClick={() => {
+                                  setImageCrawlModal({
+                                    scriptId: script.id,
+                                    title: script.title
+                                  });
+                                }}
                                 className="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-500 cursor-pointer whitespace-nowrap"
                                 title="이미지 생성"
                               >
@@ -4356,8 +4415,8 @@ export default function MyContentPage() {
                           /* 편집 모드 (확장 상태) */
                           <div className="mt-4 space-y-3">
                             <textarea
-                              value={editedContent}
-                              onChange={(e) => setEditedContent(e.target.value)}
+                              ref={editTextareaRef}
+                              defaultValue=""
                               className="w-full h-96 rounded-lg border border-purple-500 bg-slate-900 p-4 text-sm text-slate-300 font-mono leading-relaxed focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y"
                               placeholder="대본 내용을 입력하세요..."
                             />
@@ -4552,7 +4611,19 @@ export default function MyContentPage() {
                 {jobs.map((job) => (
                   <div
                     key={job.id}
-                    className="group rounded-xl border border-white/10 bg-white/5 backdrop-blur transition hover:bg-white/10 hover:border-purple-500/50 overflow-hidden"
+                    id={`video-${job.id}`}
+                    className={`group rounded-xl border transition overflow-hidden ${
+                      highlightedId === job.id
+                        ? 'border-yellow-500 bg-yellow-500/20 animate-pulse'
+                        : 'border-white/10 bg-white/5 backdrop-blur hover:bg-white/10 hover:border-purple-500/50'
+                    }`}
+                    ref={(el) => {
+                      if (el && highlightedId === job.id) {
+                        setTimeout(() => {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 300);
+                      }
+                    }}
                   >
                     <div className="flex flex-col md:flex-row gap-4 p-4">
                       {/* 썸네일 영역 - 왼쪽 */}
@@ -5030,7 +5101,8 @@ export default function MyContentPage() {
         )}
 
         {/* 쿠팡 탭 콘텐츠 */}
-        {activeTab === 'coupang' && (
+        {/* Coupang 탭 제거됨 */}
+        {false && (
           <div className="space-y-6">
             {/* Sub-tabs */}
             <div className="flex gap-3 border-b border-white/10 pb-4">
@@ -5439,6 +5511,78 @@ export default function MyContentPage() {
       )}
 
       {/* 대본 변환 모달 */}
+      {/* 이미지 크롤링 모달 */}
+      {imageCrawlModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-slate-800 shadow-2xl">
+            <div className="border-b border-slate-700 p-6">
+              <h2 className="text-xl font-bold text-white">🎨 이미지 생성 방식 선택</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                "{imageCrawlModal.title}" 이미지를 어떻게 생성하시겠습니까?
+              </p>
+            </div>
+
+            <div className="p-6 space-y-3">
+              {/* ImageFX + Whisk */}
+              <button
+                onClick={() => {
+                  handleImageCrawling(imageCrawlModal.scriptId, '', true);
+                  setImageCrawlModal(null);
+                }}
+                className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4 text-left font-semibold text-white transition hover:from-purple-700 hover:to-pink-700"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span>🎨 ImageFX + Whisk</span>
+                    </div>
+                    <p className="mt-1 text-xs text-white/80">
+                      첫 이미지를 ImageFX로 생성하여 일관된 인물 이미지 사용
+                    </p>
+                  </div>
+                  <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* Whisk만 사용 */}
+              <button
+                onClick={() => {
+                  handleImageCrawling(imageCrawlModal.scriptId, '', false);
+                  setImageCrawlModal(null);
+                }}
+                className="w-full rounded-lg bg-cyan-600 px-6 py-4 text-left font-semibold text-white transition hover:bg-cyan-700"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span>✨ Whisk만 사용</span>
+                      <span className="text-xs bg-white/20 px-2 py-0.5 rounded">기본</span>
+                    </div>
+                    <p className="mt-1 text-xs text-white/80">
+                      Whisk만 사용하여 이미지 생성 (빠르고 간단)
+                    </p>
+                  </div>
+                  <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+            </div>
+
+            <div className="border-t border-slate-700 p-6">
+              <button
+                onClick={() => setImageCrawlModal(null)}
+                className="w-full rounded-lg bg-slate-700 px-6 py-3 font-semibold text-white transition hover:bg-slate-600"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {conversionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl bg-slate-800 shadow-2xl">

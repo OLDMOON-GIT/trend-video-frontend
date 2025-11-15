@@ -783,6 +783,47 @@ export async function POST(request: NextRequest) {
 
           if (updatedContent) {
             await addLog(taskId, `✓ 대본 저장 완료! (${scriptContent.length} 글자)`);
+
+            // 상품 대본이면 자동으로 상품정보 대본도 생성
+            if (scriptType === 'product' && productInfo) {
+              await addLog(taskId, '🛍️ 상품정보 대본 자동 생성 시작...');
+              console.log('🛍️ 상품 대본 완료 → 상품정보 대본 자동 생성 시작');
+
+              try {
+                // 상품정보 대본 생성 요청
+                const productInfoTitle = `${title} - 상품 기입 정보`;
+                const productInfoResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Internal-Request': 'automation-system'
+                  },
+                  body: JSON.stringify({
+                    title: productInfoTitle,
+                    type: 'product-info',
+                    videoFormat: 'product-info',
+                    productInfo: productInfo,
+                    userId: currentUserId,
+                    useClaudeLocal: useClaudeLocal,
+                    scriptModel: scriptModel || model
+                  })
+                });
+
+                if (productInfoResponse.ok) {
+                  const productInfoData = await productInfoResponse.json();
+                  await addLog(taskId, `✅ 상품정보 대본 생성 시작됨 (ID: ${productInfoData.taskId})`);
+                  console.log('✅ 상품정보 대본 생성 요청 완료:', productInfoData.taskId);
+                } else {
+                  const errorData = await productInfoResponse.json();
+                  await addLog(taskId, `⚠️ 상품정보 대본 생성 실패: ${errorData.error}`);
+                  console.error('❌ 상품정보 대본 생성 실패:', errorData.error);
+                }
+              } catch (productInfoError: any) {
+                await addLog(taskId, `⚠️ 상품정보 대본 생성 오류: ${productInfoError.message}`);
+                console.error('❌ 상품정보 대본 생성 오류:', productInfoError);
+              }
+            }
+
             await addLog(taskId, '🎉 모든 작업 완료!');
             console.log('✅ 대본이 contents 테이블에 저장됨:', {
               contentId: taskId,

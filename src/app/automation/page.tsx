@@ -19,7 +19,16 @@ function AutomationPageContent() {
     category: getSelectedCategory(),
     tags: '',
     productUrl: '',
-    scheduleTime: '',
+    scheduleTime: (() => {
+      // 현재 시간 + 3분을 기본값으로 설정
+      const now = new Date(Date.now() + 3 * 60 * 1000);
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    })(),
     channel: '',
     scriptMode: 'chrome',
     mediaMode: getSelectedMediaMode(),
@@ -48,6 +57,8 @@ function AutomationPageContent() {
   const [draggingCardIndexFor, setDraggingCardIndexFor] = useState<Record<string, number | null>>({}); // 스케줄별 드래그 중인 카드 인덱스
   const [uploadBoxOpenFor, setUploadBoxOpenFor] = useState<Record<string, boolean>>({}); // 스케줄별 업로드 박스 열림 여부
   const [downloadMenuFor, setDownloadMenuFor] = useState<Record<string, boolean>>({}); // 다운로드 메뉴 열림 여부
+  const [isSubmitting, setIsSubmitting] = useState(false); // 제목 추가 중복 방지
+  const [currentProductData, setCurrentProductData] = useState<any>(null); // 현재 상품 정보
 
   // localStorage에서 선택한 채널 불러오기
   function getSelectedChannel(): string {
@@ -139,12 +150,61 @@ function AutomationPageContent() {
     loadRecentTitles();
     fetchChannels();
 
-    // URL 파라미터로 titleId가 있으면 자동으로 수정 모드
-    const titleId = searchParams.get('titleId');
-    if (titleId) {
-      setEditingId(titleId);
+    // 상품관리에서 왔는지 체크
+    const fromProduct = searchParams.get('fromProduct');
+    if (fromProduct === 'true') {
+      // localStorage에서 상품 정보 읽기
+      const prefillData = localStorage.getItem('automation_prefill');
+      if (prefillData) {
+        try {
+          const data = JSON.parse(prefillData);
+
+          // 폼 열기
+          setShowAddForm(true);
+
+          // 폼에 상품 정보 미리 채우기
+          setNewTitle(prev => ({
+            ...prev,
+            title: data.title ? `[광고] ${data.title}` : '[광고] ',
+            type: data.type || 'product',
+            category: data.category || '상품',
+            tags: data.tags || '',
+            productUrl: data.productUrl || '',
+            scriptMode: 'chrome',
+            mediaMode: 'imagen3',
+            model: 'gpt-4o',
+            youtubeSchedule: 'immediate'
+          }));
+
+          // productData를 별도로 저장 (대본 생성 시 사용)
+          if (data.productData) {
+            const productDataStr = JSON.stringify(data.productData);
+            localStorage.setItem('current_product_data', productDataStr);
+            // state에도 저장하여 UI에 표시
+            setCurrentProductData(data.productData);
+          }
+
+          // 사용 후 삭제
+          localStorage.removeItem('automation_prefill');
+
+          console.log('✅ 상품 정보가 폼에 자동 입력되었습니다:', data);
+        } catch (error) {
+          console.error('❌ 상품 정보 파싱 실패:', error);
+        }
+      }
     }
   }, [searchParams]);
+
+  // titleId 파라미터 처리 (titles 로드 후)
+  useEffect(() => {
+    const titleId = searchParams.get('titleId');
+    if (titleId && titles.length > 0) {
+      const targetTitle = titles.find((t: any) => t.id === titleId);
+      if (targetTitle) {
+        startEdit(targetTitle); // 수정 모드로 전환 + editForm 로드
+      }
+    }
+  }, [searchParams, titles]);
 
   // 진행 중인 제목이 있으면 5초마다 데이터 새로고침 (완료/실패는 제외)
   useEffect(() => {
@@ -272,6 +332,12 @@ function AutomationPageContent() {
   }
 
   async function addTitle() {
+    // 중복 제출 방지
+    if (isSubmitting) {
+      console.warn('⚠️ 이미 제목 추가 중입니다. 중복 제출을 방지합니다.');
+      return;
+    }
+
     if (!newTitle.title || !newTitle.type) {
       alert('제목과 타입은 필수입니다');
       return;
@@ -282,7 +348,29 @@ function AutomationPageContent() {
       return;
     }
 
+    // 🔍 과거 시간 검증 (제목 추가 전에!)
+    if (newTitle.scheduleTime) {
+      const scheduledDate = new Date(newTitle.scheduleTime);
+      const now = new Date();
+      if (scheduledDate < now) {
+        alert('⚠️ 과거 시간으로 스케줄을 설정할 수 없습니다.');
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+
     try {
+      // 상품 정보가 있으면 포함
+      let productData = null;
+      if (newTitle.type === 'product') {
+        const savedProductData = localStorage.getItem('current_product_data');
+        if (savedProductData) {
+          productData = savedProductData; // 이미 JSON 문자열
+          localStorage.removeItem('current_product_data'); // 사용 후 삭제
+        }
+      }
+
       const response = await fetch('/api/automation/titles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -292,6 +380,7 @@ function AutomationPageContent() {
           category: newTitle.category,
           tags: newTitle.tags,
           productUrl: newTitle.productUrl,
+          productData: productData,  // 상품 정보 추가
           channel: newTitle.channel,
           scriptMode: newTitle.scriptMode,
           mediaMode: newTitle.mediaMode,
@@ -306,7 +395,7 @@ function AutomationPageContent() {
       const data = await response.json();
       const titleId = data.titleId;
 
-      // 스케줄 시간이 입력되었으면 스케줄 추가
+      // 스케줄 시간이 입력되었으면 스케줄 추가 (이미 검증 완료)
       if (newTitle.scheduleTime) {
         await addScheduleToTitle(titleId, newTitle.scheduleTime);
       }
@@ -331,10 +420,13 @@ function AutomationPageContent() {
         model: getSelectedModel() // localStorage에서 불러온 모델 유지
       });
       setShowAddForm(false);
+      setCurrentProductData(null); // 상품정보 초기화
       await fetchData();
       setQueueTab('scheduled'); // 예약 큐 탭으로 자동 전환
     } catch (error) {
       console.error('Failed to add title:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -444,6 +536,14 @@ function AutomationPageContent() {
 
   async function updateSchedule(scheduleId: string, scheduledTime: string) {
     try {
+      // 과거 시간 검증
+      const scheduledDate = new Date(scheduledTime);
+      const now = new Date();
+      if (scheduledDate < now) {
+        alert('⚠️ 과거 시간으로 스케줄을 설정할 수 없습니다.');
+        return;
+      }
+
       const response = await fetch('/api/automation/schedules', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -596,6 +696,10 @@ function AutomationPageContent() {
   }
 
   async function forceExecute(titleId: string, title: string) {
+    // 확인 메시지
+    if (!confirm(`"${title}"\n\n즉시 실행하시겠습니까?`)) {
+      return;
+    }
 
     try {
       const response = await fetch('/api/automation/force-execute', {
@@ -607,7 +711,6 @@ function AutomationPageContent() {
       const data = await response.json();
 
       if (response.ok) {
-        alert(`✅ 즉시 실행 시작: ${title}`);
         await fetchData();
         setQueueTab('processing'); // 진행 큐 탭으로 자동 전환
       } else {
@@ -962,6 +1065,7 @@ function AutomationPageContent() {
                   >
                     <option value="">🎭 카테고리 선택 (선택)</option>
                     <option value="일반">일반</option>
+                    <option value="상품">상품</option>
                     <option value="북한탈북자사연">북한탈북자사연</option>
                     <option value="막장드라마">막장드라마</option>
                     <option value="감동실화">감동실화</option>
@@ -980,13 +1084,47 @@ function AutomationPageContent() {
                 </div>
 
                 {newTitle.type === 'product' && (
-                  <input
-                    type="url"
-                    placeholder="상품 URL (선택)"
-                    value={newTitle.productUrl}
-                    onChange={(e) => setNewTitle({ ...newTitle, productUrl: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                  />
+                  <>
+                    {/* 상품정보가 없을 때만 URL 입력 필드 표시 */}
+                    {!currentProductData && (
+                      <input
+                        type="url"
+                        placeholder="상품 URL (선택)"
+                        value={newTitle.productUrl}
+                        onChange={(e) => setNewTitle({ ...newTitle, productUrl: e.target.value })}
+                        className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                      />
+                    )}
+
+                    {/* 상품정보 미리보기 */}
+                    {currentProductData && (
+                      <div className="rounded-lg bg-emerald-900/30 border border-emerald-500/50 p-4">
+                        <p className="text-sm font-semibold text-emerald-400 mb-2">🛍️ 상품 정보 미리보기</p>
+                        <div className="space-y-1.5 text-xs">
+                          {currentProductData.title && (
+                            <p className="text-slate-300">
+                              <span className="font-semibold text-slate-400">제목:</span> {currentProductData.title}
+                            </p>
+                          )}
+                          {currentProductData.thumbnail && (
+                            <p className="text-slate-400 truncate">
+                              <span className="font-semibold">썸네일:</span> {currentProductData.thumbnail}
+                            </p>
+                          )}
+                          {currentProductData.product_link && (
+                            <p className="text-blue-400 truncate">
+                              <span className="font-semibold text-slate-400">링크:</span> {currentProductData.product_link}
+                            </p>
+                          )}
+                          {currentProductData.description && (
+                            <p className="text-slate-400 line-clamp-2">
+                              <span className="font-semibold">설명:</span> {currentProductData.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* 채널, 대본 생성, 미디어 생성 방식 */}
@@ -1070,7 +1208,22 @@ function AutomationPageContent() {
                   <label className="text-xs text-slate-400 block mb-1">유튜브 업로드</label>
                   <select
                     value={newTitle.youtubeSchedule}
-                    onChange={(e) => setNewTitle(prev => ({ ...prev, youtubeSchedule: e.target.value }))}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === 'scheduled') {
+                        // 현재 시간 + 3분을 기본값으로 설정 (로컬 시간)
+                        const now = new Date(Date.now() + 3 * 60 * 1000);
+                        const year = now.getFullYear();
+                        const month = String(now.getMonth() + 1).padStart(2, '0');
+                        const day = String(now.getDate()).padStart(2, '0');
+                        const hours = String(now.getHours()).padStart(2, '0');
+                        const minutes = String(now.getMinutes()).padStart(2, '0');
+                        const defaultTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+                        setNewTitle(prev => ({ ...prev, youtubeSchedule: value, youtubePublishAt: defaultTime }));
+                      } else {
+                        setNewTitle(prev => ({ ...prev, youtubeSchedule: value }));
+                      }
+                    }}
                     className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                   >
                     <option value="immediate">즉시 업로드</option>
@@ -1110,13 +1263,15 @@ function AutomationPageContent() {
               <div className="flex gap-2">
                 <button
                   onClick={addTitle}
-                  className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition"
+                  disabled={isSubmitting}
+                  className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition"
                 >
-                  추가
+                  {isSubmitting ? '추가 중...' : '추가'}
                 </button>
                 <button
                   onClick={() => {
                     setShowAddForm(false);
+                    setCurrentProductData(null); // 상품정보 초기화
                     // 채널 선택은 유지 (localStorage 기반)
                     const currentChannel = newTitle.channel;
                     setNewTitle({
@@ -1614,7 +1769,7 @@ function AutomationPageContent() {
                   >
                     {/* 제목 정보 */}
                     <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <h4 className="text-white font-semibold text-lg">{title.title}</h4>
                         <div className="flex flex-wrap gap-2 mt-1">
                           <span className={`text-xs px-2 py-0.5 rounded ${
@@ -1675,14 +1830,8 @@ function AutomationPageContent() {
                             </span>
                           )}
                         </div>
-                        {title.product_url && (
-                          <p className="text-xs text-blue-400 mt-1">🔗 {title.product_url}</p>
-                        )}
-                        {title.tags && (
-                          <p className="text-xs text-slate-500 mt-1">🏷️ {title.tags}</p>
-                        )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-shrink-0 ml-4">
                         {/* 강제실행/재시도/중지 버튼 */}
                         {title.status === 'processing' && (
                           <button
@@ -1728,8 +1877,8 @@ function AutomationPageContent() {
                         >
                           {expandedLogsFor === title.id ? '📋 닫기' : '📋 로그'}
                         </button>
-                        {/* 수정 버튼 (업로드 대기 상태가 아닐 때만) */}
-                        {title.status !== 'waiting_for_upload' && (
+                        {/* 수정 버튼 (완료/업로드 대기 상태가 아닐 때만) */}
+                        {title.status !== 'waiting_for_upload' && title.status !== 'completed' && (
                           <button
                             onClick={() => startEdit(title)}
                             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition"
@@ -1743,8 +1892,8 @@ function AutomationPageContent() {
                         >
                           삭제
                         </button>
-                        {/* 즉시 실행 버튼 (업로드 대기 상태가 아닐 때만) */}
-                        {title.status !== 'waiting_for_upload' && (
+                        {/* 즉시 실행 버튼 (완료/업로드 대기 상태가 아닐 때만) */}
+                        {title.status !== 'waiting_for_upload' && title.status !== 'completed' && (
                           <button
                             onClick={() => forceExecute(title.id, title.title)}
                             className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm transition"
@@ -1767,58 +1916,35 @@ function AutomationPageContent() {
                             </button>
                           );
                         })()}
-                        {/* 다운로드 버튼 (완료 상태이고 script_id가 있을 때만) */}
-                        {(() => {
+                        {/* 대본/영상 버튼 (완료 상태일 때만) */}
+                        {title.status === 'completed' && (() => {
                           const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
-                          return title.status === 'completed' && scriptId && (
-                            <div className="relative">
-                              <button
-                                onClick={() => setDownloadMenuFor(prev => ({ ...prev, [title.id]: !prev[title.id] }))}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm transition"
-                              >
-                                ⬇️ 다운로드
-                              </button>
-                              {downloadMenuFor[title.id] && (
-                                <div className="absolute top-full mt-1 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 min-w-[150px]">
-                                  <button
-                                    onClick={async () => {
-                                      await handleDownload(scriptId, 'video', title.title);
-                                      setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
-                                    }}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-700 text-white text-sm transition"
-                                  >
-                                    🎬 영상만
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      await handleDownload(scriptId, 'script', title.title);
-                                      setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
-                                    }}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-700 text-white text-sm transition"
-                                  >
-                                    📄 대본만
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      await handleDownload(scriptId, 'materials', title.title);
-                                      setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
-                                    }}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-700 text-white text-sm transition"
-                                  >
-                                    🖼️ 재료만
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      await handleDownload(scriptId, 'all', title.title);
-                                      setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
-                                    }}
-                                    className="w-full text-left px-4 py-2 hover:bg-slate-700 text-white text-sm transition rounded-b-lg"
-                                  >
-                                    📦 전체 (ZIP)
-                                  </button>
-                                </div>
+                          const videoId = titleSchedules.find((s: any) => s.video_id)?.video_id;
+                          return (
+                            <>
+                              {scriptId && (
+                                <button
+                                  onClick={() => {
+                                    window.location.href = `/my-content?tab=scripts&id=${scriptId}`;
+                                  }}
+                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition"
+                                  title="대본 보기"
+                                >
+                                  📄 대본
+                                </button>
                               )}
-                            </div>
+                              {videoId && (
+                                <button
+                                  onClick={() => {
+                                    window.location.href = `/my-content?tab=videos&id=${videoId}`;
+                                  }}
+                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-sm transition"
+                                  title="영상 보기"
+                                >
+                                  🎬 영상
+                                </button>
+                              )}
+                            </>
                           );
                         })()}
                         {/* 업로드 버튼 (waiting_for_upload 또는 failed 상태이고 script_id가 있을 때만) */}
@@ -1830,6 +1956,37 @@ function AutomationPageContent() {
                               className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-sm transition"
                             >
                               {uploadBoxOpenFor[title.id] ? '📤 닫기' : '📤 업로드'}
+                            </button>
+                          );
+                        })()}
+                        {/* 대본 보기 버튼 (completed 상태이고 script_id가 있을 때만) */}
+                        {(() => {
+                          const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
+                          return title.status === 'completed' && scriptId && (
+                            <button
+                              onClick={() => {
+                                window.location.href = '/my-content?tab=scripts';
+                              }}
+                              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-sm transition"
+                              title="내 콘텐츠에서 대본 보기"
+                            >
+                              📝 대본
+                            </button>
+                          );
+                        })()}
+                        {/* 영상 보기 버튼 (completed 상태이고 video_id가 있을 때만) */}
+                        {(() => {
+                          const schedule = titleSchedules.find((s: any) => s.video_id);
+                          const videoId = schedule?.video_id;
+                          return title.status === 'completed' && videoId && (
+                            <button
+                              onClick={() => {
+                                window.location.href = '/my-content?tab=videos';
+                              }}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-sm transition"
+                              title="내 콘텐츠에서 영상 보기"
+                            >
+                              🎬 영상
                             </button>
                           );
                         })()}
@@ -1864,6 +2021,77 @@ function AutomationPageContent() {
                       </div>
                     </div>
 
+                    {/* 상품 정보 및 YouTube 정보 */}
+                    {title.product_url && (
+                      <a
+                        href={title.product_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-400 hover:text-blue-300 underline mb-2 inline-block"
+                      >
+                        🔗 {title.product_url}
+                      </a>
+                    )}
+                    {title.product_data && (() => {
+                      try {
+                        const productData = JSON.parse(title.product_data);
+                        return (
+                          <div className="mb-3 p-2 bg-slate-700/50 rounded border border-slate-600">
+                            <p className="text-xs font-semibold text-emerald-400 mb-1">🛍️ 상품 정보</p>
+                            {productData.title && <p className="text-xs text-slate-300">제목: {productData.title}</p>}
+                            {productData.thumbnail && <p className="text-xs text-slate-400 truncate">썸네일: {productData.thumbnail}</p>}
+                            {productData.product_link && (
+                              <p className="text-xs truncate">
+                                링크: <a
+                                  href={productData.product_link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:text-blue-300 underline"
+                                >
+                                  {productData.product_link}
+                                </a>
+                              </p>
+                            )}
+                            {productData.description && <p className="text-xs text-slate-400 mt-1 line-clamp-2">설명: {productData.description}</p>}
+                          </div>
+                        );
+                      } catch (e) {
+                        return null;
+                      }
+                    })()}
+                    {title.tags && (
+                      <p className="text-xs text-slate-500 mb-3">🏷️ {title.tags}</p>
+                    )}
+                    {/* YouTube 정보 (완료 상태일 때만 표시) */}
+                    {title.status === 'completed' && (() => {
+                      const schedule = titleSchedules.find((s: any) => s.youtube_url || s.youtube_upload_id);
+                      if (!schedule) return null;
+
+                      return (
+                        <div className="mb-3 p-2 bg-red-900/30 rounded border border-red-500/30">
+                          <p className="text-xs font-semibold text-red-400 mb-1">📺 YouTube</p>
+                          {title.channel && (
+                            <p className="text-xs text-slate-300">채널: {title.channel}</p>
+                          )}
+                          {schedule.youtube_url && (
+                            <p className="text-xs truncate">
+                              링크: <a
+                                href={schedule.youtube_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-red-400 hover:text-red-300 underline"
+                              >
+                                {schedule.youtube_url}
+                              </a>
+                            </p>
+                          )}
+                          {schedule.youtube_upload_id && !schedule.youtube_url && (
+                            <p className="text-xs text-slate-400">업로드 ID: {schedule.youtube_upload_id}</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* 이미지 업로드 섹션 (업로드 버튼을 눌렀을 때만 표시) */}
                     {uploadBoxOpenFor[title.id] && (title.status === 'waiting_for_upload' || title.status === 'failed') && titleSchedules.find((s: any) => s.script_id)?.script_id && (
                       <div className="mb-3 p-6 bg-purple-900/30 border-2 border-purple-500 rounded-lg">
@@ -1892,24 +2120,36 @@ function AutomationPageContent() {
                           />
 
                           {/* 업로드 버튼 */}
-                          {uploadedImagesFor[title.id] && uploadedImagesFor[title.id].length > 0 && (
-                            <button
-                              onClick={() => {
-                                const schedule = titleSchedules.find((s: any) => s.script_id);
-                                if (schedule?.script_id) {
-                                  uploadImages(title.id, schedule.id, schedule.script_id);
-                                }
-                              }}
-                              disabled={uploadingFor === title.id}
-                              className={`w-full px-4 py-3 rounded-lg font-bold text-lg transition mt-4 ${
-                                uploadingFor === title.id
-                                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg'
-                              }`}
-                            >
-                              {uploadingFor === title.id ? '⏳ 업로드 중...' : '🚀 영상 제작'}
-                            </button>
-                          )}
+                          {uploadedImagesFor[title.id] && uploadedImagesFor[title.id].length > 0 && (() => {
+                            // 현재 title에 대한 대본 생성 pipeline 찾기
+                            const scriptSchedule = titleSchedules.find((s: any) =>
+                              s.script_id && (s.status === 'waiting_for_upload' || s.status === 'pending' || s.status === 'processing')
+                            );
+
+                            if (!scriptSchedule?.script_id) {
+                              return (
+                                <div className="mt-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-sm text-red-200">
+                                  ⚠️ script_id를 찾을 수 없습니다. 대본 생성이 완료되지 않았을 수 있습니다.
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <button
+                                onClick={() => {
+                                  uploadImages(title.id, scriptSchedule.id, scriptSchedule.script_id);
+                                }}
+                                disabled={uploadingFor === title.id}
+                                className={`w-full px-4 py-3 rounded-lg font-bold text-lg transition mt-4 ${
+                                  uploadingFor === title.id
+                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg'
+                                }`}
+                              >
+                                {uploadingFor === title.id ? '⏳ 업로드 중...' : '🚀 영상 제작'}
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}
