@@ -678,7 +678,7 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
       body: JSON.stringify({
         videoPath,
         title: job.title || schedule.title,
-        description: job.title || schedule.title,
+        description: '', // 빈 문자열 (상품정보 대본이 있으면 자동으로 추가될 예정)
         tags: schedule.tags ? schedule.tags.split(',').map((t: string) => t.trim()) : [],
         privacy: schedule.youtube_schedule === 'immediate' ? 'public' : 'private', // immediate면 바로 공개, 아니면 private
         channelId: schedule.channel,
