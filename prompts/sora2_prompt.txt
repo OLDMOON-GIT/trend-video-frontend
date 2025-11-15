@@ -61,9 +61,14 @@
 
 【씬 구성: 총 4개 씬 (30초)】
 - **씬 0 (훅)**: 3초 - 충격적이고 강렬한 오프닝
-- **씬 1**: 9초 - 감정 몰입 (슬로우 모션 시작)
-- **씬 2**: 9초 - WTF 반전 (예상 못한 전개)
-- **씬 3**: 9초 - 중독성 있는 마무리 (여운)
+- **씬 1 (몰입)**: 9초 - 감정 몰입 유도
+- **씬 2 (반전)**: 9초 - WTF 반전 (예상 못한 전개)
+- **씬 3 (여운 + CTA)**: 9초 - **필수: 중독성 있는 마무리 후 "구독과 좋아요 부탁드립니다." 자연스럽게 포함**
+
+⚠️ **씬 3 CTA 필수 규칙:**
+- 반드시 씬 3 마지막에 "구독과 좋아요 부탁드립니다." 자연스럽게 포함
+- 여운 남기는 스토리 마무리 후 CTA 녹여내기
+- 생략 절대 금지
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -343,13 +348,13 @@
     },
     {
       "scene_id": "scene_03_addictive",
-      "scene_name": "중독 - 9초 다시보기 유도",
+      "scene_name": "여운 + CTA - 9초 다시보기 유도",
       "duration_seconds": 9,
       "word_count": 150,
       "format": "9:16 vertical",
       "key_emotion": "addictive/satisfying/rewarding",
       "sora_prompt": "Korean cinematic film, Vertical 9:16 format, portrait orientation, [중독성 있는 마무리 - 반복 시청 유도], full vertical composition with subject centered, [만족스러운 슬로우 모션 페이오프], satisfying magical lighting, slowly pulling away with satisfaction, addictive and rewarding mood, shot on 35mm film, shallow depth of field, mesmerizing bokeh, satisfying and vibrant color palette, mobile-optimized framing",
-      "narration": "[만족스럽고 기억에 남는 마무리 문장 - 약 150자]",
+      "narration": "⚠️ 필수: [만족스럽고 기억에 남는 마무리 - 약 100자] + '구독과 좋아요 부탁드립니다.' 자연스럽게 포함 (총 150자)",
       "technical_specs": {
         "resolution": "1080x1920",
         "aspect_ratio": "9:16",

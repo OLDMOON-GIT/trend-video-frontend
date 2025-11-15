@@ -45,11 +45,16 @@ function generateHMAC(method: string, url: string, accessKey: string, secretKey:
 }
 
 // 쿠팡 API 호출 함수
-async function callCoupangAPI(accessKey: string, secretKey: string, method: string, url: string) {
-  const { authorization } = generateHMAC(method, url, accessKey, secretKey);
+async function callCoupangAPI(accessKey: string, secretKey: string, method: string, fullUrl: string) {
+  // URL에서 PATH와 QUERY 분리
+  const [path, query] = fullUrl.split('?');
+
+  // HMAC 서명은 PATH만 사용 (쿼리 파라미터 제외)
+  const { authorization } = generateHMAC(method, path, accessKey, secretKey);
 
   const DOMAIN = 'https://api-gateway.coupang.com';
-  const response = await fetch(DOMAIN + url, {
+  // 실제 API 호출은 전체 URL 사용 (쿼리 포함)
+  const response = await fetch(DOMAIN + fullUrl, {
     method,
     headers: {
       'Authorization': authorization,
@@ -80,10 +85,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // 쿼리 파라미터
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get('categoryId') || '1001'; // 기본: 가전디지털
-    const limit = searchParams.get('limit') || '20';
+    // limit 파라미터는 쿠팡 API가 지원하지 않으므로 제거
 
-    // 쿠팡 베스트셀러 API 호출
-    const url = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/${categoryId}?limit=${limit}`;
+    // 쿠팡 베스트셀러 API 호출 (쿼리 파라미터 없음)
+    const url = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/${categoryId}`;
     const response = await callCoupangAPI(settings.accessKey, settings.secretKey, 'GET', url);
 
     console.log('🛒 쿠팡 베스트셀러 API 호출:', url);

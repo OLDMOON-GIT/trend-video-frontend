@@ -61,6 +61,47 @@ export async function GET(request: NextRequest) {
 
       console.log('📊 조회된 진행 상태 대본 개수:', tempScripts.length);
 
+      // 자동화 DB에서 스크립트 ID들의 큐 상태 조회 (진행중 + 완료 모두)
+      const automationDbPath = path.join(process.cwd(), 'data', 'automation.db');
+      let automationDb: Database.Database | null = null;
+      const queueStatusMap: Record<string, any> = {};
+
+      try {
+        automationDb = new Database(automationDbPath);
+        const allScriptIds = [...tempScripts.map(s => s.id), ...allScripts.map(s => s.id)];
+
+        if (allScriptIds.length > 0) {
+          const placeholders = allScriptIds.map(() => '?').join(',');
+          const queueQuery = `
+            SELECT script_id, status, scheduled_time
+            FROM video_schedules
+            WHERE script_id IN (${placeholders})
+            ORDER BY created_at DESC
+          `;
+          const queueRows = automationDb.prepare(queueQuery).all(...allScriptIds) as any[];
+
+          queueRows.forEach((row: any) => {
+            if (!queueStatusMap[row.script_id]) {
+              queueStatusMap[row.script_id] = {
+                inQueue: true,
+                queueStatus: row.status,
+                scheduledTime: row.scheduled_time
+              };
+            }
+          });
+        }
+      } catch (autoError) {
+        console.warn('⚠️ 자동화 큐 상태 조회 실패 (무시됨):', autoError);
+      } finally {
+        if (automationDb) {
+          try {
+            automationDb.close();
+          } catch (e) {
+            console.error('⚠️ 자동화 DB close 실패:', e);
+          }
+        }
+      }
+
       // tempScripts를 Script 형식으로 변환
       const tempScriptsConverted = tempScripts.map((row: any) => {
         const logs = row.logs ? JSON.parse(row.logs) : [];
@@ -83,6 +124,9 @@ export async function GET(request: NextRequest) {
           progress = 0;
         }
 
+        // 자동화 큐 상태 추가
+        const queueInfo = queueStatusMap[row.id];
+
         return {
           id: row.id,
           userId: user.userId, // 현재 사용자로 설정 (scripts_temp에는 userId가 없음)
@@ -97,7 +141,9 @@ export async function GET(request: NextRequest) {
           useClaudeLocal: row.useClaudeLocal === 1,
           model: row.model || 'claude',
           createdAt: row.createdAt,
-          updatedAt: row.createdAt
+          updatedAt: row.createdAt,
+          // 자동화 큐 정보
+          automationQueue: queueInfo
         };
       });
 
@@ -107,6 +153,9 @@ export async function GET(request: NextRequest) {
         const logsStmt = db!.prepare('SELECT log_message FROM content_logs WHERE content_id = ? ORDER BY created_at');
         const logRows = logsStmt.all(row.id) as any[];
         const logs = logRows.map(l => l.log_message);
+
+        // 자동화 큐 상태 추가
+        const queueInfo = queueStatusMap[row.id];
 
         return {
           id: row.id,
@@ -130,7 +179,9 @@ export async function GET(request: NextRequest) {
           isRegenerated: row.is_regenerated === 1,  // 재생성 여부
           category: row.category,  // 카테고리
           createdAt: row.created_at,
-          updatedAt: row.updated_at || row.created_at
+          updatedAt: row.updated_at || row.created_at,
+          // 자동화 큐 정보
+          automationQueue: queueInfo
         };
       });
 
@@ -224,7 +275,32 @@ export async function DELETE(request: NextRequest) {
     try {
       db = new Database(dbPath);
 
-      // 1. contents 테이블에서 삭제 시도 (소유자 확인 포함)
+      // 1. 자동화 데이터베이스에서 해당 스크립트와 연결된 스케줄 취소
+      const automationDbPath = path.join(process.cwd(), 'data', 'automation.db');
+      let automationDb: Database.Database | null = null;
+
+      try {
+        automationDb = new Database(automationDbPath);
+        const cancelQuery = `
+          UPDATE video_schedules
+          SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+          WHERE script_id = ? AND status IN ('pending', 'processing')
+        `;
+        const cancelResult = automationDb.prepare(cancelQuery).run(scriptId);
+        console.log('📊 자동화 스케줄 취소 결과:', { changes: cancelResult.changes });
+      } catch (autoError) {
+        console.warn('⚠️ 자동화 DB 업데이트 실패 (무시됨):', autoError);
+      } finally {
+        if (automationDb) {
+          try {
+            automationDb.close();
+          } catch (e) {
+            console.error('⚠️ 자동화 DB close 실패:', e);
+          }
+        }
+      }
+
+      // 2. contents 테이블에서 삭제 시도 (소유자 확인 포함)
       const deleteQuery = 'DELETE FROM contents WHERE id = ? AND user_id = ?';
       console.log('🔍 실행할 쿼리:', deleteQuery);
       console.log('🔍 파라미터:', { id: scriptId, user_id: user.userId });
@@ -242,7 +318,7 @@ export async function DELETE(request: NextRequest) {
         });
       }
 
-      // 2. contents에 없으면 scripts_temp에서 삭제 시도
+      // 3. contents에 없으면 scripts_temp에서 삭제 시도
       console.log('⏭️ contents에 없음. scripts_temp에서 시도...');
       const deleteTempQuery = 'DELETE FROM scripts_temp WHERE id = ?';
       const tempStmt = db.prepare(deleteTempQuery);

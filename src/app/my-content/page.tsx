@@ -28,6 +28,11 @@ interface Script {
   isRegenerated?: boolean;    // 재생성 여부
   createdAt: string;
   updatedAt: string;
+  automationQueue?: {         // 자동화 큐 정보
+    inQueue: boolean;
+    queueStatus: string;
+    scheduledTime?: string;
+  };
 }
 
 interface Job {
@@ -46,7 +51,7 @@ interface Job {
   sourceContentId?: string;  // 원본 대본 ID
 }
 
-type TabType = 'all' | 'videos' | 'scripts' | 'published' | 'settings';
+type TabType = 'all' | 'videos' | 'scripts' | 'coupang' | 'published' | 'settings';
 
 interface YouTubeChannel {
   id: string;
@@ -78,6 +83,39 @@ interface YouTubeUpload {
   publishedAt: string;
   createdAt: string;
 }
+
+// Coupang 인터페이스들
+interface CoupangSettings {
+  accessKey: string;
+  secretKey: string;
+  trackingId: string;
+  isConnected: boolean;
+  lastChecked?: string;
+}
+
+interface Product {
+  productId: string;
+  productName: string;
+  productPrice: number;
+  productImage: string;
+  productUrl: string;
+  categoryName: string;
+  isRocket: boolean;
+}
+
+interface ShortLink {
+  id: string;
+  productName: string;
+  shortUrl: string;
+  productUrl?: string;
+  imageUrl?: string;
+  category?: string;
+  price?: number;
+  clicks: number;
+  createdAt: string;
+}
+
+type CoupangSubTabType = 'bestsellers' | 'links' | 'search';
 
 // 복사 가능한 에러 메시지 컴포넌트
 function ErrorMessage({ message }: { message: string }) {
@@ -118,7 +156,7 @@ export default function MyContentPage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab') as TabType;
-    if (tab && ['all', 'videos', 'scripts', 'published', 'settings'].includes(tab)) {
+    if (tab && ['all', 'videos', 'scripts', 'coupang', 'published', 'settings'].includes(tab)) {
       setActiveTab(tab);
     }
   }, []);
@@ -218,6 +256,30 @@ export default function MyContentPage() {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // Coupang Settings state
+  const [coupangSettings, setCoupangSettings] = useState<CoupangSettings>({
+    accessKey: '',
+    secretKey: '',
+    trackingId: '',
+    isConnected: false
+  });
+  const [isSavingCoupang, setIsSavingCoupang] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+
+  // Coupang Products state
+  const [bestsellerProducts, setBestsellerProducts] = useState<Product[]>([]);
+  const [isFetchingBestsellers, setIsFetchingBestsellers] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Coupang Links state
+  const [generatedLinks, setGeneratedLinks] = useState<ShortLink[]>([]);
+
+  // Coupang Tab state
+  const [coupangSubTab, setCoupangSubTab] = useState<CoupangSubTabType>('bestsellers');
 
   // 이미지 크롤링 상태
   const imageCrawlingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -516,6 +578,14 @@ export default function MyContentPage() {
     return () => clearInterval(interval);
   }, [user, activeTab, scripts, jobs]);
 
+  // Load Coupang settings and links when user is loaded or activeTab changes to coupang
+  useEffect(() => {
+    if (user && activeTab === 'coupang') {
+      loadCoupangSettings();
+      loadCoupangLinks();
+    }
+  }, [user, activeTab]);
+
   const checkAuth = async () => {
     try {
       const response = await fetch('/api/auth/session', {
@@ -722,6 +792,226 @@ export default function MyContentPage() {
 
   const toggleContent = (scriptId: string) => {
     setExpandedScriptId(expandedScriptId === scriptId ? null : scriptId);
+  };
+
+  // ===== Coupang 관련 함수 =====
+  const getSessionId = () => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sessionId');
+    }
+    return null;
+  };
+
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('클립보드에 복사되었습니다!');
+  };
+
+  const loadCoupangSettings = async () => {
+    try {
+      const response = await fetch('/api/coupang/settings', {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCoupangSettings(data.settings || coupangSettings);
+      }
+    } catch (error) {
+      console.error('쿠팡 설정 로드 실패:', error);
+    }
+  };
+
+  const saveCoupangSettings = async () => {
+    setIsSavingCoupang(true);
+    try {
+      const response = await fetch('/api/coupang/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(coupangSettings)
+      });
+
+      if (response.ok) {
+        toast.success('쿠팡 설정이 저장되었습니다.');
+      } else {
+        throw new Error('저장 실패');
+      }
+    } catch (error) {
+      toast.error('쿠팡 설정 저장에 실패했습니다.');
+    } finally {
+      setIsSavingCoupang(false);
+    }
+  };
+
+  const testCoupangConnection = async () => {
+    setTestingConnection(true);
+    try {
+      const response = await fetch('/api/coupang/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(coupangSettings)
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const updatedSettings = { ...coupangSettings, isConnected: true, lastChecked: new Date().toISOString() };
+        setCoupangSettings(updatedSettings);
+
+        try {
+          const saveResponse = await fetch('/api/coupang/settings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders()
+            },
+            body: JSON.stringify(updatedSettings)
+          });
+
+          if (saveResponse.ok) {
+            toast.success('✅ 연결 성공 및 자동 저장 완료!');
+          } else {
+            toast.success('✅ 연결 성공! (자동 저장 실패 - 수동으로 저장하세요)');
+          }
+        } catch {
+          toast.success('✅ 연결 성공! (자동 저장 실패 - 수동으로 저장하세요)');
+        }
+      } else {
+        throw new Error(data.error || '연결 실패');
+      }
+    } catch (error: any) {
+      toast.error('❌ 연결 실패: ' + error.message);
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const fetchBestsellers = async (categoryId: string = '1001') => {
+    if (!coupangSettings.isConnected) {
+      toast.error('먼저 쿠팡 API를 연결하세요.');
+      return;
+    }
+
+    setIsFetchingBestsellers(true);
+    try {
+      const response = await fetch(`/api/coupang/products?categoryId=${categoryId}`, {
+        headers: getAuthHeaders()
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setBestsellerProducts(data.products || []);
+        toast.success(`✅ 베스트셀러 ${data.products.length}개 상품을 가져왔습니다!`);
+      } else {
+        throw new Error(data.error || '상품 조회 실패');
+      }
+    } catch (error: any) {
+      toast.error('❌ 베스트셀러 조회 실패: ' + error.message);
+    } finally {
+      setIsFetchingBestsellers(false);
+    }
+  };
+
+  const toggleProductSelection = (productId: string) => {
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  const sendSelectedToProductManagement = async () => {
+    if (selectedProducts.size === 0) {
+      toast.error('선택한 상품이 없습니다.');
+      return;
+    }
+
+    const selectedProductList = bestsellerProducts.filter(p => selectedProducts.has(p.productId));
+
+    try {
+      const response = await fetch('/api/coupang/products/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ products: selectedProductList })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success(data.message);
+        setSelectedProducts(new Set());
+        loadCoupangLinks();
+      } else {
+        throw new Error(data.error || '상품 전송 실패');
+      }
+    } catch (error: any) {
+      toast.error('❌ 상품 전송 실패: ' + error.message);
+    }
+  };
+
+  const searchCoupangProducts = async () => {
+    if (!searchKeyword.trim()) {
+      toast.error('검색어를 입력하세요.');
+      return;
+    }
+
+    if (!coupangSettings.isConnected) {
+      toast.error('먼저 API 키를 연결하세요.');
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch('/api/coupang/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ keyword: searchKeyword })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSearchResults(data.products || []);
+        toast.success(`${data.products?.length || 0}개의 상품을 찾았습니다.`);
+      } else {
+        throw new Error(data.error || '검색 실패');
+      }
+    } catch (error: any) {
+      toast.error('검색 실패: ' + error.message);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const loadCoupangLinks = async () => {
+    try {
+      const response = await fetch('/api/coupang/links', {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setGeneratedLinks(data.links || []);
+      }
+    } catch (error) {
+      console.error('링크 로드 실패:', error);
+    }
   };
 
   // ===== 영상 관련 함수 =====
@@ -1159,13 +1449,18 @@ export default function MyContentPage() {
 
   // 안전한 클립보드 복사 유틸리티 함수
   const safeCopyToClipboard = async (text: string): Promise<boolean> => {
+    console.log('[COPY] 복사 시도:', text.substring(0, 100) + '...');
+
     try {
       // Clipboard API 사용 가능 여부 확인
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        console.log('[COPY] navigator.clipboard API 사용');
         await navigator.clipboard.writeText(text);
+        console.log('[COPY] 복사 성공 (clipboard API)');
         return true;
       } else {
         // 폴백: document.execCommand 사용
+        console.log('[COPY] execCommand 폴백 사용');
         const textarea = document.createElement('textarea');
         textarea.value = text;
         textarea.style.position = 'fixed';
@@ -1174,12 +1469,14 @@ export default function MyContentPage() {
         textarea.select();
         const successful = document.execCommand('copy');
         document.body.removeChild(textarea);
+        console.log('[COPY] execCommand 결과:', successful);
         return successful;
       }
     } catch (error) {
-      console.error('Copy error:', error);
+      console.error('[COPY] 복사 실패:', error);
       // 폴백도 실패한 경우 한 번 더 시도
       try {
+        console.log('[COPY] 최종 폴백 시도');
         const textarea = document.createElement('textarea');
         textarea.value = text;
         textarea.style.position = 'fixed';
@@ -1188,9 +1485,10 @@ export default function MyContentPage() {
         textarea.select();
         const successful = document.execCommand('copy');
         document.body.removeChild(textarea);
+        console.log('[COPY] 최종 폴백 결과:', successful);
         return successful;
       } catch (err) {
-        console.error('Fallback copy error:', err);
+        console.error('[COPY] 최종 폴백도 실패:', err);
         return false;
       }
     }
@@ -1722,16 +2020,46 @@ export default function MyContentPage() {
   };
 
   const handleCopyScript = async (content: string, title: string) => {
-    if (!content || content.trim().length === 0) {
+    console.log('[COPY] handleCopyScript 호출됨');
+    console.log('[COPY] content type:', typeof content);
+    console.log('[COPY] content:', content);
+
+    if (!content) {
+      console.log('[COPY] content가 비어있음');
       toast.error('복사할 대본 내용이 없습니다.');
       return;
     }
 
-    const success = await safeCopyToClipboard(content);
+    // content가 객체인 경우 JSON.stringify
+    let textToCopy = content;
+    if (typeof content === 'object') {
+      console.log('[COPY] content가 객체입니다, JSON.stringify 시도');
+      try {
+        textToCopy = JSON.stringify(content, null, 2);
+      } catch (e) {
+        console.error('[COPY] JSON stringify error:', e);
+        textToCopy = String(content);
+      }
+    } else {
+      textToCopy = String(content);
+    }
+
+    console.log('[COPY] 최종 복사할 텍스트 길이:', textToCopy.length);
+
+    if (textToCopy.trim().length === 0) {
+      console.log('[COPY] 복사할 텍스트가 비어있음');
+      toast.error('복사할 대본 내용이 비어있습니다.');
+      return;
+    }
+
+    console.log('[COPY] safeCopyToClipboard 호출');
+    const success = await safeCopyToClipboard(textToCopy);
+    console.log('[COPY] 복사 결과:', success);
+
     if (success) {
       toast.success('대본이 클립보드에 복사되었습니다!');
     } else {
-      toast.error('복사 중 오류가 발생했습니다.');
+      toast.error('복사 중 오류가 발생했습니다. 브라우저 콘솔을 확인하세요.');
     }
   };
 
@@ -2224,6 +2552,16 @@ export default function MyContentPage() {
             }`}
           >
             📝 대본 {scriptsTotal > 0 && `(${scriptsTotal})`}
+          </button>
+          <button
+            onClick={() => handleTabChange('coupang')}
+            className={`rounded-lg px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
+              activeTab === 'coupang'
+                ? 'bg-purple-600 text-white'
+                : 'bg-white/10 text-slate-300 hover:bg-white/20'
+            }`}
+          >
+            🛒 쿠팡상품 {generatedLinks.length > 0 && `(${generatedLinks.length})`}
           </button>
           <button
             onClick={() => handleTabChange('published')}
@@ -2796,6 +3134,22 @@ export default function MyContentPage() {
                                 <div className="flex-shrink-0">
                                   {getStatusBadge(item.data.status)}
                                 </div>
+                                {/* 자동화 큐 배지 */}
+                                {(item.data as Script).automationQueue?.inQueue && (
+                                  <span className={`px-2 py-1 rounded text-xs font-bold shadow-lg flex-shrink-0 ${
+                                    (item.data as Script).automationQueue?.queueStatus === 'pending' ? 'bg-yellow-500 text-black' :
+                                    (item.data as Script).automationQueue?.queueStatus === 'processing' ? 'bg-blue-500 text-white' :
+                                    (item.data as Script).automationQueue?.queueStatus === 'waiting_for_upload' ? 'bg-purple-500 text-white' :
+                                    (item.data as Script).automationQueue?.queueStatus === 'cancelled' ? 'bg-gray-500 text-white' :
+                                    'bg-green-500 text-white'
+                                  }`}>
+                                    {(item.data as Script).automationQueue?.queueStatus === 'pending' ? '⏳ 큐 대기' :
+                                     (item.data as Script).automationQueue?.queueStatus === 'processing' ? '⚙️ 자동화 중' :
+                                     (item.data as Script).automationQueue?.queueStatus === 'waiting_for_upload' ? '📤 업로드 대기' :
+                                     (item.data as Script).automationQueue?.queueStatus === 'cancelled' ? '❌ 큐 취소됨' :
+                                     '✅ 자동화 완료'}
+                                  </span>
+                                )}
                               </div>
                               <div className="space-y-1 text-sm text-slate-400">
                                 <p className="flex items-center gap-2">
@@ -4671,6 +5025,365 @@ export default function MyContentPage() {
                   </div>
                 )}
               </>
+            )}
+          </div>
+        )}
+
+        {/* 쿠팡 탭 콘텐츠 */}
+        {activeTab === 'coupang' && (
+          <div className="space-y-6">
+            {/* Sub-tabs */}
+            <div className="flex gap-3 border-b border-white/10 pb-4">
+              <button
+                onClick={() => setCoupangSubTab('bestsellers')}
+                className={`rounded-lg px-6 py-2.5 text-sm font-semibold transition ${
+                  coupangSubTab === 'bestsellers'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                🏆 베스트셀러
+              </button>
+              <button
+                onClick={() => setCoupangSubTab('links')}
+                className={`rounded-lg px-6 py-2.5 text-sm font-semibold transition ${
+                  coupangSubTab === 'links'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                🔗 딥링크 목록
+              </button>
+              <button
+                onClick={() => setCoupangSubTab('search')}
+                className={`rounded-lg px-6 py-2.5 text-sm font-semibold transition ${
+                  coupangSubTab === 'search'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                🔍 상품 검색
+              </button>
+            </div>
+
+            {/* API Settings Section (always visible) */}
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">🔑 API 설정</h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    쿠팡 파트너스 API 키를 등록하고 연결하세요
+                  </p>
+                </div>
+                {coupangSettings.isConnected && (
+                  <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400">
+                    ✓ 연결됨
+                  </span>
+                )}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">
+                    Access Key
+                  </label>
+                  <input
+                    type="text"
+                    value={coupangSettings.accessKey}
+                    onChange={(e) => setCoupangSettings({ ...coupangSettings, accessKey: e.target.value })}
+                    placeholder="쿠팡 파트너스 Access Key"
+                    className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">
+                    Secret Key
+                  </label>
+                  <input
+                    type="password"
+                    value={coupangSettings.secretKey}
+                    onChange={(e) => setCoupangSettings({ ...coupangSettings, secretKey: e.target.value })}
+                    placeholder="쿠팡 파트너스 Secret Key"
+                    className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={saveCoupangSettings}
+                  disabled={isSavingCoupang}
+                  className="flex-1 rounded-lg bg-purple-600 px-4 py-2 font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50"
+                >
+                  {isSavingCoupang ? '저장 중...' : '💾 저장'}
+                </button>
+                <button
+                  onClick={testCoupangConnection}
+                  disabled={testingConnection || !coupangSettings.accessKey || !coupangSettings.secretKey}
+                  className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {testingConnection ? '테스트 중...' : '🔌 연결 테스트'}
+                </button>
+              </div>
+            </section>
+
+            {/* Bestsellers Sub-tab */}
+            {coupangSubTab === 'bestsellers' && (
+              <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white">🏆 베스트셀러 상품</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      카테고리별 베스트셀러를 가져와 등록하세요
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => fetchBestsellers('1001')}
+                    disabled={isFetchingBestsellers || !coupangSettings.isConnected}
+                    className="rounded-lg bg-purple-600 px-4 py-2 font-semibold text-white transition hover:bg-purple-500 disabled:opacity-50"
+                  >
+                    {isFetchingBestsellers ? '가져오는 중...' : '📥 베스트셀러 가져오기'}
+                  </button>
+                </div>
+
+                {!coupangSettings.isConnected && (
+                  <div className="rounded-lg bg-amber-500/20 p-3 text-sm text-amber-300">
+                    ⚠️ 먼저 API 키를 연결하세요.
+                  </div>
+                )}
+
+                {bestsellerProducts.length > 0 && (
+                  <>
+                    <div className="mb-4 flex items-center justify-between rounded-lg bg-blue-500/20 p-3">
+                      <p className="text-sm text-blue-300">
+                        {bestsellerProducts.length}개 상품 | {selectedProducts.size}개 선택됨
+                      </p>
+                      <button
+                        onClick={sendSelectedToProductManagement}
+                        disabled={selectedProducts.size === 0}
+                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        ✓ 선택한 상품 등록하기 ({selectedProducts.size})
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                      {bestsellerProducts.map((product) => (
+                        <div
+                          key={product.productId}
+                          className={`flex gap-4 rounded-lg border p-4 transition cursor-pointer ${
+                            selectedProducts.has(product.productId)
+                              ? 'border-purple-500 bg-purple-500/20'
+                              : 'border-white/10 bg-white/5 hover:bg-white/10'
+                          }`}
+                          onClick={() => toggleProductSelection(product.productId)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.has(product.productId)}
+                            onChange={() => {}}
+                            className="mt-1 h-5 w-5 cursor-pointer rounded border-white/20 bg-white/5 text-purple-600 focus:ring-2 focus:ring-purple-500"
+                          />
+                          <img
+                            src={product.productImage}
+                            alt={product.productName}
+                            className="h-20 w-20 rounded-lg object-cover"
+                          />
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-white">{product.productName}</h3>
+                            <p className="mt-1 text-sm text-slate-400">{product.categoryName}</p>
+                            <div className="mt-2 flex items-center gap-3">
+                              <span className="text-lg font-bold text-emerald-400">
+                                {product.productPrice.toLocaleString()}원
+                              </span>
+                              {product.isRocket && (
+                                <span className="rounded bg-blue-500 px-2 py-0.5 text-xs font-semibold text-white">
+                                  로켓배송
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
+
+            {/* Links List Sub-tab */}
+            {coupangSubTab === 'links' && (
+              <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">🔗 전체 딥링크 목록</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      생성된 모든 쿠팡 파트너스 링크를 관리하세요
+                    </p>
+                  </div>
+                  <span className="text-lg font-bold text-purple-400">총 {generatedLinks.length}개</span>
+                </div>
+
+                {generatedLinks.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-slate-500 mb-4">아직 생성된 링크가 없습니다.</p>
+                    <button
+                      onClick={() => setCoupangSubTab('bestsellers')}
+                      className="rounded-lg bg-purple-600 px-6 py-2 font-semibold text-white hover:bg-purple-500 transition"
+                    >
+                      베스트셀러에서 상품 추가하기
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {generatedLinks.map((link) => (
+                      <div
+                        key={link.id}
+                        className="rounded-xl border border-white/10 bg-white/5 p-6 hover:border-purple-500/50 transition-all hover:shadow-lg hover:shadow-purple-500/10"
+                      >
+                        <div className="flex gap-6">
+                          {link.imageUrl && (
+                            <img
+                              src={link.imageUrl}
+                              alt={link.productName}
+                              className="h-32 w-32 rounded-lg object-cover flex-shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-4 mb-3">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">
+                                  {link.productName}
+                                </h3>
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  {link.category && (
+                                    <span className="rounded-full bg-blue-500/20 px-3 py-1 text-sm font-semibold text-blue-300">
+                                      {link.category}
+                                    </span>
+                                  )}
+                                  {link.price && (
+                                    <span className="text-lg font-bold text-emerald-400">
+                                      ₩{link.price.toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-semibold text-slate-400 w-24">단축링크:</span>
+                                <input
+                                  type="text"
+                                  value={link.shortUrl}
+                                  readOnly
+                                  className="flex-1 rounded-lg bg-white/5 px-4 py-2.5 text-sm text-slate-300 border border-white/10 font-mono"
+                                />
+                                <button
+                                  onClick={() => copyToClipboard(link.shortUrl)}
+                                  className="rounded-lg bg-purple-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-purple-500 transition-colors flex-shrink-0"
+                                >
+                                  📋 복사
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-6 text-sm text-slate-400">
+                                <span className="flex items-center gap-2">
+                                  <span className="text-lg">👁️</span>
+                                  <span className="font-semibold text-white">{link.clicks}</span>
+                                  <span>클릭</span>
+                                </span>
+                                <span className="flex items-center gap-2">
+                                  <span className="text-lg">📅</span>
+                                  <span>{new Date(link.createdAt).toLocaleDateString('ko-KR', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Product Search Sub-tab */}
+            {coupangSubTab === 'search' && (
+              <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+                <h2 className="mb-4 text-xl font-bold text-white">🔍 상품 검색</h2>
+
+                <div className="mb-4 flex gap-3">
+                  <input
+                    type="text"
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && searchCoupangProducts()}
+                    placeholder="검색어를 입력하세요 (예: 노트북, 이어폰)"
+                    className="flex-1 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={searchCoupangProducts}
+                    disabled={isSearching || !coupangSettings.isConnected}
+                    className="rounded-lg bg-blue-600 px-6 py-2 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
+                  >
+                    {isSearching ? '검색 중...' : '검색'}
+                  </button>
+                </div>
+
+                {!coupangSettings.isConnected && (
+                  <div className="rounded-lg bg-amber-500/20 p-3 text-sm text-amber-300">
+                    ⚠️ 상품을 검색하려면 먼저 API 키를 연결하세요.
+                  </div>
+                )}
+
+                {searchResults.length > 0 && (
+                  <div className="mt-4 space-y-3 max-h-[600px] overflow-y-auto">
+                    {searchResults.map((product) => (
+                      <div
+                        key={product.productId}
+                        className="flex gap-4 rounded-lg border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+                      >
+                        <img
+                          src={product.productImage}
+                          alt={product.productName}
+                          className="h-20 w-20 rounded-lg object-cover"
+                        />
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-white">{product.productName}</h3>
+                          <p className="mt-1 text-sm text-slate-400">{product.categoryName}</p>
+                          <div className="mt-2 flex items-center gap-3">
+                            <span className="text-lg font-bold text-emerald-400">
+                              {product.productPrice.toLocaleString()}원
+                            </span>
+                            {product.isRocket && (
+                              <span className="rounded bg-blue-500 px-2 py-0.5 text-xs font-semibold text-white">
+                                로켓배송
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedProducts(new Set([product.productId]));
+                            sendSelectedToProductManagement();
+                          }}
+                          className="self-center rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+                        >
+                          🔗 링크 생성
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             )}
           </div>
         )}

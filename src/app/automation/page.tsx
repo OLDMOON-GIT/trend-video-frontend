@@ -681,27 +681,67 @@ function AutomationPageContent() {
     }
   }
 
-  // 이미지 파일 선택 핸들러
-  function handleImageSelect(scheduleId: string, files: FileList | null) {
-    if (!files || files.length === 0) return;
+  async function handleRegenerateScript(scriptId: string, titleId: string, title: string) {
+    try {
+      if (!confirm(`"${title}" 대본을 재생성하시겠습니까?\n\n기존 대본이 초기화되고 새로운 대본이 생성됩니다.`)) {
+        return;
+      }
 
-    const imageFiles = Array.from(files).filter(file =>
-      file.type.startsWith('image/')
-    );
+      console.log(`🔄 대본 재생성 시작: ${scriptId}`);
 
-    // 순번순으로 자동 정렬
-    const sorted = imageFiles.sort((a, b) => {
-      const getNumber = (filename: string) => {
-        const match = filename.match(/(\d+)/);
-        return match ? parseInt(match[1], 10) : 999999;
-      };
-      return getNumber(a.name) - getNumber(b.name);
-    });
+      const response = await fetch('/api/automation/regenerate-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ scriptId, titleId })
+      });
 
-    setUploadedImagesFor(prev => ({
-      ...prev,
-      [scheduleId]: sorted
-    }));
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`✅ ${data.message}`);
+        await fetchData();
+      } else {
+        alert(`❌ 재생성 실패: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Regenerate script error:', error);
+      alert('대본 재생성 중 오류가 발생했습니다.');
+    }
+  }
+
+  async function handleRegenerateVideo(videoId: string | null, scriptId: string | null, title: string) {
+    try {
+      if (!videoId && !scriptId) {
+        alert('재생성할 영상을 찾을 수 없습니다.');
+        return;
+      }
+
+      if (!confirm(`"${title}" 영상을 재생성하시겠습니까?\n\n기존 영상이 초기화되고 새로운 영상이 생성됩니다.`)) {
+        return;
+      }
+
+      console.log(`🔄 영상 재생성 시작: videoId=${videoId}, scriptId=${scriptId}`);
+
+      const response = await fetch('/api/automation/regenerate-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ videoId, scriptId })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`✅ ${data.message}`);
+        await fetchData();
+      } else {
+        alert(`❌ 재생성 실패: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Regenerate video error:', error);
+      alert('영상 재생성 중 오류가 발생했습니다.');
+    }
   }
 
   // 이미지 업로드 실행
@@ -1790,6 +1830,34 @@ function AutomationPageContent() {
                               className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-sm transition"
                             >
                               {uploadBoxOpenFor[title.id] ? '📤 닫기' : '📤 업로드'}
+                            </button>
+                          );
+                        })()}
+                        {/* 대본 재생성 버튼 (failed 또는 completed 상태이고 script_id가 있을 때만) */}
+                        {(() => {
+                          const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
+                          return (title.status === 'failed' || title.status === 'completed') && scriptId && (
+                            <button
+                              onClick={() => handleRegenerateScript(scriptId, title.id, title.title)}
+                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm transition"
+                              title="대본 재생성"
+                            >
+                              🔄 대본
+                            </button>
+                          );
+                        })()}
+                        {/* 영상 재생성 버튼 (failed 또는 completed 상태이고 video_id가 있을 때만) */}
+                        {(() => {
+                          const schedule = titleSchedules.find((s: any) => s.script_id || s.video_id);
+                          const videoId = schedule?.video_id;
+                          const scriptId = schedule?.script_id;
+                          return (title.status === 'failed' || title.status === 'completed') && (videoId || scriptId) && (
+                            <button
+                              onClick={() => handleRegenerateVideo(videoId || null, scriptId || null, title.title)}
+                              className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded text-sm transition"
+                              title="영상 재생성"
+                            >
+                              🔄 영상
                             </button>
                           );
                         })()}

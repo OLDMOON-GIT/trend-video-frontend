@@ -3,12 +3,27 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getCurrentUser } from '@/lib/session';
-import { createScript, updateScript } from '@/lib/db';
+import { createScript, updateScript, createApiCost } from '@/lib/db';
 import { parseJsonSafely } from '@/lib/json-utils';
 import { getDb } from '@/lib/sqlite';
 
 const SUPPORTED_MODELS = ['claude', 'chatgpt', 'gemini'] as const;
 type AIModel = (typeof SUPPORTED_MODELS)[number];
+
+// AI 모델별 가격 (2025년 기준, 달러/MTok)
+const AI_PRICING = {
+  claude: { input: 3.00, output: 15.00 },      // Claude Sonnet 4.5
+  chatgpt: { input: 2.50, output: 10.00 },    // GPT-4o
+  gemini: { input: 0, output: 0 }             // Gemini 2.0 Flash (무료)
+};
+
+// 비용 계산 함수
+function calculateAICost(model: AIModel, inputTokens: number, outputTokens: number): number {
+  const pricing = AI_PRICING[model];
+  const inputCost = (inputTokens / 1000000) * pricing.input;
+  const outputCost = (outputTokens / 1000000) * pricing.output;
+  return inputCost + outputCost;
+}
 
 export async function POST(request: NextRequest) {
   // 사용자 인증
@@ -157,6 +172,29 @@ export async function POST(request: NextRequest) {
       console.log('✅ 제목 제안 완료');
       console.log('📊 토큰 사용량:', usage);
       console.log('💡 제안된 제목:', titleContent);
+
+      // 비용 계산 및 기록
+      const cost = calculateAICost(selectedModel, usage.input_tokens, usage.output_tokens);
+      console.log(`💰 API 비용: $${cost.toFixed(6)}`);
+
+      try {
+        createApiCost({
+          userId: user.userId,
+          costType: 'ai_script',
+          serviceName: selectedModel,
+          amount: cost,
+          creditsDeducted: undefined, // 제목 제안은 크레딧 차감 없음
+          metadata: {
+            type: 'title_suggestion',
+            inputTokens: usage.input_tokens,
+            outputTokens: usage.output_tokens,
+            topic
+          }
+        });
+        console.log('✅ 비용 기록 완료');
+      } catch (error) {
+        console.error('❌ 비용 기록 실패:', error);
+      }
 
       // 제목 파싱 (1. 2. 3. 형식)
       const titleLines = titleContent.split('\n').filter(line => line.trim());
@@ -571,6 +609,32 @@ START YOUR RESPONSE WITH { NOW.`
           }
         }
 
+        // 비용 계산 및 기록
+        const cost = calculateAICost(selectedModel, tokenUsage.input_tokens, tokenUsage.output_tokens);
+        console.log(`💰 API 비용: $${cost.toFixed(6)}`);
+
+        try {
+          createApiCost({
+            userId: user.userId,
+            costType: 'ai_script',
+            serviceName: selectedModel,
+            amount: cost,
+            creditsDeducted: undefined, // TODO: 실제 차감된 크레딧 연동
+            contentId: script.id,
+            metadata: {
+              type: 'script_generation',
+              inputTokens: tokenUsage.input_tokens,
+              outputTokens: tokenUsage.output_tokens,
+              format: format || 'longform',
+              scriptLength: scriptContent.length,
+              topic
+            }
+          });
+          console.log('✅ 비용 기록 완료');
+        } catch (error) {
+          console.error('❌ 비용 기록 실패:', error);
+        }
+
         // 완료 상태로 업데이트
         await updateScript(script.id, {
           status: 'completed',
@@ -580,7 +644,8 @@ START YOUR RESPONSE WITH { NOW.`
             '✅ 대본 생성 완료!',
             `📊 입력: ${tokenUsage.input_tokens} 토큰`,
             `📊 출력: ${tokenUsage.output_tokens} 토큰`,
-            `📝 대본 길이: ${scriptContent.length}자`
+            `📝 대본 길이: ${scriptContent.length}자`,
+            `💰 API 비용: $${cost.toFixed(6)}`
           ].filter(Boolean),
           tokenUsage
         });

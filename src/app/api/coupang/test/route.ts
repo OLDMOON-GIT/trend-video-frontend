@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const COUPANG_SETTINGS_FILE = path.join(DATA_DIR, 'coupang-settings.json');
+
+interface CoupangSettings {
+  userId: string;
+  accessKey: string;
+  secretKey: string;
+  trackingId: string;
+  openaiApiKey?: string;
+  isConnected: boolean;
+  lastChecked?: string;
+}
+
+async function loadSettings(): Promise<Record<string, CoupangSettings>> {
+  try {
+    const data = await fs.readFile(COUPANG_SETTINGS_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
+}
 
 // 쿠팡 파트너스 API 연결 테스트
 export async function POST(request: NextRequest) {
@@ -10,17 +34,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { accessKey, secretKey } = body;
+    // 저장된 설정 파일에서 실제 키 읽어오기
+    const allSettings = await loadSettings();
+    const userSettings = allSettings[user.userId];
+
+    if (!userSettings || !userSettings.accessKey || !userSettings.secretKey) {
+      console.error('❌ 저장된 API 키 없음');
+      return NextResponse.json({ error: '먼저 API 키를 저장하세요.' }, { status: 400 });
+    }
+
+    const { accessKey, secretKey } = userSettings;
 
     console.log('🔍 Coupang API Test - 요청 받음');
     console.log('   accessKey:', accessKey ? `${accessKey.substring(0, 10)}...` : 'undefined');
-    console.log('   secretKey:', secretKey ? 'provided' : 'undefined');
-
-    if (!accessKey || !secretKey) {
-      console.error('❌ API 키 누락');
-      return NextResponse.json({ error: 'API 키를 입력하세요.' }, { status: 400 });
-    }
+    console.log('   secretKey:', secretKey ? 'provided (from saved settings)' : 'undefined');
 
     // 쿠팡 파트너스 API 테스트 요청
     // 실제로는 쿠팡 API를 호출해야 하지만, 여기서는 간단한 검증만 수행
@@ -40,7 +67,7 @@ export async function POST(request: NextRequest) {
     const seconds = String(now.getUTCSeconds()).padStart(2, '0');
     const datetime = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
 
-    // Message format: datetime + method + path (no spaces, no query for this endpoint)
+    // Message format: datetime + method + URL (쿼리 파라미터 제외!)
     const message = datetime + REQUEST_METHOD + URL;
 
     const signature = crypto
@@ -48,13 +75,14 @@ export async function POST(request: NextRequest) {
       .update(message)
       .digest('hex');
 
-    // HMAC 인증 헤더 - 쉼표 뒤 공백 있어야 함 (CEA 형식)
+    // Authorization header (spaces after commas)
     const authorization = `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
 
     console.log('🔐 인증 정보:');
     console.log('   datetime:', datetime);
     console.log('   message:', message);
-    console.log('   signature:', signature.substring(0, 20) + '...');
+    console.log('   signature:', signature);
+    console.log('   authorization:', authorization);
 
     // 실제 API 호출
     console.log('🌐 쿠팡 API 호출 시작:', DOMAIN + URL);

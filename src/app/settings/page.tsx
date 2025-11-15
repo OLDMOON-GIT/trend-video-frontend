@@ -30,6 +30,9 @@ interface ShortLink {
   productName: string;
   clicks: number;
   createdAt: string;
+  imageUrl?: string;
+  category?: string;
+  price?: string;
 }
 
 interface ShoppingShortsTask {
@@ -43,7 +46,7 @@ interface ShoppingShortsTask {
   logs: string[];
 }
 
-type CoupangTabType = 'partners' | 'automation';
+type CoupangTabType = 'partners' | 'automation' | 'links';
 
 type SocialMediaPlatform = 'tiktok' | 'instagram' | 'facebook';
 
@@ -504,15 +507,19 @@ export default function SettingsPage() {
 
     setIsFetchingBestsellers(true);
     try {
-      const response = await fetch(`/api/coupang/products?categoryId=${categoryId}&limit=20`, {
+      const response = await fetch(`/api/coupang/products?categoryId=${categoryId}`, {
         headers: getAuthHeaders()
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setBestsellerProducts(data.products || []);
-        toast.success(`✅ 베스트셀러 ${data.products.length}개 상품을 가져왔습니다!`);
+        // 중복된 productId 제거
+        const uniqueProducts = Array.from(
+          new Map((data.products || []).map((p: Product) => [p.productId, p])).values()
+        ) as Product[];
+        setBestsellerProducts(uniqueProducts);
+        toast.success(`✅ 베스트셀러 ${uniqueProducts.length}개 상품을 가져왔습니다!`);
       } else {
         throw new Error(data.error || '상품 조회 실패');
       }
@@ -544,11 +551,26 @@ export default function SettingsPage() {
     const selectedProductList = bestsellerProducts.filter(p => selectedProducts.has(p.productId));
 
     try {
-      // TODO: 상품관리 API에 저장하는 로직 추가
-      console.log('선택한 상품:', selectedProductList);
+      const response = await fetch('/api/coupang/products/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ products: selectedProductList })
+      });
 
-      toast.success(`✅ ${selectedProducts.size}개 상품을 상품관리로 보냈습니다!`);
-      setSelectedProducts(new Set());
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success(data.message);
+        setSelectedProducts(new Set());
+        // 링크 목록 새로고침
+        loadCoupangLinks();
+        loadCoupangStats();
+      } else {
+        throw new Error(data.error || '상품 전송 실패');
+      }
     } catch (error: any) {
       toast.error('❌ 상품 전송 실패: ' + error.message);
     }
@@ -1426,6 +1448,16 @@ export default function SettingsPage() {
                 🔗 파트너스 링크 생성
               </button>
               <button
+                onClick={() => setCoupangActiveTab('links')}
+                className={`rounded-lg px-6 py-2 font-semibold transition ${
+                  coupangActiveTab === 'links'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                📋 전체 링크 목록
+              </button>
+              <button
                 onClick={() => setCoupangActiveTab('automation')}
                 className={`rounded-lg px-6 py-2 font-semibold transition ${
                   coupangActiveTab === 'automation'
@@ -1704,43 +1736,188 @@ export default function SettingsPage() {
 
                 {/* Generated Links */}
                 <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-                  <h2 className="mb-4 text-xl font-bold text-white">🔗 생성된 링크</h2>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-white">🔗 생성된 딥링크 목록</h2>
+                    <span className="text-sm text-slate-400">총 {generatedLinks.length}개</span>
+                  </div>
 
                   {generatedLinks.length === 0 ? (
                     <p className="text-center text-sm text-slate-500">
                       아직 생성된 링크가 없습니다.
                     </p>
                   ) : (
-                    <div className="space-y-3">
-                      {generatedLinks.slice(0, 5).map((link) => (
+                    <div className="max-h-[600px] space-y-3 overflow-y-auto pr-2">
+                      {generatedLinks.map((link) => (
                         <div
                           key={link.id}
-                          className="rounded-lg border border-white/10 bg-white/5 p-3"
+                          className="rounded-lg border border-white/10 bg-white/5 p-4 hover:border-purple-500/50 transition-colors"
                         >
-                          <p className="text-sm font-semibold text-white">{link.productName}</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={link.shortUrl}
-                              readOnly
-                              className="flex-1 rounded bg-white/5 px-2 py-1 text-xs text-slate-300"
-                            />
-                            <button
-                              onClick={() => copyToClipboard(link.shortUrl)}
-                              className="rounded bg-purple-600 px-2 py-1 text-xs font-semibold text-white hover:bg-purple-500"
-                            >
-                              복사
-                            </button>
+                          <div className="flex gap-4">
+                            {link.imageUrl && (
+                              <img
+                                src={link.imageUrl}
+                                alt={link.productName}
+                                className="h-20 w-20 rounded-lg object-cover"
+                              />
+                            )}
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-semibold text-white line-clamp-2">{link.productName}</p>
+                                  <div className="mt-1 flex items-center gap-2">
+                                    {link.category && (
+                                      <span className="rounded bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300">
+                                        {link.category}
+                                      </span>
+                                    )}
+                                    {link.price && (
+                                      <span className="text-sm font-bold text-emerald-400">
+                                        ₩{link.price.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={link.shortUrl}
+                                  readOnly
+                                  className="flex-1 rounded bg-white/5 px-3 py-1.5 text-xs text-slate-300 border border-white/10"
+                                />
+                                <button
+                                  onClick={() => copyToClipboard(link.shortUrl)}
+                                  className="rounded bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-500 transition-colors"
+                                >
+                                  복사
+                                </button>
+                              </div>
+
+                              <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+                                <span>👁️ 클릭: {link.clicks}</span>
+                                <span>📅 {new Date(link.createdAt).toLocaleDateString('ko-KR', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}</span>
+                              </div>
+                            </div>
                           </div>
-                          <p className="mt-2 text-xs text-slate-500">
-                            클릭: {link.clicks} | {new Date(link.createdAt).toLocaleDateString('ko-KR')}
-                          </p>
                         </div>
                       ))}
                     </div>
                   )}
                 </section>
               </div>
+            </div>
+            )}
+
+            {/* Links Tab */}
+            {coupangActiveTab === 'links' && (
+            <div className="space-y-6">
+              {/* Full Links List */}
+              <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">🔗 전체 딥링크 목록</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      생성된 모든 쿠팡 파트너스 링크를 관리하세요
+                    </p>
+                  </div>
+                  <span className="text-lg font-bold text-purple-400">총 {generatedLinks.length}개</span>
+                </div>
+
+                {generatedLinks.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-slate-500 mb-4">아직 생성된 링크가 없습니다.</p>
+                    <button
+                      onClick={() => setCoupangActiveTab('partners')}
+                      className="rounded-lg bg-purple-600 px-6 py-2 font-semibold text-white hover:bg-purple-500 transition"
+                    >
+                      베스트셀러에서 상품 추가하기
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {generatedLinks.map((link) => (
+                      <div
+                        key={link.id}
+                        className="rounded-xl border border-white/10 bg-white/5 p-6 hover:border-purple-500/50 transition-all hover:shadow-lg hover:shadow-purple-500/10"
+                      >
+                        <div className="flex gap-6">
+                          {link.imageUrl && (
+                            <img
+                              src={link.imageUrl}
+                              alt={link.productName}
+                              className="h-32 w-32 rounded-lg object-cover flex-shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-4 mb-3">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">
+                                  {link.productName}
+                                </h3>
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  {link.category && (
+                                    <span className="rounded-full bg-blue-500/20 px-3 py-1 text-sm font-semibold text-blue-300">
+                                      {link.category}
+                                    </span>
+                                  )}
+                                  {link.price && (
+                                    <span className="text-lg font-bold text-emerald-400">
+                                      ₩{link.price.toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-semibold text-slate-400 w-24">단축링크:</span>
+                                <input
+                                  type="text"
+                                  value={link.shortUrl}
+                                  readOnly
+                                  className="flex-1 rounded-lg bg-white/5 px-4 py-2.5 text-sm text-slate-300 border border-white/10 font-mono"
+                                />
+                                <button
+                                  onClick={() => copyToClipboard(link.shortUrl)}
+                                  className="rounded-lg bg-purple-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-purple-500 transition-colors flex-shrink-0"
+                                >
+                                  📋 복사
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-6 text-sm text-slate-400">
+                                <span className="flex items-center gap-2">
+                                  <span className="text-lg">👁️</span>
+                                  <span className="font-semibold text-white">{link.clicks}</span>
+                                  <span>클릭</span>
+                                </span>
+                                <span className="flex items-center gap-2">
+                                  <span className="text-lg">📅</span>
+                                  <span>{new Date(link.createdAt).toLocaleDateString('ko-KR', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
             )}
 
@@ -2388,12 +2565,6 @@ export default function SettingsPage() {
 
         {/* 돌아가기 버튼 */}
         <div className="text-center mt-8">
-          <button
-            onClick={() => router.push('/my-content')}
-            className="text-slate-400 hover:text-white transition"
-          >
-            ← 내 콘텐츠로 돌아가기
-          </button>
         </div>
       </div>
     </div>

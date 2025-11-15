@@ -1124,12 +1124,12 @@ function ArchitectureContent() {
         datetime createdAt "업로드 시간"
     }
 
-    USERS ||--o{ CONTENTS : creates
-    USERS ||--o{ CREDIT_HISTORY : has
-    USERS ||--o{ CHARGE_REQUESTS : requests
-    USERS ||--o{ USER_ACTIVITY_LOGS : logs
-    CONTENTS ||--o{ YOUTUBE_UPLOADS : uploads
-    CONTENTS ||--o{ CONTENTS : "converts to"`}
+    USERS ||--o{ CONTENTS : "creates"
+    USERS ||--o{ CREDIT_HISTORY : "has"
+    USERS ||--o{ CHARGE_REQUESTS : "requests"
+    USERS ||--o{ USER_ACTIVITY_LOGS : "logs"
+    CONTENTS ||--o{ YOUTUBE_UPLOADS : "uploads"
+    CONTENTS ||--o{ CONTENTS : "converts-to"`}
                 </div>
               </div>
             </div>

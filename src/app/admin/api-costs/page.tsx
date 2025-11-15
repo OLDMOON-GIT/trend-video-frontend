@@ -124,6 +124,14 @@ export default function ApiCostsPage() {
     return labels[service] || service;
   };
 
+  // AI 모델별 가격 정보
+  const AI_PRICING: Record<string, { input: number; output: number }> = {
+    claude: { input: 3.00, output: 15.00 },      // Claude Sonnet 4.5 ($/MTok)
+    chatgpt: { input: 2.50, output: 10.00 },    // GPT-4o ($/MTok)
+    gemini: { input: 0, output: 0 },             // Gemini 2.0 Flash (무료)
+    grok: { input: 5.00, output: 15.00 }         // Grok (추정)
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
@@ -167,6 +175,40 @@ export default function ApiCostsPage() {
               {p === 'all' && '전체'}
             </button>
           ))}
+        </div>
+
+        {/* AI 모델 단가표 */}
+        <div className="mb-8 rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+          <h2 className="mb-4 text-xl font-bold text-white">💵 AI 모델 단가표</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-700 text-left text-sm text-slate-400">
+                  <th className="pb-3">모델</th>
+                  <th className="pb-3 text-right">입력 토큰 단가</th>
+                  <th className="pb-3 text-right">출력 토큰 단가</th>
+                  <th className="pb-3 text-right">비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(AI_PRICING).map(([service, pricing]) => (
+                  <tr key={service} className="border-b border-slate-700/50 text-sm">
+                    <td className="py-3 text-white font-semibold">{getServiceLabel(service)}</td>
+                    <td className="py-3 text-right font-mono text-slate-300">
+                      {pricing.input > 0 ? `$${pricing.input.toFixed(2)} / MTok` : '무료'}
+                    </td>
+                    <td className="py-3 text-right font-mono text-slate-300">
+                      {pricing.output > 0 ? `$${pricing.output.toFixed(2)} / MTok` : '무료'}
+                    </td>
+                    <td className="py-3 text-right text-slate-400 text-xs">
+                      {pricing.input === 0 && pricing.output === 0 ? '✅ 완전 무료' : '💳 종량제'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-slate-400">* MTok = 100만 토큰 기준</p>
         </div>
 
         {stats && (
@@ -238,32 +280,63 @@ export default function ApiCostsPage() {
             <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
               <h2 className="mb-4 text-xl font-bold text-white">📋 최근 비용 기록 (최근 50개)</h2>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-700 text-left text-sm text-slate-400">
+                    <tr className="border-b border-slate-700 text-left text-xs text-slate-400">
                       <th className="pb-3">시간</th>
                       <th className="pb-3">타입</th>
                       <th className="pb-3">서비스</th>
+                      <th className="pb-3 text-right">입력 토큰</th>
+                      <th className="pb-3 text-right">출력 토큰</th>
+                      <th className="pb-3 text-right">단가</th>
                       <th className="pb-3 text-right">비용</th>
                       <th className="pb-3 text-right">크레딧</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {recentCosts.map((cost) => (
-                      <tr key={cost.id} className="border-b border-slate-700/50 text-sm">
-                        <td className="py-3 text-slate-300">
-                          {new Date(cost.createdAt).toLocaleString('ko-KR')}
-                        </td>
-                        <td className="py-3 text-white">{getCostTypeLabel(cost.costType)}</td>
-                        <td className="py-3 text-slate-300">{getServiceLabel(cost.serviceName)}</td>
-                        <td className="py-3 text-right font-mono text-white">
-                          {formatCurrency(cost.amount)}
-                        </td>
-                        <td className="py-3 text-right text-slate-300">
-                          {cost.creditsDeducted?.toLocaleString() || '-'}
-                        </td>
-                      </tr>
-                    ))}
+                    {recentCosts.map((cost) => {
+                      const metadata = cost.metadata || {};
+                      const inputTokens = metadata.inputTokens || 0;
+                      const outputTokens = metadata.outputTokens || 0;
+                      const pricing = AI_PRICING[cost.serviceName];
+
+                      return (
+                        <tr key={cost.id} className="border-b border-slate-700/50">
+                          <td className="py-3 text-slate-300 text-xs whitespace-nowrap">
+                            {new Date(cost.createdAt).toLocaleString('ko-KR', {
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="py-3 text-white text-xs">{getCostTypeLabel(cost.costType)}</td>
+                          <td className="py-3 text-slate-300 text-xs">{getServiceLabel(cost.serviceName)}</td>
+                          <td className="py-3 text-right font-mono text-slate-400 text-xs">
+                            {inputTokens > 0 ? inputTokens.toLocaleString() : '-'}
+                          </td>
+                          <td className="py-3 text-right font-mono text-slate-400 text-xs">
+                            {outputTokens > 0 ? outputTokens.toLocaleString() : '-'}
+                          </td>
+                          <td className="py-3 text-right text-xs">
+                            {pricing ? (
+                              <div className="space-y-0.5">
+                                <div className="text-blue-400">${pricing.input}/MTok</div>
+                                <div className="text-purple-400">${pricing.output}/MTok</div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-500">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 text-right font-mono text-white font-semibold">
+                            {formatCurrency(cost.amount)}
+                          </td>
+                          <td className="py-3 text-right text-slate-300 text-xs">
+                            {cost.creditsDeducted?.toLocaleString() || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

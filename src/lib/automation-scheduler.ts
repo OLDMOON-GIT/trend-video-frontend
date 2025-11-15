@@ -557,13 +557,24 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       while (Date.now() - startTime < maxWaitTime) {
         await new Promise(resolve => setTimeout(resolve, 5000)); // 5초마다 체크
 
-        // 중지 요청 확인 (DB에서 pipeline 상태 체크)
+        // 중지 요청 확인 (DB에서 schedule 상태 체크)
         const db = new Database(dbPath);
         const pipeline = db.prepare('SELECT status FROM automation_pipelines WHERE id = ?').get(pipelineId) as any;
+        const schedule = db.prepare(`
+          SELECT vs.status
+          FROM video_schedules vs
+          JOIN automation_pipelines ap ON ap.schedule_id = vs.id
+          WHERE ap.id = ?
+        `).get(pipelineId) as any;
         db.close();
 
-        if (pipeline && (pipeline.status === 'cancelled' || pipeline.status === 'failed')) {
-          console.log(`🛑 [SCHEDULER] Pipeline ${pipelineId} was stopped by user`);
+        if (pipeline && pipeline.status === 'failed') {
+          console.log(`🛑 [SCHEDULER] Pipeline ${pipelineId} failed`);
+          throw new Error('작업이 실패했습니다');
+        }
+
+        if (schedule && schedule.status === 'cancelled') {
+          console.log(`🛑 [SCHEDULER] Schedule for pipeline ${pipelineId} was cancelled by user`);
           throw new Error('작업이 사용자에 의해 중지되었습니다');
         }
 

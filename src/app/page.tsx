@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { DateFilter, SortOption, VideoItem, VideoType } from "@/types/video";
 import type { GetScriptResponse, ProductInfo } from "@/types/content";
 import { parseJsonSafely, extractPureJson, parseJsonFile } from "@/lib/json-utils";
+import MediaUploadBox from "@/components/MediaUploadBox";
 
 const fallbackVideos: VideoItem[] = [];
 
@@ -491,10 +492,27 @@ function HomeContent() {
         console.log('🛍️ URL에서 상품 모드 감지, 포맷 변경');
         initialVideoFormatRef.current = 'product-from-url'; // URL 파라미터로 설정됨을 표시
         setPromptFormat('product');
+        // URL 파라미터 제거
+        window.history.replaceState({}, '', '/');
       } else if (promptType === 'product-info' && promptFormat !== 'product-info') {
         console.log('📝 URL에서 상품정보 모드 감지, 포맷 변경');
         initialVideoFormatRef.current = 'product-info-from-url'; // URL 파라미터로 설정됨을 표시
         setPromptFormat('product-info');
+        // URL 파라미터 제거
+        window.history.replaceState({}, '', '/');
+      } else if (promptType === 'longform' && promptFormat !== 'longform') {
+        console.log('📺 URL에서 롱폼 모드 감지, 포맷 변경');
+        setPromptFormat('longform');
+        // URL 파라미터 제거
+        window.history.replaceState({}, '', '/');
+      } else if (promptType === 'shortform' && promptFormat !== 'shortform') {
+        console.log('📱 URL에서 숏폼 모드 감지, 포맷 변경');
+        setPromptFormat('shortform');
+        // URL 파라미터 제거
+        window.history.replaceState({}, '', '/');
+      } else if (promptType) {
+        // promptType이 있으면 무조건 URL 파라미터 제거
+        window.history.replaceState({}, '', '/');
       }
     }
   }, []); // 컴포넌트 마운트 시 한 번만 실행
@@ -1481,21 +1499,8 @@ function HomeContent() {
     }
   }, [promptFormat]);
 
-  // promptFormat 변경 시 URL 파라미터 업데이트 (탭 상태 유지)
-  useEffect(() => {
-    if (typeof window !== 'undefined' && promptFormat) {
-      const currentParams = new URLSearchParams(window.location.search);
-      const currentPromptType = currentParams.get('promptType');
-
-      // 현재 URL의 promptType과 다르면 업데이트
-      if (currentPromptType !== promptFormat) {
-        currentParams.set('promptType', promptFormat);
-        const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
-        router.replace(newUrl, { scroll: false });
-        console.log('🔗 URL 업데이트:', promptFormat);
-      }
-    }
-  }, [promptFormat, router]);
+  // promptFormat 변경 시 URL 파라미터 업데이트 (탭 상태 유지) - 제거됨
+  // URL에 파라미터가 계속 붙어다니는 문제로 인해 비활성화
 
   const pushLog = useCallback((message: string) => {
     setLogs((prev) => {

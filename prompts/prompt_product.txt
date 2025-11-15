@@ -23,12 +23,18 @@
 - 고객이 얻을 수 있는 실제 가치와 혜택에 집중
 - 기술적 스펙보다는 감성적 경험을 강조
 
+⚠️ **씬 3 CTA 필수 규칙:**
+- 반드시 씬 3 마지막에 "상품 링크는 댓글에 있습니다. 구독과 좋아요 부탁드립니다" 자연스럽게 포함
+- 상품 가치 강조 마무리 후 CTA 녹여내기
+- 생략 절대 금지
+
 🚫 **절대 금지 사항:**
 - 질문하지 마세요 ("어떤 스타일로 작성할까요?", "추가 정보가 필요한가요?" 등)
 - 확인하지 마세요 ("~로 작성하면 될까요?")
 - 제안하지 마세요 ("다음과 같이 작성하겠습니다")
 - 설명하지 마세요 ("대본을 작성해드리겠습니다")
 - 요약하지 마세요 ("간략히", "핵심만")
+- CTA 생략 절대 금지
 
 ✅ **해야 할 일:**
 - 상품 정보만 보고 즉시 완성된 대본 작성
@@ -46,9 +52,9 @@
 4. 씬 2: 해결/기능 - 9초 상품이 문제를 어떻게 해결하는지 (150자)
    - **상품의 핵심 기능과 장점을 구체적으로**
    - 예: "은은한 LED 조명으로 아기 눈을 자극하지 않으면서도 충분한 밝기"
-5. 씬 3: 행동유도 - 9초 구매 욕구 자극 및 만족감 전달 (150자)
-   - **상품 링크를 자연스럽게 언급, 상품 가치 강조**
-   - 예: "지금 바로 만나보세요. 평화로운 밤을 선물하세요"
+5. 씬 3: 행동유도 + CTA - 9초 구매 욕구 자극 및 만족감 전달 (150자)
+   - **⚠️ 필수: 상품 가치 강조 후 "상품 링크는 댓글에 있습니다. 구독과 좋아요 부탁드립니다" 자연스럽게 포함**
+   - 예: "지금 바로 만나보세요. 평화로운 밤을 선물하세요. 상품 링크는 댓글에 있습니다. 구독과 좋아요 부탁드립니다"
 6. **모든 씬은 9:16 세로형, 상품 중심, 시네마틱 필수**
 
 🎯 **상품 영상 스타일:**
@@ -171,11 +177,11 @@
     },
     {
       "scene_id": "scene_03_cta",
-      "scene_name": "행동유도 - 9초 구매욕구",
+      "scene_name": "행동유도 + CTA - 9초 구매욕구",
       "duration_seconds": 9,
       "word_count": 150,
       "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic emotional finale, camera gracefully pulls back from previous hands-on-product moment revealing the SAME KOREAN PERSON from all previous scenes now completely satisfied with East Asian facial features clearly visible [상품이 만드는 이상적 결과 - 예: 'capturing mountain selfie with gloved hands, checking messages effortlessly on chairlift, smiling genuinely'], same Korean person in full frame showing complete lifestyle transformation, vertical composition widens from hands to full upper body of same Korean character with East Asian appearance, [만족스러운 라이프스타일 - 예: 'product beautifully integrated into winter sports routine, same ski jacket throughout entire video confirming continuity, natural mountain scenery'], same snowy mountain location visible throughout entire video journey, lighting reaches golden hour perfection with [상품의 감성적 가치 - 예: 'warm winter sunset glow suggesting comfort, capability, and satisfaction'], slow crane movement upward and back revealing same Korean person's complete happy moment, same Korean character's face now fully visible with East Asian features showing genuine satisfaction with product, same mountain backdrop establishing consistent location throughout all 4 scenes, desirable and rewarding mood crescendos as we see same Korean person's journey complete from product introduction to problem to solution to satisfaction, shot on 35mm film with final bokeh blooming beautifully around same Korean person, depth of field creates dreamy separation while maintaining Korean character focus, premium color palette with [상품 브랜드 감성 - 예: 'warm winter sunset tones with product details still visible'], camera movement completes full narrative journey with same Korean person from initial product showcase to final lifestyle satisfaction, final frame holds on same Korean person wearing product with satisfied smile as emotional anchor inviting viewer to own this moment and join this journey",
-      "narration": "[구매 링크를 자연스럽게 + 상품 가치 강조 - 예: '지금 바로 만나보세요. 매일 밤 평화로운 시간을 선물해요. 아기와 함께하는 소중한 순간들을 더 특별하게'] (150자)..."
+      "narration": "⚠️ 필수: [상품 가치 강조 - 약 100자] + '상품 링크는 댓글에 있습니다. 구독과 좋아요 부탁드립니다' 자연스럽게 포함 (총 150자). 예: '지금 바로 만나보세요. 매일 밤 평화로운 시간을 선물해요. 상품 링크는 댓글에 있습니다. 구독과 좋아요 부탁드립니다'"
     }
   ],
   "quality_check": {
@@ -186,7 +192,9 @@
     "cinematic_style": true,
     "hook_effectiveness": "strong",
     "problem_solution_clear": true,
-    "cta_compelling": true
+    "cta_compelling": true,
+    "product_link_mention_included": true,
+    "subscription_request_included": true
   }
 }
 ```
@@ -212,6 +220,7 @@
 - scenes는 정확히 4개 (scene_00_hook, scene_01_problem, scene_02_solution, scene_03_cta)
 - 씬 0: narration 50자, duration_seconds 3
 - 씬 1-3: narration 150자, duration_seconds 9
+- **씬 3: "상품 링크는 댓글에 있습니다. 구독과 좋아요 부탁드립니다" 필수 포함**
 - 모든 씬의 sora_prompt는 150자 이상
 - 모든 씬에 "Vertical 9:16 format" 포함 필수
 - 모든 씬에 "product" 관련 키워드 포함 필수

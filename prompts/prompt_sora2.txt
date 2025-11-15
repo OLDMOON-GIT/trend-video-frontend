@@ -26,8 +26,13 @@
 2. 씬 0: 훅(Hook) - 3초 안에 시청자의 관심을 끄는 충격적인 장면 (50자)
 3. 씬 1: 몰입 - 9초 감정 이입 유도 (150자)
 4. 씬 2: 반전 - 9초 예상 못한 WTF 순간 (150자)
-5. 씬 3: 중독 - 9초 다시 보고 싶게 만드는 마무리 (150자)
+5. 씬 3: **여운 + CTA** - 9초 **필수: 다시 보고 싶게 만드는 마무리 후 "구독과 좋아요 부탁드립니다." 자연스럽게 포함 (150자)**
 6. **모든 씬은 9:16 세로형, 슬로우모션, 시네마틱 필수**
+
+⚠️ **씬 3 CTA 필수 규칙:**
+- 반드시 씬 3 마지막에 "구독과 좋아요 부탁드립니다." 자연스럽게 포함
+- 여운 남기는 스토리 마무리 후 CTA 녹여내기
+- 생략 절대 금지
 
 금칙어 리스트 (1글자라도 출력 금지):
 - "질문", "확인", "추가로", "세부", "배경", "답변 주시면", "더 강력하게", "작업을 시작하겠습니다"
@@ -113,11 +118,11 @@
     },
     {
       "scene_id": "scene_03_addictive",
-      "scene_name": "중독 - 9초 다시보기 유도",
+      "scene_name": "여운 + CTA - 9초 다시보기 유도",
       "duration_seconds": 9,
       "word_count": 150,
       "sora_prompt": "Vertical 9:16 format, portrait orientation, cinematic film, [중독성 있는 마무리 - 반복 시청 유도], full vertical composition with subject centered, [만족스러운 슬로우 모션 페이오프], satisfying magical lighting, slowly pulling away with satisfaction, addictive and rewarding mood, shot on 35mm film, shallow depth of field, mesmerizing bokeh, satisfying and vibrant color palette, mobile-optimized framing",
-      "narration": "만족스럽고 기억에 남는 마무리 문장 (150자)..."
+      "narration": "⚠️ 필수: 만족스럽고 기억에 남는 마무리 후 '구독과 좋아요 부탁드립니다' 자연스럽게 포함 (150자)"
     }
   ],
   "quality_check": {

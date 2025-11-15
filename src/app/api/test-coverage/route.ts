@@ -120,12 +120,16 @@ export async function GET(request: NextRequest) {
     const stats = fs.statSync(coveragePath);
     const lastUpdated = stats.mtime.toISOString();
 
+    // 통합테스트 결과 읽기
+    const integrationTests = loadIntegrationTestResults();
+
     return NextResponse.json({
       available: true,
       lastUpdated,
       total: totalCoverage,
       modules: Object.values(modules).filter(m => m.files.length > 0),
       fileCount: Object.keys(coverageData).length - 1, // -1 for 'total'
+      integrationTests, // 통합테스트 결과 추가
     });
 
   } catch (error: any) {
@@ -185,6 +189,34 @@ function calculateModuleSummary(coverages: FileCoverage[]): FileCoverage {
     : 0;
 
   return summary;
+}
+
+// 통합테스트 결과 로드
+function loadIntegrationTestResults() {
+  try {
+    const projectRoot = process.cwd();
+    const testResultsDir = path.join(projectRoot, '..', 'test-results');
+
+    if (!fs.existsSync(testResultsDir)) {
+      return [];
+    }
+
+    const files = fs.readdirSync(testResultsDir).filter(f => f.endsWith('.json'));
+    const results = files.map(file => {
+      try {
+        const content = fs.readFileSync(path.join(testResultsDir, file), 'utf-8');
+        return JSON.parse(content);
+      } catch (error) {
+        console.error(`통합테스트 결과 읽기 실패: ${file}`, error);
+        return null;
+      }
+    }).filter(Boolean);
+
+    return results;
+  } catch (error) {
+    console.error('통합테스트 결과 로드 실패:', error);
+    return [];
+  }
 }
 
 // POST: 커버리지 재생성

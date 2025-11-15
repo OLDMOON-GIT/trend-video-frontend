@@ -26,12 +26,31 @@ interface ModuleCoverage {
   summary: FileCoverage;
 }
 
+interface IntegrationTestResult {
+  testName: string;
+  category: string;
+  timestamp: string;
+  passed: boolean;
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    percentage: number;
+  };
+  tests: Array<{
+    name: string;
+    passed: boolean;
+    message: string;
+  }>;
+}
+
 interface CoverageData {
   available: boolean;
   lastUpdated?: string;
   total?: FileCoverage;
   modules?: ModuleCoverage[];
   fileCount?: number;
+  integrationTests?: IntegrationTestResult[];
   error?: string;
 }
 
@@ -163,7 +182,7 @@ export default function TestCoveragePage() {
     );
   }
 
-  const { total, modules, fileCount, lastUpdated } = coverageData;
+  const { total, modules, fileCount, lastUpdated, integrationTests } = coverageData;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
@@ -173,41 +192,57 @@ export default function TestCoveragePage() {
           <div>
             <h1 className="text-3xl font-bold text-white">📊 테스트 커버리지</h1>
             <p className="text-slate-400">
-              {lastUpdated && `마지막 업데이트: ${new Date(lastUpdated).toLocaleString('ko-KR')}`}
+              {lastUpdated && `Jest 커버리지 업데이트: ${new Date(lastUpdated).toLocaleString('ko-KR')}`}
             </p>
+            <div className="mt-2 flex gap-3 text-sm">
+              <span className="rounded-full bg-blue-600/20 px-3 py-1 text-blue-300">
+                Jest 단위 테스트 (*.test.tsx)
+              </span>
+              <span className="rounded-full bg-green-600/20 px-3 py-1 text-green-300">
+                통합 테스트 (test-*.js)
+              </span>
+            </div>
           </div>
           <button
             onClick={regenerateCoverage}
             disabled={regenerating}
             className="rounded-lg border border-purple-600/60 bg-purple-600/20 px-4 py-2 font-semibold text-purple-200 transition hover:bg-purple-600/40 disabled:opacity-50"
           >
-            {regenerating ? '재생성 중...' : '🔄 재생성'}
+            {regenerating ? '재생성 중...' : '🔄 Jest 재생성'}
           </button>
         </div>
 
-        {/* 전체 통계 */}
+        {/* Jest 단위 테스트 커버리지 */}
         {total && (
-          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <CoverageCard
-              title="Statements"
-              metrics={total.statements}
-              icon="📝"
-            />
-            <CoverageCard
-              title="Branches"
-              metrics={total.branches}
-              icon="🌿"
-            />
-            <CoverageCard
-              title="Functions"
-              metrics={total.functions}
-              icon="⚡"
-            />
-            <CoverageCard
-              title="Lines"
-              metrics={total.lines}
-              icon="📄"
-            />
+          <div className="mb-6">
+            <div className="mb-4 flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-white">🧪 Jest 단위 테스트 커버리지</h2>
+              <span className="rounded-full bg-yellow-600/20 px-3 py-1 text-xs text-yellow-300">
+                낮은 커버리지: 통합테스트는 별도 (아래 참조)
+              </span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CoverageCard
+                title="Statements"
+                metrics={total.statements}
+                icon="📝"
+              />
+              <CoverageCard
+                title="Branches"
+                metrics={total.branches}
+                icon="🌿"
+              />
+              <CoverageCard
+                title="Functions"
+                metrics={total.functions}
+                icon="⚡"
+              />
+              <CoverageCard
+                title="Lines"
+                metrics={total.lines}
+                icon="📄"
+              />
+            </div>
           </div>
         )}
 
@@ -220,6 +255,66 @@ export default function TestCoveragePage() {
             </span>
           </div>
         </div>
+
+        {/* 통합테스트 결과 */}
+        {integrationTests && integrationTests.length > 0 ? (
+          <div className="mb-6">
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-white">🚀 통합테스트 결과 (E2E)</h2>
+              <p className="text-sm text-slate-400">
+                실제 API 호출 및 시스템 동작 검증 (test-*.js 스크립트)
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {integrationTests.map((test, idx) => (
+                <div
+                  key={idx}
+                  className={`rounded-2xl border p-4 ${
+                    test.passed
+                      ? 'border-green-500/50 bg-green-500/10'
+                      : 'border-red-500/50 bg-red-500/10'
+                  }`}
+                >
+                  <div className="mb-2 flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="text-sm text-slate-400">{test.category}</div>
+                      <div className="font-semibold text-white">{test.testName}</div>
+                    </div>
+                    <div className="text-2xl">{test.passed ? '✅' : '❌'}</div>
+                  </div>
+                  <div className="mb-2 text-3xl font-bold">
+                    <span className={test.passed ? 'text-green-400' : 'text-red-400'}>
+                      {test.summary.percentage}%
+                    </span>
+                  </div>
+                  <div className="text-sm text-slate-300">
+                    통과: {test.summary.passed}/{test.summary.total}
+                  </div>
+                  <div className="mt-2 text-xs text-slate-400">
+                    {new Date(test.timestamp).toLocaleString('ko-KR')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mb-6 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-6">
+            <div className="flex items-start gap-3">
+              <span className="text-3xl">⚠️</span>
+              <div className="flex-1">
+                <h3 className="mb-2 text-lg font-bold text-yellow-200">통합테스트 결과 없음</h3>
+                <p className="mb-3 text-sm text-slate-300">
+                  통합테스트를 실행하면 여기에 결과가 표시됩니다.
+                </p>
+                <div className="rounded-lg bg-slate-900/50 p-3">
+                  <code className="text-xs text-green-400">
+                    node test-image-upload-ordering.js
+                  </code>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 모듈별 커버리지 */}
         <div className="space-y-4">

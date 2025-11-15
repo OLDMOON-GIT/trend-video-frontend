@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Title not found' }, { status: 404 });
     }
 
-    // 기존 스케줄 찾기 (pending 또는 scheduled 상태)
+    // 기존 스케줄 찾기 (pending, scheduled, waiting_for_upload, failed 상태)
     const existingSchedules = db.prepare(`
       SELECT id FROM video_schedules
-      WHERE title_id = ? AND status IN ('pending', 'scheduled')
+      WHERE title_id = ? AND status IN ('pending', 'scheduled', 'waiting_for_upload', 'failed')
       ORDER BY created_at ASC
     `).all(titleId) as any[];
 

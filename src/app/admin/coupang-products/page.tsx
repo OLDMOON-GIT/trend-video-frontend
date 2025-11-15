@@ -52,19 +52,23 @@ export default function CoupangProductsAdminPage() {
   const [googleSitesHomeUrl, setGoogleSitesHomeUrl] = useState('');
 
   // 탭 관리 - URL에서 초기값 읽기
-  const [activeTab, setActiveTab] = useState<'my-list' | 'queue' | 'pending' | 'shop'>(() => {
+  const [activeTab, setActiveTab] = useState<'my-list' | 'queue' | 'pending' | 'shop' | 'coupang'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
       if (tab === 'pending') return 'pending';
       if (tab === 'queue') return 'queue';
       if (tab === 'shop') return 'shop';
+      if (tab === 'coupang') return 'coupang';
     }
     return 'my-list';
   });
 
+  // 쿠팡상품 서브 탭
+  const [coupangSubTab, setCoupangSubTab] = useState<'bestseller' | 'search'>('bestseller');
+
   // 탭 변경 시 URL도 업데이트
-  const changeTab = (tab: 'my-list' | 'queue' | 'pending' | 'shop') => {
+  const changeTab = (tab: 'my-list' | 'queue' | 'pending' | 'shop' | 'coupang') => {
     setActiveTab(tab);
     const params = new URLSearchParams(window.location.search);
     if (tab === 'pending') {
@@ -73,6 +77,8 @@ export default function CoupangProductsAdminPage() {
       params.set('tab', 'queue');
     } else if (tab === 'shop') {
       params.set('tab', 'shop');
+    } else if (tab === 'coupang') {
+      params.set('tab', 'coupang');
     } else {
       params.delete('tab');
     }
@@ -129,6 +135,35 @@ export default function CoupangProductsAdminPage() {
 
   // 크롤링 큐 통계
   const [queueTotalCount, setQueueTotalCount] = useState(0);
+
+  // 베스트셀러
+  const [bestsellerCategory, setBestsellerCategory] = useState('all');
+  const [bestsellerResults, setBestsellerResults] = useState<any[]>([]);
+  const [isFetchingBestseller, setIsFetchingBestseller] = useState(false);
+
+  // 상품 검색 (쿠팡 API)
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [coupangSearchResults, setCoupangSearchResults] = useState<any[]>([]);
+  const [isCoupangSearching, setIsCoupangSearching] = useState(false);
+
+  // 카테고리 이름 → 쿠팡 카테고리 ID 매핑
+  const getCategoryId = (category: string): string => {
+    const categoryMap: Record<string, string> = {
+      'all': '',                   // 전체 (빈 문자열)
+      'electronics': '1001',       // 가전디지털
+      'fashion': '1002',           // 패션의류
+      'beauty': '1010',            // 뷰티
+      'kitchen': '1011',           // 주방용품
+      'home': '1012',              // 홈데코/인테리어
+      'pets': '1029',              // 반려동물
+      'baby': '1019',              // 출산/유아동
+      'health': '1015',            // 헬스/건강식품
+      'food': '1013',              // 식품
+      'sports': '1014',            // 스포츠/레저
+      'toys': '1020'               // 완구/취미
+    };
+    return categoryMap[category] || '1001';
+  };
 
   const applyPendingCounts = (historyItems: CrawlHistoryItem[], products: any[]) => {
     if (historyItems.length === 0) return historyItems;
@@ -1628,6 +1663,16 @@ export default function CoupangProductsAdminPage() {
             >
               📤 퍼블리시 <span className="text-sm opacity-80">({products.filter(p => p.status === 'published').length})</span>
             </button>
+            <button
+              onClick={() => changeTab('coupang')}
+              className={`flex-1 px-6 py-4 rounded-xl text-base font-bold transition-all ${
+                activeTab === 'coupang'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                  : 'text-slate-300 hover:bg-slate-700/50'
+              }`}
+            >
+              🛒 쿠팡상품 <span className="text-sm opacity-80">({bestsellerResults.length + coupangSearchResults.length})</span>
+            </button>
           </div>
         </div>
 
@@ -2817,6 +2862,280 @@ export default function CoupangProductsAdminPage() {
               />
             )}
           </>
+        )}
+
+        {/* 쿠팡상품 탭 */}
+        {activeTab === 'coupang' && (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            {/* 서브 탭 */}
+            <div className="mb-6 flex gap-3">
+              <button
+                onClick={() => setCoupangSubTab('bestseller')}
+                className={`flex-1 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
+                  coupangSubTab === 'bestseller'
+                    ? 'bg-purple-600 text-white shadow-lg'
+                    : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                🏆 베스트셀러 <span className="text-xs opacity-80">({bestsellerResults.length})</span>
+              </button>
+              <button
+                onClick={() => setCoupangSubTab('search')}
+                className={`flex-1 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
+                  coupangSubTab === 'search'
+                    ? 'bg-purple-600 text-white shadow-lg'
+                    : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                🔍 상품 검색 <span className="text-xs opacity-80">({coupangSearchResults.length})</span>
+              </button>
+            </div>
+
+            {/* 베스트셀러 서브탭 */}
+            {coupangSubTab === 'bestseller' && (
+              <>
+                <h2 className="mb-4 text-xl font-bold text-white">🏆 베스트셀러 상품</h2>
+
+                <div className="mb-4 flex gap-3">
+                  <select
+                    value={bestsellerCategory}
+                    onChange={(e) => setBestsellerCategory(e.target.value)}
+                    className="flex-1 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white focus:border-purple-500 focus:outline-none [&>option]:bg-slate-800 [&>option]:text-white [&>optgroup]:bg-slate-900 [&>optgroup]:text-slate-300"
+                  >
+                    <option value="all" className="bg-slate-800 text-white">🌟 전체</option>
+                    <optgroup label="인기 카테고리" className="bg-slate-900 text-slate-300">
+                      <option value="electronics" className="bg-slate-800 text-white">📱 전자제품</option>
+                      <option value="fashion" className="bg-slate-800 text-white">👗 패션</option>
+                      <option value="beauty" className="bg-slate-800 text-white">💄 뷰티/화장품</option>
+                      <option value="kitchen" className="bg-slate-800 text-white">🍳 주방용품</option>
+                      <option value="home" className="bg-slate-800 text-white">🏠 홈데코/인테리어</option>
+                    </optgroup>
+                    <optgroup label="라이프스타일" className="bg-slate-900 text-slate-300">
+                      <option value="pets" className="bg-slate-800 text-white">🐶 반려동물용품</option>
+                      <option value="baby" className="bg-slate-800 text-white">👶 유아/출산</option>
+                      <option value="health" className="bg-slate-800 text-white">💊 건강/웰니스</option>
+                      <option value="food" className="bg-slate-800 text-white">🍽️ 식품/간식</option>
+                      <option value="sports" className="bg-slate-800 text-white">⚽ 스포츠/아웃도어</option>
+                      <option value="toys" className="bg-slate-800 text-white">🧸 장난감/취미</option>
+                    </optgroup>
+                  </select>
+                  <button
+                    onClick={async () => {
+                      setIsFetchingBestseller(true);
+                      setBestsellerResults([]);
+                      try {
+                        const categoryId = getCategoryId(bestsellerCategory);
+                        const url = categoryId
+                          ? `/api/coupang/products?categoryId=${categoryId}`
+                          : `/api/coupang/products`;
+
+                        console.log('🔍 [베스트셀러] 카테고리:', bestsellerCategory, '→', categoryId);
+                        console.log('🔍 [베스트셀러] URL:', url);
+
+                        const response = await fetch(url, {
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('sessionId')}`
+                          }
+                        });
+                        const data = await response.json();
+                        if (response.ok && data.success) {
+                          setBestsellerResults(data.products || []);
+                          toast.success(`${data.products?.length || 0}개 베스트셀러 상품 조회 완료`);
+                        } else {
+                          throw new Error(data.error || '베스트셀러 조회 실패');
+                        }
+                      } catch (error: any) {
+                        toast.error('베스트셀러 조회 실패: ' + error.message);
+                      } finally {
+                        setIsFetchingBestseller(false);
+                      }
+                    }}
+                    disabled={isFetchingBestseller}
+                    className="rounded-lg bg-emerald-600 px-6 py-2 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    {isFetchingBestseller ? '조회 중...' : '가져오기'}
+                  </button>
+                </div>
+
+                {bestsellerResults.length > 0 && (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {bestsellerResults.map((product: any) => (
+                      <div
+                        key={product.productId}
+                        className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+                      >
+                        <img
+                          src={product.productImage}
+                          alt={product.productName}
+                          className="h-48 w-full rounded-lg object-cover"
+                        />
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-white line-clamp-2">{product.productName}</h3>
+                          <p className="mt-1 text-sm text-slate-400">{product.categoryName}</p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-lg font-bold text-emerald-400">
+                              {product.productPrice?.toLocaleString()}원
+                            </span>
+                            {product.isRocket && (
+                              <span className="rounded bg-blue-500 px-2 py-0.5 text-xs font-semibold text-white">
+                                로켓배송
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setProductUrl(product.productUrl);
+                            setCustomCategory(product.categoryName);
+                            setIsSidebarOpen(true);
+                          }}
+                          className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+                        >
+                          ➕ 내 목록에 추가
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 상품 검색 서브탭 */}
+            {coupangSubTab === 'search' && (
+              <>
+                <h2 className="mb-4 text-xl font-bold text-white">🔍 상품 검색</h2>
+
+                <div className="mb-4 flex gap-3">
+                  <input
+                    type="text"
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    onKeyPress={async (e) => {
+                      if (e.key === 'Enter' && searchKeyword.trim()) {
+                        setIsCoupangSearching(true);
+                        setCoupangSearchResults([]);
+                        try {
+                          const sessionId = localStorage.getItem('sessionId');
+                          console.log('🔑 [프론트-Enter] sessionId:', sessionId);
+
+                          const response = await fetch('/api/coupang/search', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${sessionId}`
+                            },
+                            body: JSON.stringify({ keyword: searchKeyword })
+                          });
+
+                          console.log('📡 [프론트-Enter] 응답 상태:', response.status);
+
+                          const data = await response.json();
+                          if (response.ok) {
+                            setCoupangSearchResults(data.products || []);
+                            toast.success(`${data.products?.length || 0}개 상품 검색 완료`);
+                          } else {
+                            console.error('❌ [프론트-Enter] 에러:', data);
+                            throw new Error(data.error || '검색 실패');
+                          }
+                        } catch (error: any) {
+                          console.error('❌ [프론트-Enter] 예외:', error);
+                          toast.error('검색 실패: ' + error.message);
+                        } finally {
+                          setIsCoupangSearching(false);
+                        }
+                      }
+                    }}
+                    placeholder="검색어를 입력하세요 (예: 노트북, 이어폰)"
+                    className="flex-1 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!searchKeyword.trim()) {
+                        toast.error('검색어를 입력하세요');
+                        return;
+                      }
+                      setIsCoupangSearching(true);
+                      setCoupangSearchResults([]);
+                      try {
+                        const sessionId = localStorage.getItem('sessionId');
+                        console.log('🔑 [프론트] sessionId:', sessionId);
+
+                        const response = await fetch('/api/coupang/search', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${sessionId}`
+                          },
+                          body: JSON.stringify({ keyword: searchKeyword })
+                        });
+
+                        console.log('📡 [프론트] 응답 상태:', response.status);
+
+                        const data = await response.json();
+                        if (response.ok) {
+                          setCoupangSearchResults(data.products || []);
+                          toast.success(`${data.products?.length || 0}개 상품 검색 완료`);
+                        } else {
+                          console.error('❌ [프론트] 에러:', data);
+                          throw new Error(data.error || '검색 실패');
+                        }
+                      } catch (error: any) {
+                        console.error('❌ [프론트] 예외:', error);
+                        toast.error('검색 실패: ' + error.message);
+                      } finally {
+                        setIsCoupangSearching(false);
+                      }
+                    }}
+                    disabled={isCoupangSearching}
+                    className="rounded-lg bg-blue-600 px-6 py-2 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
+                  >
+                    {isCoupangSearching ? '검색 중...' : '검색'}
+                  </button>
+                </div>
+
+                {coupangSearchResults.length > 0 && (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {coupangSearchResults.map((product: any) => (
+                      <div
+                        key={product.productId}
+                        className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+                      >
+                        <img
+                          src={product.productImage}
+                          alt={product.productName}
+                          className="h-48 w-full rounded-lg object-cover"
+                        />
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-white line-clamp-2">{product.productName}</h3>
+                          <p className="mt-1 text-sm text-slate-400">{product.categoryName}</p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-lg font-bold text-emerald-400">
+                              {product.productPrice?.toLocaleString()}원
+                            </span>
+                            {product.isRocket && (
+                              <span className="rounded bg-blue-500 px-2 py-0.5 text-xs font-semibold text-white">
+                                로켓배송
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setProductUrl(product.productUrl);
+                            setCustomCategory(product.categoryName);
+                            setIsSidebarOpen(true);
+                          }}
+                          className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500"
+                        >
+                          ➕ 내 목록에 추가
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
 
       {/* 상품 편집 모달 */}

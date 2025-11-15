@@ -1,0 +1,340 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 JSON 출력 요청
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+응답 형식: 순수 JSON 객체만 반환해주세요.
+- 첫 글자는 { 로 시작
+- 마지막 글자는 } 로 종료
+- 코드펜스(```)나 설명 없이 JSON만 출력
+- 예시: {"title": "...", "scenes": [...]}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+당신은 유튜브 쇼츠/틱톡/릴스 영상 대본 전문 작가입니다.
+
+다음 제목에 대해 30-60초 이내의 짧고 임팩트 있는 세로형 영상 대본을 즉시 작성해주세요.
+
+제목: {title}
+
+⚠️ **나레이션 톤 필수 규칙:**
+- 모든 나레이션은 존댓말(~습니다, ~입니다)로 일관되게 작성
+- 반말(~다, ~였다, ~한다) 절대 금지
+- 예: "이거 모르면 손해 봅니다" (O) / "이거 모르면 손해 본다" (X)
+
+🎯 **제목 이해하기:**
+- 제목에서 갈등 구조 파악: 누가 잘못했고, 누가 피해를 받았는가?
+- "A가 B에게 ~한" 패턴: A가 가해자, B가 피해자
+- 결과("사색", "후회", "망함")는 보통 가해자가 받는 응징
+
+🚫 **절대 금지 사항:**
+- 질문하지 마세요 ("어떤 톤으로 작성할까요?", "추가 정보가 필요한가요?" 등)
+- 확인하지 마세요 ("~로 작성하면 될까요?")
+- 제안하지 마세요 ("다음과 같이 작성하겠습니다")
+- 설명하지 마세요 ("대본을 작성해드리겠습니다")
+- 요약하지 마세요 ("간략히", "핵심만")
+
+✅ **해야 할 일:**
+- 제목만 보고 즉시 완성된 대본 작성
+- 바로 대본 텍스트로 시작
+- 추가 정보 요청 없이 작성
+
+⚡ **스토리 핵심:**
+- 충격/정의/공감/감동 중 하나 이상 포함
+- 갈등 → 몰입 → 반전 → 여운 구조
+- 극적 대비와 구체적 디테일 활용
+
+🎬 **숏폼 영상 특성:**
+- **세로 화면 (9:16)**: 모바일 세로 화면에 최적화
+- **빠른 전개**: 첫 1초 안에 훅, 3초 안에 메인 메시지
+- **짧은 문장**: 한 문장당 5-7단어, 빠르게 읽기
+- **강렬한 시작**: 스크롤을 멈추게 하는 충격적 오프닝
+- **비주얼 중심**: 텍스트보다 이미지/영상이 메인
+- **음악 싱크**: 배경 음악과 씬 전환 고려
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⭐ **스토리 작성 핵심 원칙** ⭐
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **좋은 스토리의 3대 요소:**
+1. **감정**: 구체적인 대화와 행동으로 감정 표현 (눈물, 떨림, 한숨 등)
+2. **긴장**: 갈등 → 최고조 → 반전 구조로 몰입 유지
+3. **여운**: 마지막에 교훈이나 감동을 자연스럽게 남기기
+
+❌ **피해야 할 3가지:**
+1. 설명투 나열 ("~했습니다" 반복만)
+2. 추상적 교훈만 ("좋은 사람이 이깁니다")
+3. 감정 없는 건조한 서술
+
+【간단 예시: 엄마의 마지막 말】
+- 씬 0: "엄마... 사랑해." 이게 마지막 말이었습니다.
+- 씬 1-2: [의대 낙방 + 병실 상황] 구체적 배경
+- 씬 3-4: [엄마 대화 + 위급 상황] 감정 몰입
+- 씬 5: [마지막 말 + 눈 감음] WTF 반전
+- 씬 6-7: [1년 후 의사됨] 여운 + CTA
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대본 작성 가이드:
+1. **총 5개 씬 구성** (1분 30초, 90초)
+
+   - **씬 0 (훅)**: 5초, 40자 - **충격적 대사로 시작**
+     * ✅ "엄마... 사랑해." 이게 마지막이었습니다.
+     * ✅ "도와주세요..." 그의 눈빛이 심상치 않았어요.
+     * ❌ "재벌 회장이 변장했습니다." (설명투)
+
+   - **씬 1 (갈등)**: 25초, 160자 - **상황+갈등 빠르게**
+     * ⚠️ **필수: 최소 2개 이상의 직접 인용 대화 포함**
+     * 구체적 행동과 대사 중심
+     * 예: "'괜찮아.' 엄마가 말했어요. 하지만 숨소리가 거칠었습니다. '정말 괜찮아?' 제가 물었어요."
+
+   - **씬 2 (몰입)**: 25초, 160자 - **감정 극대화**
+     * ⚠️ **필수: 구체적 대화와 행동 디테일**
+     * 설명 금지, 장면 보여주기
+     * 예: "손을 꼭 잡으며 울었어요. '제발 떠나지 마세요...' 엄마는 제 머리를 쓰다듬었습니다."
+
+   - **씬 3 (반전)**: 20초, 130자 - **WTF! 예상 못한 전개**
+     * ⚠️ **뻔한 전개 금지** - 신선하고 의외여야 함
+     * 충격적이고 예측 불가능한 반전
+     * 예: "그런데 갑자기... (독자가 절대 예상 못한 사건)"
+
+   - **씬 4 (여운+CTA)**: 15초, 110자 - **열린 결말 + CTA**
+     * ❌ **교훈/설교 절대 금지** ("효도는...", "좋은 사람은...", "진심은..." 등 NO)
+     * ✅ **강렬한 장면이나 질문으로 여운** - 해석은 시청자에게
+     * ⚠️ **필수: "구독과 좋아요 부탁드립니다" 자연스럽게**
+     * 예: "그 후로 그녀는... (미완성 결말로 상상 유도). 구독과 좋아요 부탁드립니다."
+
+2. **총 600자 분량** (약 90초 = 1분 30초)
+   - 씬 0: 40자 - 5초
+   - 씬 1: 160자 - 25초
+   - 씬 2: 160자 - 25초
+   - 씬 3: 130자 - 20초
+   - 씬 4: 110자 - 15초
+
+3. **필수 후킹 요소:**
+   - **첫 문장 패턴**: "절대/비밀/충격/반전/몰랐던/숨겨진/99%/놀라운"
+   - **감정 폭발 단어**: "소름", "경악", "충격", "반전", "대박", "미쳤다"
+   - **긴급성**: "지금 당장", "3초 안에", "놓치면 평생", "오늘부터"
+   - **호기심 자극**: "이유는?", "정체는?", "진실은?", "결과는?"
+   - **숫자 활용**: "3가지", "5초 만에", "100만원", "99%"
+   - **대비/반전**: "그런데", "하지만", "놀랍게도", "알고보니"
+
+4. **⚠️ 재미와 감동의 핵심 (필수!):**
+   - ✅ **디테일 묘사**: "눈물이 흘렀다" (O) vs "슬펐다" (X)
+   - ✅ **대화 중심**: 직접 인용으로 생생하게
+   - ✅ **예상 못한 전개**: 뻔하지 않은 반전
+   - ✅ **극적인 대비**: 행복 → 절망 or 절망 → 희망
+   - ✅ **공감 포인트**: "나도 저랬을 것 같다" 느낌
+
+5. **절대 금지:**
+   - ❌ CTA 생략 (씬 4 마지막 필수)
+   - ❌ 설명만 ("~했습니다" 반복)
+   - ❌ **교훈/설교/메시지** ("효도는 의무", "진심은 통한다", "좋은 사람이 이긴다" 등 - 재미 없음!)
+   - ❌ 뻔한 전개 (예측 가능한 스토리)
+   - ❌ 추상적 마무리 ("그 후로 행복했습니다" 등)
+   - ❌ 대화 없는 건조한 서술
+
+📱 **이미지 프롬프트 작성 규칙 (9:16 세로 최적화):**
+
+⚠️ **최우선: 세로 화면 구성**
+- **vertical composition** 필수 명시
+- **9:16 aspect ratio** 또는 **portrait orientation** 포함
+- 인물은 화면 중앙 배치, 상하 여백 최소화
+- 텍스트 오버레이 공간 고려 (상단/하단)
+
+🎨 **기본 구조:**
+[Vertical 9:16 format] + [주제 관련 강렬한 비주얼] + [역동적 구성] + [밝고 선명한 색감] + [모바일 최적화] + NO TEXT
+
+**씬별 이미지 스타일:**
+
+**씬 0 (훅):**
+```
+Vertical 9:16 format, portrait orientation, dynamic opening shot, [충격적/흥미로운 순간], subject centered in frame, eye-catching composition, vibrant saturated colors, high contrast, mobile-optimized framing, energetic mood, sharp focus on main subject, NO TEXT
+```
+
+**씬 1-3 (본문):**
+```
+Vertical 9:16 format, portrait orientation, [구체적 장면/상황], subject filling vertical frame, clear focal point, relatable scenario, contemporary feel, bright even lighting, clean composition, mobile-friendly scale, NO TEXT
+```
+
+**씬 4 (마무리):**
+```
+Vertical 9:16 format, portrait orientation, satisfying conclusion shot, [마무리 장면], centered composition, warm inviting mood, soft natural lighting, memorable visual, optimized for mobile viewing, NO TEXT
+```
+
+**공통 키워드:**
+- vertical composition, 9:16 aspect ratio, portrait orientation
+- centered subject, full-frame person/object
+- vibrant colors, high saturation
+- mobile-optimized, smartphone viewing
+- quick-cut ready, dynamic framing
+
+금칙어 리스트 (1글자라도 출력 금지):
+- "질문", "확인", "추가로", "세부", "배경", "답변 주시면", "더 강력하게", "작업을 시작하겠습니다"
+- "길이 관계상", "생략", "간략", "요약", "일부만", "핵심만", "공유드리겠습니다", "설명드리겠습니다"
+- "준비 중입니다", "먼저", "다음으로", "제안드립니다", "가이드", "주의사항"
+- "due to length", "omitted", "summary", "preview", "I will", "questions", "before we proceed"
+
+📝 JSON 이스케이프 규칙 (필수):
+
+**JSON 출력 시 반드시 적용:**
+
+1. **큰따옴표 이스케이프**
+   - 정규식: `"` → `\"`
+   - 예: `그녀가 "안녕"이라고` → `그녀가 \"안녕\"이라고`
+
+2. **백슬래시 이스케이프**
+   - 정규식: `\` → `\\`
+   - 예: `C:\folder` → `C:\\folder`
+
+3. **줄바꿈 이스케이프**
+   - 정규식: `\n` → `\\n` (실제 줄바꿈을 문자열로)
+   - JSON 문자열 내부에 물리적 줄바꿈 금지, 반드시 `\\n` 사용
+
+4. **기타 제어문자**
+   - `\r` → `\\r`
+   - `\t` → `\\t`
+   - `\b` → `\\b`
+   - `\f` → `\\f`
+
+**적용 순서 (중요):**
+1. 백슬래시 먼저: `\` → `\\`
+2. 그 다음 큰따옴표: `"` → `\"`
+3. 마지막 줄바꿈: 실제 개행 → `\\n`
+
+**검증:**
+- 모든 narration 필드에 적용
+- 최종 JSON이 유효한 JSON 형식이어야 함
+
+
+📋 JSON 출력 스키마 (숏폼 버전 - 5개 씬, 1분 30초)
+
+```json
+{
+  "title": "{title}",
+  "version": "shortform-4.0",
+  "metadata": {
+    "genre": "숏폼 (쇼츠/릴스/틱톡)",
+    "format": "세로형 9:16",
+    "target_audience": "10-40대 모바일 사용자",
+    "emotional_arc": "훅 → 갈등 → 몰입 → 반전 → 여운+CTA",
+    "key_themes": ["주제1", "주제2"],
+    "total_word_count": 600,
+    "estimated_duration_seconds": 90,
+    "aspect_ratio": "9:16 (portrait)",
+    "category": "일반",
+    "scriptId": "자동생성됨"
+  },
+  "scenes": [
+    {
+      "scene_id": "scene_00_hook",
+      "scene_name": "훅 - 강력한 시작",
+      "duration_seconds": 5,
+      "word_count": 40,
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, shocking moment, extreme close-up of emotional face or dramatic reveal, centered subject, vibrant saturated colors, high contrast lighting, intense eye contact, mobile-optimized, NO TEXT",
+      "narration": "극적인 대사나 감정으로 시작! 예: '엄마... 사랑해.' 이게 엄마의 마지막 말이었습니다. 그날 제 인생이 바뀌었어요. (40자)"
+    },
+    {
+      "scene_id": "scene_01_background",
+      "scene_name": "배경 - 상황 설정",
+      "duration_seconds": 15,
+      "word_count": 100,
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, establishing shot, context-setting scene, environmental details visible, relatable everyday situation, natural lighting, documentary style atmosphere, mobile-optimized, NO TEXT",
+      "narration": "구체적인 배경과 상황! 누가, 언제, 어디서, 무엇을, 왜. 예: '그날 저는 의대 시험에 떨어졌습니다. 5수째였어요...' (100자)"
+    },
+    {
+      "scene_id": "scene_02_conflict",
+      "scene_name": "갈등 - 문제 전개",
+      "duration_seconds": 20,
+      "word_count": 130,
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, tense moment, conflict visualization, worried or stressed expressions, dramatic shadows, building tension atmosphere, mobile-optimized, NO TEXT",
+      "narration": "핵심 갈등 전개! 구체적 대화와 행동! 예: '엄마는 창백한 얼굴로 웃으며 말했어요. 괜찮아, 내년에 또 보면 돼...' (130자)"
+    },
+    {
+      "scene_id": "scene_03_immersion",
+      "scene_name": "몰입 - 감정 공감",
+      "duration_seconds": 20,
+      "word_count": 130,
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, emotional moment, deep empathy scene, touching gesture or meaningful glance, warm cinematic lighting, intimate connection atmosphere, mobile-optimized, NO TEXT",
+      "narration": "감정 몰입 극대화! 디테일한 감정 묘사! 예: '그날 밤, 엄마는 제 손을 꼭 잡으셨습니다. 엄마의 꿈은...' (130자)"
+    },
+    {
+      "scene_id": "scene_04_tension",
+      "scene_name": "긴장 - 갈등 심화",
+      "duration_seconds": 20,
+      "word_count": 130,
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, peak tension moment, crisis point visualization, anxious expressions, dramatic lighting with strong shadows, heart-pounding atmosphere, mobile-optimized, NO TEXT",
+      "narration": "긴장감 최고조! '어떻게 될까?' 궁금증 유발! 예: '다음 날 아침, 엄마는 깨어나지 못했습니다...' (130자)"
+    },
+    {
+      "scene_id": "scene_05_twist",
+      "scene_name": "반전 - 클라이맥스",
+      "duration_seconds": 20,
+      "word_count": 130,
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, shocking revelation, unexpected twist moment, surprised or amazed expressions, dramatic lighting shift, mind-blowing atmosphere, mobile-optimized, NO TEXT",
+      "narration": "WTF 순간! 극적 반전! 예: '3시간 후, 엄마가 눈을 떴습니다. 그리고 마지막 힘을 다해 말했어요...' (130자)"
+    },
+    {
+      "scene_id": "scene_06_result",
+      "scene_name": "결과 - 변화",
+      "duration_seconds": 15,
+      "word_count": 100,
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, transformation scene, before-after visualization, hopeful or determined expression, transitional lighting, resolution atmosphere, mobile-optimized, NO TEXT",
+      "narration": "결과와 변화! 갈등의 해결! 예: '장례식 후 저는 다시 책을 펼쳤습니다. 엄마를 위해서...' (100자)"
+    },
+    {
+      "scene_id": "scene_07_ending",
+      "scene_name": "여운 + CTA - 강력한 마무리",
+      "duration_seconds": 20,
+      "word_count": 140,
+      "image_prompt": "Photorealistic professional photograph, Korean people, realistic photography style, DSLR camera, high resolution, natural skin texture, Vertical 9:16 format, portrait orientation, powerful closing shot, satisfying conclusion, confident or peaceful expression, warm inspiring lighting, memorable impactful visual, lingering emotional mood, mobile-optimized, NO TEXT",
+      "narration": "⚠️ 필수: 강력한 여운 + CTA 자연스럽게! 예: '저는 의사가 되었습니다. 엄마... 자랑스러워하시죠? 구독과 좋아요 부탁드립니다.' (140자)"
+    }
+  ],
+  "quality_check": {
+    "word_count_pass": true,
+    "scene_count": 8,
+    "total_duration": 120,
+    "hook_effectiveness": "strong",
+    "vertical_format_optimized": true,
+    "mobile_friendly": true,
+    "subscription_request_included": true,
+    "tone_appropriate": true,
+    "emotion_driven": true,
+    "story_arc_complete": true
+  }
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 출력 형식 안내
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**응답 형식:**
+- 위에 제시된 JSON 스키마를 정확히 따라 작성해주세요
+- { 로 시작해서 } 로 끝나는 순수 JSON 객체만 반환
+- 코드펜스(```)나 추가 설명 없이 JSON만 출력
+- 모든 필드를 빠짐없이 채워주세요
+
+**품질 체크리스트:**
+- scenes는 정확히 8개 (scene_00_hook ~ scene_07_ending)
+- 씬 0: 5초, 40자 (극적인 대사로 시작)
+- 씬 1: 15초, 100자 (배경과 상황 설정)
+- 씬 2: 20초, 130자 (갈등과 문제 전개)
+- 씬 3: 20초, 130자 (감정 몰입과 공감)
+- 씬 4: 20초, 130자 (긴장감 최고조)
+- 씬 5: 20초, 130자 (WTF 반전)
+- 씬 6: 15초, 100자 (결과와 변화)
+- 씬 7: 20초, 140자 (⚠️ 필수: 강력한 여운 + "구독과 좋아요 부탁드립니다" 자연스럽게 포함)
+- 총 word_count는 800자
+- 총 estimated_duration_seconds는 120초 (2분)
+- 모든 씬의 image_prompt에 "Vertical 9:16 format" 포함
+- ⚠️ 씬 7 마지막에 CTA 반드시 자연스럽게 포함
+- 구체적인 대사와 감정 중심으로 작성 (설명투 금지)
+- 완벽한 스토리 아크 (훅 → 배경 → 갈등 → 몰입 → 긴장 → 반전 → 결과 → 여운)
+
+**출력 예시:**
+{"title": "...", "version": "shortform-3.0", "metadata": {...}, "scenes": [8개 씬...], "quality_check": {...}}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이제 위 스키마에 따라 JSON 대본을 작성해주세요:

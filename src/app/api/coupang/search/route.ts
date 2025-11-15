@@ -17,21 +17,41 @@ async function loadUserSettings(userId: string) {
   }
 }
 
-function generateCoupangSignature(method: string, url: string, secretKey: string) {
-  const datetime = new Date().toISOString().slice(0, -5) + 'Z';
-  const message = datetime + method + url;
+function generateCoupangSignature(method: string, path: string, accessKey: string, secretKey: string) {
+  // Datetime format: yymmddTHHMMSSZ (GMT+0)
+  const now = new Date();
+  const year = String(now.getUTCFullYear()).slice(-2);
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const hours = String(now.getUTCHours()).padStart(2, '0');
+  const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+  const datetime = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+
+  // Message format: datetime + method + path (no query params)
+  const message = datetime + method + path;
+
   const signature = crypto
     .createHmac('sha256', secretKey)
     .update(message)
     .digest('hex');
-  return { datetime, signature };
+
+  const authorization = `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
+
+  return { datetime, signature, authorization };
 }
 
 // POST - 상품 검색
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization');
+    console.log('🔍 [Coupang Search] Authorization 헤더:', authHeader);
+
     const user = await getCurrentUser(request);
+    console.log('👤 [Coupang Search] 사용자 정보:', user);
+
     if (!user) {
+      console.log('❌ [Coupang Search] 사용자 인증 실패');
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
     }
 
@@ -49,12 +69,15 @@ export async function POST(request: NextRequest) {
 
     const REQUEST_METHOD = 'GET';
     const DOMAIN = 'https://api-gateway.coupang.com';
-    const URL = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/search?keyword=${encodeURIComponent(keyword)}&limit=20`;
+    const PATH = '/v2/providers/affiliate_open_api/apis/openapi/products/search';
+    const QUERY = `?keyword=${encodeURIComponent(keyword)}&limit=10`;
+    const FULL_URL = PATH + QUERY;
 
-    const { datetime, signature } = generateCoupangSignature(REQUEST_METHOD, URL, settings.secretKey);
-    const authorization = `CEA algorithm=HmacSHA256, access-key=${settings.accessKey}, signed-date=${datetime}, signature=${signature}`;
+    // HMAC 서명은 PATH만 사용 (쿼리 제외)
+    const { authorization } = generateCoupangSignature(REQUEST_METHOD, PATH, settings.accessKey, settings.secretKey);
 
-    const response = await fetch(DOMAIN + URL, {
+    // 실제 API 호출은 전체 URL 사용 (쿼리 포함)
+    const response = await fetch(DOMAIN + FULL_URL, {
       method: REQUEST_METHOD,
       headers: {
         'Authorization': authorization,

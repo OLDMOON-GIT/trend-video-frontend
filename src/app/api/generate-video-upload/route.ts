@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
     let promptFormat: string = '';
     let originalNames: Record<number, string> = {};
 
+    let scriptId: string | undefined;
+
     if (isInternal) {
       // 내부 요청: JSON으로 받음
       const body = await request.json();
@@ -41,6 +43,7 @@ export async function POST(request: NextRequest) {
       videoFormat = body.videoFormat || 'shortform';
       ttsVoice = body.ttsVoice || 'ko-KR-SoonBokNeural';
       videoTitle = body.title || 'Untitled';
+      scriptId = body.scriptId; // 자동화용: 이미 업로드된 이미지 폴더
 
       if (!userId) {
         console.log('❌ 내부 요청: userId가 필요합니다');
@@ -163,8 +166,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 직접 업로드 모드일 때만 이미지 또는 비디오 필수 체크 (SORA2는 불필요)
-    if (videoFormat !== 'sora2' && imageSource === 'none' && allMediaFiles.length === 0) {
+    // 직접 업로드 모드일 때만 이미지 또는 비디오 필수 체크 (SORA2는 불필요, 내부 요청은 이미 폴더에 있음)
+    if (!isInternal && videoFormat !== 'sora2' && imageSource === 'none' && allMediaFiles.length === 0) {
       return NextResponse.json(
         { error: '최소 1개 이상의 이미지 또는 비디오가 필요합니다.' },
         { status: 400 }
@@ -201,9 +204,25 @@ export async function POST(request: NextRequest) {
 
     // trend-video-backend 경로
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
-    const jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const projectName = `uploaded_${jobId}`;
-    const inputPath = path.join(backendPath, 'uploads', projectName);
+
+    // 자동화 요청인 경우 이미 업로드된 폴더 사용, 일반 요청인 경우 새 폴더 생성
+    let jobId: string;
+    let projectName: string;
+    let inputPath: string;
+
+    if (scriptId) {
+      // 자동화: 이미 업로드된 폴더 사용
+      jobId = `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      projectName = `project_${scriptId}`;
+      inputPath = path.join(backendPath, 'input', projectName);
+      console.log(`🔄 [자동화] 기존 폴더 사용: ${inputPath}`);
+    } else {
+      // 일반: 새 폴더 생성
+      jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      projectName = `uploaded_${jobId}`;
+      inputPath = path.join(backendPath, 'uploads', projectName);
+      console.log(`📁 [일반] 새 폴더 생성: ${inputPath}`);
+    }
 
     // JSON에서 카테고리 읽기
     let category: string | undefined;
@@ -233,7 +252,8 @@ export async function POST(request: NextRequest) {
       videoFormat, // 롱폼/숏폼 정보 전달
       originalNames, // 원본 파일명 매핑
       ttsVoice, // TTS 음성 선택
-      imageModel // 이미지 생성 모델
+      imageModel, // 이미지 생성 모델
+      scriptId // 자동화용: 이미 업로드된 폴더 식별자
     });
 
     return NextResponse.json({
@@ -267,6 +287,7 @@ async function generateVideoFromUpload(
     originalNames?: Record<number, string>; // 원본 파일명 매핑
     ttsVoice: string; // TTS 음성 선택
     imageModel: string; // 이미지 생성 모델 ('dalle3', 'imagen3')
+    scriptId?: string; // 자동화용: 이미 업로드된 폴더 식별자
   }
 ) {
   try {
@@ -442,7 +463,9 @@ async function generateVideoFromUpload(
 
       // spawn으로 실시간 출력 받기 (UTF-8 인코딩 설정)
       const jobIdArg = ['--job-id', jobId];
-      const pythonArgs = ['create_video_from_folder.py', '--folder', `uploads/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...voiceArg, ...imageProviderArg, ...isAdminArg, ...jobIdArg];
+      // 자동화인 경우 input/ 폴더, 일반인 경우 uploads/ 폴더 사용
+      const folderPrefix = config.scriptId ? 'input' : 'uploads';
+      const pythonArgs = ['create_video_from_folder.py', '--folder', `${folderPrefix}/${config.projectName}`, ...imageSourceArg, ...aspectRatioArg, ...subtitlesArg, ...voiceArg, ...imageProviderArg, ...isAdminArg, ...jobIdArg];
       console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
 
       pythonProcess = spawn('python', pythonArgs, {
