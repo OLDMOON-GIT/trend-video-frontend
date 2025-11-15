@@ -586,8 +586,7 @@ function HomeContent() {
   // 상품 프롬프트 타입 감지 및 상품 정보 로드
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const promptType = urlParams.get('promptType');
+      const promptType = searchParams?.get('promptType');
 
       if (promptType === 'product') {
         // 확실하게 상품 포맷으로 설정
@@ -639,13 +638,12 @@ function HomeContent() {
         }
       }
     }
-  }, []);
+  }, [searchParams]);
 
   // 상품정보 대본 생성 파라미터 감지
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const scriptId = urlParams.get('generateProductInfo');
+      const scriptId = searchParams?.get('generateProductInfo');
 
       if (scriptId) {
         console.log('🛍️ 상품정보 생성 요청 감지:', scriptId);
@@ -759,7 +757,7 @@ function HomeContent() {
         window.history.replaceState({}, '', '/');
       }
     }
-  }, []);
+  }, [searchParams]);
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
