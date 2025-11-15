@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
-import { getYouTubeChannelById, getDefaultYouTubeChannel, createYouTubeUpload } from '@/lib/db';
+import { getYouTubeChannelById, getDefaultYouTubeChannel, getUserYouTubeChannels, createYouTubeUpload } from '@/lib/db';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -80,7 +80,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (channelId) {
       // 특정 채널 ID가 제공된 경우
       console.log('🔍 채널 ID로 조회:', channelId);
+
+      // channelId가 DB의 id인지 YouTube의 실제 channelId인지 확인
       selectedChannel = await getYouTubeChannelById(channelId);
+
+      // id로 못 찾으면 youtube_channels.json에서 재조회
+      if (!selectedChannel) {
+        console.log('🔍 DB에서 못 찾음, youtube_channels.json에서 재조회:', channelId);
+        const allChannels = await getUserYouTubeChannels(user.userId);
+        // youtube_channels.json의 id 또는 YouTube 실제 channelId로 조회
+        selectedChannel = allChannels.find(ch => ch.id === channelId || ch.channelId === channelId);
+      }
+
       console.log('📺 조회된 채널:', selectedChannel);
       console.log('👤 현재 사용자 ID:', user.userId);
 
@@ -247,10 +258,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           const result = JSON.parse(jsonLine);
           if (result.success) {
             // YouTube 업로드 기록 저장
+            let uploadRecordId: string | undefined;
             try {
               const thumbnailUrl = `https://img.youtube.com/vi/${result.video_id}/maxresdefault.jpg`;
 
-              createYouTubeUpload({
+              const uploadRecord = createYouTubeUpload({
                 userId: user.userId,
                 jobId: body.jobId || undefined,
                 videoId: result.video_id,
@@ -263,7 +275,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 privacyStatus: privacy
               });
 
-              console.log('✅ YouTube 업로드 기록 저장 완료');
+              uploadRecordId = uploadRecord.id;
+              console.log('✅ YouTube 업로드 기록 저장 완료, uploadId:', uploadRecordId);
             } catch (dbError) {
               console.error('❌ DB 저장 실패:', dbError);
               // DB 저장 실패해도 업로드는 성공이므로 계속 진행
@@ -272,7 +285,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             resolve(NextResponse.json({
               success: true,
               videoId: result.video_id,
-              videoUrl: result.video_url
+              videoUrl: result.video_url,
+              uploadId: uploadRecordId // 업로드 기록 ID 반환
             }));
           } else {
             resolve(NextResponse.json({

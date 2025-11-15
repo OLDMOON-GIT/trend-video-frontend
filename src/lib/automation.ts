@@ -306,11 +306,9 @@ export function getPendingSchedules() {
       t.media_mode,
       t.model,
       t.youtube_schedule,
-      t.channel as channel_settings_id,
-      yc.channel_id as channel
+      t.channel as channel
     FROM video_schedules s
     JOIN video_titles t ON s.title_id = t.id
-    LEFT JOIN youtube_channel_settings yc ON t.channel = yc.id
     WHERE s.status = 'pending'
       AND s.scheduled_time <= ?
     ORDER BY s.scheduled_time ASC
@@ -339,11 +337,9 @@ export function getWaitingForUploadSchedules() {
       t.media_mode,
       t.model,
       t.youtube_schedule,
-      t.channel as channel_settings_id,
-      yc.channel_id as channel
+      t.channel as channel
     FROM video_schedules s
     JOIN video_titles t ON s.title_id = t.id
-    LEFT JOIN youtube_channel_settings yc ON t.channel = yc.id
     WHERE s.status = 'waiting_for_upload'
     ORDER BY s.updated_at ASC
   `).all();
@@ -444,7 +440,7 @@ export function addTitleLog(
 // 스케줄 상태 업데이트
 export function updateScheduleStatus(
   scheduleId: string,
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled',
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'waiting_for_upload',
   updates?: {
     scriptId?: string;
     videoId?: string;

@@ -16,6 +16,7 @@ import {
 import { sendErrorEmail } from './email';
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
@@ -24,7 +25,7 @@ let schedulerInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
 
 // 제목 상태 업데이트 헬퍼 함수
-function updateTitleStatus(titleId: string, status: 'pending' | 'scheduled' | 'processing' | 'completed' | 'failed') {
+function updateTitleStatus(titleId: string, status: 'pending' | 'scheduled' | 'processing' | 'completed' | 'failed' | 'waiting_for_upload' | 'cancelled') {
   try {
     const db = new Database(dbPath);
     db.prepare(`
@@ -98,8 +99,32 @@ async function processPendingSchedules() {
 
     for (const schedule of pendingSchedules) {
       try {
-        // 스케줄 상태를 'processing'으로 변경
-        updateScheduleStatus((schedule as any).id, 'processing');
+        // 원자적으로 스케줄 상태를 'processing'으로 변경 (중복 실행 방지)
+        const db = new Database(dbPath);
+        const result = db.prepare(`
+          UPDATE video_schedules
+          SET status = 'processing', updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND status = 'pending'
+        `).run((schedule as any).id);
+
+        // 업데이트된 row가 없으면 다른 스케줄러가 이미 처리 중
+        if (result.changes === 0) {
+          console.log(`[Scheduler] Schedule ${(schedule as any).id} already being processed by another scheduler`);
+          db.close();
+          continue;
+        }
+
+        // 파이프라인이 이미 존재하는지 확인
+        const existingPipeline = db.prepare(`
+          SELECT id FROM automation_pipelines WHERE schedule_id = ? LIMIT 1
+        `).get((schedule as any).id);
+
+        db.close();
+
+        if (existingPipeline) {
+          console.log(`[Scheduler] Pipeline already exists for schedule ${(schedule as any).id}, skipping`);
+          continue;
+        }
 
         // 제목 상태도 'processing'으로 변경
         updateTitleStatus((schedule as any).title_id, 'processing');
@@ -200,9 +225,13 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
       .run(videoResult.videoId, schedule.id);
     dbUpdateVideo.close();
 
-    updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId });
+    updateScheduleStatus(schedule.id, 'completed', { videoId: videoResult.videoId });
+    updateTitleStatus(schedule.title_id, 'completed');
     addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
     addTitleLog(schedule.title_id, 'info', `✅ Video generated successfully: ${videoResult.videoId}`);
+
+    console.log(`[Scheduler] Video generation completed for schedule ${schedule.id}`);
+    return; // 영상 생성 완료, YouTube 업로드는 별도 처리
 
     // ============================================================
     // Stage 3: 유튜브 업로드
@@ -286,7 +315,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 // 개별 Stage 함수들
 // ============================================================
 
-// Stage 1: 대본 생성
+// Stage 1: 대본 생성 (재시도 로직 제거)
 async function generateScript(schedule: any, pipelineId: string, maxRetry: number) {
   console.log('🔍 [SCHEDULER] generateScript called with schedule:', {
     id: schedule.id,
@@ -296,7 +325,8 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
   });
 
   try {
-    addPipelineLog(pipelineId, 'info', `Generating script`);
+    addPipelineLog(pipelineId, 'info', `📝 대본 생성 시작...`);
+    addTitleLog(schedule.title_id, 'info', `📝 대본 생성 시작...`);
 
     const requestBody = {
       title: schedule.title,
@@ -390,18 +420,22 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     return { success: true, scriptId: data.taskId || data.scriptId };
 
   } catch (error: any) {
-    addPipelineLog(pipelineId, 'error', `Script generation failed: ${error.message}`);
-    return { success: false, error: error.message };
+    const errorMsg = error.message || 'Unknown error';
+    addPipelineLog(pipelineId, 'error', `❌ 대본 생성 실패: ${errorMsg}`);
+    addTitleLog(schedule.title_id, 'error', `❌ 대본 생성 실패: ${errorMsg}`);
+    console.error(`❌ [SCHEDULER] Script generation failed:`, error.message);
+    return { success: false, error: errorMsg };
   }
 }
 
-// Stage 2: 영상 생성
+// Stage 2: 영상 생성 (재시도 로직 제거)
 async function generateVideo(scriptId: string, pipelineId: string, maxRetry: number, titleId: string, schedule: any) {
   const settings = getAutomationSettings();
   const mediaMode = schedule.media_mode || settings.media_generation_mode || 'upload';
 
   try {
-    addPipelineLog(pipelineId, 'info', `Generating video via ${mediaMode}`);
+    addPipelineLog(pipelineId, 'info', `🎬 영상 생성 시작... (mode: ${mediaMode})`);
+    addTitleLog(titleId, 'info', `🎬 영상 생성 시작...`);
 
     // DB에서 대본 조회
     const db = new Database(dbPath);
@@ -442,8 +476,20 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       scenes: scriptData.scenes || []
     };
 
-    // 이미지 소스 설정
-    const imageSource = mediaMode === 'upload' ? 'none' : mediaMode;
+    // 업로드된 이미지가 있는지 확인
+    const scriptFolderPath = path.join(process.cwd(), '..', 'trend-video-backend', 'input', `project_${scriptId}`);
+    let hasUploadedImages = false;
+    if (fs.existsSync(scriptFolderPath)) {
+      const files = fs.readdirSync(scriptFolderPath);
+      const imageFiles = files.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
+      hasUploadedImages = imageFiles.length > 0;
+      if (hasUploadedImages) {
+        console.log(`[Scheduler] Found ${imageFiles.length} uploaded image(s) in ${scriptFolderPath}`);
+      }
+    }
+
+    // 이미지 소스 설정 (업로드된 이미지가 있으면 우선 사용)
+    const imageSource = (mediaMode === 'upload' || hasUploadedImages) ? 'none' : mediaMode;
 
     // 이미지 모델 설정 (imagen3 -> imagen3, 나머지는 dalle3)
     const imageModel = mediaMode === 'imagen3' ? 'imagen3' : 'dalle3';
@@ -459,7 +505,8 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       imageModel,
       videoFormat: videoType,
       ttsVoice: 'ko-KR-SoonBokNeural',
-      title: content.title
+      title: content.title,
+      scriptId  // 자동화용: 이미 업로드된 이미지가 있는 폴더 경로
     };
 
     console.log('📤 [SCHEDULER] Calling /api/generate-video-upload...');
@@ -562,8 +609,11 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
     return { success: true, videoId: data.videoId };
 
   } catch (error: any) {
-    addPipelineLog(pipelineId, 'error', `Video generation failed: ${error.message}`);
-    return { success: false, error: error.message };
+    const errorMsg = error.message || 'Unknown error';
+    addPipelineLog(pipelineId, 'error', `❌ 영상 생성 실패: ${errorMsg}`);
+    addTitleLog(titleId, 'error', `❌ 영상 생성 실패: ${errorMsg}`);
+    console.error(`❌ [SCHEDULER] Video generation failed:`, error.message);
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -643,34 +693,18 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
 
     addPipelineLog(pipelineId, 'info', `✅ YouTube upload successful: ${uploadData.videoUrl}`);
 
-    // DB에 upload 정보 저장 (youtube_uploads 테이블 사용)
-    const uploadDb = new Database(dbPath);
-    const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const uploadRecord = uploadDb.prepare(`
-      INSERT INTO youtube_uploads (
-        id, user_id, job_id, video_id, video_url,
-        title, channel_id, privacy_status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      uploadId,
-      schedule.user_id,
-      videoId,
-      uploadData.videoId,
-      uploadData.videoUrl,
-      schedule.title,
-      schedule.channel,
-      'private'
-    );
-
     // video_schedules 테이블에 youtube_upload_id 업데이트
-    uploadDb.prepare(`
-      UPDATE video_schedules
-      SET youtube_upload_id = ?
-      WHERE id = ?
-    `).run(uploadId, schedule.id);
-
-    uploadDb.close();
+    // YouTube API에서 이미 youtube_uploads 테이블에 저장했으므로 중복 저장하지 않음
+    if (uploadData.uploadId) {
+      const uploadDb = new Database(dbPath);
+      uploadDb.prepare(`
+        UPDATE video_schedules
+        SET youtube_upload_id = ?
+        WHERE id = ?
+      `).run(uploadData.uploadId, schedule.id);
+      uploadDb.close();
+      console.log(`✅ video_schedules 업데이트: youtube_upload_id = ${uploadData.uploadId}`);
+    }
 
     return {
       success: true,
@@ -873,12 +907,7 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   updatePipelineStatus(uploadPipelineId, 'completed');
 
   // video_schedules 테이블에 youtube_upload_id 저장
-  const dbUpdateUpload = new Database(dbPath);
-  dbUpdateUpload.prepare(`UPDATE video_schedules SET youtube_upload_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-    .run(uploadResult.uploadId, schedule.id);
-  dbUpdateUpload.close();
-
-  updateScheduleStatus(schedule.id, 'processing', { youtubeUploadId: uploadResult.uploadId });
+  // uploadToYouTube에서 이미 업데이트했으므로 중복 업데이트하지 않음
   addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
   addTitleLog(schedule.title_id, 'info', `✅ YouTube 업로드 완료: ${uploadResult.videoUrl}`);
 
@@ -888,7 +917,7 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   addTitleLog(schedule.title_id, 'info', `📅 퍼블리시 예약 중...`);
   updatePipelineStatus(publishPipelineId, 'running');
 
-  const publishResult = await scheduleYouTubePublish(uploadResult.uploadId!, schedule, publishPipelineId);
+  const publishResult = await scheduleYouTubePublish(uploadResult.uploadId || '', schedule, publishPipelineId);
 
   if (!publishResult.success) {
     throw new Error(`YouTube publish scheduling failed: ${publishResult.error}`);
