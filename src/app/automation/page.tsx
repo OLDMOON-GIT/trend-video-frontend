@@ -51,7 +51,7 @@ function AutomationPageContent() {
   const [expandedLogsFor, setExpandedLogsFor] = useState<string | null>(null);
   const [logsMap, setLogsMap] = useState<Record<string, any[]>>({});
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-  const [mainTab, setMainTab] = useState<'queue' | 'schedule-management' | 'monitoring'>('queue');
+  const [mainTab, setMainTab] = useState<'queue' | 'schedule-management' | 'monitoring' | 'title-pool'>('queue');
   const [queueTab, setQueueTab] = useState<'scheduled' | 'processing' | 'waiting_upload' | 'failed' | 'completed'>('scheduled');
   const [scheduleManagementTab, setScheduleManagementTab] = useState<'channel-settings' | 'category-management' | 'calendar'>('channel-settings');
   const [progressMap, setProgressMap] = useState<Record<string, { scriptProgress?: number; videoProgress?: number }>>({});
@@ -67,6 +67,13 @@ function AutomationPageContent() {
   const [testModalOpen, setTestModalOpen] = useState(false); // 테스트 모달 열림 여부
   const [testLogs, setTestLogs] = useState<string[]>([]); // 테스트 로그
   const [testInProgress, setTestInProgress] = useState(false); // 테스트 진행 중
+
+  // 제목 풀 관련
+  const [poolTitles, setPoolTitles] = useState<any[]>([]);
+  const [poolStats, setPoolStats] = useState<any[]>([]);
+  const [poolCategory, setPoolCategory] = useState<string>('all');
+  const [poolMinScore, setPoolMinScore] = useState(90);
+  const [poolLoading, setPoolLoading] = useState(false);
 
   // localStorage에서 선택한 채널 불러오기
   function getSelectedChannel(): string {
@@ -1744,7 +1751,7 @@ function AutomationPageContent() {
           )}
 
           {/* 메인 탭 */}
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-4 gap-3 mb-4">
             <button
               onClick={() => setMainTab('queue')}
               className={`py-4 px-6 rounded-lg font-bold text-lg transition ${
@@ -1774,6 +1781,16 @@ function AutomationPageContent() {
               }`}
             >
               📊 실시간 현황판
+            </button>
+            <button
+              onClick={() => setMainTab('title-pool')}
+              className={`py-4 px-6 rounded-lg font-bold text-lg transition ${
+                mainTab === 'title-pool'
+                  ? 'bg-orange-600 text-white shadow-lg'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              🎯 제목 풀
             </button>
           </div>
 
@@ -1945,6 +1962,19 @@ function AutomationPageContent() {
           {mainTab === 'monitoring' && (
             <div>
               <GenerationDashboard />
+            </div>
+          )}
+
+          {/* 제목 풀 */}
+          {mainTab === 'title-pool' && (
+            <div className="space-y-4">
+              <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                <iframe
+                  src="/admin/title-pool"
+                  className="w-full h-[800px] border-0"
+                  title="제목 풀 관리"
+                />
+              </div>
             </div>
           )}
 

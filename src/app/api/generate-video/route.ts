@@ -172,7 +172,11 @@ async function generateVideoAsync(
     await new Promise<void>((resolve, reject) => {
       const pythonProcess = spawn('python', pythonArgs, {
         cwd: config.backendPath,
-        shell: true
+        shell: true,
+        env: {
+          ...process.env,
+          JOB_ID: jobId  // Python 로깅 핸들러가 사용
+        }
       });
 
       let currentProgress = 40;

@@ -29,6 +29,7 @@ export default function TitlePoolPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [minScore, setMinScore] = useState(90);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -37,6 +38,13 @@ export default function TitlePoolPage() {
   const loadData = async () => {
     try {
       setIsLoading(true);
+
+      // 사용자 권한 체크
+      const userRes = await fetch('/api/user');
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        setIsAdmin(userData.isAdmin || false);
+      }
 
       // 통계 로드
       const statsRes = await fetch('/api/admin/title-pool/stats');
@@ -122,15 +130,9 @@ export default function TitlePoolPage() {
         {/* 헤더 */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold">🎯 제목 풀 관리</h1>
-            <p className="text-slate-400 mt-2">90점 이상 고품질 제목 모음</p>
+            <h1 className="text-3xl font-bold">🎯 제목 풀</h1>
+            <p className="text-slate-400 mt-2">90점 이상 고품질 제목 모음 (Ollama 배치 생성)</p>
           </div>
-          <button
-            onClick={() => router.push('/admin')}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded"
-          >
-            ← 관리자
-          </button>
         </div>
 
         {/* 통계 카드 */}
@@ -253,24 +255,28 @@ export default function TitlePoolPage() {
                         {new Date(title.created_at).toLocaleString('ko-KR')}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          {title.used === 1 && (
+                        {isAdmin ? (
+                          <div className="flex gap-2">
+                            {title.used === 1 && (
+                              <button
+                                onClick={() => handleResetUsed(title.id)}
+                                className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded"
+                                title="사용 표시 초기화"
+                              >
+                                🔄
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleResetUsed(title.id)}
-                              className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded"
-                              title="사용 표시 초기화"
+                              onClick={() => handleDelete(title.id)}
+                              className="text-xs px-2 py-1 bg-red-600 hover:bg-red-500 rounded"
+                              title="삭제"
                             >
-                              🔄
+                              🗑️
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleDelete(title.id)}
-                            className="text-xs px-2 py-1 bg-red-600 hover:bg-red-500 rounded"
-                            title="삭제"
-                          >
-                            🗑️
-                          </button>
-                        </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-500">-</span>
+                        )}
                       </td>
                     </tr>
                   ))
