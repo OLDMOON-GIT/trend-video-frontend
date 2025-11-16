@@ -218,13 +218,11 @@ export async function POST(request: NextRequest) {
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
 
     // 자동화 요청인 경우 이미 업로드된 폴더 사용, 일반 요청인 경우 새 폴더 생성
-    let jobId: string;
+    let jobId: string = existingJobId || '';
     let projectName: string;
     let inputPath: string;
 
-    // existingJobId가 있으면 재사용, 없으면 새로 생성
     if (existingJobId) {
-      jobId = existingJobId;
       console.log(`♻️ [기존 Job 재사용] ${jobId}`);
     }
 

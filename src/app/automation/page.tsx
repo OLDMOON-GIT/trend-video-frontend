@@ -64,6 +64,9 @@ function AutomationPageContent() {
   const [downloadMenuFor, setDownloadMenuFor] = useState<Record<string, boolean>>({}); // 다운로드 메뉴 열림 여부
   const [isSubmitting, setIsSubmitting] = useState(false); // 제목 추가 중복 방지
   const [currentProductData, setCurrentProductData] = useState<any>(null); // 현재 상품 정보
+  const [testModalOpen, setTestModalOpen] = useState(false); // 테스트 모달 열림 여부
+  const [testLogs, setTestLogs] = useState<string[]>([]); // 테스트 로그
+  const [testInProgress, setTestInProgress] = useState(false); // 테스트 진행 중
 
   // localStorage에서 선택한 채널 불러오기
   function getSelectedChannel(): string {
@@ -859,10 +862,8 @@ function AutomationPageContent() {
         return;
       }
 
-      const scriptSchedule = titleSchedules.find((s: any) => s.script_id);
-      if (scriptSchedule) {
-        await regenerateVideo(titleId, scriptSchedule.script_id);
-      }
+      // TODO: 영상 재생성 API 필요
+      alert('영상 재생성 기능은 준비 중입니다.');
       return;
     }
 
@@ -1254,21 +1255,117 @@ function AutomationPageContent() {
         {/* 헤더 - 스케줄러 상태 */}
         <div className="flex justify-between items-center mb-8">
           <div></div>
-          <div className="flex items-center gap-3 bg-slate-800 rounded-lg px-4 py-2 border border-slate-700">
-            <div className={`w-3 h-3 rounded-full ${schedulerStatus?.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-slate-300 text-sm">
-              {schedulerStatus?.isRunning ? '실행 중' : '중지됨'}
-            </span>
-            <button
-              onClick={toggleScheduler}
-              className={`px-3 py-1 rounded text-sm font-semibold transition ${
-                schedulerStatus?.isRunning
-                  ? 'bg-red-600 hover:bg-red-500 text-white'
-                  : 'bg-green-600 hover:bg-green-500 text-white'
-              }`}
-            >
-              {schedulerStatus?.isRunning ? '중지' : '시작'}
-            </button>
+          <div className="flex items-center gap-4">
+            {/* 자동 제목 생성 토글 */}
+            <div className="flex items-center gap-3 bg-slate-800 rounded-lg px-4 py-2 border border-slate-700">
+              <span className="text-slate-300 text-sm font-medium">🤖 자동 제목 생성</span>
+              <button
+                onClick={async () => {
+                  const newValue = settings?.auto_title_generation !== 'true';
+                  try {
+                    const response = await fetch('/api/automation/settings', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ auto_title_generation: newValue ? 'true' : 'false' })
+                    });
+                    if (response.ok) {
+                      await fetchData();
+                    }
+                  } catch (error) {
+                    console.error('Failed to toggle auto title generation:', error);
+                  }
+                }}
+                className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                  settings?.auto_title_generation === 'true'
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                    : 'bg-gray-600 hover:bg-gray-500 text-white'
+                }`}
+              >
+                {settings?.auto_title_generation === 'true' ? 'ON' : 'OFF'}
+              </button>
+              <button
+                onClick={() => {
+                  setTestModalOpen(true);
+                  setTestLogs([]);
+                  setTestInProgress(true);
+
+                  // 실시간 로그를 받아오는 함수
+                  const runTest = async () => {
+                    try {
+                      const response = await fetch('/api/automation/test-generate-stream', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                      });
+
+                      if (!response.ok) {
+                        const error = await response.json();
+                        setTestLogs(prev => [...prev, `❌ 에러: ${error.error}`]);
+                        setTestInProgress(false);
+                        return;
+                      }
+
+                      const reader = response.body?.getReader();
+                      const decoder = new TextDecoder();
+
+                      if (!reader) {
+                        setTestLogs(prev => [...prev, '❌ 스트림을 읽을 수 없습니다']);
+                        setTestInProgress(false);
+                        return;
+                      }
+
+                      while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        const text = decoder.decode(value);
+                        const lines = text.split('\n').filter(line => line.trim());
+
+                        for (const line of lines) {
+                          if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') {
+                              setTestInProgress(false);
+                              setTestLogs(prev => [...prev, '\n✅ 테스트 완료']);
+                              await fetchData(); // 데이터 새로고침
+                            } else {
+                              setTestLogs(prev => [...prev, data]);
+                            }
+                          }
+                        }
+                      }
+                    } catch (error: any) {
+                      console.error('Failed to test title generation:', error);
+                      setTestLogs(prev => [...prev, `❌ 테스트 실패: ${error.message}`]);
+                      setTestInProgress(false);
+                    }
+                  };
+
+                  runTest();
+                }}
+                className="px-3 py-1 rounded text-sm font-semibold transition bg-purple-600 hover:bg-purple-500 text-white"
+                disabled={testInProgress}
+              >
+                {testInProgress ? '테스트 중...' : '테스트'}
+              </button>
+            </div>
+
+            {/* 스케줄러 상태 */}
+            <div className="flex items-center gap-3 bg-slate-800 rounded-lg px-4 py-2 border border-slate-700">
+              <div className={`w-3 h-3 rounded-full ${schedulerStatus?.isRunning ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-slate-300 text-sm">
+                {schedulerStatus?.isRunning ? '실행 중' : '중지됨'}
+              </span>
+              <button
+                onClick={toggleScheduler}
+                className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                  schedulerStatus?.isRunning
+                    ? 'bg-red-600 hover:bg-red-500 text-white'
+                    : 'bg-green-600 hover:bg-green-500 text-white'
+                }`}
+              >
+                {schedulerStatus?.isRunning ? '중지' : '시작'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1494,9 +1591,9 @@ function AutomationPageContent() {
                       }}
                       className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                     >
+                      <option value="claude">Claude (기본)</option>
                       <option value="chatgpt">ChatGPT</option>
                       <option value="gemini">Gemini</option>
-                      <option value="claude">Claude</option>
                       <option value="groq">Groq</option>
                     </select>
                   </div>
@@ -2254,6 +2351,14 @@ function AutomationPageContent() {
                               {title.category}
                             </span>
                           )}
+                          {title.channel && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300">
+                              📺 {(() => {
+                                const channel = channels.find(c => c.channelId === title.channel || c.id === title.channel);
+                                return channel ? channel.channelTitle : '채널 정보 없음';
+                              })()}
+                            </span>
+                          )}
                           {title.model && (
                             <span className="text-xs px-2 py-0.5 rounded bg-purple-600/30 text-purple-300">
                               🤖 {title.model === 'chatgpt' ? 'ChatGPT' : title.model === 'gemini' ? 'Gemini' : title.model === 'claude' ? 'Claude' : title.model === 'groq' ? 'Groq' : title.model}
@@ -2536,8 +2641,8 @@ function AutomationPageContent() {
                       if (!schedule) return null;
 
                       // 채널 ID로 채널 이름 찾기
-                      const channelInfo = channels.find((ch: any) => ch.id === title.channel);
-                      const channelName = channelInfo?.channelTitle || title.channel;
+                      const channelInfo = channels.find((ch: any) => ch.channelId === title.channel || ch.id === title.channel);
+                      const channelName = channelInfo?.channelTitle || '채널 정보 없음';
 
                       return (
                         <div className="mb-3 p-2 bg-red-900/30 rounded border border-red-500/30">

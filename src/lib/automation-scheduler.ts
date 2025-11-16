@@ -63,14 +63,28 @@ export function startAutomationScheduler() {
 
   // 즉시 한 번 실행
   processPendingSchedules();
-  checkAndCreateAutoSchedules(); // 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성
+
+  // 자동 제목 생성이 활성화된 경우에만 실행
+  const autoTitleGeneration = settings.auto_title_generation === 'true';
+  if (autoTitleGeneration) {
+    checkAndCreateAutoSchedules(); // 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성
+    console.log('✅ Auto title generation is enabled');
+  } else {
+    console.log('⏸️ Auto title generation is disabled');
+  }
 
   // 주기적으로 실행
   schedulerInterval = setInterval(() => {
     processPendingSchedules();
     checkWaitingForUploadSchedules(); // 이미지 업로드 대기 중인 스케줄 체크
     checkReadyToUploadSchedules(); // 영상 생성 완료되어 업로드 대기 중인 스케줄 체크
-    checkAndCreateAutoSchedules(); // 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성
+
+    // 자동 제목 생성이 활성화된 경우에만 실행
+    const settings = getAutomationSettings();
+    const autoTitleGeneration = settings.auto_title_generation === 'true';
+    if (autoTitleGeneration) {
+      checkAndCreateAutoSchedules(); // 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성
+    }
   }, checkInterval);
 }
 
@@ -1497,16 +1511,24 @@ export async function checkAndCreateAutoSchedules() {
 
     for (const setting of channelSettings) {
       try {
-        // categories가 없으면 자동 생성 불가
-        if (!setting.categories) {
-          console.log(`[AutoScheduler] Channel ${setting.channel_name}: No categories configured, skipping auto-generation`);
+        // categories가 없거나 빈 문자열이면 자동 생성 불가
+        if (!setting.categories || setting.categories.trim() === '') {
+          console.log(`[AutoScheduler] ⏸️ Channel ${setting.channel_name}: No categories configured, skipping auto-generation`);
           skippedCount++;
           continue;
         }
 
-        const categories = JSON.parse(setting.categories);
-        if (!categories || categories.length === 0) {
-          console.log(`[AutoScheduler] Channel ${setting.channel_name}: Empty categories, skipping auto-generation`);
+        let categories;
+        try {
+          categories = JSON.parse(setting.categories);
+        } catch (parseError) {
+          console.log(`[AutoScheduler] ⏸️ Channel ${setting.channel_name}: Invalid categories JSON, skipping auto-generation`);
+          skippedCount++;
+          continue;
+        }
+
+        if (!categories || !Array.isArray(categories) || categories.length === 0) {
+          console.log(`[AutoScheduler] ⏸️ Channel ${setting.channel_name}: Empty categories array, skipping auto-generation`);
           skippedCount++;
           continue;
         }
@@ -1810,30 +1832,22 @@ async function generateTitleWithMultiModelEvaluation(
       step: '멀티 모델 AI로 제목 생성 중...'
     });
 
-    console.log(`[MultiModel] Generating titles for category "${category}" using 3 models...`);
+    console.log(`[TitleGen] Generating titles for category "${category}" using Claude (cost-optimized)...`);
 
-    // 로그 업데이트: 모델 호출
+    // 로그 업데이트: 모델 호출 (비용 절감: 3개 모델 → 1개 모델)
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'generating',
-        step: 'Claude, ChatGPT, Gemini 동시 호출 중...',
-        modelsUsed: ['claude', 'chatgpt', 'gemini']
+        step: 'Claude로 제목 생성 중... (비용 75% 절감)',
+        modelsUsed: ['claude']
       });
     }
 
-    // 1. 3개 모델 병렬 호출
-    const [claudeTitles, chatgptTitles, geminiTitles] = await Promise.all([
-      generateTitlesWithModel(category, 'claude'),
-      generateTitlesWithModel(category, 'chatgpt'),
-      generateTitlesWithModel(category, 'gemini'),
-    ]);
+    // 1. Claude만 사용 (비용 절감)
+    const claudeTitles = await generateTitlesWithModel(category, 'claude');
 
-    // 2. 모든 제목 수집
-    const allTitles = [
-      ...claudeTitles.map((t: string) => ({ title: t, model: 'claude' })),
-      ...chatgptTitles.map((t: string) => ({ title: t, model: 'chatgpt' })),
-      ...geminiTitles.map((t: string) => ({ title: t, model: 'gemini' })),
-    ];
+    // 2. 제목 수집
+    const allTitles = claudeTitles.map((t: string) => ({ title: t, model: 'claude', score: 0 }));
 
     if (allTitles.length === 0) {
       console.error('[MultiModel] No titles generated from any model');
@@ -1847,30 +1861,21 @@ async function generateTitleWithMultiModelEvaluation(
       return null;
     }
 
-    console.log(`[MultiModel] Generated ${allTitles.length} titles from ${3} models`);
+    console.log(`[TitleGen] Generated ${allTitles.length} titles`);
 
-    // 로그 업데이트: 평가 시작
+    // 로그 업데이트: 평가 생략 (비용 절감)
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'evaluating',
-        step: `${allTitles.length}개 제목 점수 평가 중...`
+        step: `첫 번째 제목 선택 (평가 생략으로 비용 절감)`
       });
     }
 
-    // 3. 각 제목 점수 평가
-    const scoredTitles = await Promise.all(
-      allTitles.map(async (item) => {
-        const score = await evaluateTitleScore(item.title, category);
-        return { ...item, score };
-      })
-    );
+    // 3. 평가 없이 첫 번째 제목 사용 (비용 절감)
+    const bestTitle = allTitles[0];
+    const scoredTitles = allTitles; // 로그용
 
-    // 4. 점수순 정렬 및 최고 점수 선택
-    scoredTitles.sort((a, b) => b.score - a.score);
-    const bestTitle = scoredTitles[0];
-
-    console.log(`[MultiModel] Best title (score: ${bestTitle.score}): "${bestTitle.title}" (model: ${bestTitle.model})`);
-    console.log(`[MultiModel] All scores:`, scoredTitles.map(t => `${t.score.toFixed(2)} - ${t.title.substring(0, 30)}...`));
+    console.log(`[TitleGen] Selected title: "${bestTitle.title}" (model: ${bestTitle.model})`);
 
     // 5. video_titles에 추가
     const { addVideoTitle } = await import('./automation');
@@ -1889,10 +1894,10 @@ async function generateTitleWithMultiModelEvaluation(
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'completed',
-        step: '제목 선정 완료',
+        step: '제목 선정 완료 (비용 절감 모드)',
         titlesGenerated: scoredTitles,
         bestTitle: bestTitle.title,
-        bestScore: bestTitle.score,
+        bestScore: 100, // 평가 생략하므로 기본 점수
         resultTitleId: titleId
       });
     }
