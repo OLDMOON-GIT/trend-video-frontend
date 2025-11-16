@@ -35,12 +35,9 @@ export async function POST(request: NextRequest) {
           sendLog(`📋 자동 제목 생성 설정: ${enabled ? '활성화 중' : '꺼짐'}`);
 
           if (!enabled) {
-            sendLog('⚠️ 자동 제목 생성이 비활성화되어 있습니다.');
-            sendLog('');
-            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-            controller.close();
-            return;
+            sendLog('💡 자동 제목 생성이 비활성화되어 있지만, 테스트는 진행합니다.');
           }
+          sendLog('');
 
           // 모든 채널 설정 조회
           const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
@@ -58,6 +55,14 @@ export async function POST(request: NextRequest) {
           let successCount = 0;
           let skippedCount = 0;
           let failedCount = 0;
+          let totalCost = 0; // 총 비용 (USD)
+
+          // AI 모델별 가격 (USD per 1M tokens)
+          const pricing: any = {
+            claude: { input: 3, output: 15 }, // Claude Sonnet
+            chatgpt: { input: 2.5, output: 10 }, // GPT-4o
+            gemini: { input: 0.075, output: 0.3 } // Gemini Flash
+          };
 
           for (const setting of allSettings) {
             processedCount++;
@@ -101,20 +106,71 @@ export async function POST(request: NextRequest) {
             sendLog(`🤖 AI 모델: ${aiModel}`);
 
             try {
-              sendLog(`⏳ 제목 생성 중...`);
+              sendLog(`⏳ ${aiModel.toUpperCase()} 모델로 제목 생성 중...`);
 
               let titles: string[] = [];
+              let inputTokens = 0;
+              let outputTokens = 0;
+              let cost = 0;
+
               if (aiModel === 'claude') {
-                titles = await generateTitlesWithClaude(category, 1);
+                const Anthropic = (await import('@anthropic-ai/sdk')).default;
+                const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+
+                const prompt = `유튜브 ${category} 카테고리의 제목을 1개만 생성해주세요. 40~60자 길이로, 클릭을 유도하는 제목이어야 합니다. 제목만 출력하세요.`;
+                const message = await anthropic.messages.create({
+                  model: 'claude-3-5-sonnet-20241022',
+                  max_tokens: 200,
+                  messages: [{ role: 'user', content: prompt }],
+                });
+
+                inputTokens = message.usage.input_tokens;
+                outputTokens = message.usage.output_tokens;
+                cost = (inputTokens * pricing.claude.input + outputTokens * pricing.claude.output) / 1_000_000;
+
+                const content = message.content[0];
+                if (content.type === 'text') {
+                  titles = [content.text.trim()];
+                }
               } else if (aiModel === 'chatgpt') {
-                titles = await generateTitlesWithChatGPT(category, 1);
+                const { OpenAI } = await import('openai');
+                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+                const prompt = `유튜브 ${category} 카테고리의 제목을 1개만 생성해주세요. 40~60자 길이로, 클릭을 유도하는 제목이어야 합니다. 제목만 출력하세요.`;
+                const completion = await openai.chat.completions.create({
+                  model: 'gpt-4o',
+                  messages: [{ role: 'user', content: prompt }],
+                  max_tokens: 200,
+                });
+
+                inputTokens = completion.usage?.prompt_tokens || 0;
+                outputTokens = completion.usage?.completion_tokens || 0;
+                cost = (inputTokens * pricing.chatgpt.input + outputTokens * pricing.chatgpt.output) / 1_000_000;
+
+                const text = completion.choices[0]?.message?.content || '';
+                titles = [text.trim()];
               } else if (aiModel === 'gemini') {
-                titles = await generateTitlesWithGemini(category, 1);
+                const { GoogleGenerativeAI } = await import('@google/generative-ai');
+                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+                const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+
+                const prompt = `유튜브 ${category} 카테고리의 제목을 1개만 생성해주세요. 40~60자 길이로, 클릭을 유도하는 제목이어야 합니다. 제목만 출력하세요.`;
+                const result = await model.generateContent(prompt);
+                const response = result.response;
+
+                inputTokens = response.usageMetadata?.promptTokenCount || 0;
+                outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
+                cost = (inputTokens * pricing.gemini.input + outputTokens * pricing.gemini.output) / 1_000_000;
+
+                titles = [response.text().trim()];
               }
 
-              if (titles.length > 0) {
+              if (titles.length > 0 && titles[0]) {
                 sendLog(`✅ 제목 생성 성공!`);
                 sendLog(`   💡 "${titles[0]}"`);
+                sendLog(`   📊 토큰: 입력 ${inputTokens.toLocaleString()} / 출력 ${outputTokens.toLocaleString()}`);
+                sendLog(`   💰 비용: $${cost.toFixed(6)} (≈₩${(cost * 1300).toFixed(2)})`);
+                totalCost += cost;
                 successCount++;
               } else {
                 sendLog(`❌ 제목 생성 실패 (빈 결과)`);
@@ -134,6 +190,12 @@ export async function POST(request: NextRequest) {
           sendLog(`   ✅ 성공: ${successCount}개 채널`);
           sendLog(`   ❌ 실패: ${failedCount}개 채널`);
           sendLog(`   ⏸️ 스킵: ${skippedCount}개 채널`);
+          sendLog('');
+          sendLog('💰 총 비용:');
+          sendLog(`   📍 합계: $${totalCost.toFixed(6)} (≈₩${(totalCost * 1300).toFixed(2)})`);
+          if (successCount > 0) {
+            sendLog(`   📍 평균: $${(totalCost / successCount).toFixed(6)} (≈₩${((totalCost / successCount) * 1300).toFixed(2)}) / 채널`);
+          }
           sendLog('');
           sendLog('✨ 테스트가 완료되었습니다!');
 
