@@ -1259,6 +1259,20 @@ function AutomationPageContent() {
             {/* 자동 제목 생성 토글 */}
             <div className="flex items-center gap-3 bg-slate-800 rounded-lg px-4 py-2 border border-slate-700">
               <span className="text-slate-300 text-sm font-medium">🤖 자동 제목 생성</span>
+              <div className={`flex items-center gap-2 ${
+                settings?.auto_title_generation === 'true'
+                  ? 'text-green-400'
+                  : 'text-gray-400'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  settings?.auto_title_generation === 'true'
+                    ? 'bg-green-500'
+                    : 'bg-gray-500'
+                }`}></div>
+                <span className="text-sm font-semibold">
+                  {settings?.auto_title_generation === 'true' ? '활성화 중' : '꺼짐'}
+                </span>
+              </div>
               <button
                 onClick={async () => {
                   const newValue = settings?.auto_title_generation !== 'true';
@@ -1277,11 +1291,11 @@ function AutomationPageContent() {
                 }}
                 className={`px-3 py-1 rounded text-sm font-semibold transition ${
                   settings?.auto_title_generation === 'true'
-                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                    : 'bg-gray-600 hover:bg-gray-500 text-white'
+                    ? 'bg-red-600 hover:bg-red-500 text-white'
+                    : 'bg-green-600 hover:bg-green-500 text-white'
                 }`}
               >
-                {settings?.auto_title_generation === 'true' ? 'ON' : 'OFF'}
+                {settings?.auto_title_generation === 'true' ? '끄기' : '켜기'}
               </button>
               <button
                 onClick={() => {
@@ -1988,14 +2002,11 @@ function AutomationPageContent() {
                               className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                             >
                               <option value="">선택 안함</option>
-                              <option value="일반">일반</option>
-                              <option value="북한탈북자사연">북한탈북자사연</option>
-                              <option value="막장드라마">막장드라마</option>
-                              <option value="감동실화">감동실화</option>
-                              <option value="복수극">복수극</option>
-                              <option value="로맨스">로맨스</option>
-                              <option value="스릴러">스릴러</option>
-                              <option value="코미디">코미디</option>
+                              {categories.map((category) => (
+                                <option key={category} value={category}>
+                                  {category}
+                                </option>
+                              ))}
                             </select>
                           </div>
                           <div>
@@ -2063,13 +2074,13 @@ function AutomationPageContent() {
                             <label className="text-xs text-slate-400 block mb-1">채널</label>
                             {channels.length > 0 ? (
                               <select
-                                value={editForm.channel_id || channels[0].id}
+                                value={editForm.channel_id || channels[0].channelId}
                                 onChange={(e) => setEditForm({ ...editForm, channel_id: e.target.value })}
                                 className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                               >
                                 {channels.map((ch: any) => (
-                                  <option key={ch.id} value={ch.id} className="bg-slate-700 text-white">
-                                    {ch.channelTitle || ch.title || ch.id}
+                                  <option key={ch.id} value={ch.channelId} className="bg-slate-700 text-white">
+                                    {ch.channelTitle || ch.title || ch.channelId}
                                     {ch.isDefault && ' ⭐'}
                                   </option>
                                 ))}
