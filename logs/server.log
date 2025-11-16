@@ -221,3 +221,36 @@
 [2025-11-17 02:42:10]  GET /api/automation/channel-settings 200 in 12ms (compile: 3ms, render: 10ms)
 [2025-11-17 02:42:10]  GET /api/automation/scheduler-status 200 in 246ms (compile: 232ms, render: 14ms)
 [2025-11-17 02:42:10]  GET /api/automation/scheduler-status 200 in 12ms (compile: 3ms, render: 9ms)
+[2025-11-17 02:42:40]  GET /api/automation/scheduler-status 200 in 10ms (compile: 3ms, render: 7ms)
+[2025-11-17 02:43:10]  GET /api/automation/scheduler-status 200 in 8ms (compile: 2ms, render: 6ms)
+[2025-11-17 02:43:23] 📝 채널 설정 저장 요청: {
+[2025-11-17 02:43:23]   channelId: 'UC_pW5DOf3GFn-5dYQMxGYpA',
+[2025-11-17 02:43:23]   channelName: '6090놀이터',
+[2025-11-17 02:43:23]   postingMode: 'fixed_interval',
+[2025-11-17 02:43:23]   intervalValue: 1,
+[2025-11-17 02:43:23]   intervalUnit: 'days'
+[2025-11-17 02:43:23] }
+[2025-11-17 02:43:23]  POST /api/automation/channel-settings 200 in 16ms (compile: 3ms, render: 13ms)
+[2025-11-17 02:43:23]  GET /api/automation/channel-settings 200 in 14ms (compile: 3ms, render: 11ms)
+[2025-11-17 02:43:40]  GET /api/automation/scheduler-status 200 in 8ms (compile: 1981µs, render: 6ms)
+[2025-11-17 02:44:10]  GET /api/automation/scheduler-status 200 in 9ms (compile: 3ms, render: 7ms)
+[2025-11-17 02:44:40]  GET /api/automation/scheduler-status 200 in 56ms (compile: 46ms, render: 10ms)
+[2025-11-17 02:45:01] ✅ Automation tables initialized
+[2025-11-17 02:45:01] 📝 채널 설정 저장 요청: {
+[2025-11-17 02:45:01]   channelId: 'UCHzVmjofL7WZfcWgvSqe-UQ',
+[2025-11-17 02:45:01]   channelName: 'bossman',
+[2025-11-17 02:45:01]   postingMode: 'fixed_interval',
+[2025-11-17 02:45:01]   intervalValue: 1,
+[2025-11-17 02:45:01]   intervalUnit: 'days'
+[2025-11-17 02:45:01] }
+[2025-11-17 02:45:01]  POST /api/automation/channel-settings 200 in 46ms (compile: 34ms, render: 12ms)
+[2025-11-17 02:45:01]  GET /api/automation/channel-settings 200 in 10ms (compile: 3ms, render: 7ms)
+[2025-11-17 02:45:10]  GET /api/automation/scheduler-status 200 in 13ms (compile: 3ms, render: 10ms)
+[2025-11-17 02:45:12]  POST /api/automation/test-generate-stream 200 in 1187ms (compile: 26ms, render: 1161ms)
+[2025-11-17 02:45:12] ✅ Automation tables initialized
+[2025-11-17 02:45:12] ⏸️ [AUTO-START] Automation scheduler is disabled in settings
+[2025-11-17 02:45:13]  GET /api/automation/titles 200 in 129ms (compile: 45ms, render: 84ms)
+[2025-11-17 02:45:13]  GET /api/automation/scheduler 200 in 134ms (compile: 86ms, render: 48ms)
+[2025-11-17 02:45:13]  GET /api/automation/schedules 200 in 137ms (compile: 118ms, render: 20ms)
+[2025-11-17 02:45:40]  GET /api/automation/scheduler-status 200 in 8ms (compile: 2ms, render: 6ms)
+[2025-11-17 02:46:10]  GET /api/automation/scheduler-status 200 in 13ms (compile: 3ms, render: 10ms)

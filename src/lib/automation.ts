@@ -950,6 +950,13 @@ export function calculateNextScheduleTime(
     if (!setting.interval_value || !setting.interval_unit) return null;
 
     const nextDate = new Date(now);
+
+    // posting_time이 설정되어 있으면 해당 시간으로 설정
+    if (setting.posting_time) {
+      const [hours, minutes] = setting.posting_time.split(':').map(Number);
+      nextDate.setHours(hours, minutes, 0, 0);
+    }
+
     if (setting.interval_unit === 'minutes') {
       // 최소 5분 제한
       const minutes = Math.max(5, setting.interval_value);
@@ -958,6 +965,11 @@ export function calculateNextScheduleTime(
       nextDate.setHours(nextDate.getHours() + setting.interval_value);
     } else if (setting.interval_unit === 'days') {
       nextDate.setDate(nextDate.getDate() + setting.interval_value);
+
+      // 일 단위일 때, 설정한 시간이 이미 지났으면 다음 주기로
+      if (setting.posting_time && nextDate <= now) {
+        nextDate.setDate(nextDate.getDate() + setting.interval_value);
+      }
     }
 
     return nextDate;

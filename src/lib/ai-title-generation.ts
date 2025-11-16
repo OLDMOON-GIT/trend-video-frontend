@@ -65,7 +65,7 @@ ${examplesText}
 제목만 한 줄에 하나씩 출력해주세요. 번호나 기호 없이.`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20240620',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1024,
       temperature: 1.0,
       messages: [{ role: 'user', content: prompt }],
@@ -194,7 +194,7 @@ export async function evaluateTitleScore(title: string, category: string): Promi
 점수만 숫자로만 답변해주세요. (예: 85)`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20240620',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 100,
       temperature: 0.3,
       messages: [{ role: 'user', content: prompt }],

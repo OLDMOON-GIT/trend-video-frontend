@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
 
           // AI 모델별 가격 (USD per 1M tokens)
           const pricing: any = {
-            claude: { input: 3, output: 15 }, // Claude Sonnet
+            claude: { input: 1, output: 5 }, // Claude 3.5 Haiku
             chatgpt: { input: 2.5, output: 10 }, // GPT-4o
-            gemini: { input: 0.075, output: 0.3 } // Gemini Flash
+            gemini: { input: 0.075, output: 0.3 } // Gemini 2.0 Flash
           };
 
           for (const setting of allSettings) {
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
                 const prompt = `유튜브 ${category} 카테고리의 제목을 1개만 생성해주세요. 40~60자 길이로, 클릭을 유도하는 제목이어야 합니다. 제목만 출력하세요.`;
                 const message = await anthropic.messages.create({
-                  model: 'claude-3-5-sonnet-20240620',
+                  model: 'claude-3-5-haiku-20241022',
                   max_tokens: 200,
                   messages: [{ role: 'user', content: prompt }],
                 });
