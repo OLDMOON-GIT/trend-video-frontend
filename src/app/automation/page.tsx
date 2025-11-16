@@ -362,13 +362,16 @@ function AutomationPageContent() {
     setIsSubmitting(true);
 
     try {
-      // 상품 정보가 있으면 포함
+      // 상품 정보가 있으면 포함 (product, product-info 모두)
       let productData = null;
-      if (newTitle.type === 'product') {
+      if (newTitle.type === 'product' || newTitle.type === 'product-info') {
         const savedProductData = localStorage.getItem('current_product_data');
         if (savedProductData) {
           productData = savedProductData; // 이미 JSON 문자열
           localStorage.removeItem('current_product_data'); // 사용 후 삭제
+          console.log('✅ [자동화] productData 전달:', productData.substring(0, 200));
+        } else {
+          console.warn('⚠️ [자동화] productData가 localStorage에 없습니다. 타입:', newTitle.type);
         }
       }
 
@@ -847,7 +850,9 @@ function AutomationPageContent() {
         const contentType = response.headers.get('Content-Type');
         if (contentType?.includes('application/json')) {
           const error = await response.json();
-          alert(`다운로드 실패: ${error.error || '알 수 없는 오류'}`);
+          const errorMsg = error.error || '알 수 없는 오류';
+          const details = error.details ? `\n\n상세: ${error.details}` : '';
+          alert(`다운로드 실패: ${errorMsg}${details}`);
           return;
         }
         alert(`다운로드 실패: ${response.status} ${response.statusText}`);
@@ -859,7 +864,9 @@ function AutomationPageContent() {
       if (contentType?.includes('application/json') && !contentType?.includes('attachment')) {
         const data = await response.json();
         if (data.error) {
-          alert(`다운로드 실패: ${data.error}`);
+          const errorMsg = data.error;
+          const details = data.details ? `\n\n상세: ${data.details}` : '';
+          alert(`다운로드 실패: ${errorMsg}${details}`);
           return;
         }
       }
