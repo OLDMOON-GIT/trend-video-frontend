@@ -5332,17 +5332,28 @@ function HomeContent() {
                           console.log(`  [${i}] ${icon} ${file.name.padEnd(30)} | ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
                         });
 
-                        // 씬이 2개 이상이고 첫 번째가 이미지이면 썸네일로 분리
+                        // 씬이 2개 이상이고 이미지가 있으면 첫 번째 이미지를 썸네일로 분리
                         const sceneCount = storyData.scenes?.length || 0;
                         let thumbnailFile: MediaFile | null = null;
                         let sortedMediaFiles = allMediaFiles;
 
-                        if (sceneCount >= 2 && allMediaFiles.length > 0 && allMediaFiles[0].mediaType === 'image') {
-                          thumbnailFile = allMediaFiles[0];
-                          sortedMediaFiles = allMediaFiles.slice(1); // 첫 번째 제외한 나머지
-                          console.log(`\n📌 씬 ${sceneCount}개 감지 → 첫 번째 이미지를 썸네일 전용으로 분리`);
-                          console.log(`   🖼️ 썸네일: ${thumbnailFile.name}`);
-                          console.log(`   📹 씬 미디어: ${sortedMediaFiles.length}개`);
+                        if (sceneCount >= 2 && allMediaFiles.length > 0) {
+                          // 첫 번째 이미지 찾기 (비디오가 앞에 있어도 상관없음)
+                          const firstImageIndex = allMediaFiles.findIndex(f => f.mediaType === 'image');
+
+                          if (firstImageIndex !== -1) {
+                            thumbnailFile = allMediaFiles[firstImageIndex];
+                            // 첫 번째 이미지를 제외한 나머지
+                            sortedMediaFiles = [
+                              ...allMediaFiles.slice(0, firstImageIndex),
+                              ...allMediaFiles.slice(firstImageIndex + 1)
+                            ];
+                            console.log(`\n📌 씬 ${sceneCount}개 감지 → 첫 번째 이미지를 썸네일 전용으로 분리`);
+                            console.log(`   🖼️ 썸네일: ${thumbnailFile.name} (원래 위치: #${firstImageIndex + 1})`);
+                            console.log(`   📹 씬 미디어: ${sortedMediaFiles.length}개`);
+                          } else {
+                            console.log(`\n📌 씬 ${sceneCount}개, 하지만 이미지가 없어 썸네일 분리 안 함`);
+                          }
                         } else {
                           console.log(`\n📌 씬 ${sceneCount}개 → 모든 미디어를 씬에 사용`);
                         }
