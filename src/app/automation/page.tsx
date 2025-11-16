@@ -1459,8 +1459,18 @@ function AutomationPageContent() {
                     value={newTitle.type}
                     onChange={(e) => {
                       const type = e.target.value;
-                      setNewTitle(prev => ({ ...prev, type }));
+                      // 타입에 따라 AI 모델 자동 설정
+                      let model = 'claude'; // 기본값
+                      if (type === 'longform') {
+                        model = 'claude';
+                      } else if (type === 'product' || type === 'product-info') {
+                        model = 'gemini';
+                      } else if (type === 'shortform') {
+                        model = 'chatgpt';
+                      }
+                      setNewTitle(prev => ({ ...prev, type, model }));
                       localStorage.setItem('automation_selected_type', type);
+                      localStorage.setItem('automation_selected_model', model);
                     }}
                     className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                   >
@@ -1986,7 +1996,19 @@ function AutomationPageContent() {
                             <label className="text-xs text-slate-400 block mb-1">타입</label>
                             <select
                               value={editForm.type || 'longform'}
-                              onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                              onChange={(e) => {
+                                const type = e.target.value;
+                                // 타입에 따라 AI 모델 자동 설정
+                                let model = 'claude';
+                                if (type === 'longform') {
+                                  model = 'claude';
+                                } else if (type === 'product' || type === 'product-info') {
+                                  model = 'gemini';
+                                } else if (type === 'shortform') {
+                                  model = 'chatgpt';
+                                }
+                                setEditForm({ ...editForm, type, model });
+                              }}
                               className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                             >
                               <option value="longform">롱폼</option>

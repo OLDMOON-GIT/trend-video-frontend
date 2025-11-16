@@ -28625,3 +28625,1508 @@
 [2025-11-17 02:06:16]   1575 |           nextScheduleTime.toISOString()
 [2025-11-17 02:06:16]   1576 |         ) as any;
 [2025-11-17 02:06:16] [AutoScheduler] ✅ Completed: 2 success, 2 failed, 2 skipped
+[2025-11-17 02:06:36] [Scheduler] Checking for schedules before: 2025-11-17T02:06:36
+[2025-11-17 02:06:36] [Scheduler] Found 0 pending schedules
+[2025-11-17 02:06:36] [Scheduler] No pending schedules
+[2025-11-17 02:06:36] [Scheduler] Found 0 schedules waiting for upload
+[2025-11-17 02:06:36] [AutoScheduler] Checking 6 active channels for auto-scheduling
+[2025-11-17 02:06:36] [AutoScheduler] Channel 은빛라디오: Generating content for category "시니어사연"
+[2025-11-17 02:06:36] [AutoScheduler] Channel 은빛라디오: Using multi-model AI evaluation...
+[2025-11-17 02:06:36] [MultiModel] Generating titles for category "시니어사연" using 3 models...
+[2025-11-17 02:06:37] Gemini 제목 생성 실패: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+[2025-11-17 02:06:37]     at handleResponseNotOk (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15559:11)
+[2025-11-17 02:06:37]     at async makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15531:9)
+[2025-11-17 02:06:37]     at async generateContent (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15973:22)
+[2025-11-17 02:06:37]     at async generateTitlesWithGemini (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:155:24)
+[2025-11-17 02:06:37]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1943:12)
+[2025-11-17 02:06:37]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:06:37]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:37]   1941 |     }
+[2025-11-17 02:06:37]   1942 |
+[2025-11-17 02:06:37] > 1943 |   } catch (error: any) {
+[2025-11-17 02:06:37]        |            ^
+[2025-11-17 02:06:37]   1944 |     console.error(`[${model}] Error:`, error);
+[2025-11-17 02:06:37]   1945 |     return [];
+[2025-11-17 02:06:37]   1946 |   } {
+[2025-11-17 02:06:37]   status: 404,
+[2025-11-17 02:06:37]   statusText: 'Not Found',
+[2025-11-17 02:06:37]   errorDetails: undefined
+[2025-11-17 02:06:37] }
+[2025-11-17 02:06:37] Claude 제목 생성 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBw8jdFjwZMT4wMNsL8j"}
+[2025-11-17 02:06:37]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:06:37]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:06:37]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:06:37]     at async generateTitlesWithClaude (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:75:25)
+[2025-11-17 02:06:37]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1938:12)
+[2025-11-17 02:06:37]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:06:37]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:37]   1936 |     } else if (model === 'gemini') {
+[2025-11-17 02:06:37]   1937 |       return await generateTitlesWithGemini(category, 3);
+[2025-11-17 02:06:37] > 1938 |     } else {
+[2025-11-17 02:06:37]        |            ^
+[2025-11-17 02:06:37]   1939 |       console.error(`[${model}] Unknown model`);
+[2025-11-17 02:06:37]   1940 |       return [];
+[2025-11-17 02:06:37]   1941 |     } {
+[2025-11-17 02:06:37]   status: 404,
+[2025-11-17 02:06:37]   headers: Headers {
+[2025-11-17 02:06:37]     date: 'Sun, 16 Nov 2025 17:06:38 GMT',
+[2025-11-17 02:06:37]     'content-type': 'application/json',
+[2025-11-17 02:06:37]     'transfer-encoding': 'chunked',
+[2025-11-17 02:06:37]     connection: 'keep-alive',
+[2025-11-17 02:06:37]     'content-encoding': 'gzip',
+[2025-11-17 02:06:37]     'x-should-retry': 'false',
+[2025-11-17 02:06:37]     'request-id': 'req_011CVBw8jdFjwZMT4wMNsL8j',
+[2025-11-17 02:06:37]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:06:37]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:06:37]     'x-envoy-upstream-service-time': '19',
+[2025-11-17 02:06:37]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:06:37]     'x-robots-tag': 'none',
+[2025-11-17 02:06:37]     server: 'cloudflare',
+[2025-11-17 02:06:37]     'cf-ray': '99f8947fcedfd744-NRT'
+[2025-11-17 02:06:37]   },
+[2025-11-17 02:06:37]   requestID: 'req_011CVBw8jdFjwZMT4wMNsL8j',
+[2025-11-17 02:06:37]   error: [Object]
+[2025-11-17 02:06:37] }
+[2025-11-17 02:06:39] [MultiModel] Generated 3 titles from 3 models
+[2025-11-17 02:06:39] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBw8u5HBBs6xn7CXBUwQ"}
+[2025-11-17 02:06:39]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:06:39]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:06:39]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:06:39]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:06:39]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:06:39]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:06:39]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:06:39]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:39]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:06:39]   1957 |   }
+[2025-11-17 02:06:39] > 1958 | }
+[2025-11-17 02:06:39]        | ^
+[2025-11-17 02:06:39]   1959 | {
+[2025-11-17 02:06:39]   status: 404,
+[2025-11-17 02:06:39]   headers: Headers {
+[2025-11-17 02:06:39]     date: 'Sun, 16 Nov 2025 17:06:41 GMT',
+[2025-11-17 02:06:39]     'content-type': 'application/json',
+[2025-11-17 02:06:39]     'transfer-encoding': 'chunked',
+[2025-11-17 02:06:39]     connection: 'keep-alive',
+[2025-11-17 02:06:39]     'content-encoding': 'gzip',
+[2025-11-17 02:06:39]     'x-should-retry': 'false',
+[2025-11-17 02:06:39]     'request-id': 'req_011CVBw8u5HBBs6xn7CXBUwQ',
+[2025-11-17 02:06:39]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:06:39]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:06:39]     'x-envoy-upstream-service-time': '17',
+[2025-11-17 02:06:39]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:06:39]     'x-robots-tag': 'none',
+[2025-11-17 02:06:39]     server: 'cloudflare',
+[2025-11-17 02:06:39]     'cf-ray': '99f8948d9dd0d744-NRT'
+[2025-11-17 02:06:39]   },
+[2025-11-17 02:06:39]   requestID: 'req_011CVBw8u5HBBs6xn7CXBUwQ',
+[2025-11-17 02:06:39]   error: [Object]
+[2025-11-17 02:06:39] }
+[2025-11-17 02:06:39] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBw8uTbKPPqrFz4NGHPe"}
+[2025-11-17 02:06:39]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:06:39]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:06:39]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:06:39]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:06:39]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:06:39]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:06:39]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:06:39]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:39]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:06:39]   1957 |   }
+[2025-11-17 02:06:39] > 1958 | }
+[2025-11-17 02:06:39]        | ^
+[2025-11-17 02:06:39]   1959 | {
+[2025-11-17 02:06:39]   status: 404,
+[2025-11-17 02:06:39]   headers: Headers {
+[2025-11-17 02:06:39]     date: 'Sun, 16 Nov 2025 17:06:41 GMT',
+[2025-11-17 02:06:39]     'content-type': 'application/json',
+[2025-11-17 02:06:39]     'transfer-encoding': 'chunked',
+[2025-11-17 02:06:39]     connection: 'keep-alive',
+[2025-11-17 02:06:39]     'content-encoding': 'gzip',
+[2025-11-17 02:06:39]     'x-should-retry': 'false',
+[2025-11-17 02:06:39]     'request-id': 'req_011CVBw8uTbKPPqrFz4NGHPe',
+[2025-11-17 02:06:39]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:06:39]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:06:39]     'x-envoy-upstream-service-time': '20',
+[2025-11-17 02:06:39]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:06:39]     'x-robots-tag': 'none',
+[2025-11-17 02:06:39]     server: 'cloudflare',
+[2025-11-17 02:06:39]     'cf-ray': '99f8948e28d9eb79-NRT'
+[2025-11-17 02:06:39]   },
+[2025-11-17 02:06:39]   requestID: 'req_011CVBw8uTbKPPqrFz4NGHPe',
+[2025-11-17 02:06:39]   error: [Object]
+[2025-11-17 02:06:39] }
+[2025-11-17 02:06:39] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBw8uRroKESgZAcvtUdm"}
+[2025-11-17 02:06:39]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:06:39]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:06:39]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:06:39]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:06:39]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:06:39]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:06:39]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:06:39]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:39]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:06:39]   1957 |   }
+[2025-11-17 02:06:39] > 1958 | }
+[2025-11-17 02:06:39]        | ^
+[2025-11-17 02:06:39]   1959 | {
+[2025-11-17 02:06:39]   status: 404,
+[2025-11-17 02:06:39]   headers: Headers {
+[2025-11-17 02:06:39]     date: 'Sun, 16 Nov 2025 17:06:41 GMT',
+[2025-11-17 02:06:39]     'content-type': 'application/json',
+[2025-11-17 02:06:39]     'transfer-encoding': 'chunked',
+[2025-11-17 02:06:39]     connection: 'keep-alive',
+[2025-11-17 02:06:39]     'content-encoding': 'gzip',
+[2025-11-17 02:06:39]     'x-should-retry': 'false',
+[2025-11-17 02:06:39]     'request-id': 'req_011CVBw8uRroKESgZAcvtUdm',
+[2025-11-17 02:06:39]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:06:39]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:06:39]     'x-envoy-upstream-service-time': '30',
+[2025-11-17 02:06:39]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:06:39]     'x-robots-tag': 'none',
+[2025-11-17 02:06:39]     server: 'cloudflare',
+[2025-11-17 02:06:39]     'cf-ray': '99f8948e1ac7e3de-NRT'
+[2025-11-17 02:06:39]   },
+[2025-11-17 02:06:39]   requestID: 'req_011CVBw8uRroKESgZAcvtUdm',
+[2025-11-17 02:06:39]   error: [Object]
+[2025-11-17 02:06:39] }
+[2025-11-17 02:06:39] [MultiModel] Best title (score: 50): "며느리의 결단, 시아버지께 눈물의 편지" (model: chatgpt)
+[2025-11-17 02:06:39] [MultiModel] All scores: [
+[2025-11-17 02:06:39]   '50.00 - 며느리의 결단, 시아버지께 눈물의 편지...',
+[2025-11-17 02:06:39]   '50.00 - 완고한 시아버지, 아들의 선택 앞에 무너진 이유...',
+[2025-11-17 02:06:39]   '50.00 - 며느리의 고백, 시댁 갈등을 해결한 비밀...'
+[2025-11-17 02:06:39] ]
+[2025-11-17 02:06:39] [AutoScheduler] Channel 은빛라디오: Created title title_1763312799559_98iwey9p3
+[2025-11-17 02:06:39] [addSchedule] 공개 설정 저장: public (원본: public)
+[2025-11-17 02:06:39] [addSchedule] DB에 저장된 공개 설정: public
+[2025-11-17 02:06:39] [AutoScheduler] ✅ Channel 은빛라디오: Auto-scheduled "며느리의 결단, 시아버지께 눈물의 편지" for 2025-11-22T17:04:12.129Z
+[2025-11-17 02:06:39] [AutoScheduler] Channel 쇼츠왕: No categories configured, skipping auto-generation
+[2025-11-17 02:06:39] [AutoScheduler] Channel 상사맨: Generating content for category "상품"
+[2025-11-17 02:06:39] [AutoScheduler] Channel 상사맨: Fetching Coupang bestseller...
+[2025-11-17 02:06:39] 💾 캐시에서 베스트셀러 반환: b5d1f064-60b9-45ab-9bcd-d36948196459_1001
+[2025-11-17 02:06:39] [ProductTitle] All products already in DB, skipping
+[2025-11-17 02:06:39] [AutoScheduler] Error processing channel 상사맨: Error: Failed to generate product title
+[2025-11-17 02:06:39]     at checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1573:19)
+[2025-11-17 02:06:39]   1571 |           LIMIT 1
+[2025-11-17 02:06:39]   1572 |         `).get(
+[2025-11-17 02:06:39] > 1573 |           setting.channel_id,
+[2025-11-17 02:06:39]        |                   ^
+[2025-11-17 02:06:39]   1574 |           setting.user_id,
+[2025-11-17 02:06:39]   1575 |           nextScheduleTime.toISOString()
+[2025-11-17 02:06:39]   1576 |         ) as any;
+[2025-11-17 02:06:39] [AutoScheduler] Channel 6090놀이터: Generating content for category "탈북자사연"
+[2025-11-17 02:06:39] [AutoScheduler] Channel 6090놀이터: Using multi-model AI evaluation...
+[2025-11-17 02:06:39] [MultiModel] Generating titles for category "탈북자사연" using 3 models...
+[2025-11-17 02:06:39] Gemini 제목 생성 실패: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+[2025-11-17 02:06:39]     at handleResponseNotOk (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15559:11)
+[2025-11-17 02:06:39]     at async makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15531:9)
+[2025-11-17 02:06:39]     at async generateContent (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15973:22)
+[2025-11-17 02:06:39]     at async generateTitlesWithGemini (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:155:24)
+[2025-11-17 02:06:39]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1943:12)
+[2025-11-17 02:06:39]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:06:39]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:39]   1941 |     }
+[2025-11-17 02:06:39]   1942 |
+[2025-11-17 02:06:39] > 1943 |   } catch (error: any) {
+[2025-11-17 02:06:39]        |            ^
+[2025-11-17 02:06:39]   1944 |     console.error(`[${model}] Error:`, error);
+[2025-11-17 02:06:39]   1945 |     return [];
+[2025-11-17 02:06:39]   1946 |   } {
+[2025-11-17 02:06:39]   status: 404,
+[2025-11-17 02:06:39]   statusText: 'Not Found',
+[2025-11-17 02:06:39]   errorDetails: undefined
+[2025-11-17 02:06:39] }
+[2025-11-17 02:06:39] Claude 제목 생성 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBw8vco4wJKepNnyQjrR"}
+[2025-11-17 02:06:39]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:06:39]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:06:39]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:06:39]     at async generateTitlesWithClaude (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:75:25)
+[2025-11-17 02:06:39]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1938:12)
+[2025-11-17 02:06:39]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:06:39]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:39]   1936 |     } else if (model === 'gemini') {
+[2025-11-17 02:06:39]   1937 |       return await generateTitlesWithGemini(category, 3);
+[2025-11-17 02:06:39] > 1938 |     } else {
+[2025-11-17 02:06:39]        |            ^
+[2025-11-17 02:06:39]   1939 |       console.error(`[${model}] Unknown model`);
+[2025-11-17 02:06:39]   1940 |       return [];
+[2025-11-17 02:06:39]   1941 |     } {
+[2025-11-17 02:06:39]   status: 404,
+[2025-11-17 02:06:39]   headers: Headers {
+[2025-11-17 02:06:39]     date: 'Sun, 16 Nov 2025 17:06:41 GMT',
+[2025-11-17 02:06:39]     'content-type': 'application/json',
+[2025-11-17 02:06:39]     'transfer-encoding': 'chunked',
+[2025-11-17 02:06:39]     connection: 'keep-alive',
+[2025-11-17 02:06:39]     'content-encoding': 'gzip',
+[2025-11-17 02:06:39]     'x-should-retry': 'false',
+[2025-11-17 02:06:39]     'request-id': 'req_011CVBw8vco4wJKepNnyQjrR',
+[2025-11-17 02:06:39]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:06:39]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:06:39]     'x-envoy-upstream-service-time': '28',
+[2025-11-17 02:06:39]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:06:39]     'x-robots-tag': 'none',
+[2025-11-17 02:06:39]     server: 'cloudflare',
+[2025-11-17 02:06:39]     'cf-ray': '99f8948fda75d744-NRT'
+[2025-11-17 02:06:39]   },
+[2025-11-17 02:06:39]   requestID: 'req_011CVBw8vco4wJKepNnyQjrR',
+[2025-11-17 02:06:39]   error: [Object]
+[2025-11-17 02:06:39] }
+[2025-11-17 02:06:41] [MultiModel] Generated 3 titles from 3 models
+[2025-11-17 02:06:41] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBw92wJGgJZb36zoS6W5"}
+[2025-11-17 02:06:41]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:06:41]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:06:41]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:06:41]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:06:41]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:06:41]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:06:41]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:06:41]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:41]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:06:41]   1957 |   }
+[2025-11-17 02:06:41] > 1958 | }
+[2025-11-17 02:06:41]        | ^
+[2025-11-17 02:06:41]   1959 | {
+[2025-11-17 02:06:41]   status: 404,
+[2025-11-17 02:06:41]   headers: Headers {
+[2025-11-17 02:06:41]     date: 'Sun, 16 Nov 2025 17:06:42 GMT',
+[2025-11-17 02:06:41]     'content-type': 'application/json',
+[2025-11-17 02:06:41]     'transfer-encoding': 'chunked',
+[2025-11-17 02:06:41]     connection: 'keep-alive',
+[2025-11-17 02:06:41]     'content-encoding': 'gzip',
+[2025-11-17 02:06:41]     'x-should-retry': 'false',
+[2025-11-17 02:06:41]     'request-id': 'req_011CVBw92wJGgJZb36zoS6W5',
+[2025-11-17 02:06:41]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:06:41]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:06:41]     'x-envoy-upstream-service-time': '20',
+[2025-11-17 02:06:41]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:06:41]     'x-robots-tag': 'none',
+[2025-11-17 02:06:41]     server: 'cloudflare',
+[2025-11-17 02:06:41]     'cf-ray': '99f894991b77d744-NRT'
+[2025-11-17 02:06:41]   },
+[2025-11-17 02:06:41]   requestID: 'req_011CVBw92wJGgJZb36zoS6W5',
+[2025-11-17 02:06:41]   error: [Object]
+[2025-11-17 02:06:41] }
+[2025-11-17 02:06:41] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBw92wYhNfwvkWMebcVC"}
+[2025-11-17 02:06:41]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:06:41]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:06:41]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:06:41]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:06:41]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:06:41]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:06:41]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:06:41]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:41]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:06:41]   1957 |   }
+[2025-11-17 02:06:41] > 1958 | }
+[2025-11-17 02:06:41]        | ^
+[2025-11-17 02:06:41]   1959 | {
+[2025-11-17 02:06:41]   status: 404,
+[2025-11-17 02:06:41]   headers: Headers {
+[2025-11-17 02:06:41]     date: 'Sun, 16 Nov 2025 17:06:42 GMT',
+[2025-11-17 02:06:41]     'content-type': 'application/json',
+[2025-11-17 02:06:41]     'transfer-encoding': 'chunked',
+[2025-11-17 02:06:41]     connection: 'keep-alive',
+[2025-11-17 02:06:41]     'content-encoding': 'gzip',
+[2025-11-17 02:06:41]     'x-should-retry': 'false',
+[2025-11-17 02:06:41]     'request-id': 'req_011CVBw92wYhNfwvkWMebcVC',
+[2025-11-17 02:06:41]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:06:41]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:06:41]     'x-envoy-upstream-service-time': '30',
+[2025-11-17 02:06:41]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:06:41]     'x-robots-tag': 'none',
+[2025-11-17 02:06:41]     server: 'cloudflare',
+[2025-11-17 02:06:41]     'cf-ray': '99f894991c63e3de-NRT'
+[2025-11-17 02:06:41]   },
+[2025-11-17 02:06:41]   requestID: 'req_011CVBw92wYhNfwvkWMebcVC',
+[2025-11-17 02:06:41]   error: [Object]
+[2025-11-17 02:06:41] }
+[2025-11-17 02:06:41] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBw92z2jrzJfKamGtYQH"}
+[2025-11-17 02:06:41]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:06:41]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:06:41]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:06:41]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:06:41]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:06:41]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:06:41]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:06:41]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:06:41]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:06:41]   1957 |   }
+[2025-11-17 02:06:41] > 1958 | }
+[2025-11-17 02:06:41]        | ^
+[2025-11-17 02:06:41]   1959 | {
+[2025-11-17 02:06:41]   status: 404,
+[2025-11-17 02:06:41]   headers: Headers {
+[2025-11-17 02:06:41]     date: 'Sun, 16 Nov 2025 17:06:42 GMT',
+[2025-11-17 02:06:41]     'content-type': 'application/json',
+[2025-11-17 02:06:41]     'transfer-encoding': 'chunked',
+[2025-11-17 02:06:41]     connection: 'keep-alive',
+[2025-11-17 02:06:41]     'content-encoding': 'gzip',
+[2025-11-17 02:06:41]     'x-should-retry': 'false',
+[2025-11-17 02:06:41]     'request-id': 'req_011CVBw92z2jrzJfKamGtYQH',
+[2025-11-17 02:06:41]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:06:41]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:06:41]     'x-envoy-upstream-service-time': '73',
+[2025-11-17 02:06:41]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:06:41]     'x-robots-tag': 'none',
+[2025-11-17 02:06:41]     server: 'cloudflare',
+[2025-11-17 02:06:41]     'cf-ray': '99f89499181feb79-NRT'
+[2025-11-17 02:06:41]   },
+[2025-11-17 02:06:41]   requestID: 'req_011CVBw92z2jrzJfKamGtYQH',
+[2025-11-17 02:06:41]   error: [Object]
+[2025-11-17 02:06:41] }
+[2025-11-17 02:06:41] [MultiModel] Best title (score: 50): "탈북 청년의 한국 회사생활 첫날, 예상밖 사건" (model: chatgpt)
+[2025-11-17 02:06:41] [MultiModel] All scores: [
+[2025-11-17 02:06:41]   '50.00 - 탈북 청년의 한국 회사생활 첫날, 예상밖 사건...',
+[2025-11-17 02:06:41]   '50.00 - 북한 출신 요리사의 한국 음식 적응기...',
+[2025-11-17 02:06:41]   '50.00 - 탈북 5년차, 한국가족의 따뜻한 품속으로...'
+[2025-11-17 02:06:41] ]
+[2025-11-17 02:06:41] [AutoScheduler] Channel 6090놀이터: Created title title_1763312801357_90e2gcxaq
+[2025-11-17 02:06:41] [addSchedule] 공개 설정 저장: public (원본: public)
+[2025-11-17 02:06:41] [addSchedule] DB에 저장된 공개 설정: public
+[2025-11-17 02:06:41] [AutoScheduler] ✅ Channel 6090놀이터: Auto-scheduled "탈북 청년의 한국 회사생활 첫날, 예상밖 사건" for 2025-11-28T17:04:14.499Z
+[2025-11-17 02:06:41] [AutoScheduler] Channel 원사사: No categories configured, skipping auto-generation
+[2025-11-17 02:06:41] [AutoScheduler] Channel bossman: Generating content for category "상품"
+[2025-11-17 02:06:41] [AutoScheduler] Channel bossman: Fetching Coupang bestseller...
+[2025-11-17 02:06:41] 💾 캐시에서 베스트셀러 반환: b5d1f064-60b9-45ab-9bcd-d36948196459_1001
+[2025-11-17 02:06:41] [ProductTitle] All products already in DB, skipping
+[2025-11-17 02:06:41] [AutoScheduler] Error processing channel bossman: Error: Failed to generate product title
+[2025-11-17 02:06:41]     at checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1573:19)
+[2025-11-17 02:06:41]   1571 |           LIMIT 1
+[2025-11-17 02:06:41]   1572 |         `).get(
+[2025-11-17 02:06:41] > 1573 |           setting.channel_id,
+[2025-11-17 02:06:41]        |                   ^
+[2025-11-17 02:06:41]   1574 |           setting.user_id,
+[2025-11-17 02:06:41]   1575 |           nextScheduleTime.toISOString()
+[2025-11-17 02:06:41]   1576 |         ) as any;
+[2025-11-17 02:06:41] [AutoScheduler] ✅ Completed: 2 success, 2 failed, 2 skipped
+[2025-11-17 02:06:44]  ✓ Compiled in 189ms
+[2025-11-17 02:07:12] [Scheduler] Checking for schedules before: 2025-11-17T02:07:12
+[2025-11-17 02:07:12] [Scheduler] Found 0 pending schedules
+[2025-11-17 02:07:12] [Scheduler] No pending schedules
+[2025-11-17 02:07:12] [Scheduler] Found 0 schedules waiting for upload
+[2025-11-17 02:07:12] [AutoScheduler] Checking 6 active channels for auto-scheduling
+[2025-11-17 02:07:12] [AutoScheduler] Channel 은빛라디오: Generating content for category "시니어사연"
+[2025-11-17 02:07:12] [AutoScheduler] Channel 은빛라디오: Using multi-model AI evaluation...
+[2025-11-17 02:07:12] [MultiModel] Generating titles for category "시니어사연" using 3 models...
+[2025-11-17 02:07:12] Gemini 제목 생성 실패: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+[2025-11-17 02:07:12]     at handleResponseNotOk (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15559:11)
+[2025-11-17 02:07:12]     at async makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15531:9)
+[2025-11-17 02:07:12]     at async generateContent (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15973:22)
+[2025-11-17 02:07:12]     at async generateTitlesWithGemini (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:158:24)
+[2025-11-17 02:07:12]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1943:12)
+[2025-11-17 02:07:12]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:07:12]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:12]   1941 |     }
+[2025-11-17 02:07:12]   1942 |
+[2025-11-17 02:07:12] > 1943 |   } catch (error: any) {
+[2025-11-17 02:07:12]        |            ^
+[2025-11-17 02:07:12]   1944 |     console.error(`[${model}] Error:`, error);
+[2025-11-17 02:07:12]   1945 |     return [];
+[2025-11-17 02:07:12]   1946 |   } {
+[2025-11-17 02:07:12]   status: 404,
+[2025-11-17 02:07:12]   statusText: 'Not Found',
+[2025-11-17 02:07:12]   errorDetails: undefined
+[2025-11-17 02:07:12] }
+[2025-11-17 02:07:12] Claude 제목 생성 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwBLJNzKn4cX5XWvtYf"}
+[2025-11-17 02:07:12]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:12]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:12]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:12]     at async generateTitlesWithClaude (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:76:25)
+[2025-11-17 02:07:12]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1938:12)
+[2025-11-17 02:07:12]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:07:12]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:12]   1936 |     } else if (model === 'gemini') {
+[2025-11-17 02:07:12]   1937 |       return await generateTitlesWithGemini(category, 3);
+[2025-11-17 02:07:12] > 1938 |     } else {
+[2025-11-17 02:07:12]        |            ^
+[2025-11-17 02:07:12]   1939 |       console.error(`[${model}] Unknown model`);
+[2025-11-17 02:07:12]   1940 |       return [];
+[2025-11-17 02:07:12]   1941 |     } {
+[2025-11-17 02:07:12]   status: 404,
+[2025-11-17 02:07:12]   headers: Headers {
+[2025-11-17 02:07:12]     date: 'Sun, 16 Nov 2025 17:07:14 GMT',
+[2025-11-17 02:07:12]     'content-type': 'application/json',
+[2025-11-17 02:07:12]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:12]     connection: 'keep-alive',
+[2025-11-17 02:07:12]     'content-encoding': 'gzip',
+[2025-11-17 02:07:12]     'x-should-retry': 'false',
+[2025-11-17 02:07:12]     'request-id': 'req_011CVBwBLJNzKn4cX5XWvtYf',
+[2025-11-17 02:07:12]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:12]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:12]     'x-envoy-upstream-service-time': '34',
+[2025-11-17 02:07:12]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:12]     'x-robots-tag': 'none',
+[2025-11-17 02:07:12]     server: 'cloudflare',
+[2025-11-17 02:07:12]     'cf-ray': '99f8955c0e60781f-NRT'
+[2025-11-17 02:07:12]   },
+[2025-11-17 02:07:12]   requestID: 'req_011CVBwBLJNzKn4cX5XWvtYf',
+[2025-11-17 02:07:12]   error: [Object]
+[2025-11-17 02:07:12] }
+[2025-11-17 02:07:13] [MultiModel] Generated 3 titles from 3 models
+[2025-11-17 02:07:14] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwBT89jfJadUBur8JPC"}
+[2025-11-17 02:07:14]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:14]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:14]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:14]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:07:14]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:14]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:14]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:14]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:14]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:14]   1957 |   }
+[2025-11-17 02:07:14] > 1958 | }
+[2025-11-17 02:07:14]        | ^
+[2025-11-17 02:07:14]   1959 | {
+[2025-11-17 02:07:14]   status: 404,
+[2025-11-17 02:07:14]   headers: Headers {
+[2025-11-17 02:07:14]     date: 'Sun, 16 Nov 2025 17:07:15 GMT',
+[2025-11-17 02:07:14]     'content-type': 'application/json',
+[2025-11-17 02:07:14]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:14]     connection: 'keep-alive',
+[2025-11-17 02:07:14]     'content-encoding': 'gzip',
+[2025-11-17 02:07:14]     'x-should-retry': 'false',
+[2025-11-17 02:07:14]     'request-id': 'req_011CVBwBT89jfJadUBur8JPC',
+[2025-11-17 02:07:14]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:14]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:14]     'x-envoy-upstream-service-time': '19',
+[2025-11-17 02:07:14]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:14]     'x-robots-tag': 'none',
+[2025-11-17 02:07:14]     server: 'cloudflare',
+[2025-11-17 02:07:14]     'cf-ray': '99f895660bc6781f-NRT'
+[2025-11-17 02:07:14]   },
+[2025-11-17 02:07:14]   requestID: 'req_011CVBwBT89jfJadUBur8JPC',
+[2025-11-17 02:07:14]   error: [Object]
+[2025-11-17 02:07:14] }
+[2025-11-17 02:07:14] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwBTSzmUQAPi6JKftEp"}
+[2025-11-17 02:07:14]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:14]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:14]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:14]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:07:14]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:14]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:14]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:14]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:14]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:14]   1957 |   }
+[2025-11-17 02:07:14] > 1958 | }
+[2025-11-17 02:07:14]        | ^
+[2025-11-17 02:07:14]   1959 | {
+[2025-11-17 02:07:14]   status: 404,
+[2025-11-17 02:07:14]   headers: Headers {
+[2025-11-17 02:07:14]     date: 'Sun, 16 Nov 2025 17:07:15 GMT',
+[2025-11-17 02:07:14]     'content-type': 'application/json',
+[2025-11-17 02:07:14]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:14]     connection: 'keep-alive',
+[2025-11-17 02:07:14]     'content-encoding': 'gzip',
+[2025-11-17 02:07:14]     'x-should-retry': 'false',
+[2025-11-17 02:07:14]     'request-id': 'req_011CVBwBTSzmUQAPi6JKftEp',
+[2025-11-17 02:07:14]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:14]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:14]     'x-envoy-upstream-service-time': '29',
+[2025-11-17 02:07:14]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:14]     'x-robots-tag': 'none',
+[2025-11-17 02:07:14]     server: 'cloudflare',
+[2025-11-17 02:07:14]     'cf-ray': '99f895667b8919e1-KIX'
+[2025-11-17 02:07:14]   },
+[2025-11-17 02:07:14]   requestID: 'req_011CVBwBTSzmUQAPi6JKftEp',
+[2025-11-17 02:07:14]   error: [Object]
+[2025-11-17 02:07:14] }
+[2025-11-17 02:07:14] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwBTSzstZAEPaNMHcQS"}
+[2025-11-17 02:07:14]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:14]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:14]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:14]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:07:14]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:14]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:14]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:14]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:14]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:14]   1957 |   }
+[2025-11-17 02:07:14] > 1958 | }
+[2025-11-17 02:07:14]        | ^
+[2025-11-17 02:07:14]   1959 | {
+[2025-11-17 02:07:14]   status: 404,
+[2025-11-17 02:07:14]   headers: Headers {
+[2025-11-17 02:07:14]     date: 'Sun, 16 Nov 2025 17:07:15 GMT',
+[2025-11-17 02:07:14]     'content-type': 'application/json',
+[2025-11-17 02:07:14]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:14]     connection: 'keep-alive',
+[2025-11-17 02:07:14]     'content-encoding': 'gzip',
+[2025-11-17 02:07:14]     'x-should-retry': 'false',
+[2025-11-17 02:07:14]     'request-id': 'req_011CVBwBTSzstZAEPaNMHcQS',
+[2025-11-17 02:07:14]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:14]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:14]     'x-envoy-upstream-service-time': '20',
+[2025-11-17 02:07:14]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:14]     'x-robots-tag': 'none',
+[2025-11-17 02:07:14]     server: 'cloudflare',
+[2025-11-17 02:07:14]     'cf-ray': '99f895667f529654-KIX'
+[2025-11-17 02:07:14]   },
+[2025-11-17 02:07:14]   requestID: 'req_011CVBwBTSzstZAEPaNMHcQS',
+[2025-11-17 02:07:14]   error: [Object]
+[2025-11-17 02:07:14] }
+[2025-11-17 02:07:14] [MultiModel] Best title (score: 50): "며느리 무시했던 시어머니, 큰 병에 삶이 뒤바뀌다" (model: chatgpt)
+[2025-11-17 02:07:14] [MultiModel] All scores: [
+[2025-11-17 02:07:14]   '50.00 - 며느리 무시했던 시어머니, 큰 병에 삶이 뒤바뀌다...',
+[2025-11-17 02:07:14]   '50.00 - 오랜 갈등 끝에 손녀에게 사죄한 시어머니의 눈물...',
+[2025-11-17 02:07:14]   '50.00 - 외동 아들 매달렸던 시어머니, 결국 자택 매각 후회...'
+[2025-11-17 02:07:14] ]
+[2025-11-17 02:07:14] [AutoScheduler] Channel 은빛라디오: Created title title_1763312834188_dppokagix
+[2025-11-17 02:07:14] [addSchedule] 공개 설정 저장: public (원본: public)
+[2025-11-17 02:07:14] [addSchedule] DB에 저장된 공개 설정: public
+[2025-11-17 02:07:14] [AutoScheduler] ✅ Channel 은빛라디오: Auto-scheduled "며느리 무시했던 시어머니, 큰 병에 삶이 뒤바뀌다" for 2025-11-23T17:04:12.129Z
+[2025-11-17 02:07:14] [AutoScheduler] Channel 쇼츠왕: No categories configured, skipping auto-generation
+[2025-11-17 02:07:14] [AutoScheduler] Channel 상사맨: Generating content for category "상품"
+[2025-11-17 02:07:14] [AutoScheduler] Channel 상사맨: Fetching Coupang bestseller...
+[2025-11-17 02:07:14] 💾 캐시에서 베스트셀러 반환: b5d1f064-60b9-45ab-9bcd-d36948196459_1001
+[2025-11-17 02:07:14] [ProductTitle] All products already in DB, skipping
+[2025-11-17 02:07:14] [AutoScheduler] Error processing channel 상사맨: Error: Failed to generate product title
+[2025-11-17 02:07:14]     at checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1573:19)
+[2025-11-17 02:07:14]   1571 |           LIMIT 1
+[2025-11-17 02:07:14]   1572 |         `).get(
+[2025-11-17 02:07:14] > 1573 |           setting.channel_id,
+[2025-11-17 02:07:14]        |                   ^
+[2025-11-17 02:07:14]   1574 |           setting.user_id,
+[2025-11-17 02:07:14]   1575 |           nextScheduleTime.toISOString()
+[2025-11-17 02:07:14]   1576 |         ) as any;
+[2025-11-17 02:07:14] [AutoScheduler] Channel 6090놀이터: Generating content for category "탈북자사연"
+[2025-11-17 02:07:14] [AutoScheduler] Channel 6090놀이터: Using multi-model AI evaluation...
+[2025-11-17 02:07:14] [MultiModel] Generating titles for category "탈북자사연" using 3 models...
+[2025-11-17 02:07:14] Gemini 제목 생성 실패: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+[2025-11-17 02:07:14]     at handleResponseNotOk (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15559:11)
+[2025-11-17 02:07:14]     at async makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15531:9)
+[2025-11-17 02:07:14]     at async generateContent (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15973:22)
+[2025-11-17 02:07:14]     at async generateTitlesWithGemini (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:158:24)
+[2025-11-17 02:07:14]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1943:12)
+[2025-11-17 02:07:14]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:07:14]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:14]   1941 |     }
+[2025-11-17 02:07:14]   1942 |
+[2025-11-17 02:07:14] > 1943 |   } catch (error: any) {
+[2025-11-17 02:07:14]        |            ^
+[2025-11-17 02:07:14]   1944 |     console.error(`[${model}] Error:`, error);
+[2025-11-17 02:07:14]   1945 |     return [];
+[2025-11-17 02:07:14]   1946 |   } {
+[2025-11-17 02:07:14]   status: 404,
+[2025-11-17 02:07:14]   statusText: 'Not Found',
+[2025-11-17 02:07:14]   errorDetails: undefined
+[2025-11-17 02:07:14] }
+[2025-11-17 02:07:14] Claude 제목 생성 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwBUkPAJxgnVtgvYfWU"}
+[2025-11-17 02:07:14]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:14]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:14]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:14]     at async generateTitlesWithClaude (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:76:25)
+[2025-11-17 02:07:14]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1938:12)
+[2025-11-17 02:07:14]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:07:14]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:14]   1936 |     } else if (model === 'gemini') {
+[2025-11-17 02:07:14]   1937 |       return await generateTitlesWithGemini(category, 3);
+[2025-11-17 02:07:14] > 1938 |     } else {
+[2025-11-17 02:07:14]        |            ^
+[2025-11-17 02:07:14]   1939 |       console.error(`[${model}] Unknown model`);
+[2025-11-17 02:07:14]   1940 |       return [];
+[2025-11-17 02:07:14]   1941 |     } {
+[2025-11-17 02:07:14]   status: 404,
+[2025-11-17 02:07:14]   headers: Headers {
+[2025-11-17 02:07:14]     date: 'Sun, 16 Nov 2025 17:07:16 GMT',
+[2025-11-17 02:07:14]     'content-type': 'application/json',
+[2025-11-17 02:07:14]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:14]     connection: 'keep-alive',
+[2025-11-17 02:07:14]     'content-encoding': 'gzip',
+[2025-11-17 02:07:14]     'x-should-retry': 'false',
+[2025-11-17 02:07:14]     'request-id': 'req_011CVBwBUkPAJxgnVtgvYfWU',
+[2025-11-17 02:07:14]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:14]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:14]     'x-envoy-upstream-service-time': '36',
+[2025-11-17 02:07:14]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:14]     'x-robots-tag': 'none',
+[2025-11-17 02:07:14]     server: 'cloudflare',
+[2025-11-17 02:07:14]     'cf-ray': '99f895685d0f781f-NRT'
+[2025-11-17 02:07:14]   },
+[2025-11-17 02:07:14]   requestID: 'req_011CVBwBUkPAJxgnVtgvYfWU',
+[2025-11-17 02:07:14]   error: [Object]
+[2025-11-17 02:07:14] }
+[2025-11-17 02:07:15] [MultiModel] Generated 3 titles from 3 models
+[2025-11-17 02:07:15] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwBag5MniZUD2ceUaD4"}
+[2025-11-17 02:07:15]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:15]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:15]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:15]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:07:15]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:15]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:15]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:15]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:15]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:15]   1957 |   }
+[2025-11-17 02:07:15] > 1958 | }
+[2025-11-17 02:07:15]        | ^
+[2025-11-17 02:07:15]   1959 | {
+[2025-11-17 02:07:15]   status: 404,
+[2025-11-17 02:07:15]   headers: Headers {
+[2025-11-17 02:07:15]     date: 'Sun, 16 Nov 2025 17:07:17 GMT',
+[2025-11-17 02:07:15]     'content-type': 'application/json',
+[2025-11-17 02:07:15]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:15]     connection: 'keep-alive',
+[2025-11-17 02:07:15]     'content-encoding': 'gzip',
+[2025-11-17 02:07:15]     'x-should-retry': 'false',
+[2025-11-17 02:07:15]     'request-id': 'req_011CVBwBag5MniZUD2ceUaD4',
+[2025-11-17 02:07:15]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:15]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:15]     'x-envoy-upstream-service-time': '18',
+[2025-11-17 02:07:15]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:15]     'x-robots-tag': 'none',
+[2025-11-17 02:07:15]     server: 'cloudflare',
+[2025-11-17 02:07:15]     'cf-ray': '99f895710a2f781f-NRT'
+[2025-11-17 02:07:15]   },
+[2025-11-17 02:07:15]   requestID: 'req_011CVBwBag5MniZUD2ceUaD4',
+[2025-11-17 02:07:15]   error: [Object]
+[2025-11-17 02:07:15] }
+[2025-11-17 02:07:15] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwBaf5uU9CvLavBiz1f"}
+[2025-11-17 02:07:15]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:15]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:15]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:15]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:07:15]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:15]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:15]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:15]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:15]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:15]   1957 |   }
+[2025-11-17 02:07:15] > 1958 | }
+[2025-11-17 02:07:15]        | ^
+[2025-11-17 02:07:15]   1959 | {
+[2025-11-17 02:07:15]   status: 404,
+[2025-11-17 02:07:15]   headers: Headers {
+[2025-11-17 02:07:15]     date: 'Sun, 16 Nov 2025 17:07:17 GMT',
+[2025-11-17 02:07:15]     'content-type': 'application/json',
+[2025-11-17 02:07:15]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:15]     connection: 'keep-alive',
+[2025-11-17 02:07:15]     'content-encoding': 'gzip',
+[2025-11-17 02:07:15]     'x-should-retry': 'false',
+[2025-11-17 02:07:15]     'request-id': 'req_011CVBwBaf5uU9CvLavBiz1f',
+[2025-11-17 02:07:15]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:15]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:15]     'x-envoy-upstream-service-time': '28',
+[2025-11-17 02:07:15]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:15]     'x-robots-tag': 'none',
+[2025-11-17 02:07:15]     server: 'cloudflare',
+[2025-11-17 02:07:15]     'cf-ray': '99f89571090d19e1-KIX'
+[2025-11-17 02:07:15]   },
+[2025-11-17 02:07:15]   requestID: 'req_011CVBwBaf5uU9CvLavBiz1f',
+[2025-11-17 02:07:15]   error: [Object]
+[2025-11-17 02:07:15] }
+[2025-11-17 02:07:15] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwBaf5bBxUyvbU2TT4h"}
+[2025-11-17 02:07:15]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:15]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:15]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:15]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:07:15]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:15]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:15]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:15]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:15]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:15]   1957 |   }
+[2025-11-17 02:07:15] > 1958 | }
+[2025-11-17 02:07:15]        | ^
+[2025-11-17 02:07:15]   1959 | {
+[2025-11-17 02:07:15]   status: 404,
+[2025-11-17 02:07:15]   headers: Headers {
+[2025-11-17 02:07:15]     date: 'Sun, 16 Nov 2025 17:07:17 GMT',
+[2025-11-17 02:07:15]     'content-type': 'application/json',
+[2025-11-17 02:07:15]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:15]     connection: 'keep-alive',
+[2025-11-17 02:07:15]     'content-encoding': 'gzip',
+[2025-11-17 02:07:15]     'x-should-retry': 'false',
+[2025-11-17 02:07:15]     'request-id': 'req_011CVBwBaf5bBxUyvbU2TT4h',
+[2025-11-17 02:07:15]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:15]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:15]     'x-envoy-upstream-service-time': '25',
+[2025-11-17 02:07:15]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:15]     'x-robots-tag': 'none',
+[2025-11-17 02:07:15]     server: 'cloudflare',
+[2025-11-17 02:07:15]     'cf-ray': '99f895710d679654-KIX'
+[2025-11-17 02:07:15]   },
+[2025-11-17 02:07:15]   requestID: 'req_011CVBwBaf5bBxUyvbU2TT4h',
+[2025-11-17 02:07:15]   error: [Object]
+[2025-11-17 02:07:15] }
+[2025-11-17 02:07:15] [MultiModel] Best title (score: 50): "남한 시골 생활 적응기, 탈북자 가족의 엇갈린 행복과 눈물" (model: chatgpt)
+[2025-11-17 02:07:15] [MultiModel] All scores: [
+[2025-11-17 02:07:15]   '50.00 - 남한 시골 생활 적응기, 탈북자 가족의 엇갈린 행복과 ...',
+[2025-11-17 02:07:15]   '50.00 - 군대 인생 버린 탈북자, 대한민국 자영업자로 역전한 비...',
+[2025-11-17 02:07:15]   '50.00 - 북한 고위층의 자녀, 대한민국 대학생으로 변신한 사연...'
+[2025-11-17 02:07:15] ]
+[2025-11-17 02:07:15] [AutoScheduler] Channel 6090놀이터: Created title title_1763312835868_clzp1yum5
+[2025-11-17 02:07:15] [addSchedule] 공개 설정 저장: public (원본: public)
+[2025-11-17 02:07:15] [addSchedule] DB에 저장된 공개 설정: public
+[2025-11-17 02:07:15] [AutoScheduler] ✅ Channel 6090놀이터: Auto-scheduled "남한 시골 생활 적응기, 탈북자 가족의 엇갈린 행복과 눈물" for 2025-11-30T17:04:14.499Z
+[2025-11-17 02:07:15] [AutoScheduler] Channel 원사사: No categories configured, skipping auto-generation
+[2025-11-17 02:07:15] [AutoScheduler] Channel bossman: Generating content for category "상품"
+[2025-11-17 02:07:15] [AutoScheduler] Channel bossman: Fetching Coupang bestseller...
+[2025-11-17 02:07:15] 💾 캐시에서 베스트셀러 반환: b5d1f064-60b9-45ab-9bcd-d36948196459_1001
+[2025-11-17 02:07:15] [ProductTitle] All products already in DB, skipping
+[2025-11-17 02:07:15] [AutoScheduler] Error processing channel bossman: Error: Failed to generate product title
+[2025-11-17 02:07:15]     at checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1573:19)
+[2025-11-17 02:07:15]   1571 |           LIMIT 1
+[2025-11-17 02:07:15]   1572 |         `).get(
+[2025-11-17 02:07:15] > 1573 |           setting.channel_id,
+[2025-11-17 02:07:15]        |                   ^
+[2025-11-17 02:07:15]   1574 |           setting.user_id,
+[2025-11-17 02:07:15]   1575 |           nextScheduleTime.toISOString()
+[2025-11-17 02:07:15]   1576 |         ) as any;
+[2025-11-17 02:07:15] [AutoScheduler] ✅ Completed: 2 success, 2 failed, 2 skipped
+[2025-11-17 02:07:36] [Scheduler] Checking for schedules before: 2025-11-17T02:07:36
+[2025-11-17 02:07:36] [Scheduler] Found 0 pending schedules
+[2025-11-17 02:07:36] [Scheduler] No pending schedules
+[2025-11-17 02:07:36] [Scheduler] Found 0 schedules waiting for upload
+[2025-11-17 02:07:36] [AutoScheduler] Checking 6 active channels for auto-scheduling
+[2025-11-17 02:07:36] [AutoScheduler] Channel 은빛라디오: Generating content for category "시니어사연"
+[2025-11-17 02:07:36] [AutoScheduler] Channel 은빛라디오: Using multi-model AI evaluation...
+[2025-11-17 02:07:36] [MultiModel] Generating titles for category "시니어사연" using 3 models...
+[2025-11-17 02:07:37] Gemini 제목 생성 실패: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+[2025-11-17 02:07:37]     at handleResponseNotOk (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15559:11)
+[2025-11-17 02:07:37]     at async makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15531:9)
+[2025-11-17 02:07:37]     at async generateContent (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15973:22)
+[2025-11-17 02:07:37]     at async generateTitlesWithGemini (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:155:24)
+[2025-11-17 02:07:37]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1943:12)
+[2025-11-17 02:07:37]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:07:37]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:37]   1941 |     }
+[2025-11-17 02:07:37]   1942 |
+[2025-11-17 02:07:37] > 1943 |   } catch (error: any) {
+[2025-11-17 02:07:37]        |            ^
+[2025-11-17 02:07:37]   1944 |     console.error(`[${model}] Error:`, error);
+[2025-11-17 02:07:37]   1945 |     return [];
+[2025-11-17 02:07:37]   1946 |   } {
+[2025-11-17 02:07:37]   status: 404,
+[2025-11-17 02:07:37]   statusText: 'Not Found',
+[2025-11-17 02:07:37]   errorDetails: undefined
+[2025-11-17 02:07:37] }
+[2025-11-17 02:07:37] Claude 제목 생성 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwDAAVN8Cdpe1PNuY4j"}
+[2025-11-17 02:07:37]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:37]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:37]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:37]     at async generateTitlesWithClaude (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:75:25)
+[2025-11-17 02:07:37]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1938:12)
+[2025-11-17 02:07:37]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:07:37]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:37]   1936 |     } else if (model === 'gemini') {
+[2025-11-17 02:07:37]   1937 |       return await generateTitlesWithGemini(category, 3);
+[2025-11-17 02:07:37] > 1938 |     } else {
+[2025-11-17 02:07:37]        |            ^
+[2025-11-17 02:07:37]   1939 |       console.error(`[${model}] Unknown model`);
+[2025-11-17 02:07:37]   1940 |       return [];
+[2025-11-17 02:07:37]   1941 |     } {
+[2025-11-17 02:07:37]   status: 404,
+[2025-11-17 02:07:37]   headers: Headers {
+[2025-11-17 02:07:37]     date: 'Sun, 16 Nov 2025 17:07:38 GMT',
+[2025-11-17 02:07:37]     'content-type': 'application/json',
+[2025-11-17 02:07:37]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:37]     connection: 'keep-alive',
+[2025-11-17 02:07:37]     'content-encoding': 'gzip',
+[2025-11-17 02:07:37]     'x-should-retry': 'false',
+[2025-11-17 02:07:37]     'request-id': 'req_011CVBwDAAVN8Cdpe1PNuY4j',
+[2025-11-17 02:07:37]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:37]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:37]     'x-envoy-upstream-service-time': '21',
+[2025-11-17 02:07:37]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:37]     'x-robots-tag': 'none',
+[2025-11-17 02:07:37]     server: 'cloudflare',
+[2025-11-17 02:07:37]     'cf-ray': '99f895f6c8a3687f-NRT'
+[2025-11-17 02:07:37]   },
+[2025-11-17 02:07:37]   requestID: 'req_011CVBwDAAVN8Cdpe1PNuY4j',
+[2025-11-17 02:07:37]   error: [Object]
+[2025-11-17 02:07:37] }
+[2025-11-17 02:07:38] [MultiModel] Generated 3 titles from 3 models
+[2025-11-17 02:07:38] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwDGAQ5Eqmstvm7Bwzx"}
+[2025-11-17 02:07:38]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:38]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:38]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:38]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:07:38]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:38]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:38]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:38]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:38]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:38]   1957 |   }
+[2025-11-17 02:07:38] > 1958 | }
+[2025-11-17 02:07:38]        | ^
+[2025-11-17 02:07:38]   1959 | {
+[2025-11-17 02:07:38]   status: 404,
+[2025-11-17 02:07:38]   headers: Headers {
+[2025-11-17 02:07:38]     date: 'Sun, 16 Nov 2025 17:07:40 GMT',
+[2025-11-17 02:07:38]     'content-type': 'application/json',
+[2025-11-17 02:07:38]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:38]     connection: 'keep-alive',
+[2025-11-17 02:07:38]     'content-encoding': 'gzip',
+[2025-11-17 02:07:38]     'x-should-retry': 'false',
+[2025-11-17 02:07:38]     'request-id': 'req_011CVBwDGAQ5Eqmstvm7Bwzx',
+[2025-11-17 02:07:38]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:38]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:38]     'x-envoy-upstream-service-time': '23',
+[2025-11-17 02:07:38]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:38]     'x-robots-tag': 'none',
+[2025-11-17 02:07:38]     server: 'cloudflare',
+[2025-11-17 02:07:38]     'cf-ray': '99f895ff7d9b687f-NRT'
+[2025-11-17 02:07:38]   },
+[2025-11-17 02:07:38]   requestID: 'req_011CVBwDGAQ5Eqmstvm7Bwzx',
+[2025-11-17 02:07:38]   error: [Object]
+[2025-11-17 02:07:38] }
+[2025-11-17 02:07:38]  GET /automation 200 in 265ms (compile: 102ms, render: 163ms)
+[2025-11-17 02:07:38] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwDHWG9NdnyCoZDZWHj"}
+[2025-11-17 02:07:38]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:38]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:38]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:38]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:07:38]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:38]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:38]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:38]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:38]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:38]   1957 |   }
+[2025-11-17 02:07:38] > 1958 | }
+[2025-11-17 02:07:38]        | ^
+[2025-11-17 02:07:38]   1959 | {
+[2025-11-17 02:07:38]   status: 404,
+[2025-11-17 02:07:38]   headers: Headers {
+[2025-11-17 02:07:38]     date: 'Sun, 16 Nov 2025 17:07:40 GMT',
+[2025-11-17 02:07:38]     'content-type': 'application/json',
+[2025-11-17 02:07:38]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:38]     connection: 'keep-alive',
+[2025-11-17 02:07:38]     'content-encoding': 'gzip',
+[2025-11-17 02:07:38]     'x-should-retry': 'false',
+[2025-11-17 02:07:38]     'request-id': 'req_011CVBwDHWG9NdnyCoZDZWHj',
+[2025-11-17 02:07:38]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:38]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:38]     'x-envoy-upstream-service-time': '18',
+[2025-11-17 02:07:38]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:38]     'x-robots-tag': 'none',
+[2025-11-17 02:07:38]     server: 'cloudflare',
+[2025-11-17 02:07:38]     'cf-ray': '99f896017d726872-NRT'
+[2025-11-17 02:07:38]   },
+[2025-11-17 02:07:38]   requestID: 'req_011CVBwDHWG9NdnyCoZDZWHj',
+[2025-11-17 02:07:38]   error: [Object]
+[2025-11-17 02:07:38] }
+[2025-11-17 02:07:39] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwDHZEmKJz1waiFEcgM"}
+[2025-11-17 02:07:39]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:39]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:39]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:39]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:07:39]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:39]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:39]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:39]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:39]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:39]   1957 |   }
+[2025-11-17 02:07:39] > 1958 | }
+[2025-11-17 02:07:39]        | ^
+[2025-11-17 02:07:39]   1959 | {
+[2025-11-17 02:07:39]   status: 404,
+[2025-11-17 02:07:39]   headers: Headers {
+[2025-11-17 02:07:39]     date: 'Sun, 16 Nov 2025 17:07:40 GMT',
+[2025-11-17 02:07:39]     'content-type': 'application/json',
+[2025-11-17 02:07:39]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:39]     connection: 'keep-alive',
+[2025-11-17 02:07:39]     'content-encoding': 'gzip',
+[2025-11-17 02:07:39]     'x-should-retry': 'false',
+[2025-11-17 02:07:39]     'request-id': 'req_011CVBwDHZEmKJz1waiFEcgM',
+[2025-11-17 02:07:39]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:39]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:39]     'x-envoy-upstream-service-time': '25',
+[2025-11-17 02:07:39]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:39]     'x-robots-tag': 'none',
+[2025-11-17 02:07:39]     server: 'cloudflare',
+[2025-11-17 02:07:39]     'cf-ray': '99f896018eea16ab-KIX'
+[2025-11-17 02:07:39]   },
+[2025-11-17 02:07:39]   requestID: 'req_011CVBwDHZEmKJz1waiFEcgM',
+[2025-11-17 02:07:39]   error: [Object]
+[2025-11-17 02:07:39] }
+[2025-11-17 02:07:39] [MultiModel] Best title (score: 50): "쳐들어온 며느리, 집 나간 시어머니의 눈물" (model: chatgpt)
+[2025-11-17 02:07:39] [MultiModel] All scores: [
+[2025-11-17 02:07:39]   '50.00 - 쳐들어온 며느리, 집 나간 시어머니의 눈물...',
+[2025-11-17 02:07:39]   '50.00 - 감동의 화해, 며느리 이제는 딸처럼...',
+[2025-11-17 02:07:39]   '50.00 - 반전의 연속, 며느리 앞에서 무너진 시댁벽...'
+[2025-11-17 02:07:39] ]
+[2025-11-17 02:07:39] [AutoScheduler] Channel 은빛라디오: Created title title_1763312859008_f84wt893i
+[2025-11-17 02:07:39] [addSchedule] 공개 설정 저장: public (원본: public)
+[2025-11-17 02:07:39] [addSchedule] DB에 저장된 공개 설정: public
+[2025-11-17 02:07:39] [AutoScheduler] ✅ Channel 은빛라디오: Auto-scheduled "쳐들어온 며느리, 집 나간 시어머니의 눈물" for 2025-11-24T17:04:12.129Z
+[2025-11-17 02:07:39] [AutoScheduler] Channel 쇼츠왕: No categories configured, skipping auto-generation
+[2025-11-17 02:07:39] [AutoScheduler] Channel 상사맨: Generating content for category "상품"
+[2025-11-17 02:07:39] [AutoScheduler] Channel 상사맨: Fetching Coupang bestseller...
+[2025-11-17 02:07:39] 💾 캐시에서 베스트셀러 반환: b5d1f064-60b9-45ab-9bcd-d36948196459_1001
+[2025-11-17 02:07:39] [ProductTitle] All products already in DB, skipping
+[2025-11-17 02:07:39] [AutoScheduler] Error processing channel 상사맨: Error: Failed to generate product title
+[2025-11-17 02:07:39]     at checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1573:19)
+[2025-11-17 02:07:39]   1571 |           LIMIT 1
+[2025-11-17 02:07:39]   1572 |         `).get(
+[2025-11-17 02:07:39] > 1573 |           setting.channel_id,
+[2025-11-17 02:07:39]        |                   ^
+[2025-11-17 02:07:39]   1574 |           setting.user_id,
+[2025-11-17 02:07:39]   1575 |           nextScheduleTime.toISOString()
+[2025-11-17 02:07:39]   1576 |         ) as any;
+[2025-11-17 02:07:39] [AutoScheduler] Channel 6090놀이터: Generating content for category "탈북자사연"
+[2025-11-17 02:07:39] [AutoScheduler] Channel 6090놀이터: Using multi-model AI evaluation...
+[2025-11-17 02:07:39] [MultiModel] Generating titles for category "탈북자사연" using 3 models...
+[2025-11-17 02:07:39] Gemini 제목 생성 실패: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+[2025-11-17 02:07:39]     at handleResponseNotOk (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15559:11)
+[2025-11-17 02:07:39]     at async makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15531:9)
+[2025-11-17 02:07:39]     at async generateContent (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15973:22)
+[2025-11-17 02:07:39]     at async generateTitlesWithGemini (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:155:24)
+[2025-11-17 02:07:39]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1943:12)
+[2025-11-17 02:07:39]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:07:39]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:39]   1941 |     }
+[2025-11-17 02:07:39]   1942 |
+[2025-11-17 02:07:39] > 1943 |   } catch (error: any) {
+[2025-11-17 02:07:39]        |            ^
+[2025-11-17 02:07:39]   1944 |     console.error(`[${model}] Error:`, error);
+[2025-11-17 02:07:39]   1945 |     return [];
+[2025-11-17 02:07:39]   1946 |   } {
+[2025-11-17 02:07:39]   status: 404,
+[2025-11-17 02:07:39]   statusText: 'Not Found',
+[2025-11-17 02:07:39]   errorDetails: undefined
+[2025-11-17 02:07:39] }
+[2025-11-17 02:07:39] Claude 제목 생성 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwDK7zjgv6RzNtnSZq3"}
+[2025-11-17 02:07:39]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:39]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:39]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:39]     at async generateTitlesWithClaude (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:75:25)
+[2025-11-17 02:07:39]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1938:12)
+[2025-11-17 02:07:39]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:07:39]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:39]   1936 |     } else if (model === 'gemini') {
+[2025-11-17 02:07:39]   1937 |       return await generateTitlesWithGemini(category, 3);
+[2025-11-17 02:07:39] > 1938 |     } else {
+[2025-11-17 02:07:39]        |            ^
+[2025-11-17 02:07:39]   1939 |       console.error(`[${model}] Unknown model`);
+[2025-11-17 02:07:39]   1940 |       return [];
+[2025-11-17 02:07:39]   1941 |     } {
+[2025-11-17 02:07:39]   status: 404,
+[2025-11-17 02:07:39]   headers: Headers {
+[2025-11-17 02:07:39]     date: 'Sun, 16 Nov 2025 17:07:40 GMT',
+[2025-11-17 02:07:39]     'content-type': 'application/json',
+[2025-11-17 02:07:39]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:39]     connection: 'keep-alive',
+[2025-11-17 02:07:39]     'content-encoding': 'gzip',
+[2025-11-17 02:07:39]     'x-should-retry': 'false',
+[2025-11-17 02:07:39]     'request-id': 'req_011CVBwDK7zjgv6RzNtnSZq3',
+[2025-11-17 02:07:39]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:39]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:39]     'x-envoy-upstream-service-time': '22',
+[2025-11-17 02:07:39]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:39]     'x-robots-tag': 'none',
+[2025-11-17 02:07:39]     server: 'cloudflare',
+[2025-11-17 02:07:39]     'cf-ray': '99f89603e80c687f-NRT'
+[2025-11-17 02:07:39]   },
+[2025-11-17 02:07:39]   requestID: 'req_011CVBwDK7zjgv6RzNtnSZq3',
+[2025-11-17 02:07:39]   error: [Object]
+[2025-11-17 02:07:39] }
+[2025-11-17 02:07:39]  GET /api/auth/session 200 in 118ms (compile: 30ms, render: 88ms)
+[2025-11-17 02:07:39]  GET /api/automation/scheduler 200 in 49ms (compile: 11ms, render: 39ms)
+[2025-11-17 02:07:39]  GET /api/automation/titles 200 in 56ms (compile: 16ms, render: 40ms)
+[2025-11-17 02:07:39]  GET /api/automation/schedules 200 in 61ms (compile: 21ms, render: 40ms)
+[2025-11-17 02:07:39]  GET /api/credits 200 in 158ms (compile: 62ms, render: 96ms)
+[2025-11-17 02:07:39]  GET /api/automation/categories 200 in 22ms (compile: 5ms, render: 17ms)
+[2025-11-17 02:07:39]  GET /api/youtube/channels 200 in 88ms (compile: 27ms, render: 61ms)
+[2025-11-17 02:07:40] [MultiModel] Generated 3 titles from 3 models
+[2025-11-17 02:07:40] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwDQYRr8tfzezUZYL26"}
+[2025-11-17 02:07:40]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:40]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:40]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:40]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:07:40]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:40]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:40]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:40]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:40]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:40]   1957 |   }
+[2025-11-17 02:07:40] > 1958 | }
+[2025-11-17 02:07:40]        | ^
+[2025-11-17 02:07:40]   1959 | {
+[2025-11-17 02:07:40]   status: 404,
+[2025-11-17 02:07:40]   headers: Headers {
+[2025-11-17 02:07:40]     date: 'Sun, 16 Nov 2025 17:07:42 GMT',
+[2025-11-17 02:07:40]     'content-type': 'application/json',
+[2025-11-17 02:07:40]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:40]     connection: 'keep-alive',
+[2025-11-17 02:07:40]     'content-encoding': 'gzip',
+[2025-11-17 02:07:40]     'x-should-retry': 'false',
+[2025-11-17 02:07:40]     'request-id': 'req_011CVBwDQYRr8tfzezUZYL26',
+[2025-11-17 02:07:40]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:40]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:40]     'x-envoy-upstream-service-time': '19',
+[2025-11-17 02:07:40]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:40]     'x-robots-tag': 'none',
+[2025-11-17 02:07:40]     server: 'cloudflare',
+[2025-11-17 02:07:40]     'cf-ray': '99f8960bcbb66872-NRT'
+[2025-11-17 02:07:40]   },
+[2025-11-17 02:07:40]   requestID: 'req_011CVBwDQYRr8tfzezUZYL26',
+[2025-11-17 02:07:40]   error: [Object]
+[2025-11-17 02:07:40] }
+[2025-11-17 02:07:40] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwDQYRvYFi3ssY1onui"}
+[2025-11-17 02:07:40]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:40]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:40]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:40]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:07:40]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:40]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:40]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:40]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:40]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:40]   1957 |   }
+[2025-11-17 02:07:40] > 1958 | }
+[2025-11-17 02:07:40]        | ^
+[2025-11-17 02:07:40]   1959 | {
+[2025-11-17 02:07:40]   status: 404,
+[2025-11-17 02:07:40]   headers: Headers {
+[2025-11-17 02:07:40]     date: 'Sun, 16 Nov 2025 17:07:42 GMT',
+[2025-11-17 02:07:40]     'content-type': 'application/json',
+[2025-11-17 02:07:40]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:40]     connection: 'keep-alive',
+[2025-11-17 02:07:40]     'content-encoding': 'gzip',
+[2025-11-17 02:07:40]     'x-should-retry': 'false',
+[2025-11-17 02:07:40]     'request-id': 'req_011CVBwDQYRvYFi3ssY1onui',
+[2025-11-17 02:07:40]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:40]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:40]     'x-envoy-upstream-service-time': '23',
+[2025-11-17 02:07:40]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:40]     'x-robots-tag': 'none',
+[2025-11-17 02:07:40]     server: 'cloudflare',
+[2025-11-17 02:07:40]     'cf-ray': '99f8960bcc14687f-NRT'
+[2025-11-17 02:07:40]   },
+[2025-11-17 02:07:40]   requestID: 'req_011CVBwDQYRvYFi3ssY1onui',
+[2025-11-17 02:07:40]   error: [Object]
+[2025-11-17 02:07:40] }
+[2025-11-17 02:07:40] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwDQbABZN14ukJEdjKs"}
+[2025-11-17 02:07:40]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:07:40]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:07:40]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:07:40]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:180:25)
+[2025-11-17 02:07:40]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:07:40]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:07:40]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:07:40]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:07:40]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:07:40]   1957 |   }
+[2025-11-17 02:07:40] > 1958 | }
+[2025-11-17 02:07:40]        | ^
+[2025-11-17 02:07:40]   1959 | {
+[2025-11-17 02:07:40]   status: 404,
+[2025-11-17 02:07:40]   headers: Headers {
+[2025-11-17 02:07:40]     date: 'Sun, 16 Nov 2025 17:07:42 GMT',
+[2025-11-17 02:07:40]     'content-type': 'application/json',
+[2025-11-17 02:07:40]     'transfer-encoding': 'chunked',
+[2025-11-17 02:07:40]     connection: 'keep-alive',
+[2025-11-17 02:07:40]     'content-encoding': 'gzip',
+[2025-11-17 02:07:40]     'x-should-retry': 'false',
+[2025-11-17 02:07:40]     'request-id': 'req_011CVBwDQbABZN14ukJEdjKs',
+[2025-11-17 02:07:40]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:07:40]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:07:40]     'x-envoy-upstream-service-time': '36',
+[2025-11-17 02:07:40]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:07:40]     'x-robots-tag': 'none',
+[2025-11-17 02:07:40]     server: 'cloudflare',
+[2025-11-17 02:07:40]     'cf-ray': '99f8960bdcd516ab-KIX'
+[2025-11-17 02:07:40]   },
+[2025-11-17 02:07:40]   requestID: 'req_011CVBwDQbABZN14ukJEdjKs',
+[2025-11-17 02:07:40]   error: [Object]
+[2025-11-17 02:07:40] }
+[2025-11-17 02:07:40] [MultiModel] Best title (score: 50): "탈북자가 처음 경험한 자유의 충격적 실상" (model: chatgpt)
+[2025-11-17 02:07:40] [MultiModel] All scores: [
+[2025-11-17 02:07:40]   '50.00 - 탈북자가 처음 경험한 자유의 충격적 실상...',
+[2025-11-17 02:07:40]   '50.00 - 북한 요리사가 바라본 한국 거리 음식의 비밀...',
+[2025-11-17 02:07:40]   '50.00 - 탈북 청년의 꿈과 현실, 남한에서의 새 출발...'
+[2025-11-17 02:07:40] ]
+[2025-11-17 02:07:40] [AutoScheduler] Channel 6090놀이터: Created title title_1763312860646_1t3y5hoxa
+[2025-11-17 02:07:40] [addSchedule] 공개 설정 저장: public (원본: public)
+[2025-11-17 02:07:40] [addSchedule] DB에 저장된 공개 설정: public
+[2025-11-17 02:07:40] [AutoScheduler] ✅ Channel 6090놀이터: Auto-scheduled "탈북자가 처음 경험한 자유의 충격적 실상" for 2025-12-02T17:04:14.499Z
+[2025-11-17 02:07:40] [AutoScheduler] Channel 원사사: No categories configured, skipping auto-generation
+[2025-11-17 02:07:40] [AutoScheduler] Channel bossman: Generating content for category "상품"
+[2025-11-17 02:07:40] [AutoScheduler] Channel bossman: Fetching Coupang bestseller...
+[2025-11-17 02:07:40] 💾 캐시에서 베스트셀러 반환: b5d1f064-60b9-45ab-9bcd-d36948196459_1001
+[2025-11-17 02:07:40] [ProductTitle] All products already in DB, skipping
+[2025-11-17 02:07:40] [AutoScheduler] Error processing channel bossman: Error: Failed to generate product title
+[2025-11-17 02:07:40]     at checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1573:19)
+[2025-11-17 02:07:40]   1571 |           LIMIT 1
+[2025-11-17 02:07:40]   1572 |         `).get(
+[2025-11-17 02:07:40] > 1573 |           setting.channel_id,
+[2025-11-17 02:07:40]        |                   ^
+[2025-11-17 02:07:40]   1574 |           setting.user_id,
+[2025-11-17 02:07:40]   1575 |           nextScheduleTime.toISOString()
+[2025-11-17 02:07:40]   1576 |         ) as any;
+[2025-11-17 02:07:40] [AutoScheduler] ✅ Completed: 2 success, 2 failed, 2 skipped
+[2025-11-17 02:08:12] [Scheduler] Checking for schedules before: 2025-11-17T02:08:12
+[2025-11-17 02:08:12] [Scheduler] Found 0 pending schedules
+[2025-11-17 02:08:12] [Scheduler] No pending schedules
+[2025-11-17 02:08:12] [Scheduler] Found 0 schedules waiting for upload
+[2025-11-17 02:08:12] [AutoScheduler] Checking 6 active channels for auto-scheduling
+[2025-11-17 02:08:12] [AutoScheduler] Channel 은빛라디오: Generating content for category "시니어사연"
+[2025-11-17 02:08:12] [AutoScheduler] Channel 은빛라디오: Using multi-model AI evaluation...
+[2025-11-17 02:08:12] [MultiModel] Generating titles for category "시니어사연" using 3 models...
+[2025-11-17 02:08:12] Gemini 제목 생성 실패: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+[2025-11-17 02:08:12]     at handleResponseNotOk (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15559:11)
+[2025-11-17 02:08:12]     at async makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15531:9)
+[2025-11-17 02:08:12]     at async generateContent (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15973:22)
+[2025-11-17 02:08:12]     at async generateTitlesWithGemini (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:158:24)
+[2025-11-17 02:08:12]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1943:12)
+[2025-11-17 02:08:12]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:08:12]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:12]   1941 |     }
+[2025-11-17 02:08:12]   1942 |
+[2025-11-17 02:08:12] > 1943 |   } catch (error: any) {
+[2025-11-17 02:08:12]        |            ^
+[2025-11-17 02:08:12]   1944 |     console.error(`[${model}] Error:`, error);
+[2025-11-17 02:08:12]   1945 |     return [];
+[2025-11-17 02:08:12]   1946 |   } {
+[2025-11-17 02:08:12]   status: 404,
+[2025-11-17 02:08:12]   statusText: 'Not Found',
+[2025-11-17 02:08:12]   errorDetails: undefined
+[2025-11-17 02:08:12] }
+[2025-11-17 02:08:12] Claude 제목 생성 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwFkpPKBXpK7DDANS8A"}
+[2025-11-17 02:08:12]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:08:12]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:08:12]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:08:12]     at async generateTitlesWithClaude (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:76:25)
+[2025-11-17 02:08:12]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1938:12)
+[2025-11-17 02:08:12]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:08:12]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:12]   1936 |     } else if (model === 'gemini') {
+[2025-11-17 02:08:12]   1937 |       return await generateTitlesWithGemini(category, 3);
+[2025-11-17 02:08:12] > 1938 |     } else {
+[2025-11-17 02:08:12]        |            ^
+[2025-11-17 02:08:12]   1939 |       console.error(`[${model}] Unknown model`);
+[2025-11-17 02:08:12]   1940 |       return [];
+[2025-11-17 02:08:12]   1941 |     } {
+[2025-11-17 02:08:12]   status: 404,
+[2025-11-17 02:08:12]   headers: Headers {
+[2025-11-17 02:08:12]     date: 'Sun, 16 Nov 2025 17:08:14 GMT',
+[2025-11-17 02:08:12]     'content-type': 'application/json',
+[2025-11-17 02:08:12]     'transfer-encoding': 'chunked',
+[2025-11-17 02:08:12]     connection: 'keep-alive',
+[2025-11-17 02:08:12]     'content-encoding': 'gzip',
+[2025-11-17 02:08:12]     'x-should-retry': 'false',
+[2025-11-17 02:08:12]     'request-id': 'req_011CVBwFkpPKBXpK7DDANS8A',
+[2025-11-17 02:08:12]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:08:12]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:08:12]     'x-envoy-upstream-service-time': '19',
+[2025-11-17 02:08:12]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:08:12]     'x-robots-tag': 'none',
+[2025-11-17 02:08:12]     server: 'cloudflare',
+[2025-11-17 02:08:12]     'cf-ray': '99f896d2f962d4aa-NRT'
+[2025-11-17 02:08:12]   },
+[2025-11-17 02:08:12]   requestID: 'req_011CVBwFkpPKBXpK7DDANS8A',
+[2025-11-17 02:08:12]   error: [Object]
+[2025-11-17 02:08:12] }
+[2025-11-17 02:08:14] [MultiModel] Generated 3 titles from 3 models
+[2025-11-17 02:08:14] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwFvx5n6dNtveh5nboP"}
+[2025-11-17 02:08:14]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:08:14]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:08:14]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:08:14]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:08:14]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:08:14]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:08:14]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:08:14]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:14]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:08:14]   1957 |   }
+[2025-11-17 02:08:14] > 1958 | }
+[2025-11-17 02:08:14]        | ^
+[2025-11-17 02:08:14]   1959 | {
+[2025-11-17 02:08:14]   status: 404,
+[2025-11-17 02:08:14]   headers: Headers {
+[2025-11-17 02:08:14]     date: 'Sun, 16 Nov 2025 17:08:16 GMT',
+[2025-11-17 02:08:14]     'content-type': 'application/json',
+[2025-11-17 02:08:14]     'transfer-encoding': 'chunked',
+[2025-11-17 02:08:14]     connection: 'keep-alive',
+[2025-11-17 02:08:14]     'content-encoding': 'gzip',
+[2025-11-17 02:08:14]     'x-should-retry': 'false',
+[2025-11-17 02:08:14]     'request-id': 'req_011CVBwFvx5n6dNtveh5nboP',
+[2025-11-17 02:08:14]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:08:14]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:08:14]     'x-envoy-upstream-service-time': '37',
+[2025-11-17 02:08:14]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:08:14]     'x-robots-tag': 'none',
+[2025-11-17 02:08:14]     server: 'cloudflare',
+[2025-11-17 02:08:14]     'cf-ray': '99f896e1caadd4aa-NRT'
+[2025-11-17 02:08:14]   },
+[2025-11-17 02:08:14]   requestID: 'req_011CVBwFvx5n6dNtveh5nboP',
+[2025-11-17 02:08:14]   error: [Object]
+[2025-11-17 02:08:14] }
+[2025-11-17 02:08:14] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwFwFwAXjS26qrrHS13"}
+[2025-11-17 02:08:14]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:08:14]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:08:14]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:08:14]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:08:14]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:08:14]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:08:14]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:08:14]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:14]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:08:14]   1957 |   }
+[2025-11-17 02:08:14] > 1958 | }
+[2025-11-17 02:08:14]        | ^
+[2025-11-17 02:08:14]   1959 | {
+[2025-11-17 02:08:14]   status: 404,
+[2025-11-17 02:08:14]   headers: Headers {
+[2025-11-17 02:08:14]     date: 'Sun, 16 Nov 2025 17:08:16 GMT',
+[2025-11-17 02:08:14]     'content-type': 'application/json',
+[2025-11-17 02:08:14]     'transfer-encoding': 'chunked',
+[2025-11-17 02:08:14]     connection: 'keep-alive',
+[2025-11-17 02:08:14]     'content-encoding': 'gzip',
+[2025-11-17 02:08:14]     'x-should-retry': 'false',
+[2025-11-17 02:08:14]     'request-id': 'req_011CVBwFwFwAXjS26qrrHS13',
+[2025-11-17 02:08:14]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:08:14]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:08:14]     'x-envoy-upstream-service-time': '26',
+[2025-11-17 02:08:14]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:08:14]     'x-robots-tag': 'none',
+[2025-11-17 02:08:14]     server: 'cloudflare',
+[2025-11-17 02:08:14]     'cf-ray': '99f896e248847b69-NRT'
+[2025-11-17 02:08:14]   },
+[2025-11-17 02:08:14]   requestID: 'req_011CVBwFwFwAXjS26qrrHS13',
+[2025-11-17 02:08:14]   error: [Object]
+[2025-11-17 02:08:14] }
+[2025-11-17 02:08:14] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwFwGgLWz2NzNwKx6DH"}
+[2025-11-17 02:08:14]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:08:14]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:08:14]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:08:14]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:08:14]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:08:14]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:08:14]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:08:14]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:14]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:08:14]   1957 |   }
+[2025-11-17 02:08:14] > 1958 | }
+[2025-11-17 02:08:14]        | ^
+[2025-11-17 02:08:14]   1959 | {
+[2025-11-17 02:08:14]   status: 404,
+[2025-11-17 02:08:14]   headers: Headers {
+[2025-11-17 02:08:14]     date: 'Sun, 16 Nov 2025 17:08:16 GMT',
+[2025-11-17 02:08:14]     'content-type': 'application/json',
+[2025-11-17 02:08:14]     'transfer-encoding': 'chunked',
+[2025-11-17 02:08:14]     connection: 'keep-alive',
+[2025-11-17 02:08:14]     'content-encoding': 'gzip',
+[2025-11-17 02:08:14]     'x-should-retry': 'false',
+[2025-11-17 02:08:14]     'request-id': 'req_011CVBwFwGgLWz2NzNwKx6DH',
+[2025-11-17 02:08:14]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:08:14]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:08:14]     'x-envoy-upstream-service-time': '55',
+[2025-11-17 02:08:14]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:08:14]     'x-robots-tag': 'none',
+[2025-11-17 02:08:14]     server: 'cloudflare',
+[2025-11-17 02:08:14]     'cf-ray': '99f896e24f25d780-NRT'
+[2025-11-17 02:08:14]   },
+[2025-11-17 02:08:14]   requestID: 'req_011CVBwFwGgLWz2NzNwKx6DH',
+[2025-11-17 02:08:14]   error: [Object]
+[2025-11-17 02:08:14] }
+[2025-11-17 02:08:14] [MultiModel] Best title (score: 50): "며느리의 단호한 선택, 시어머니의 눈물로 끝난 사연" (model: chatgpt)
+[2025-11-17 02:08:14] [MultiModel] All scores: [
+[2025-11-17 02:08:14]   '50.00 - 며느리의 단호한 선택, 시어머니의 눈물로 끝난 사연...',
+[2025-11-17 02:08:14]   '50.00 - 고부갈등의 승자는 누구? 눈물의 비밀이 풀리다...',
+[2025-11-17 02:08:14]   '50.00 - 며느리에게 버림받은 시어머니, 가족의 소중함을 깨닫다...'
+[2025-11-17 02:08:14] ]
+[2025-11-17 02:08:14] [AutoScheduler] Channel 은빛라디오: Created title title_1763312894964_oeopblq8k
+[2025-11-17 02:08:14] [addSchedule] 공개 설정 저장: public (원본: public)
+[2025-11-17 02:08:14] [addSchedule] DB에 저장된 공개 설정: public
+[2025-11-17 02:08:14] [AutoScheduler] ✅ Channel 은빛라디오: Auto-scheduled "며느리의 단호한 선택, 시어머니의 눈물로 끝난 사연" for 2025-11-25T17:04:12.129Z
+[2025-11-17 02:08:14] [AutoScheduler] Channel 쇼츠왕: No categories configured, skipping auto-generation
+[2025-11-17 02:08:14] [AutoScheduler] Channel 상사맨: Generating content for category "상품"
+[2025-11-17 02:08:14] [AutoScheduler] Channel 상사맨: Fetching Coupang bestseller...
+[2025-11-17 02:08:14] 💾 캐시에서 베스트셀러 반환: b5d1f064-60b9-45ab-9bcd-d36948196459_1001
+[2025-11-17 02:08:14] [ProductTitle] All products already in DB, skipping
+[2025-11-17 02:08:14] [AutoScheduler] Error processing channel 상사맨: Error: Failed to generate product title
+[2025-11-17 02:08:14]     at checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1573:19)
+[2025-11-17 02:08:14]   1571 |           LIMIT 1
+[2025-11-17 02:08:14]   1572 |         `).get(
+[2025-11-17 02:08:14] > 1573 |           setting.channel_id,
+[2025-11-17 02:08:14]        |                   ^
+[2025-11-17 02:08:14]   1574 |           setting.user_id,
+[2025-11-17 02:08:14]   1575 |           nextScheduleTime.toISOString()
+[2025-11-17 02:08:14]   1576 |         ) as any;
+[2025-11-17 02:08:14] [AutoScheduler] Channel 6090놀이터: Generating content for category "탈북자사연"
+[2025-11-17 02:08:14] [AutoScheduler] Channel 6090놀이터: Using multi-model AI evaluation...
+[2025-11-17 02:08:14] [MultiModel] Generating titles for category "탈북자사연" using 3 models...
+[2025-11-17 02:08:15] Gemini 제목 생성 실패: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+[2025-11-17 02:08:15]     at handleResponseNotOk (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15559:11)
+[2025-11-17 02:08:15]     at async makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15531:9)
+[2025-11-17 02:08:15]     at async generateContent (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:15973:22)
+[2025-11-17 02:08:15]     at async generateTitlesWithGemini (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:158:24)
+[2025-11-17 02:08:15]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1943:12)
+[2025-11-17 02:08:15]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:08:15]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:15]   1941 |     }
+[2025-11-17 02:08:15]   1942 |
+[2025-11-17 02:08:15] > 1943 |   } catch (error: any) {
+[2025-11-17 02:08:15]        |            ^
+[2025-11-17 02:08:15]   1944 |     console.error(`[${model}] Error:`, error);
+[2025-11-17 02:08:15]   1945 |     return [];
+[2025-11-17 02:08:15]   1946 |   } {
+[2025-11-17 02:08:15]   status: 404,
+[2025-11-17 02:08:15]   statusText: 'Not Found',
+[2025-11-17 02:08:15]   errorDetails: undefined
+[2025-11-17 02:08:15] }
+[2025-11-17 02:08:15] Claude 제목 생성 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwFxZKiN4cK5xuc5xQB"}
+[2025-11-17 02:08:15]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:08:15]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:08:15]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:08:15]     at async generateTitlesWithClaude (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:76:25)
+[2025-11-17 02:08:15]     at async generateTitlesWithModel (src\lib\automation-scheduler.ts:1938:12)
+[2025-11-17 02:08:15]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1829:7)
+[2025-11-17 02:08:15]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:15]   1936 |     } else if (model === 'gemini') {
+[2025-11-17 02:08:15]   1937 |       return await generateTitlesWithGemini(category, 3);
+[2025-11-17 02:08:15] > 1938 |     } else {
+[2025-11-17 02:08:15]        |            ^
+[2025-11-17 02:08:15]   1939 |       console.error(`[${model}] Unknown model`);
+[2025-11-17 02:08:15]   1940 |       return [];
+[2025-11-17 02:08:15]   1941 |     } {
+[2025-11-17 02:08:15]   status: 404,
+[2025-11-17 02:08:15]   headers: Headers {
+[2025-11-17 02:08:15]     date: 'Sun, 16 Nov 2025 17:08:16 GMT',
+[2025-11-17 02:08:15]     'content-type': 'application/json',
+[2025-11-17 02:08:15]     'transfer-encoding': 'chunked',
+[2025-11-17 02:08:15]     connection: 'keep-alive',
+[2025-11-17 02:08:15]     'content-encoding': 'gzip',
+[2025-11-17 02:08:15]     'x-should-retry': 'false',
+[2025-11-17 02:08:15]     'request-id': 'req_011CVBwFxZKiN4cK5xuc5xQB',
+[2025-11-17 02:08:15]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:08:15]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:08:15]     'x-envoy-upstream-service-time': '18',
+[2025-11-17 02:08:15]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:08:15]     'x-robots-tag': 'none',
+[2025-11-17 02:08:15]     server: 'cloudflare',
+[2025-11-17 02:08:15]     'cf-ray': '99f896e43c0cd4aa-NRT'
+[2025-11-17 02:08:15]   },
+[2025-11-17 02:08:15]   requestID: 'req_011CVBwFxZKiN4cK5xuc5xQB',
+[2025-11-17 02:08:15]   error: [Object]
+[2025-11-17 02:08:15] }
+[2025-11-17 02:08:16] [MultiModel] Generated 3 titles from 3 models
+[2025-11-17 02:08:16] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwG5zZ152rMGHHWn8zy"}
+[2025-11-17 02:08:16]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:08:16]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:08:16]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:08:16]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:08:16]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:08:16]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:08:16]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:08:16]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:16]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:08:16]   1957 |   }
+[2025-11-17 02:08:16] > 1958 | }
+[2025-11-17 02:08:16]        | ^
+[2025-11-17 02:08:16]   1959 | {
+[2025-11-17 02:08:16]   status: 404,
+[2025-11-17 02:08:16]   headers: Headers {
+[2025-11-17 02:08:16]     date: 'Sun, 16 Nov 2025 17:08:18 GMT',
+[2025-11-17 02:08:16]     'content-type': 'application/json',
+[2025-11-17 02:08:16]     'transfer-encoding': 'chunked',
+[2025-11-17 02:08:16]     connection: 'keep-alive',
+[2025-11-17 02:08:16]     'content-encoding': 'gzip',
+[2025-11-17 02:08:16]     'x-should-retry': 'false',
+[2025-11-17 02:08:16]     'request-id': 'req_011CVBwG5zZ152rMGHHWn8zy',
+[2025-11-17 02:08:16]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:08:16]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:08:16]     'x-envoy-upstream-service-time': '20',
+[2025-11-17 02:08:16]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:08:16]     'x-robots-tag': 'none',
+[2025-11-17 02:08:16]     server: 'cloudflare',
+[2025-11-17 02:08:16]     'cf-ray': '99f896ef1b1e7b69-NRT'
+[2025-11-17 02:08:16]   },
+[2025-11-17 02:08:16]   requestID: 'req_011CVBwG5zZ152rMGHHWn8zy',
+[2025-11-17 02:08:16]   error: [Object]
+[2025-11-17 02:08:16] }
+[2025-11-17 02:08:17] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwG62HVvUvo5d7EvQwV"}
+[2025-11-17 02:08:17]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:08:17]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:08:17]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:08:17]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:08:17]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:08:17]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:08:17]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:08:17]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:17]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:08:17]   1957 |   }
+[2025-11-17 02:08:17] > 1958 | }
+[2025-11-17 02:08:17]        | ^
+[2025-11-17 02:08:17]   1959 | {
+[2025-11-17 02:08:17]   status: 404,
+[2025-11-17 02:08:17]   headers: Headers {
+[2025-11-17 02:08:17]     date: 'Sun, 16 Nov 2025 17:08:18 GMT',
+[2025-11-17 02:08:17]     'content-type': 'application/json',
+[2025-11-17 02:08:17]     'transfer-encoding': 'chunked',
+[2025-11-17 02:08:17]     connection: 'keep-alive',
+[2025-11-17 02:08:17]     'content-encoding': 'gzip',
+[2025-11-17 02:08:17]     'x-should-retry': 'false',
+[2025-11-17 02:08:17]     'request-id': 'req_011CVBwG62HVvUvo5d7EvQwV',
+[2025-11-17 02:08:17]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:08:17]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:08:17]     'x-envoy-upstream-service-time': '43',
+[2025-11-17 02:08:17]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:08:17]     'x-robots-tag': 'none',
+[2025-11-17 02:08:17]     server: 'cloudflare',
+[2025-11-17 02:08:17]     'cf-ray': '99f896ef1a94d780-NRT'
+[2025-11-17 02:08:17]   },
+[2025-11-17 02:08:17]   requestID: 'req_011CVBwG62HVvUvo5d7EvQwV',
+[2025-11-17 02:08:17]   error: [Object]
+[2025-11-17 02:08:17] }
+[2025-11-17 02:08:17] 제목 점수 평가 실패: Error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"},"request_id":"req_011CVBwG61YYg9tgz796ug37"}
+[2025-11-17 02:08:17]     at APIError.generate (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:157:20)
+[2025-11-17 02:08:17]     at Anthropic.makeStatusError (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5158:215)
+[2025-11-17 02:08:17]     at Anthropic.makeRequest (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\bbeea_fbc4fc98._.js:5316:30)
+[2025-11-17 02:08:17]     at async evaluateTitleScore (C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\server\chunks\trend-video-frontend_src_lib_ai-title-generation_ts_c12e8b03._.js:183:25)
+[2025-11-17 02:08:17]     at async evaluateTitleScore (src\lib\automation-scheduler.ts:1958:1)
+[2025-11-17 02:08:17]     at async (src\lib\automation-scheduler.ts:1871:7)
+[2025-11-17 02:08:17]     at async generateTitleWithMultiModelEvaluation (src\lib\automation-scheduler.ts:1870:16)
+[2025-11-17 02:08:17]     at async checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1586:15)
+[2025-11-17 02:08:17]   1956 |     return 50; // 에러 시 중간 점수
+[2025-11-17 02:08:17]   1957 |   }
+[2025-11-17 02:08:17] > 1958 | }
+[2025-11-17 02:08:17]        | ^
+[2025-11-17 02:08:17]   1959 | {
+[2025-11-17 02:08:17]   status: 404,
+[2025-11-17 02:08:17]   headers: Headers {
+[2025-11-17 02:08:17]     date: 'Sun, 16 Nov 2025 17:08:18 GMT',
+[2025-11-17 02:08:17]     'content-type': 'application/json',
+[2025-11-17 02:08:17]     'transfer-encoding': 'chunked',
+[2025-11-17 02:08:17]     connection: 'keep-alive',
+[2025-11-17 02:08:17]     'content-encoding': 'gzip',
+[2025-11-17 02:08:17]     'x-should-retry': 'false',
+[2025-11-17 02:08:17]     'request-id': 'req_011CVBwG61YYg9tgz796ug37',
+[2025-11-17 02:08:17]     'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+[2025-11-17 02:08:17]     'anthropic-organization-id': '072124fd-4269-4f06-ab5a-f83371982473',
+[2025-11-17 02:08:17]     'x-envoy-upstream-service-time': '48',
+[2025-11-17 02:08:17]     'cf-cache-status': 'DYNAMIC',
+[2025-11-17 02:08:17]     'x-robots-tag': 'none',
+[2025-11-17 02:08:17]     server: 'cloudflare',
+[2025-11-17 02:08:17]     'cf-ray': '99f896ef1b28d4aa-NRT'
+[2025-11-17 02:08:17]   },
+[2025-11-17 02:08:17]   requestID: 'req_011CVBwG61YYg9tgz796ug37',
+[2025-11-17 02:08:17]   error: [Object]
+[2025-11-17 02:08:17] }
+[2025-11-17 02:08:17] [MultiModel] Best title (score: 50): "북한 간부의 목숨 건 탈출, 남한에서의 새로운 시작" (model: chatgpt)
+[2025-11-17 02:08:17] [MultiModel] All scores: [
+[2025-11-17 02:08:17]   '50.00 - 북한 간부의 목숨 건 탈출, 남한에서의 새로운 시작...',
+[2025-11-17 02:08:17]   '50.00 - 북한 고위층 딸의 남한 정착기, 꿈의 무대에 서다...',
+[2025-11-17 02:08:17]   '50.00 - 자유를 찾은 탈북 예술가, 한반도에서 미소 짓다...'
+[2025-11-17 02:08:17] ]
+[2025-11-17 02:08:17] [AutoScheduler] Channel 6090놀이터: Created title title_1763312897007_ndc0hevfx
+[2025-11-17 02:08:17] [addSchedule] 공개 설정 저장: public (원본: public)
+[2025-11-17 02:08:17] [addSchedule] DB에 저장된 공개 설정: public
+[2025-11-17 02:08:17] [AutoScheduler] ✅ Channel 6090놀이터: Auto-scheduled "북한 간부의 목숨 건 탈출, 남한에서의 새로운 시작" for 2025-12-04T17:04:14.499Z
+[2025-11-17 02:08:17] [AutoScheduler] Channel 원사사: No categories configured, skipping auto-generation
+[2025-11-17 02:08:17] [AutoScheduler] Channel bossman: Generating content for category "상품"
+[2025-11-17 02:08:17] [AutoScheduler] Channel bossman: Fetching Coupang bestseller...
+[2025-11-17 02:08:17] 💾 캐시에서 베스트셀러 반환: b5d1f064-60b9-45ab-9bcd-d36948196459_1001
+[2025-11-17 02:08:17] [ProductTitle] All products already in DB, skipping
+[2025-11-17 02:08:17] [AutoScheduler] Error processing channel bossman: Error: Failed to generate product title
+[2025-11-17 02:08:17]     at checkAndCreateAutoSchedules (src\lib\automation-scheduler.ts:1573:19)
+[2025-11-17 02:08:17]   1571 |           LIMIT 1
+[2025-11-17 02:08:17]   1572 |         `).get(
+[2025-11-17 02:08:17] > 1573 |           setting.channel_id,
+[2025-11-17 02:08:17]        |                   ^
+[2025-11-17 02:08:17]   1574 |           setting.user_id,
+[2025-11-17 02:08:17]   1575 |           nextScheduleTime.toISOString()
+[2025-11-17 02:08:17]   1576 |         ) as any;
+[2025-11-17 02:08:17] [AutoScheduler] ✅ Completed: 2 success, 2 failed, 2 skipped

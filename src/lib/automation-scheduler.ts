@@ -1486,6 +1486,16 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
  */
 export async function checkAndCreateAutoSchedules() {
   try {
+    // ⚠️ 먼저 자동 제목 생성이 활성화되어 있는지 확인
+    const settings = getAutomationSettings();
+    const autoTitleGeneration = settings.auto_title_generation === 'true';
+
+    if (!autoTitleGeneration) {
+      console.log('[AutoScheduler] Auto title generation is disabled, skipping');
+      lastAutoScheduleResult = { success: 0, failed: 0, skipped: 0 };
+      return { success: 0, failed: 0, skipped: 0 };
+    }
+
     lastAutoScheduleCheck = new Date();
     let successCount = 0;
     let failedCount = 0;
