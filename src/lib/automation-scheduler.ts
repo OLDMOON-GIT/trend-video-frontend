@@ -78,6 +78,7 @@ export function startAutomationScheduler() {
     processPendingSchedules();
     checkWaitingForUploadSchedules(); // 이미지 업로드 대기 중인 스케줄 체크
     checkReadyToUploadSchedules(); // 영상 생성 완료되어 업로드 대기 중인 스케줄 체크
+    checkCompletedShortformJobs(); // 완료된 숏폼 작업 체크 및 업로드
 
     // 자동 제목 생성이 활성화된 경우에만 실행
     const settings = getAutomationSettings();
@@ -462,6 +463,83 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
     addTitleLog(schedule.title_id, 'info', `🎉 All done! Pipeline completed successfully!`);
 
     console.log(`✅ [Pipeline] Successfully completed for schedule ${schedule.id}`);
+
+    // ============================================================
+    // 롱폼 완료 후 숏폼 자동 생성
+    // ============================================================
+    if (schedule.type === 'longform' && uploadResult.videoUrl) {
+      console.log(`🎬 [SHORTFORM] Longform completed, triggering shortform conversion...`);
+      addTitleLog(schedule.title_id, 'info', `🎬 롱폼 완료! 숏폼 변환 시작...`);
+
+      try {
+        // 롱폼 video_id (job_id) 가져오기
+        const longformJobId = videoResult.videoId;
+        const longformYoutubeUrl = uploadResult.videoUrl;
+
+        console.log(`🔍 [SHORTFORM] Longform job_id: ${longformJobId}, YouTube URL: ${longformYoutubeUrl}`);
+
+        // convert-to-shorts API 호출
+        const convertResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/jobs/${longformJobId}/convert-to-shorts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Request': 'automation-system',
+            'X-User-Id': schedule.user_id // 인증 우회용
+          }
+        });
+
+        if (!convertResponse.ok) {
+          const errorText = await convertResponse.text();
+          console.error(`❌ [SHORTFORM] Conversion failed: ${errorText}`);
+          addTitleLog(schedule.title_id, 'warning', `⚠️ 숏폼 변환 실패: ${errorText}`);
+        } else {
+          const convertData = await convertResponse.json();
+          const shortformJobId = convertData.jobId;
+
+          console.log(`✅ [SHORTFORM] Conversion started, shortform job_id: ${shortformJobId}`);
+          addTitleLog(schedule.title_id, 'info', `✅ 숏폼 변환 시작됨 (작업 ID: ${shortformJobId})`);
+
+          // 숏폼 작업 ID와 롱폼 YouTube URL 저장 (나중에 업로드할 때 사용)
+          const dbShortform = new Database(dbPath);
+
+          // 컬럼이 없으면 추가
+          try {
+            dbShortform.exec(`ALTER TABLE video_schedules ADD COLUMN shortform_job_id TEXT`);
+          } catch (e: any) {
+            if (!e.message?.includes('duplicate column')) {
+              console.log('shortform_job_id 컬럼 추가 시도:', e.message);
+            }
+          }
+          try {
+            dbShortform.exec(`ALTER TABLE video_schedules ADD COLUMN longform_youtube_url TEXT`);
+          } catch (e: any) {
+            if (!e.message?.includes('duplicate column')) {
+              console.log('longform_youtube_url 컬럼 추가 시도:', e.message);
+            }
+          }
+          try {
+            dbShortform.exec(`ALTER TABLE video_schedules ADD COLUMN shortform_uploaded INTEGER DEFAULT 0`);
+          } catch (e: any) {
+            if (!e.message?.includes('duplicate column')) {
+              console.log('shortform_uploaded 컬럼 추가 시도:', e.message);
+            }
+          }
+
+          dbShortform.prepare(`
+            UPDATE video_schedules
+            SET shortform_job_id = ?, longform_youtube_url = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).run(shortformJobId, longformYoutubeUrl, schedule.id);
+          dbShortform.close();
+
+          console.log(`💾 [SHORTFORM] Saved shortform_job_id to schedule: ${schedule.id}`);
+          addTitleLog(schedule.title_id, 'info', `💾 숏폼 작업 정보 저장됨. 완료 후 자동 업로드 예정`);
+        }
+      } catch (error: any) {
+        console.error(`❌ [SHORTFORM] Error during shortform conversion:`, error);
+        addTitleLog(schedule.title_id, 'warning', `⚠️ 숏폼 변환 중 오류: ${error.message}`);
+      }
+    }
 
   } catch (error: any) {
     console.error(`❌ [Pipeline] Failed for schedule ${schedule.id}:`, error);
@@ -1784,7 +1862,7 @@ async function generateProductTitle(
       channel: '', // 나중에 스케줄 추가 시 설정
       scriptMode: 'chrome',
       mediaMode: 'dalle3',
-      model: 'claude',
+      model: 'gemini', // 상품은 Gemini 기본
       userId,
       productUrl: newProduct.productUrl
     });
@@ -1842,22 +1920,34 @@ async function generateTitleWithMultiModelEvaluation(
       step: '멀티 모델 AI로 제목 생성 중...'
     });
 
-    console.log(`[TitleGen] Generating titles for category "${category}" using Claude (cost-optimized)...`);
+    // 카테고리별 기본 모델 결정
+    let defaultModel = 'claude'; // 기본값
+    let videoType = 'longform'; // 기본값
 
-    // 로그 업데이트: 모델 호출 (비용 절감: 3개 모델 → 1개 모델)
+    if (category.includes('숏') || category === 'shortform' || category === 'Shorts') {
+      defaultModel = 'chatgpt';
+      videoType = 'shortform';
+    } else if (category.includes('롱') || category === 'longform') {
+      defaultModel = 'claude';
+      videoType = 'longform';
+    }
+
+    console.log(`[TitleGen] Generating titles for category "${category}" using ${defaultModel} (type: ${videoType})...`);
+
+    // 로그 업데이트: 모델 호출
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'generating',
-        step: 'Claude로 제목 생성 중... (비용 75% 절감)',
-        modelsUsed: ['claude']
+        step: `${defaultModel.toUpperCase()}로 제목 생성 중...`,
+        modelsUsed: [defaultModel]
       });
     }
 
-    // 1. Claude만 사용 (비용 절감)
-    const claudeTitles = await generateTitlesWithModel(category, 'claude');
+    // 1. 선택된 모델로 제목 생성
+    const titles = await generateTitlesWithModel(category, defaultModel);
 
     // 2. 제목 수집
-    const allTitles = claudeTitles.map((t: string) => ({ title: t, model: 'claude', score: 0 }));
+    const allTitles = titles.map((t: string) => ({ title: t, model: defaultModel, score: 0 }));
 
     if (allTitles.length === 0) {
       console.error('[MultiModel] No titles generated from any model');
@@ -1891,7 +1981,7 @@ async function generateTitleWithMultiModelEvaluation(
     const { addVideoTitle } = await import('./automation');
     const titleId = addVideoTitle({
       title: bestTitle.title,
-      type: 'longform',
+      type: videoType, // 카테고리에 따라 longform 또는 shortform
       category,
       channel: channelId,
       scriptMode: 'chrome',
@@ -1964,5 +2054,135 @@ async function evaluateTitleScore(title: string, category: string): Promise<numb
   } catch (error: any) {
     console.error('[ScoreEvaluation] Error:', error);
     return 50; // 에러 시 중간 점수
+  }
+}
+
+// ============================================================
+// 숏폼 자동 업로드 체커
+// ============================================================
+/**
+ * 완료된 숏폼 작업을 찾아서 YouTube에 업로드합니다.
+ * 업로드 시 설명란에 롱폼 링크를 추가합니다.
+ */
+export async function checkCompletedShortformJobs() {
+  try {
+    const db = new Database(dbPath);
+
+    // shortform_job_id가 있고 아직 업로드되지 않은 스케줄 찾기
+    const schedulesWithShortform = db.prepare(`
+      SELECT vs.*, vt.user_id, vt.channel, vt.tags
+      FROM video_schedules vs
+      LEFT JOIN video_titles vt ON vs.title_id = vt.id
+      WHERE vs.shortform_job_id IS NOT NULL
+        AND (vs.shortform_uploaded IS NULL OR vs.shortform_uploaded = 0)
+    `).all() as any[];
+
+    if (schedulesWithShortform.length === 0) {
+      return;
+    }
+
+    console.log(`🔍 [SHORTFORM CHECKER] Found ${schedulesWithShortform.length} schedules with shortform jobs`);
+
+    for (const schedule of schedulesWithShortform) {
+      try {
+        const shortformJobId = schedule.shortform_job_id;
+        const longformYoutubeUrl = schedule.longform_youtube_url;
+
+        console.log(`🔍 [SHORTFORM] Checking shortform job: ${shortformJobId}`);
+
+        // 숏폼 작업 상태 확인
+        const shortformJob = db.prepare(`SELECT * FROM jobs WHERE id = ?`).get(shortformJobId) as any;
+
+        if (!shortformJob) {
+          console.log(`⚠️ [SHORTFORM] Job not found: ${shortformJobId}`);
+          continue;
+        }
+
+        console.log(`🔍 [SHORTFORM] Job status: ${shortformJob.status}`);
+
+        if (shortformJob.status !== 'completed') {
+          console.log(`⏳ [SHORTFORM] Job not yet completed: ${shortformJob.status}`);
+          continue;
+        }
+
+        // 숏폼 완료됨 - YouTube 업로드 시작
+        console.log(`✅ [SHORTFORM] Shortform completed! Starting YouTube upload...`);
+        addTitleLog(schedule.title_id, 'info', `✅ 숏폼 생성 완료! YouTube 업로드 시작...`);
+
+        // 파이프라인 생성
+        const uploadPipelineId = createPipeline(schedule.id, 'upload', 'shortform_upload');
+        updatePipelineStatus(uploadPipelineId, 'running');
+
+        // YouTube 업로드 (롱폼 링크를 설명란에 추가)
+        const videoPath = shortformJob.video_path;
+        const title = shortformJob.title || schedule.title;
+
+        // 설명란에 롱폼 링크 추가
+        let description = '';
+        if (longformYoutubeUrl) {
+          description = `롱폼 : ${longformYoutubeUrl}`;
+        }
+
+        console.log(`📤 [SHORTFORM] Uploading to YouTube with description: ${description}`);
+        addTitleLog(schedule.title_id, 'info', `📤 숏폼 YouTube 업로드 중... (설명: ${description})`);
+
+        const uploadResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/youtube/upload`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Request': 'automation-system'
+          },
+          body: JSON.stringify({
+            videoPath,
+            title: `${title} (쇼츠)`,
+            description,
+            tags: schedule.tags ? schedule.tags.split(',').map((t: string) => t.trim()) : [],
+            privacy: schedule.youtube_privacy || 'public',
+            channelId: schedule.channel,
+            jobId: shortformJobId,
+            publishAt: null, // 숏폼은 즉시 공개
+            userId: schedule.user_id,
+            type: 'shortform'
+          })
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error(`❌ [SHORTFORM] Upload failed: ${errorText}`);
+          addTitleLog(schedule.title_id, 'error', `❌ 숏폼 업로드 실패: ${errorText}`);
+          updatePipelineStatus(uploadPipelineId, 'failed', errorText);
+          continue;
+        }
+
+        const uploadData = await uploadResponse.json();
+
+        if (!uploadData.success) {
+          console.error(`❌ [SHORTFORM] Upload failed: ${uploadData.error}`);
+          addTitleLog(schedule.title_id, 'error', `❌ 숏폼 업로드 실패: ${uploadData.error}`);
+          updatePipelineStatus(uploadPipelineId, 'failed', uploadData.error);
+          continue;
+        }
+
+        // 업로드 성공 - shortform_uploaded 플래그 업데이트
+        db.prepare(`
+          UPDATE video_schedules
+          SET shortform_uploaded = 1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(schedule.id);
+
+        console.log(`✅ [SHORTFORM] Upload successful: ${uploadData.videoUrl}`);
+        addTitleLog(schedule.title_id, 'info', `✅ 숏폼 YouTube 업로드 완료!`);
+        addTitleLog(schedule.title_id, 'info', `🎉 숏폼: ${uploadData.videoUrl}`);
+        updatePipelineStatus(uploadPipelineId, 'completed');
+
+      } catch (error: any) {
+        console.error(`❌ [SHORTFORM] Error processing shortform for schedule ${schedule.id}:`, error);
+        addTitleLog(schedule.title_id, 'error', `❌ 숏폼 처리 중 오류: ${error.message}`);
+      }
+    }
+
+    db.close();
+  } catch (error: any) {
+    console.error('❌ [SHORTFORM CHECKER] Error:', error);
   }
 }

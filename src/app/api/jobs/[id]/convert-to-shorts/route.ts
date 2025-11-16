@@ -12,13 +12,25 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser(request);
+    // 내부 요청 확인
+    const isInternalRequest = request.headers.get('X-Internal-Request');
+    const internalUserId = request.headers.get('X-User-Id');
 
-    if (!user) {
-      return NextResponse.json(
-        { error: '로그인이 필요합니다.' },
-        { status: 401 }
-      );
+    // 사용자 인증
+    let user;
+    if (isInternalRequest && internalUserId) {
+      // 내부 요청이면 전달받은 userId 사용
+      user = { userId: internalUserId };
+      console.log('🔧 Internal request - using provided userId:', internalUserId);
+    } else {
+      // 일반 요청이면 세션에서 사용자 확인
+      user = await getCurrentUser(request);
+      if (!user) {
+        return NextResponse.json(
+          { error: '로그인이 필요합니다.' },
+          { status: 401 }
+        );
+      }
     }
 
     const params = await context.params;
@@ -227,10 +239,17 @@ export async function POST(
 - 나레이션: 핵심만 남기고 짧게 요약
 - 이미지: 원본 이미지 재사용 (image_prompt 생성 안 함)
 
+**엔딩 멘트 (마지막 씬에 추가):**
+마지막 씬의 나레이션 끝에 다음 내용을 자연스럽게 추가해주세요:
+- "구독과 좋아요 부탁드립니다"
+- "전체 영상은 설명란에 있습니다"
+
+이 엔딩 멘트를 포함한 총 길자가 60초(900자)를 넘지 않도록 조절해주세요.
+
 **시간 계산 (TTS 기준 1초당 15자):**
 - 총 길이: 정확히 60초 (1분)
-- 총 글자 수: 900자 (60초 × 15자)
-- 각 씬 길이: 900자를 씬 개수로 균등 분배
+- 총 글자 수: 900자 (60초 × 15자) - 엔딩 멘트 포함
+- 각 씬 길이: 900자를 씬 개수로 균등 분배 (마지막 씬은 엔딩 멘트 포함)
 
 **예시:**
 - 원본 10개 씬 → 쇼츠 10개 씬, 각 90자 (6초)
@@ -242,6 +261,7 @@ export async function POST(
 2. 감정과 임팩트는 유지
 3. 구어체, 짧은 문장 사용
 4. 각 씬의 글자 수를 균등하게 맞춤
+5. 마지막 씬에 엔딩 멘트 자연스럽게 포함
 
 **출력 형식:**
 - 순수 JSON만 출력 (코드펜스 없음)
