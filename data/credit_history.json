@@ -2461,5 +2461,77 @@
     "balance": 200113430,
     "description": "영상 생성 실패 환불",
     "createdAt": "2025-11-15T00:46:07.566Z"
+  },
+  {
+    "id": "c3d4bb2c-4a3b-42b0-a7bf-33145405775a",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200113580,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-15T19:55:31.714Z"
+  },
+  {
+    "id": "5e4a45f0-7a5d-4506-b858-e4af3f796b57",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200113730,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-15T20:05:07.156Z"
+  },
+  {
+    "id": "bf5a8fc8-0567-41cd-ac2d-f5baf3e75080",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200113880,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-15T20:25:31.666Z"
+  },
+  {
+    "id": "e4010bfc-e29c-4cc2-bdc2-727a566f69cc",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114030,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-16T04:24:19.222Z"
+  },
+  {
+    "id": "a25c4c2a-b52d-440f-b74f-e6eb515075c8",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114180,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-16T05:12:44.080Z"
+  },
+  {
+    "id": "6c5be111-f7f6-4a34-95b4-3f4060489dd5",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114030,
+    "description": "영상 생성",
+    "createdAt": "2025-11-16T05:24:12.135Z"
+  },
+  {
+    "id": "afe1f652-bbd8-46bc-8168-7bbc80803f84",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114180,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-16T05:41:27.796Z"
+  },
+  {
+    "id": "11bed16f-5d0d-4c40-a5a1-9fe4a9c1dad3",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114030,
+    "description": "영상 생성",
+    "createdAt": "2025-11-16T05:42:40.202Z"
   }
 ]

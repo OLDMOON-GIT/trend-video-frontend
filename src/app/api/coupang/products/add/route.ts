@@ -20,9 +20,17 @@ async function loadUserSettings(userId: string) {
 }
 
 function generateCoupangSignature(method: string, path: string, secretKey: string) {
-  // ISO 8601 형식의 datetime (밀리초 제외)
-  const datetime = new Date().toISOString().slice(0, -5) + 'Z';
+  // Datetime format: yymmddTHHMMSSZ (GMT+0)
+  const now = new Date();
+  const year = String(now.getUTCFullYear()).slice(-2);
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const hours = String(now.getUTCHours()).padStart(2, '0');
+  const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+  const datetime = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
 
+  // Message format: datetime + method + path (no spaces)
   const message = datetime + method + path;
   const signature = crypto.createHmac('sha256', secretKey).update(message).digest('hex');
 

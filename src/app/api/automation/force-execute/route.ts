@@ -34,6 +34,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Title not found' }, { status: 404 });
     }
 
+    // ============================================================
+    // 중복 실행 방지: 이미 processing 상태인 스케줄이 있는지 확인
+    // ============================================================
+    const processingSchedule = db.prepare(`
+      SELECT id, status FROM video_schedules
+      WHERE title_id = ? AND status = 'processing'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(titleId) as any;
+
+    if (processingSchedule) {
+      console.log(`⚠️ [FORCE-EXEC] Already processing schedule found: ${processingSchedule.id}`);
+      db.close();
+      return NextResponse.json({
+        error: '이미 실행 중인 작업이 있습니다.',
+        existingScheduleId: processingSchedule.id
+      }, { status: 409 }); // 409 Conflict
+    }
+
     // 기존 스케줄 찾기 (pending, scheduled, waiting_for_upload, failed 상태)
     const existingSchedules = db.prepare(`
       SELECT id FROM video_schedules

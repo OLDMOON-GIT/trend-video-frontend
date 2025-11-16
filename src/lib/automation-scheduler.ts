@@ -524,12 +524,38 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
     // 업로드된 이미지가 있는지 확인
     const scriptFolderPath = path.join(process.cwd(), '..', 'trend-video-backend', 'input', `project_${scriptId}`);
     let hasUploadedImages = false;
+    let imageFiles: string[] = [];
     if (fs.existsSync(scriptFolderPath)) {
       const files = fs.readdirSync(scriptFolderPath);
-      const imageFiles = files.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
+      imageFiles = files.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
       hasUploadedImages = imageFiles.length > 0;
       if (hasUploadedImages) {
         console.log(`[Scheduler] Found ${imageFiles.length} uploaded image(s) in ${scriptFolderPath}`);
+      }
+    }
+
+    // 씬 개수 확인
+    const sceneCount = storyJson.scenes?.length || 0;
+
+    // 썸네일 분리 로직: 씬이 2개 이상이고 업로드된 이미지가 있으면 첫 번째 이미지를 썸네일로 사용
+    let useThumbnailFromFirstImage = false;
+    if (sceneCount >= 2 && hasUploadedImages && imageFiles.length > 0) {
+      // 파일을 scene 번호 순으로 정렬 (scene_0, scene_1, ...)
+      const sortedImages = imageFiles.sort((a, b) => {
+        const aMatch = a.match(/scene_(\d+)/);
+        const bMatch = b.match(/scene_(\d+)/);
+        const aNum = aMatch ? parseInt(aMatch[1]) : 999;
+        const bNum = bMatch ? parseInt(bMatch[1]) : 999;
+        return aNum - bNum;
+      });
+
+      // 첫 번째 파일이 scene_0이고 이미지인지 확인
+      const firstFile = sortedImages[0];
+      if (firstFile && /scene_0.*\.(png|jpg|jpeg|webp)$/i.test(firstFile)) {
+        useThumbnailFromFirstImage = true;
+        console.log(`\n📌 [SCHEDULER] 씬 ${sceneCount}개 감지 → 첫 번째 이미지(${firstFile})를 썸네일 전용으로 사용`);
+        console.log(`   🖼️ 썸네일: ${firstFile}`);
+        console.log(`   📹 씬 미디어: ${sortedImages.length - 1}개 (${firstFile} 제외)`);
       }
     }
 
@@ -551,8 +577,37 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       videoFormat: videoType,
       ttsVoice: 'ko-KR-SoonBokNeural',
       title: content.title,
-      scriptId  // 자동화용: 이미 업로드된 이미지가 있는 폴더 경로
+      scriptId,  // 자동화용: 이미 업로드된 이미지가 있는 폴더 경로
+      useThumbnailFromFirstImage  // 첫 번째 이미지를 썸네일로 사용 여부
     };
+
+    // ============================================================
+    // 중복 실행 방지: 같은 scriptId로 이미 실행 중인 job이 있는지 확인
+    // ============================================================
+    const dbCheck = new Database(dbPath);
+    const existingJob = dbCheck.prepare(`
+      SELECT id, status, title
+      FROM jobs
+      WHERE title LIKE '%' || ? || '%'
+        AND status IN ('pending', 'processing')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(content.title) as any;
+    dbCheck.close();
+
+    let jobId: string;
+    let shouldCallApi = true;
+
+    if (existingJob) {
+      console.log(`🔍 [DUPLICATE CHECK] Found existing job: ${existingJob.id} (status: ${existingJob.status})`);
+      addPipelineLog(pipelineId, 'info', `⚠️ 이미 실행 중인 작업 발견: ${existingJob.id}`);
+      addTitleLog(titleId, 'info', `⚠️ 기존 작업을 재사용합니다: ${existingJob.id}`);
+
+      jobId = existingJob.id;
+      shouldCallApi = false;
+    } else {
+      console.log(`✅ [DUPLICATE CHECK] No existing job found, creating new one`);
+    }
 
     console.log('📤 [SCHEDULER] Calling /api/generate-video-upload...');
     console.log('🔍 [SCHEDULER] Request body:', {
@@ -563,36 +618,47 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       videoFormat: videoType
     });
 
-    // /api/generate-video-upload 호출
-    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Request': 'automation-system'
-      },
-      body: JSON.stringify(requestBody)
-    });
+    let response: Response | null = null;
+    let data: any = null;
 
-    console.log(`📥 [SCHEDULER] Video API response status: ${response.status}`);
+    // 기존 job이 없을 때만 API 호출
+    if (shouldCallApi) {
+      // /api/generate-video-upload 호출
+      response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Request': 'automation-system'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [SCHEDULER] Video API error response: ${errorText}`);
-      let error;
-      try {
-        error = JSON.parse(errorText);
-      } catch (e) {
-        throw new Error(`Video generation failed: ${errorText}`);
+      console.log(`📥 [SCHEDULER] Video API response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ [SCHEDULER] Video API error response: ${errorText}`);
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch (e) {
+          throw new Error(`Video generation failed: ${errorText}`);
+        }
+        throw new Error(error.error || 'Video generation failed');
       }
-      throw new Error(error.error || 'Video generation failed');
+
+      data = await response.json();
+      console.log('✅ [SCHEDULER] Video API response data:', JSON.stringify(data, null, 2));
+
+      jobId = data.jobId;
+    } else {
+      // 기존 job 재사용 - jobId는 이미 설정됨
+      console.log(`♻️ [SCHEDULER] Reusing existing job: ${jobId}`);
     }
 
-    const data = await response.json();
-    console.log('✅ [SCHEDULER] Video API response data:', JSON.stringify(data, null, 2));
-
     // 작업이 비동기로 처리되는 경우 폴링
-    if (data.jobId) {
-      addPipelineLog(pipelineId, 'info', `Video generation job started: ${data.jobId}`);
+    if (jobId) {
+      addPipelineLog(pipelineId, 'info', `Video generation job: ${jobId}`);
 
       // 작업 완료 대기 (최대 30분)
       const maxWaitTime = 30 * 60 * 1000; // 30분
@@ -624,9 +690,9 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
         }
 
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        console.log(`🔍 [SCHEDULER] Checking video status for ${data.jobId}... (경과시간: ${elapsed}초)`);
+        console.log(`🔍 [SCHEDULER] Checking video status for ${jobId}... (경과시간: ${elapsed}초)`);
 
-        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload?jobId=${data.jobId}`);
+        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload?jobId=${jobId}`);
         console.log(`📥 [SCHEDULER] Video Status API response: ${statusRes.status}`);
 
         if (!statusRes.ok) {
@@ -661,8 +727,8 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       throw new Error('Video generation timeout (30분 초과)');
     }
 
-    // 즉시 완료되는 경우
-    return { success: true, videoId: data.videoId };
+    // 즉시 완료되는 경우 (거의 없지만 방어 코드)
+    return { success: true, videoId: data?.videoId || jobId };
 
   } catch (error: any) {
     const errorMsg = error.message || 'Unknown error';

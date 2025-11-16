@@ -7,6 +7,15 @@ import path from 'path';
 const DATA_DIR = path.join(process.cwd(), 'data');
 const COUPANG_SETTINGS_FILE = path.join(DATA_DIR, 'coupang-settings.json');
 
+// 베스트셀러 캐시 (1시간)
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+
+const bestsellerCache = new Map<string, CacheEntry>();
+const CACHE_DURATION = 60 * 60 * 1000; // 1시간 (밀리초)
+
 // 사용자별 쿠팡 설정 로드
 async function loadUserSettings(userId: string) {
   try {
@@ -87,6 +96,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const categoryId = searchParams.get('categoryId') || '1001'; // 기본: 가전디지털
     // limit 파라미터는 쿠팡 API가 지원하지 않으므로 제거
 
+    // 캐시 키: userId와 categoryId 조합
+    const cacheKey = `${user.userId}_${categoryId}`;
+
+    // 캐시 확인
+    const cached = bestsellerCache.get(cacheKey);
+    const now = Date.now();
+
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      console.log('💾 캐시에서 베스트셀러 반환:', cacheKey, `(${Math.floor((CACHE_DURATION - (now - cached.timestamp)) / 1000 / 60)}분 남음)`);
+      return NextResponse.json({
+        success: true,
+        products: cached.data,
+        total: cached.data.length,
+        cached: true,
+        cacheAge: Math.floor((now - cached.timestamp) / 1000) // 초 단위
+      });
+    }
+
     // 쿠팡 베스트셀러 API 호출 (쿼리 파라미터 없음)
     const url = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/${categoryId}`;
     const response = await callCoupangAPI(settings.accessKey, settings.secretKey, 'GET', url);
@@ -110,10 +137,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         rank: item.rank
       })) || [];
 
+      // 캐시에 저장
+      bestsellerCache.set(cacheKey, {
+        data: products,
+        timestamp: now
+      });
+      console.log('💾 베스트셀러 캐시 저장:', cacheKey, `(${products.length}개 상품)`);
+
       return NextResponse.json({
         success: true,
         products,
-        total: products.length
+        total: products.length,
+        cached: false
       });
     } else {
       const errorText = await response.text();

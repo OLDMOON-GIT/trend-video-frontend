@@ -1529,6 +1529,34 @@ export function getUserYouTubeUploads(userId: string): YouTubeUpload[] {
   }));
 }
 
+// YouTube 업로드 기록 조회 (단일)
+export function getYouTubeUploadById(uploadId: string): YouTubeUpload | null {
+  const stmt = db.prepare(`
+    SELECT * FROM youtube_uploads
+    WHERE id = ?
+  `);
+
+  const row = stmt.get(uploadId) as any;
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    jobId: row.job_id,
+    videoId: row.video_id,
+    videoUrl: row.video_url,
+    title: row.title,
+    description: row.description,
+    thumbnailUrl: row.thumbnail_url,
+    channelId: row.channel_id,
+    channelTitle: row.channel_title,
+    privacyStatus: row.privacy_status,
+    publishedAt: row.published_at,
+    createdAt: row.created_at
+  };
+}
+
 // YouTube 업로드 기록 삭제
 export function deleteYouTubeUpload(uploadId: string): boolean {
   const stmt = db.prepare('DELETE FROM youtube_uploads WHERE id = ?');

@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
     let originalNames: Record<number, string> = {};
 
     let scriptId: string | undefined;
+    let useThumbnailFromFirstImage: boolean = false;
+    let thumbnailFile: File | null = null;
 
     if (isInternal) {
       // 내부 요청: JSON으로 받음
@@ -44,6 +46,7 @@ export async function POST(request: NextRequest) {
       ttsVoice = body.ttsVoice || 'ko-KR-SoonBokNeural';
       videoTitle = body.title || 'Untitled';
       scriptId = body.scriptId; // 자동화용: 이미 업로드된 이미지 폴더
+      useThumbnailFromFirstImage = body.useThumbnailFromFirstImage || false;
 
       if (!userId) {
         console.log('❌ 내부 요청: userId가 필요합니다');
@@ -90,6 +93,7 @@ export async function POST(request: NextRequest) {
       videoFormat = formDataGeneral.get('videoFormat') as string || 'longform';
       ttsVoice = formDataGeneral.get('ttsVoice') as string || 'ko-KR-SoonBokNeural';
       promptFormat = formDataGeneral.get('promptFormat') as string || '';
+      thumbnailFile = formDataGeneral.get('thumbnail') as File | null;
       const originalNamesStr = formDataGeneral.get('originalNames') as string;
       if (originalNamesStr) {
         try {
@@ -98,6 +102,10 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           console.warn('⚠️ 원본 파일명 파싱 실패, 변환된 이름만 사용');
         }
+      }
+
+      if (thumbnailFile) {
+        console.log('🖼️ 썸네일 파일 수신:', thumbnailFile.name);
       }
 
       // 미디어 파일을 저장할 배열 생성 (일반 요청용)
@@ -262,7 +270,9 @@ export async function POST(request: NextRequest) {
       originalNames, // 원본 파일명 매핑
       ttsVoice, // TTS 음성 선택
       imageModel, // 이미지 생성 모델
-      scriptId // 자동화용: 이미 업로드된 폴더 식별자
+      scriptId, // 자동화용: 이미 업로드된 폴더 식별자
+      thumbnailFile, // 썸네일 파일 (일반 요청용)
+      useThumbnailFromFirstImage // 첫 번째 이미지를 썸네일로 사용 여부 (자동화 요청용)
     });
 
     return NextResponse.json({
@@ -297,6 +307,8 @@ async function generateVideoFromUpload(
     ttsVoice: string; // TTS 음성 선택
     imageModel: string; // 이미지 생성 모델 ('dalle3', 'imagen3')
     scriptId?: string; // 자동화용: 이미 업로드된 폴더 식별자
+    thumbnailFile?: File | null; // 썸네일 파일 (일반 요청용)
+    useThumbnailFromFirstImage?: boolean; // 첫 번째 이미지를 썸네일로 사용 여부 (자동화 요청용)
   }
 ) {
   try {
@@ -385,6 +397,39 @@ async function generateVideoFromUpload(
       await addJobLog(jobId, `\n🔍 Google Image Search를 사용하여 이미지 자동 다운로드 예정`);
     } else if (config.imageSource === 'dalle') {
       await addJobLog(jobId, `\n🎨 DALL-E 3를 사용하여 이미지 자동 생성 예정`);
+    }
+
+    // 3-1. 썸네일 파일 처리
+    if (config.thumbnailFile) {
+      // 일반 요청: FormData에서 받은 썸네일 파일 저장
+      const buffer = Buffer.from(await config.thumbnailFile.arrayBuffer());
+      const ext = config.thumbnailFile.name.split('.').pop() || 'jpg';
+      const thumbnailPath = path.join(config.inputPath, `thumbnail.${ext}`);
+      await fs.writeFile(thumbnailPath, buffer);
+      await addJobLog(jobId, `\n🖼️ 썸네일 파일 저장: thumbnail.${ext}`);
+      console.log(`✅ 썸네일 파일 저장됨: ${thumbnailPath}`);
+    } else if (config.useThumbnailFromFirstImage && config.scriptId) {
+      // 자동화 요청: 첫 번째 이미지를 썸네일로 복사
+      try {
+        const files = await fs.readdir(config.inputPath);
+        const sortedImages = files
+          .filter(f => /scene_0.*\.(png|jpg|jpeg|webp)$/i.test(f))
+          .sort();
+
+        if (sortedImages.length > 0) {
+          const firstImage = sortedImages[0];
+          const ext = firstImage.split('.').pop() || 'jpg';
+          const sourcePath = path.join(config.inputPath, firstImage);
+          const thumbnailPath = path.join(config.inputPath, `thumbnail.${ext}`);
+
+          // 파일 복사 (scene_0는 유지, 썸네일은 별도로 저장)
+          await fs.copyFile(sourcePath, thumbnailPath);
+          await addJobLog(jobId, `\n🖼️ [자동화] 첫 번째 이미지를 썸네일로 복사: ${firstImage} → thumbnail.${ext}`);
+          console.log(`✅ [자동화] 썸네일 복사됨: ${firstImage} → thumbnail.${ext}`);
+        }
+      } catch (error) {
+        console.warn('⚠️ 자동화 썸네일 복사 실패:', error);
+      }
     }
 
     // 4. Python 스크립트 실행 (영상 생성) - 실시간 로그

@@ -53,6 +53,7 @@ function AutomationPageContent() {
   const [progressMap, setProgressMap] = useState<Record<string, { scriptProgress?: number; videoProgress?: number }>>({});
   const [uploadingFor, setUploadingFor] = useState<string | null>(null); // 업로드 중인 스케줄 ID
   const [uploadedImagesFor, setUploadedImagesFor] = useState<Record<string, File[]>>({}); // 스케줄별 업로드된 이미지
+  const [uploadedVideosFor, setUploadedVideosFor] = useState<Record<string, File[]>>({}); // 스케줄별 업로드된 동영상
   const [isManualSortFor, setIsManualSortFor] = useState<Record<string, boolean>>({}); // 스케줄별 수동 정렬 여부
   const [draggingCardIndexFor, setDraggingCardIndexFor] = useState<Record<string, number | null>>({}); // 스케줄별 드래그 중인 카드 인덱스
   const [uploadBoxOpenFor, setUploadBoxOpenFor] = useState<Record<string, boolean>>({}); // 스케줄별 업로드 박스 열림 여부
@@ -695,6 +696,74 @@ function AutomationPageContent() {
     }
   }
 
+  // 재시도 함수 (실패한 구간부터 재시작)
+  async function retryFailed(titleId: string, titleObj: any) {
+    const titleSchedules = schedules.filter(s => s.title_id === titleId);
+    const hasScriptId = titleSchedules.some((s: any) => s.script_id);
+    const hasVideoId = titleSchedules.some((s: any) => s.video_id);
+
+    console.log('[Retry] Title:', titleObj.title);
+    console.log('[Retry] Has script_id:', hasScriptId);
+    console.log('[Retry] Has video_id:', hasVideoId);
+    console.log('[Retry] Media mode:', titleObj.media_mode);
+
+    // 1. script_id가 없으면 대본 생성부터 재시작
+    if (!hasScriptId) {
+      if (!confirm(`"${titleObj.title}"\n\n대본 생성이 실패했습니다.\n처음부터 재시작하시겠습니까?`)) {
+        return;
+      }
+      await forceExecute(titleId, titleObj.title);
+      return;
+    }
+
+    // 2. script_id는 있는데 video_id가 없으면 영상 생성부터 재시작
+    if (hasScriptId && !hasVideoId) {
+      // upload 모드면 업로드 UI 표시
+      if (titleObj.media_mode === 'upload') {
+        if (!confirm(`"${titleObj.title}"\n\n미디어 업로드가 필요합니다.\n업로드 화면을 여시겠습니까?`)) {
+          return;
+        }
+        // 업로드 박스 열기 + waiting_for_upload 상태로 변경
+        setUploadBoxOpenFor(prev => ({ ...prev, [titleId]: true }));
+
+        // DB에서 status를 waiting_for_upload로 업데이트
+        try {
+          await fetch(`/api/automation/titles/${titleId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'waiting_for_upload' })
+          });
+          await fetchData();
+          setQueueTab('waiting_upload');
+        } catch (error) {
+          console.error('Failed to update status:', error);
+        }
+        return;
+      }
+
+      // 자동 생성 모드면 영상 재생성
+      if (!confirm(`"${titleObj.title}"\n\n영상 생성이 실패했습니다.\n영상을 재생성하시겠습니까?`)) {
+        return;
+      }
+
+      const scriptSchedule = titleSchedules.find((s: any) => s.script_id);
+      if (scriptSchedule) {
+        await regenerateVideo(titleId, scriptSchedule.script_id);
+      }
+      return;
+    }
+
+    // 3. video_id까지 있으면 업로드/퍼블리시 단계 실패
+    if (hasScriptId && hasVideoId) {
+      if (!confirm(`"${titleObj.title}"\n\nYouTube 업로드가 실패했습니다.\n재시도하시겠습니까?`)) {
+        return;
+      }
+      // TODO: 업로드만 재시도하는 API 필요
+      alert('YouTube 업로드 재시도 기능은 준비 중입니다.');
+      return;
+    }
+  }
+
   async function forceExecute(titleId: string, title: string) {
     // 확인 메시지
     if (!confirm(`"${title}"\n\n즉시 실행하시겠습니까?`)) {
@@ -847,11 +916,12 @@ function AutomationPageContent() {
     }
   }
 
-  // 이미지 업로드 실행
+  // 미디어(이미지+동영상) 업로드 실행
   async function uploadImages(titleId: string, scheduleId: string, scriptId: string) {
-    const images = uploadedImagesFor[titleId];
+    const images = uploadedImagesFor[titleId] || [];
+    const videos = uploadedVideosFor[titleId] || [];
 
-    if (!images || images.length === 0) {
+    if (images.length === 0 && videos.length === 0) {
       return;
     }
 
@@ -862,11 +932,17 @@ function AutomationPageContent() {
       formData.append('scheduleId', scheduleId);
       formData.append('scriptId', scriptId);
 
-      images.forEach((file, index) => {
-        formData.append(`images`, file);
+      // 이미지 파일 추가
+      images.forEach((file) => {
+        formData.append(`media`, file);
       });
 
-      const response = await fetch('/api/automation/upload-images', {
+      // 동영상 파일 추가
+      videos.forEach((file) => {
+        formData.append(`media`, file);
+      });
+
+      const response = await fetch('/api/automation/upload-media', {
         method: 'POST',
         body: formData
       });
@@ -877,8 +953,13 @@ function AutomationPageContent() {
         // 업로드 박스 닫기
         setUploadBoxOpenFor(prev => ({ ...prev, [titleId]: false }));
 
-        // 업로드된 이미지 초기화
+        // 업로드된 미디어 초기화
         setUploadedImagesFor(prev => {
+          const newState = { ...prev };
+          delete newState[titleId];
+          return newState;
+        });
+        setUploadedVideosFor(prev => {
           const newState = { ...prev };
           delete newState[titleId];
           return newState;
@@ -1892,13 +1973,21 @@ function AutomationPageContent() {
                         >
                           삭제
                         </button>
-                        {/* 즉시 실행 버튼 (완료/업로드 대기 상태가 아닐 때만) */}
-                        {title.status !== 'waiting_for_upload' && title.status !== 'completed' && (
+                        {/* 즉시 실행/재시도 버튼 */}
+                        {title.status === 'scheduled' && (
                           <button
                             onClick={() => forceExecute(title.id, title.title)}
                             className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm transition"
                           >
                             ▶️ 즉시 실행
+                          </button>
+                        )}
+                        {title.status === 'failed' && (
+                          <button
+                            onClick={() => retryFailed(title.id, title)}
+                            className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded text-sm transition"
+                          >
+                            🔄 재시도
                           </button>
                         )}
                         {/* 폴더 버튼 - script_id나 video_id가 있을 때만 표시 */}
@@ -2121,39 +2210,53 @@ function AutomationPageContent() {
                       <div className="mb-3 p-6 bg-purple-900/30 border-2 border-purple-500 rounded-lg">
                         <h5 className="text-purple-300 font-bold text-lg mb-3 flex items-center gap-2">
                           <span className="text-3xl">📤</span>
-                          <span>이미지 업로드가 필요합니다</span>
+                          <span>미디어 업로드가 필요합니다</span>
                         </h5>
                         <p className="text-sm text-slate-300 mb-4">
-                          대본 생성이 완료되었습니다. 영상 제작을 위해 이미지를 업로드해주세요.
+                          대본 생성이 완료되었습니다. 영상 제작을 위해 이미지 또는 동영상을 업로드해주세요.
                         </p>
 
-                        {/* 이미지 업로드 박스 (MediaUploadBox 컴포넌트 사용) */}
+                        {/* 미디어 업로드 박스 (이미지 + 동영상) */}
                         <div className="mb-4">
                           <MediaUploadBox
                             uploadedImages={uploadedImagesFor[title.id] || []}
-                            uploadedVideos={[]}
+                            uploadedVideos={uploadedVideosFor[title.id] || []}
                             onImagesChange={(files) => {
                               setUploadedImagesFor(prev => ({ ...prev, [title.id]: files }));
                             }}
-                            onVideosChange={() => {}}
+                            onVideosChange={(files) => {
+                              setUploadedVideosFor(prev => ({ ...prev, [title.id]: files }));
+                            }}
                             acceptJson={false}
                             acceptImages={true}
-                            acceptVideos={false}
+                            acceptVideos={true}
                             mode={title.type === 'shortform' ? 'shortform' : 'longform'}
                             maxImages={50}
                           />
 
                           {/* 업로드 버튼 */}
-                          {uploadedImagesFor[title.id] && uploadedImagesFor[title.id].length > 0 && (() => {
-                            // 현재 title에 대한 대본 생성 pipeline 찾기
-                            const scriptSchedule = titleSchedules.find((s: any) =>
-                              s.script_id && (s.status === 'waiting_for_upload' || s.status === 'pending' || s.status === 'processing')
-                            );
+                          {((uploadedImagesFor[title.id] && uploadedImagesFor[title.id].length > 0) || (uploadedVideosFor[title.id] && uploadedVideosFor[title.id].length > 0)) && (() => {
+                            // 현재 title에 대한 대본 생성 schedule 찾기 (script_id가 있는 가장 최신 것)
+                            const schedulesWithScript = titleSchedules
+                              .filter((s: any) => s.script_id)
+                              .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+                            const scriptSchedule = schedulesWithScript[0];
+
+                            // 디버그 로그
+                            console.log('[Upload Button] Title:', title.id, title.title);
+                            console.log('[Upload Button] All titleSchedules:', titleSchedules);
+                            console.log('[Upload Button] Schedules with script_id:', schedulesWithScript);
+                            console.log('[Upload Button] Selected schedule:', scriptSchedule);
 
                             if (!scriptSchedule?.script_id) {
                               return (
                                 <div className="mt-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-sm text-red-200">
-                                  ⚠️ script_id를 찾을 수 없습니다. 대본 생성이 완료되지 않았을 수 있습니다.
+                                  <div className="font-bold mb-2">⚠️ script_id를 찾을 수 없습니다</div>
+                                  <div className="text-xs">대본 생성이 완료되지 않았거나, 스케줄에 script_id가 저장되지 않았을 수 있습니다.</div>
+                                  <div className="text-xs mt-2 font-mono bg-black/30 p-2 rounded">
+                                    디버그: {titleSchedules.length}개 스케줄 중 script_id 있는 것: {schedulesWithScript.length}개
+                                  </div>
                                 </div>
                               );
                             }

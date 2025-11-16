@@ -547,7 +547,7 @@ export function getAllVideoTitles() {
       s.script_id,
       s.video_id,
       s.youtube_upload_id,
-      s.youtube_url,
+      COALESCE(s.youtube_url, yu.video_url) as youtube_url,
       s.scheduled_time,
       s.youtube_publish_time
     FROM video_titles t
@@ -556,6 +556,7 @@ export function getAllVideoTitles() {
              ROW_NUMBER() OVER (PARTITION BY title_id ORDER BY created_at DESC) as rn
       FROM video_schedules
     ) s ON t.id = s.title_id AND s.rn = 1
+    LEFT JOIN youtube_uploads yu ON s.youtube_upload_id = yu.id
     ORDER BY t.priority DESC, t.created_at DESC
   `).all();
 
@@ -576,13 +577,14 @@ export function getAllSchedules() {
       s.script_id,
       s.video_id,
       s.youtube_upload_id,
-      s.youtube_url,
+      COALESCE(s.youtube_url, yu.video_url) as youtube_url,
       s.created_at,
       s.updated_at,
       t.title,
       t.type
     FROM video_schedules s
     JOIN video_titles t ON s.title_id = t.id
+    LEFT JOIN youtube_uploads yu ON s.youtube_upload_id = yu.id
     ORDER BY s.scheduled_time ASC
   `).all();
   db.close();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 import path from 'path';
+import { parseJsonSafely } from '@/lib/json-utils';
 
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
@@ -30,22 +31,15 @@ export async function GET(
     // status가 completed인데 실제 content가 유효한 JSON이 아니면 processing으로 변경
     let actualStatus = content.status;
     if (content.status === 'completed' && content.content) {
-      try {
-        let contentStr = typeof content.content === 'string' ? content.content : JSON.stringify(content.content);
+      const contentStr = typeof content.content === 'string' ? content.content : JSON.stringify(content.content);
 
-        // "JSON" 텍스트 제거 (방어적 처리)
-        contentStr = contentStr.trim();
-        if (contentStr.startsWith('JSON')) {
-          contentStr = contentStr.substring(4).trim();
-        }
+      // parseJsonSafely 사용하여 안전하게 파싱
+      const parseResult = parseJsonSafely(contentStr, { logErrors: true });
 
-        // { 이전의 불필요한 텍스트 제거
-        const jsonStart = contentStr.indexOf('{');
-        if (jsonStart > 0) {
-          contentStr = contentStr.substring(jsonStart);
-        }
+      if (parseResult.success && parseResult.data) {
+        // 파싱 성공
+        const parsedContent = parseResult.data;
 
-        const parsedContent = JSON.parse(contentStr);
         // scenes가 없거나 비어있으면 failed로 처리 (무한 루프 방지)
         if (!parsedContent.scenes || parsedContent.scenes.length === 0) {
           console.error(`❌ Script ${id} marked as completed but has no scenes - marking as failed`);
@@ -59,17 +53,20 @@ export async function GET(
           `).run(id);
           dbUpdate.close();
         }
-      } catch (e) {
+      } else {
+        // 파싱 실패
         console.error(`❌ Script ${id} marked as completed but content is not valid JSON - marking as failed`);
-        // 불완전한 JSON이면 failed로 처리
+        console.error(`   파싱 오류: ${parseResult.error}`);
+        console.error(`   원본 내용 (처음 500자):`, contentStr.substring(0, 500));
+
         actualStatus = 'failed';
         // DB에서도 failed로 업데이트
         const dbUpdate = new Database(dbPath);
         dbUpdate.prepare(`
           UPDATE contents
-          SET status = 'failed', error = 'Invalid JSON content', updated_at = CURRENT_TIMESTAMP
+          SET status = 'failed', error = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `).run(id);
+        `).run(`Invalid JSON content: ${parseResult.error}`, id);
         dbUpdate.close();
       }
     }

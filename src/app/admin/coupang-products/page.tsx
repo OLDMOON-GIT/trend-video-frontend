@@ -65,16 +65,7 @@ export default function CoupangProductsAdminPage() {
   });
 
   // 쿠팡상품 서브 탭
-  const [coupangSubTab, setCoupangSubTab] = useState<'bestseller' | 'search' | 'deeplinks'>('bestseller');
-
-  // 딥링크 통계 및 목록
-  const [stats, setStats] = useState({
-    totalClicks: 0,
-    totalLinks: 0,
-    estimatedRevenue: 0,
-    conversionRate: 0
-  });
-  const [generatedLinks, setGeneratedLinks] = useState<any[]>([]);
+  const [coupangSubTab, setCoupangSubTab] = useState<'bestseller' | 'search'>('bestseller');
 
   // 탭 변경 시 URL도 업데이트
   const changeTab = (tab: 'my-list' | 'queue' | 'pending' | 'shop' | 'coupang') => {
@@ -191,31 +182,6 @@ export default function CoupangProductsAdminPage() {
     }
   };
 
-  // 생성된 딥링크 목록 및 통계 로드
-  const loadLinks = async () => {
-    try {
-      const response = await fetch('/api/coupang/links', {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setGeneratedLinks(data.links || []);
-
-        // 통계 업데이트
-        if (data.stats) {
-          setStats({
-            totalLinks: data.stats.totalLinks,
-            totalClicks: data.stats.totalClicks,
-            estimatedRevenue: data.stats.estimatedRevenue,
-            conversionRate: data.stats.conversionRate
-          });
-        }
-      }
-    } catch (error) {
-      console.error('링크 로드 실패:', error);
-    }
-  };
-
   // 클립보드 복사
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -260,7 +226,6 @@ export default function CoupangProductsAdminPage() {
   useEffect(() => {
     checkAuth();
     loadStats();
-    loadLinks();
   }, []);
 
   useEffect(() => {
@@ -271,13 +236,6 @@ export default function CoupangProductsAdminPage() {
       loadPublishedProducts();
     }
   }, [isAuthenticated, activeTab]);
-
-  // 쿠팡 탭 전용 useEffect (dependency array 크기 고정)
-  useEffect(() => {
-    if (isAuthenticated && activeTab === 'coupang' && coupangSubTab === 'deeplinks') {
-      loadLinks(); // 딥링크 탭 열릴 때 최신 데이터 로드
-    }
-  }, [isAuthenticated, activeTab, coupangSubTab]);
 
   // products 또는 selectedCategory 변경 시 필터링 업데이트
   useEffect(() => {
@@ -491,6 +449,8 @@ export default function CoupangProductsAdminPage() {
     const loadingToast = toast.loading('내 목록에 추가 중...');
 
     try {
+      console.log('🔄 상품 추가 시작:', product.productName);
+
       // 크롤링 없이 바로 저장하는 API 호출
       const res = await fetch('/api/coupang/products/add', {
         method: 'POST',
@@ -506,13 +466,22 @@ export default function CoupangProductsAdminPage() {
       });
 
       const data = await safeJsonResponse(res);
+      console.log('📡 API 응답:', { status: res.status, ok: res.ok, data });
 
-      if (res.ok) {
-        toast.success('내 목록에 추가되었습니다!', { id: loadingToast });
+      // API 응답의 success 필드를 확인 (status 200이어도 실제로는 실패할 수 있음)
+      if (res.ok && data.success) {
+        // 실제로 추가된 경우
+        toast.success(data.message || '내 목록에 추가되었습니다!', { id: loadingToast });
         setSelectedCategory('all');
         setActiveTab('my-list'); // 내목록 탭으로 자동 전환
         await loadProducts();
-        await loadLinks(); // 딥링크 목록 및 통계 새로고침
+      } else if (res.ok && !data.success) {
+        // API는 성공했지만 상품 추가 실패 (딥링크 생성 실패 등)
+        const errorMsg = data.errors && data.errors.length > 0
+          ? `상품 추가 실패: ${data.errors[0]}`
+          : (data.message || '딥링크 생성에 실패했습니다.');
+        toast.error(errorMsg, { id: loadingToast });
+        console.error('상품 추가 실패 상세:', data);
       } else {
         toast.error(data.error || '상품 추가 실패', { id: loadingToast });
       }
@@ -3021,16 +2990,6 @@ export default function CoupangProductsAdminPage() {
               >
                 🔍 상품 검색 <span className="text-xs opacity-80">({coupangSearchResults.length})</span>
               </button>
-              <button
-                onClick={() => setCoupangSubTab('deeplinks')}
-                className={`flex-1 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
-                  coupangSubTab === 'deeplinks'
-                    ? 'bg-purple-600 text-white shadow-lg'
-                    : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                🔗 딥링크 관리 <span className="text-xs opacity-80">({generatedLinks.length})</span>
-              </button>
             </div>
 
             {/* 베스트셀러 서브탭 */}
@@ -3401,124 +3360,6 @@ export default function CoupangProductsAdminPage() {
                     ))}
                   </div>
                 )}
-              </>
-            )}
-
-            {/* 딥링크 관리 서브탭 */}
-            {coupangSubTab === 'deeplinks' && (
-              <>
-                <h2 className="mb-6 text-xl font-bold text-white">🔗 딥링크 관리</h2>
-
-                <div className="grid gap-6 lg:grid-cols-3 mb-6">
-                  {/* 통계 섹션 */}
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-                    <h3 className="mb-4 text-lg font-bold text-white">📊 통계</h3>
-                    <div className="space-y-3">
-                      <div className="rounded-lg bg-white/5 p-4">
-                        <p className="text-sm text-slate-400">총 링크 수</p>
-                        <p className="mt-1 text-2xl font-bold text-white">{stats.totalLinks}</p>
-                      </div>
-                      <div className="rounded-lg bg-white/5 p-4">
-                        <p className="text-sm text-slate-400">총 클릭 수</p>
-                        <p className="mt-1 text-2xl font-bold text-purple-400">{stats.totalClicks}</p>
-                      </div>
-                      <div className="rounded-lg bg-white/5 p-4">
-                        <p className="text-sm text-slate-400">예상 수익</p>
-                        <p className="mt-1 text-2xl font-bold text-emerald-400">
-                          ₩{stats.estimatedRevenue.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-white/5 p-4">
-                        <p className="text-sm text-slate-400">전환율</p>
-                        <p className="mt-1 text-2xl font-bold text-blue-400">{stats.conversionRate}%</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 링크 목록 섹션 */}
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur lg:col-span-2">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold text-white">🔗 생성된 딥링크 목록</h3>
-                      <button
-                        onClick={() => {
-                          loadStats();
-                          loadLinks();
-                          toast.success('새로고침 완료');
-                        }}
-                        className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-                      >
-                        🔄 새로고침
-                      </button>
-                    </div>
-
-                    {generatedLinks.length === 0 ? (
-                      <div className="text-center py-12">
-                        <p className="text-slate-400 mb-4">아직 생성된 링크가 없습니다.</p>
-                        <p className="text-sm text-slate-500">
-                          베스트셀러 또는 상품 검색에서 상품을 추가하면 자동으로 딥링크가 생성됩니다.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                        {generatedLinks.map((link) => (
-                          <div
-                            key={link.id}
-                            className="rounded-lg border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition"
-                          >
-                            <div className="flex items-start gap-4">
-                              {link.imageUrl && (
-                                <img
-                                  src={link.imageUrl}
-                                  alt={link.productName}
-                                  className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
-                                />
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-white mb-2 line-clamp-2">
-                                  {link.productName}
-                                </p>
-                                <div className="flex items-center gap-2 mb-3">
-                                  <input
-                                    type="text"
-                                    value={link.shortUrl || link.productUrl || '링크 생성 중...'}
-                                    readOnly
-                                    className="flex-1 rounded bg-white/5 px-3 py-2 text-sm text-slate-300 border border-white/10"
-                                  />
-                                  <button
-                                    onClick={() => copyToClipboard(link.shortUrl || link.productUrl)}
-                                    className="rounded bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-500 transition flex-shrink-0"
-                                  >
-                                    📋 복사
-                                  </button>
-                                </div>
-                                <div className="flex items-center gap-4 text-xs text-slate-400">
-                                  <span>👁️ 클릭: {link.clicks || 0}</span>
-                                  <span>📁 {link.category || '기타'}</span>
-                                  <span>📅 {new Date(link.createdAt).toLocaleDateString('ko-KR')}</span>
-                                  {link.price && (
-                                    <span className="text-emerald-400 font-semibold">
-                                      {link.price.toLocaleString()}원
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-lg bg-blue-500/10 border border-blue-500/20 p-4">
-                  <h4 className="text-sm font-semibold text-blue-400 mb-2">💡 딥링크 관리 안내</h4>
-                  <ul className="text-sm text-slate-300 space-y-1">
-                    <li>• 베스트셀러 또는 상품 검색에서 상품을 추가하면 자동으로 쿠팡 파트너스 딥링크가 생성됩니다.</li>
-                    <li>• 생성된 링크를 공유하면 클릭 수와 수익 통계를 확인할 수 있습니다.</li>
-                    <li>• 링크를 클릭한 고객이 24시간 내 구매하면 수수료가 발생합니다.</li>
-                    <li>• 예상 수익은 평균 전환율 10%, 클릭당 평균 주문액 50,000원, 수수료율 3% 기준입니다.</li>
-                  </ul>
-                </div>
               </>
             )}
           </div>

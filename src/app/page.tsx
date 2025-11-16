@@ -4580,6 +4580,119 @@ function HomeContent() {
             </div>
             )}
 
+            {/* TTS 음성 선택 (영상 생성 직전) */}
+            <div className="rounded-2xl border border-blue-500/30 bg-blue-950/20 p-4 backdrop-blur mt-4">
+              <div className="mb-3 flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white">🔊</span>
+                    <h4 className="text-sm font-semibold text-blue-300">TTS 음성 선택</h4>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    영상에 사용할 음성을 선택하세요
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {/* 여성 음성 */}
+                {[
+                  { id: 'ko-KR-SunHiNeural', name: '선희', emoji: '🙋‍♀️', recommended: true },
+                  { id: 'ko-KR-SoonBokNeural', name: '순복', emoji: '🙋‍♀️', recommended: true },
+                  { id: 'ko-KR-JiMinNeural', name: '지민', emoji: '🙋‍♀️' },
+                  { id: 'ko-KR-SeoHyeonNeural', name: '서현', emoji: '🙋‍♀️' },
+                  { id: 'ko-KR-YuJinNeural', name: '유진', emoji: '🙋‍♀️' },
+                ].map((voice) => (
+                  <button
+                    key={voice.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTtsVoice(voice.id);
+                      localStorage.setItem('selected_tts_voice', voice.id);
+                      showToast(`✅ ${voice.name} 음성 선택`, 'success');
+                    }}
+                    className={`w-full flex items-center gap-2 rounded-lg border p-2 transition-all ${
+                      selectedTtsVoice === voice.id
+                        ? 'border-pink-500 bg-pink-500/20'
+                        : 'border-slate-700 bg-slate-800/50 hover:border-pink-400'
+                    }`}
+                  >
+                    <span className="text-xl">{voice.emoji}</span>
+                    <div className="flex-1 text-left">
+                      <div className={`text-xs ${selectedTtsVoice === voice.id ? 'text-pink-300' : 'text-slate-300'}`}>
+                        <span className={voice.recommended ? 'font-extrabold' : 'font-bold'}>{voice.name}</span>
+                        {voice.recommended && <span className="ml-1 text-[10px] text-slate-400">(추천)</span>}
+                      </div>
+                    </div>
+                    {selectedTtsVoice === voice.id && (
+                      <div className="flex h-4 w-4 items-center justify-center rounded-full bg-pink-500 text-xs text-white">
+                        ✓
+                      </div>
+                    )}
+                  </button>
+                ))}
+
+                {/* 남성 음성 */}
+                {[
+                  { id: 'ko-KR-InJoonNeural', name: '인준', emoji: '🙋‍♂️' },
+                  { id: 'ko-KR-BongJinNeural', name: '봉진', emoji: '🙋‍♂️' },
+                  { id: 'ko-KR-GookMinNeural', name: '국민', emoji: '🙋‍♂️' },
+                  { id: 'ko-KR-HyunsuNeural', name: '현수', emoji: '🙋‍♂️' },
+                  { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)', emoji: '🙋‍♂️' },
+                ].map((voice) => (
+                  <button
+                    key={voice.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTtsVoice(voice.id);
+                      localStorage.setItem('selected_tts_voice', voice.id);
+                      showToast(`✅ ${voice.name} 음성 선택`, 'success');
+                    }}
+                    className={`w-full flex items-center gap-2 rounded-lg border p-2 transition-all ${
+                      selectedTtsVoice === voice.id
+                        ? 'border-blue-500 bg-blue-500/20'
+                        : 'border-slate-700 bg-slate-800/50 hover:border-blue-400'
+                    }`}
+                  >
+                    <span className="text-xl">{voice.emoji}</span>
+                    <div className="flex-1 text-left">
+                      <div className={`text-xs font-bold ${selectedTtsVoice === voice.id ? 'text-blue-300' : 'text-slate-300'}`}>
+                        {voice.name}
+                      </div>
+                    </div>
+                    {selectedTtsVoice === voice.id && (
+                      <div className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">
+                        ✓
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* 현재 선택된 음성 표시 */}
+              <div className="mt-3 rounded-lg bg-slate-800/50 border border-slate-700 p-2 text-center">
+                <span className="text-xs text-slate-400">현재 선택: </span>
+                <span className="text-xs font-bold text-blue-300">
+                  {(() => {
+                    const allVoices = [
+                      { id: 'ko-KR-SunHiNeural', name: '선희' },
+                      { id: 'ko-KR-SoonBokNeural', name: '순복' },
+                      { id: 'ko-KR-JiMinNeural', name: '지민' },
+                      { id: 'ko-KR-SeoHyeonNeural', name: '서현' },
+                      { id: 'ko-KR-YuJinNeural', name: '유진' },
+                      { id: 'ko-KR-InJoonNeural', name: '인준' },
+                      { id: 'ko-KR-BongJinNeural', name: '봉진' },
+                      { id: 'ko-KR-GookMinNeural', name: '국민' },
+                      { id: 'ko-KR-HyunsuNeural', name: '현수' },
+                      { id: 'ko-KR-HyunsuMultilingualNeural', name: '현수(다국어)' },
+                    ];
+                    const selected = allVoices.find(v => v.id === selectedTtsVoice);
+                    return selected ? selected.name : '순복';
+                  })()}
+                </span>
+              </div>
+            </div>
+
             {/* 영상 생성 버튼 */}
             <button
               data-video-generate-btn
@@ -5219,8 +5332,20 @@ function HomeContent() {
                           console.log(`  [${i}] ${icon} ${file.name.padEnd(30)} | ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
                         });
 
-                        // 정렬 없이 바로 사용 (이미 정렬된 순서)
-                        const sortedMediaFiles = allMediaFiles;
+                        // 씬이 2개 이상이고 첫 번째가 이미지이면 썸네일로 분리
+                        const sceneCount = storyData.scenes?.length || 0;
+                        let thumbnailFile: MediaFile | null = null;
+                        let sortedMediaFiles = allMediaFiles;
+
+                        if (sceneCount >= 2 && allMediaFiles.length > 0 && allMediaFiles[0].mediaType === 'image') {
+                          thumbnailFile = allMediaFiles[0];
+                          sortedMediaFiles = allMediaFiles.slice(1); // 첫 번째 제외한 나머지
+                          console.log(`\n📌 씬 ${sceneCount}개 감지 → 첫 번째 이미지를 썸네일 전용으로 분리`);
+                          console.log(`   🖼️ 썸네일: ${thumbnailFile.name}`);
+                          console.log(`   📹 씬 미디어: ${sortedMediaFiles.length}개`);
+                        } else {
+                          console.log(`\n📌 씬 ${sceneCount}개 → 모든 미디어를 씬에 사용`);
+                        }
 
                         console.log('\n🟢 FormData에 추가될 순서:');
                         sortedMediaFiles.forEach((file, i) => {
@@ -5272,8 +5397,17 @@ function HomeContent() {
                         // 원본 파일명 매핑 정보 추가
                         formData.append('originalNames', JSON.stringify(originalNames));
 
+                        // 썸네일 파일 추가 (분리된 경우)
+                        if (thumbnailFile) {
+                          const ext = thumbnailFile.name.split('.').pop() || 'jpg';
+                          const thumbnailFileName = `thumbnail.${ext}`;
+                          const thumbnailRenamedFile = new File([thumbnailFile], thumbnailFileName, { type: thumbnailFile.type });
+                          formData.append('thumbnail', thumbnailRenamedFile);
+                          console.log(`\n🖼️ 썸네일 파일 추가: ${thumbnailFileName} (원본: ${thumbnailFile.name})`);
+                        }
+
                         console.log('\n' + '='.repeat(70));
-                        console.log(`✅ 미디어 정렬 및 FormData 추가 완료 (이미지: ${imageIndex}개, 비디오: ${videoIndex}개)`);
+                        console.log(`✅ 미디어 정렬 및 FormData 추가 완료 (이미지: ${imageIndex}개, 비디오: ${videoIndex}개${thumbnailFile ? ', 썸네일: 1개' : ''})`);
                         console.log('='.repeat(70) + '\n');
                       }
 
