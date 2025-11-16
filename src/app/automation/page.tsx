@@ -2223,7 +2223,7 @@ function AutomationPageContent() {
                           삭제
                         </button>
                         {/* 즉시 실행/재시도 버튼 */}
-                        {title.status === 'scheduled' && (
+                        {(title.status === 'scheduled' || title.status === 'pending') && (
                           <button
                             onClick={() => forceExecute(title.id, title.title)}
                             className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm transition"

@@ -1817,6 +1817,64 @@ function HomeContent() {
       .replace(/\s+/g, ' ');
   }, []);
 
+  // 무료 패턴 변형 제목 생성 (프론트엔드)
+  const generateFreeVariations = useCallback(() => {
+    if (videos.length === 0) {
+      showToast('먼저 YouTube 데이터를 불러와주세요', 'error');
+      return;
+    }
+
+    const variations: string[] = [];
+    const youtubeTitles = videos.map(v => cleanTitle(v.title)).slice(0, 24);
+
+    // 치환 패턴
+    const replacements: Record<string, string[]> = {
+      '그녀': ['그', '그 여자', '그 사람', '여성'],
+      '그': ['남자', '그 사람', '그 남성'],
+      '남자': ['그', '남성', '사람'],
+      '여자': ['그녀', '여성', '사람'],
+      '10년': ['5년', '3년', '7년', '15년'],
+      '5년': ['3년', '7년', '10년'],
+      'CEO': ['사장', '회장', '대표', '임원'],
+      '사장': ['CEO', '대표', '회장'],
+      '회장': ['CEO', '사장', '대표'],
+      '무시당했던': ['무시받았던', '홀대받았던', '천대받았던'],
+      '배신당한': ['배신받은', '속은', '당한'],
+      '시어머니': ['시모', '시댁', '남편 어머니'],
+      '며느리': ['손자며느리', '아들 부인', '아들 배우자'],
+      '복수': ['반격', '역습', '보복'],
+      '나타났다': ['돌아왔다', '복귀했다', '등장했다', '나타났습니다'],
+      '되어': ['되어서', '되고', '이 되어'],
+    };
+
+    youtubeTitles.forEach(title => {
+      // 각 제목당 2-3개 변형 생성
+      let count = 0;
+      const maxVariations = 2;
+
+      for (const [key, values] of Object.entries(replacements)) {
+        if (count >= maxVariations) break;
+
+        if (title.includes(key)) {
+          values.forEach(replacement => {
+            if (count >= maxVariations) return;
+            const varied = title.replace(new RegExp(key, 'g'), replacement);
+            if (varied !== title && !variations.includes(varied)) {
+              variations.push(varied);
+              count++;
+            }
+          });
+        }
+      }
+    });
+
+    // 중복 제거 및 개수 제한
+    const uniqueVariations = [...new Set(variations)].slice(0, materialSuggestionCount);
+
+    setMaterialSuggestedTitles(uniqueVariations);
+    showToast(`✅ ${uniqueVariations.length}개 무료 변형 제목 생성 완료!`, 'success');
+  }, [videos, cleanTitle, materialSuggestionCount]);
+
   // AI 변형 제목 생성 함수
   const generateMaterialTitleSuggestions = useCallback(async () => {
     if (selectedContentCategories.length === 0) {
@@ -6385,19 +6443,31 @@ function HomeContent() {
                       <option value={10}>10개</option>
                       <option value={20}>20개</option>
                       <option value={30}>30개</option>
+                      <option value={50}>50개</option>
                     </select>
-                    <div className="flex-1 text-xs text-purple-300">
-                      예상 비용: <span className="font-semibold">약 {estimatedCost}원</span>
-                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={generateMaterialTitleSuggestions}
-                    disabled={isGeneratingMaterialSuggestions || videos.length === 0}
-                    className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isGeneratingMaterialSuggestions ? '생성 중...' : '🎯 AI 생성'}
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={generateFreeVariations}
+                      disabled={videos.length === 0}
+                      className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      ⚡ 무료 변형
+                    </button>
+                    <button
+                      type="button"
+                      onClick={generateMaterialTitleSuggestions}
+                      disabled={isGeneratingMaterialSuggestions || videos.length === 0}
+                      className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isGeneratingMaterialSuggestions ? '생성 중...' : `🤖 AI (${estimatedCost}원)`}
+                    </button>
+                  </div>
+                  <div className="text-xs text-slate-400 bg-slate-800/50 rounded p-2">
+                    <p className="mb-1"><span className="text-emerald-400">⚡ 무료 변형:</span> 키워드 치환 (즉시 생성, 비용 0원)</p>
+                    <p><span className="text-purple-400">🤖 AI 생성:</span> Claude API (자연스러운 변형, 약 {estimatedCost}원)</p>
+                  </div>
                 </div>
 
                 {materialSuggestedTitles.length > 0 ? (

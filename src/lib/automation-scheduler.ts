@@ -1090,8 +1090,7 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
     .run(videoResult.videoId, schedule.id);
   dbUpdateVideo.close();
 
-  updateScheduleStatus(schedule.id, 'completed', { videoId: videoResult.videoId });
-  updateTitleStatus(schedule.title_id, 'completed');
+  updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId });
   addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
   addTitleLog(schedule.title_id, 'info', `✅ 영상 생성 완료: ${videoResult.videoId}`);
 
