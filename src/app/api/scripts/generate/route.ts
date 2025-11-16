@@ -769,6 +769,20 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // productInfo가 있으면 AI 응답에서 플레이스홀더 치환
+        if (productInfo && (scriptType === 'product' || scriptType === 'product-info')) {
+          console.log('🛍️🛍️🛍️ AI 응답 플레이스홀더 치환 시작:', productInfo);
+          addLog(taskId, '🛍️ 상품 정보 플레이스홀더 치환 중...');
+
+          scriptContent = scriptContent
+            .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+            .replace(/{product_link}/g, productInfo.product_link || '')
+            .replace(/{product_description}/g, productInfo.description || '');
+
+          console.log('✅ AI 응답 플레이스홀더 치환 완료');
+          addLog(taskId, '✅ 상품 정보 플레이스홀더 치환 완료');
+        }
+
         addLog(taskId, '💾 contents 테이블에 저장 중...');
 
         // contents 테이블에 대본 내용 업데이트
