@@ -49,7 +49,8 @@ export function startAutomationScheduler() {
 
   const settings = getAutomationSettings();
   const enabled = settings.enabled === 'true';
-  const checkInterval = parseInt(settings.check_interval || '60') * 1000;
+  // 최소 3초 간격 (중복 실행 방지)
+  const checkInterval = Math.max(3, parseInt(settings.check_interval || '60')) * 1000;
 
   if (!enabled) {
     console.log('⚠️ Automation is disabled in settings');
@@ -521,25 +522,30 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       scenes: scriptData.scenes || []
     };
 
-    // 업로드된 이미지가 있는지 확인
+    // 업로드된 이미지와 비디오 확인
     const scriptFolderPath = path.join(process.cwd(), '..', 'trend-video-backend', 'input', `project_${scriptId}`);
     let hasUploadedImages = false;
+    let hasUploadedVideos = false;
     let imageFiles: string[] = [];
+    let videoFiles: string[] = [];
     if (fs.existsSync(scriptFolderPath)) {
       const files = fs.readdirSync(scriptFolderPath);
       imageFiles = files.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
+      videoFiles = files.filter(f => /\.(mp4|mov|avi|mkv)$/i.test(f));
       hasUploadedImages = imageFiles.length > 0;
-      if (hasUploadedImages) {
-        console.log(`[Scheduler] Found ${imageFiles.length} uploaded image(s) in ${scriptFolderPath}`);
+      hasUploadedVideos = videoFiles.length > 0;
+      if (hasUploadedImages || hasUploadedVideos) {
+        console.log(`[Scheduler] Found ${imageFiles.length} image(s) and ${videoFiles.length} video(s) in ${scriptFolderPath}`);
       }
     }
 
     // 씬 개수 확인
     const sceneCount = storyJson.scenes?.length || 0;
+    const totalMediaCount = imageFiles.length + videoFiles.length;
 
-    // 썸네일 분리 로직: 씬이 2개 이상이고 업로드된 이미지가 있으면 첫 번째 이미지를 썸네일로 사용
+    // 썸네일 분리 로직: 영상+이미지가 함께 있고, 총 미디어가 씬보다 많을 때만 첫 이미지를 썸네일로 사용
     let useThumbnailFromFirstImage = false;
-    if (sceneCount >= 2 && hasUploadedImages && imageFiles.length > 0) {
+    if (hasUploadedImages && hasUploadedVideos && totalMediaCount > sceneCount) {
       // 파일을 scene 번호 순으로 정렬 (scene_0, scene_1, ...)
       const sortedImages = imageFiles.sort((a, b) => {
         const aMatch = a.match(/scene_(\d+)/);
@@ -553,10 +559,19 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       const firstFile = sortedImages[0];
       if (firstFile && /scene_0.*\.(png|jpg|jpeg|webp)$/i.test(firstFile)) {
         useThumbnailFromFirstImage = true;
-        console.log(`\n📌 [SCHEDULER] 씬 ${sceneCount}개 감지 → 첫 번째 이미지(${firstFile})를 썸네일 전용으로 사용`);
+        console.log(`\n📌 [SCHEDULER] 썸네일 분리 조건 만족: 영상+이미지 있고 미디어(${totalMediaCount}) > 씬(${sceneCount})`);
         console.log(`   🖼️ 썸네일: ${firstFile}`);
-        console.log(`   📹 씬 미디어: ${sortedImages.length - 1}개 (${firstFile} 제외)`);
+        console.log(`   📹 씬 미디어: ${totalMediaCount - 1}개 (${firstFile} 제외)`);
       }
+    } else {
+      console.log(`\n📌 [SCHEDULER] 썸네일 분리 안 함:`);
+      if (!hasUploadedImages || !hasUploadedVideos) {
+        console.log(`   - 영상+이미지 미포함 (영상: ${hasUploadedVideos}, 이미지: ${hasUploadedImages})`);
+      }
+      if (totalMediaCount <= sceneCount) {
+        console.log(`   - 미디어(${totalMediaCount}) ≤ 씬(${sceneCount})`);
+      }
+      console.log(`   → 모든 미디어를 씬에 사용`);
     }
 
     // 이미지 소스 설정 (업로드된 이미지가 있으면 우선 사용)
@@ -569,7 +584,7 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
     const videoType = schedule.type || scriptData.metadata?.genre || 'shortform';
 
     // JSON으로 전송 (내부 요청)
-    const requestBody = {
+    const requestBody: any = {
       storyJson,
       userId: content.user_id,
       imageSource,
@@ -582,31 +597,78 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
     };
 
     // ============================================================
-    // 중복 실행 방지: 같은 scriptId로 이미 실행 중인 job이 있는지 확인
+    // 중복 실행 방지: 같은 title로 이미 실행 중인 job이 있는지 확인
+    // 트랜잭션으로 race condition 방지
     // ============================================================
     const dbCheck = new Database(dbPath);
-    const existingJob = dbCheck.prepare(`
-      SELECT id, status, title
-      FROM jobs
-      WHERE title LIKE '%' || ? || '%'
-        AND status IN ('pending', 'processing')
-      ORDER BY created_at DESC
-      LIMIT 1
-    `).get(content.title) as any;
-    dbCheck.close();
-
     let jobId: string;
     let shouldCallApi = true;
 
-    if (existingJob) {
-      console.log(`🔍 [DUPLICATE CHECK] Found existing job: ${existingJob.id} (status: ${existingJob.status})`);
-      addPipelineLog(pipelineId, 'info', `⚠️ 이미 실행 중인 작업 발견: ${existingJob.id}`);
-      addTitleLog(titleId, 'info', `⚠️ 기존 작업을 재사용합니다: ${existingJob.id}`);
+    try {
+      // BEGIN TRANSACTION
+      dbCheck.exec('BEGIN IMMEDIATE TRANSACTION');
 
-      jobId = existingJob.id;
-      shouldCallApi = false;
-    } else {
-      console.log(`✅ [DUPLICATE CHECK] No existing job found, creating new one`);
+      const existingJob = dbCheck.prepare(`
+        SELECT id, status, title
+        FROM jobs
+        WHERE title LIKE '%' || ? || '%'
+          AND status IN ('pending', 'processing')
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).get(content.title) as any;
+
+      if (existingJob) {
+        console.log(`🔍 [DUPLICATE CHECK] Found existing job: ${existingJob.id} (status: ${existingJob.status})`);
+        addPipelineLog(pipelineId, 'info', `⚠️ 이미 실행 중인 작업 발견: ${existingJob.id}`);
+        addTitleLog(titleId, 'info', `⚠️ 기존 작업을 재사용합니다: ${existingJob.id}`);
+
+        jobId = existingJob.id;
+        shouldCallApi = false;
+
+        dbCheck.exec('COMMIT');
+      } else {
+        // 새로운 job placeholder 생성 (즉시 processing 상태로)
+        jobId = `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        dbCheck.prepare(`
+          INSERT INTO jobs (id, title, status, created_at, updated_at)
+          VALUES (?, ?, 'processing', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(jobId, content.title);
+
+        console.log(`✅ [DUPLICATE CHECK] Created job placeholder: ${jobId}`);
+        addPipelineLog(pipelineId, 'info', `📝 Job placeholder 생성: ${jobId}`);
+
+        dbCheck.exec('COMMIT');
+        shouldCallApi = true;
+      }
+    } catch (error: any) {
+      dbCheck.exec('ROLLBACK');
+
+      // UNIQUE 제약조건 위반 (다른 프로세스가 먼저 생성함)
+      if (error.code === 'SQLITE_CONSTRAINT' || error.message?.includes('UNIQUE')) {
+        console.log(`⚠️ [DUPLICATE CHECK] Another process created job first, retrying...`);
+
+        // 다시 조회
+        const retryJob = dbCheck.prepare(`
+          SELECT id FROM jobs
+          WHERE title LIKE '%' || ? || '%'
+            AND status IN ('pending', 'processing')
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(content.title) as any;
+
+        if (retryJob) {
+          jobId = retryJob.id;
+          shouldCallApi = false;
+          console.log(`♻️ [DUPLICATE CHECK] Using job created by other process: ${jobId}`);
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    } finally {
+      dbCheck.close();
     }
 
     console.log('📤 [SCHEDULER] Calling /api/generate-video-upload...');
@@ -623,6 +685,9 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
 
     // 기존 job이 없을 때만 API 호출
     if (shouldCallApi) {
+      // jobId를 requestBody에 추가 (API에서 placeholder job 업데이트용)
+      requestBody.jobId = jobId;
+
       // /api/generate-video-upload 호출
       response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload`, {
         method: 'POST',

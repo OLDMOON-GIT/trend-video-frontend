@@ -5332,12 +5332,16 @@ function HomeContent() {
                           console.log(`  [${i}] ${icon} ${file.name.padEnd(30)} | ${timeStr} | ${(file.size / 1024).toFixed(1)}KB`);
                         });
 
-                        // 씬이 2개 이상이고 이미지가 있으면 첫 번째 이미지를 썸네일로 분리
+                        // 영상+이미지가 함께 있고, 미디어가 씬보다 많을 때만 첫 이미지를 썸네일로 분리
                         const sceneCount = storyData.scenes?.length || 0;
                         let thumbnailFile: MediaFile | null = null;
                         let sortedMediaFiles = allMediaFiles;
 
-                        if (sceneCount >= 2 && allMediaFiles.length > 0) {
+                        const hasVideo = allMediaFiles.some(f => f.mediaType === 'video');
+                        const hasImage = allMediaFiles.some(f => f.mediaType === 'image');
+
+                        // 조건: 영상+이미지 모두 있고, 미디어 개수 > 씬 개수
+                        if (hasVideo && hasImage && allMediaFiles.length > sceneCount) {
                           // 첫 번째 이미지 찾기 (비디오가 앞에 있어도 상관없음)
                           const firstImageIndex = allMediaFiles.findIndex(f => f.mediaType === 'image');
 
@@ -5348,14 +5352,19 @@ function HomeContent() {
                               ...allMediaFiles.slice(0, firstImageIndex),
                               ...allMediaFiles.slice(firstImageIndex + 1)
                             ];
-                            console.log(`\n📌 씬 ${sceneCount}개 감지 → 첫 번째 이미지를 썸네일 전용으로 분리`);
+                            console.log(`\n📌 썸네일 분리 조건 만족: 영상+이미지 있고 미디어(${allMediaFiles.length}) > 씬(${sceneCount})`);
                             console.log(`   🖼️ 썸네일: ${thumbnailFile.name} (원래 위치: #${firstImageIndex + 1})`);
                             console.log(`   📹 씬 미디어: ${sortedMediaFiles.length}개`);
-                          } else {
-                            console.log(`\n📌 씬 ${sceneCount}개, 하지만 이미지가 없어 썸네일 분리 안 함`);
                           }
                         } else {
-                          console.log(`\n📌 씬 ${sceneCount}개 → 모든 미디어를 씬에 사용`);
+                          console.log(`\n📌 썸네일 분리 안 함:`);
+                          if (!hasVideo || !hasImage) {
+                            console.log(`   - 영상+이미지 미포함 (영상: ${hasVideo}, 이미지: ${hasImage})`);
+                          }
+                          if (allMediaFiles.length <= sceneCount) {
+                            console.log(`   - 미디어(${allMediaFiles.length}) ≤ 씬(${sceneCount})`);
+                          }
+                          console.log(`   → 모든 미디어를 씬에 사용`);
                         }
 
                         console.log('\n🟢 FormData에 추가될 순서:');

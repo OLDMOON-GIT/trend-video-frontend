@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
     let useThumbnailFromFirstImage: boolean = false;
     let thumbnailFile: File | null = null;
 
+    let existingJobId: string | undefined;
+
     if (isInternal) {
       // 내부 요청: JSON으로 받음
       const body = await request.json();
@@ -47,6 +49,7 @@ export async function POST(request: NextRequest) {
       videoTitle = body.title || 'Untitled';
       scriptId = body.scriptId; // 자동화용: 이미 업로드된 이미지 폴더
       useThumbnailFromFirstImage = body.useThumbnailFromFirstImage || false;
+      existingJobId = body.jobId; // 기존에 생성된 placeholder job ID
 
       if (!userId) {
         console.log('❌ 내부 요청: userId가 필요합니다');
@@ -218,9 +221,17 @@ export async function POST(request: NextRequest) {
     let projectName: string;
     let inputPath: string;
 
+    // existingJobId가 있으면 재사용, 없으면 새로 생성
+    if (existingJobId) {
+      jobId = existingJobId;
+      console.log(`♻️ [기존 Job 재사용] ${jobId}`);
+    }
+
     if (scriptId) {
       // 자동화: 이미 업로드된 폴더 사용
-      jobId = `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (!existingJobId) {
+        jobId = `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
       projectName = `project_${scriptId}`;
       inputPath = path.join(backendPath, 'input', projectName);
       console.log(`🔄 [자동화] 기존 폴더 사용: ${inputPath}`);
@@ -235,7 +246,9 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // 일반: 새 폴더 생성
-      jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (!existingJobId) {
+        jobId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
       projectName = `uploaded_${jobId}`;
       inputPath = path.join(backendPath, 'uploads', projectName);
       console.log(`📁 [일반] 새 폴더 생성: ${inputPath}`);
@@ -254,8 +267,12 @@ export async function POST(request: NextRequest) {
       console.log('⚠️ JSON에서 카테고리를 읽을 수 없습니다:', error);
     }
 
-    // Job을 DB에 저장 (JSON의 title과 videoFormat, ttsVoice, category 사용)
-    await createJob(userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2', undefined, ttsVoice, category);
+    // Job을 DB에 저장 (existingJobId가 있으면 이미 생성됨, 없으면 생성)
+    if (!existingJobId) {
+      await createJob(userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2', undefined, ttsVoice, category);
+    } else {
+      console.log(`📝 [기존 placeholder Job 사용] ${jobId}`);
+    }
 
     // 비동기로 영상 생성 시작
     generateVideoFromUpload(jobId, userId, cost, {
