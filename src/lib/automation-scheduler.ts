@@ -835,10 +835,17 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
 
       // ✅ FIX: jobId를 즉시 저장하여 진행 중 로그 조회 가능하도록
       const dbSaveJob = new Database(dbPath);
-      dbSaveJob.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      const result = dbSaveJob.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
         .run(jobId, schedule.id);
       dbSaveJob.close();
-      console.log(`✅ [SCHEDULER] Saved video_id to schedule: ${jobId}`);
+
+      if (result.changes > 0) {
+        console.log(`✅ [SCHEDULER] Saved video_id to schedule: ${jobId} -> ${schedule.id}`);
+        addTitleLog(schedule.title_id, 'info', `🎬 영상 생성 작업 시작: ${jobId}`);
+      } else {
+        console.error(`❌ [SCHEDULER] Failed to save video_id! schedule.id: ${schedule.id}, jobId: ${jobId}`);
+        addTitleLog(schedule.title_id, 'warning', `⚠️ video_id 저장 실패 (수동 연결 필요)`);
+      }
 
       // 작업 완료 대기 (최대 30분)
       const maxWaitTime = 30 * 60 * 1000; // 30분
@@ -888,6 +895,16 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
           addPipelineLog(pipelineId, 'info', `Video generation completed: ${statusData.videoId}`);
           addTitleLog(titleId, 'info', '✅ 영상 생성 완료!');
           console.log(`✅ [SCHEDULER] Video generation completed!`);
+
+          // 🔥 최종 저장: 리턴 직전에 무조건 저장
+          if (statusData.videoId && schedule && schedule.id) {
+            const dbFinalSave = new Database(dbPath);
+            dbFinalSave.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+              .run(statusData.videoId, schedule.id);
+            dbFinalSave.close();
+            console.log(`🔥 [FINAL SAVE] Video ID saved: ${statusData.videoId} -> ${schedule.id}`);
+          }
+
           return { success: true, videoId: statusData.videoId };
         } else if (statusData.status === 'failed') {
           console.error(`❌ [SCHEDULER] Video generation failed: ${statusData.error}`);
@@ -1173,7 +1190,8 @@ async function checkWaitingForUploadSchedules() {
         // 이미지가 업로드되었으므로 processing 상태로 변경하고 video 단계 시작
         console.log(`[Scheduler] ✅ ${imageFiles.length} images found for ${schedule.id}`);
         addPipelineLog(schedule.id, 'info', `✅ ${imageFiles.length}개 이미지 업로드 확인됨, 영상 생성을 시작합니다`);
-        addTitleLog(schedule.title_id, 'info', `✅ 이미지 ${imageFiles.length}개 업로드 확인됨! 영상 생성을 시작합니다...`);
+        addTitleLog(schedule.title_id, 'info', `✅ 이미지 ${imageFiles.length}개 업로드 확인됨!`);
+        addTitleLog(schedule.title_id, 'info', `🎬 영상 생성을 시작합니다... (잠시만 기다려주세요)`);
 
         updateScheduleStatus(schedule.id, 'processing', { imagesReady: true });
 
@@ -1556,7 +1574,7 @@ export async function checkAndCreateAutoSchedules() {
           // === 상품 카테고리: 쿠팡 베스트 상품 조회 ===
           console.log(`[AutoScheduler] Channel ${setting.channel_name}: Fetching Coupang bestseller...`);
 
-          const result = await generateProductTitle(setting.user_id);
+          const result = await generateProductTitle(setting.user_id, setting.channel_id, setting.channel_name);
           if (!result) {
             throw new Error('Failed to generate product title');
           }
@@ -1569,7 +1587,7 @@ export async function checkAndCreateAutoSchedules() {
           // === 다른 카테고리: 멀티 모델 AI 평가 시스템 ===
           console.log(`[AutoScheduler] Channel ${setting.channel_name}: Using multi-model AI evaluation...`);
 
-          const result = await generateTitleWithMultiModelEvaluation(randomCategory, setting.user_id, setting.channel_id);
+          const result = await generateTitleWithMultiModelEvaluation(randomCategory, setting.user_id, setting.channel_id, setting.channel_name);
           if (!result) {
             throw new Error('Failed to generate title with multi-model evaluation');
           }
@@ -1618,26 +1636,48 @@ export async function checkAndCreateAutoSchedules() {
 // 상품 카테고리: 쿠팡 베스트 상품 조회 및 제목 생성
 // ============================================================
 
-async function generateProductTitle(userId: string): Promise<{ titleId: string; title: string; productData: any } | null> {
+async function generateProductTitle(
+  userId: string,
+  channelId: string,
+  channelName: string
+): Promise<{ titleId: string; title: string; productData: any } | null> {
+  const { startAutoGenerationLog, updateAutoGenerationLog } = await import('./automation');
+  let logId: string | null = null;
+
   try {
-    // 1. 쿠팡 베스트 상품 조회
-    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/coupang/products?categoryId=1001`, {
-      headers: {
-        'Cookie': `user_id=${userId}` // 임시로 쿠키로 전달 (실제로는 세션 처리 필요)
-      }
+    // 로그 시작
+    logId = startAutoGenerationLog({
+      userId,
+      channelId,
+      channelName,
+      category: '상품',
+      step: '쿠팡 베스트 상품 조회 중...'
     });
 
-    if (!response.ok) {
-      console.error('[ProductTitle] Failed to fetch Coupang products:', response.statusText);
+    // 1. 쿠팡 베스트 상품 조회 (내부 함수 직접 사용)
+    const { getCoupangBestsellers } = await import('./coupang');
+    const result = await getCoupangBestsellers(userId, '1001');
+
+    if (!result.success || !result.products || result.products.length === 0) {
+      console.log('[ProductTitle] No products found');
+      if (logId) {
+        updateAutoGenerationLog(logId, {
+          status: 'failed',
+          step: '상품 없음',
+          errorMessage: 'No products found'
+        });
+      }
       return null;
     }
 
-    const data = await response.json();
-    const products = data.data?.productData || [];
+    const products = result.products;
 
-    if (products.length === 0) {
-      console.log('[ProductTitle] No products found');
-      return null;
+    // 로그 업데이트: 중복 확인
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'fetching',
+        step: '기존 상품과 중복 확인 중...'
+      });
     }
 
     // 2. DB에서 기존 상품 조회
@@ -1652,10 +1692,30 @@ async function generateProductTitle(userId: string): Promise<{ titleId: string; 
 
     if (!newProduct) {
       console.log('[ProductTitle] All products already in DB, skipping');
+      if (logId) {
+        updateAutoGenerationLog(logId, {
+          status: 'failed',
+          step: '중복 상품',
+          errorMessage: 'All products already exist in database'
+        });
+      }
       return null;
     }
 
     console.log(`[ProductTitle] Found new product: ${newProduct.productName}`);
+
+    // 로그 업데이트: 새 상품 발견
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'generating',
+        step: `새 상품 발견: ${newProduct.productName.substring(0, 30)}...`,
+        productInfo: {
+          productName: newProduct.productName,
+          productPrice: newProduct.productPrice,
+          productImage: newProduct.productImage
+        }
+      });
+    }
 
     // 4. 상품 DB에 추가
     const productId = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -1697,6 +1757,17 @@ async function generateProductTitle(userId: string): Promise<{ titleId: string; 
       productUrl: newProduct.productUrl
     });
 
+    // 로그 완료
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'completed',
+        step: '제목 생성 완료',
+        bestTitle: title,
+        bestScore: 100, // 상품 제목은 점수 평가 없음
+        resultTitleId: titleId
+      });
+    }
+
     return {
       titleId,
       title,
@@ -1705,6 +1776,13 @@ async function generateProductTitle(userId: string): Promise<{ titleId: string; 
 
   } catch (error: any) {
     console.error('[ProductTitle] Error:', error);
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'failed',
+        step: '에러 발생',
+        errorMessage: error.message || 'Unknown error'
+      });
+    }
     return null;
   }
 }
@@ -1716,10 +1794,32 @@ async function generateProductTitle(userId: string): Promise<{ titleId: string; 
 async function generateTitleWithMultiModelEvaluation(
   category: string,
   userId: string,
-  channelId: string
+  channelId: string,
+  channelName: string
 ): Promise<{ titleId: string; title: string } | null> {
+  const { startAutoGenerationLog, updateAutoGenerationLog } = await import('./automation');
+  let logId: string | null = null;
+
   try {
+    // 로그 시작
+    logId = startAutoGenerationLog({
+      userId,
+      channelId,
+      channelName,
+      category,
+      step: '멀티 모델 AI로 제목 생성 중...'
+    });
+
     console.log(`[MultiModel] Generating titles for category "${category}" using 3 models...`);
+
+    // 로그 업데이트: 모델 호출
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'generating',
+        step: 'Claude, ChatGPT, Gemini 동시 호출 중...',
+        modelsUsed: ['claude', 'chatgpt', 'gemini']
+      });
+    }
 
     // 1. 3개 모델 병렬 호출
     const [claudeTitles, chatgptTitles, geminiTitles] = await Promise.all([
@@ -1737,10 +1837,25 @@ async function generateTitleWithMultiModelEvaluation(
 
     if (allTitles.length === 0) {
       console.error('[MultiModel] No titles generated from any model');
+      if (logId) {
+        updateAutoGenerationLog(logId, {
+          status: 'failed',
+          step: '제목 생성 실패',
+          errorMessage: 'No titles generated from any model'
+        });
+      }
       return null;
     }
 
     console.log(`[MultiModel] Generated ${allTitles.length} titles from ${3} models`);
+
+    // 로그 업데이트: 평가 시작
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'evaluating',
+        step: `${allTitles.length}개 제목 점수 평가 중...`
+      });
+    }
 
     // 3. 각 제목 점수 평가
     const scoredTitles = await Promise.all(
@@ -1770,6 +1885,18 @@ async function generateTitleWithMultiModelEvaluation(
       userId
     });
 
+    // 로그 완료
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'completed',
+        step: '제목 선정 완료',
+        titlesGenerated: scoredTitles,
+        bestTitle: bestTitle.title,
+        bestScore: bestTitle.score,
+        resultTitleId: titleId
+      });
+    }
+
     return {
       titleId,
       title: bestTitle.title
@@ -1777,31 +1904,36 @@ async function generateTitleWithMultiModelEvaluation(
 
   } catch (error: any) {
     console.error('[MultiModel] Error:', error);
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'failed',
+        step: '에러 발생',
+        errorMessage: error.message || 'Unknown error'
+      });
+    }
     return null;
   }
 }
 
-// 특정 모델로 제목 생성
+// 특정 모델로 제목 생성 (내부 함수 직접 사용)
 async function generateTitlesWithModel(category: string, model: string): Promise<string[]> {
   try {
-    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-title-suggestions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        categories: [category],
-        count: 3, // 모델당 3개씩 생성
-        model, // claude, chatgpt, gemini
-        youtubeTitles: []
-      })
-    });
+    const {
+      generateTitlesWithClaude,
+      generateTitlesWithChatGPT,
+      generateTitlesWithGemini
+    } = await import('./ai-title-generation');
 
-    if (!response.ok) {
-      console.error(`[${model}] Failed to generate titles:`, response.statusText);
+    if (model === 'claude') {
+      return await generateTitlesWithClaude(category, 3);
+    } else if (model === 'chatgpt') {
+      return await generateTitlesWithChatGPT(category, 3);
+    } else if (model === 'gemini') {
+      return await generateTitlesWithGemini(category, 3);
+    } else {
+      console.error(`[${model}] Unknown model`);
       return [];
     }
-
-    const data = await response.json();
-    return data.titles || [];
 
   } catch (error: any) {
     console.error(`[${model}] Error:`, error);
@@ -1809,44 +1941,11 @@ async function generateTitlesWithModel(category: string, model: string): Promise
   }
 }
 
-// 제목 점수 평가 (AI 기반)
+// 제목 점수 평가 (내부 함수 직접 사용)
 async function evaluateTitleScore(title: string, category: string): Promise<number> {
   try {
-    // Claude를 사용하여 제목 점수 평가
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
-    const prompt = `다음 YouTube 영상 제목을 평가해주세요.
-
-카테고리: ${category}
-제목: "${title}"
-
-평가 기준:
-1. 클릭 유도력 (호기심, 자극성)
-2. 카테고리 적합성
-3. 제목 길이 적절성 (20-40자 권장)
-4. 감정 자극 요소 (반전, 갈등, 감동 등)
-5. 검색 최적화 (키워드 포함)
-
-0-100점 사이의 점수만 숫자로 답해주세요. 설명 없이 점수만.`;
-
-    const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20240620',
-      max_tokens: 10,
-      temperature: 0.3,
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    const content = message.content[0];
-    if (content.type !== 'text') {
-      return 50; // 기본 점수
-    }
-
-    const score = parseInt(content.text.trim());
-    return isNaN(score) ? 50 : Math.min(100, Math.max(0, score));
-
+    const { evaluateTitleScore: evaluate } = await import('./ai-title-generation');
+    return await evaluate(title, category);
   } catch (error: any) {
     console.error('[ScoreEvaluation] Error:', error);
     return 50; // 에러 시 중간 점수

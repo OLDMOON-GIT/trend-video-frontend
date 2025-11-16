@@ -51,7 +51,7 @@ function AutomationPageContent() {
   const [expandedLogsFor, setExpandedLogsFor] = useState<string | null>(null);
   const [logsMap, setLogsMap] = useState<Record<string, any[]>>({});
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-  const [mainTab, setMainTab] = useState<'queue' | 'schedule-management'>('queue');
+  const [mainTab, setMainTab] = useState<'queue' | 'schedule-management' | 'monitoring'>('queue');
   const [queueTab, setQueueTab] = useState<'scheduled' | 'processing' | 'waiting_upload' | 'failed' | 'completed'>('scheduled');
   const [scheduleManagementTab, setScheduleManagementTab] = useState<'channel-settings' | 'category-management' | 'calendar'>('channel-settings');
   const [progressMap, setProgressMap] = useState<Record<string, { scriptProgress?: number; videoProgress?: number }>>({});
@@ -1623,7 +1623,7 @@ function AutomationPageContent() {
           )}
 
           {/* 메인 탭 */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-3 gap-3 mb-4">
             <button
               onClick={() => setMainTab('queue')}
               className={`py-4 px-6 rounded-lg font-bold text-lg transition ${
@@ -1643,6 +1643,16 @@ function AutomationPageContent() {
               }`}
             >
               📆 채널별 주기관리
+            </button>
+            <button
+              onClick={() => setMainTab('monitoring')}
+              className={`py-4 px-6 rounded-lg font-bold text-lg transition ${
+                mainTab === 'monitoring'
+                  ? 'bg-green-600 text-white shadow-lg'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              📊 실시간 현황판
             </button>
           </div>
 
@@ -1807,6 +1817,13 @@ function AutomationPageContent() {
                   <ScheduleCalendar />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 실시간 현황판 */}
+          {mainTab === 'monitoring' && (
+            <div>
+              <GenerationDashboard />
             </div>
           )}
 
