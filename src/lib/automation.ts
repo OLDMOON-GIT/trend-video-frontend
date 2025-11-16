@@ -21,7 +21,7 @@ export function initAutomationTables() {
     CREATE TABLE IF NOT EXISTS video_titles (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('shortform', 'longform', 'product')),
+      type TEXT NOT NULL CHECK(type IN ('shortform', 'longform', 'product', 'product-info', 'sora2')),
       category TEXT,
       tags TEXT,
       product_url TEXT,
@@ -109,6 +109,13 @@ export function initAutomationTables() {
   // youtube_url 컬럼 추가 (기존 테이블에 없을 경우)
   try {
     db.exec(`ALTER TABLE video_schedules ADD COLUMN youtube_url TEXT;`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
+  // youtube_privacy 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE video_schedules ADD COLUMN youtube_privacy TEXT DEFAULT 'public';`);
   } catch (e) {
     // 이미 존재하면 무시
   }
@@ -279,14 +286,15 @@ export function addSchedule(data: {
   titleId: string;
   scheduledTime: string; // ISO 8601 format
   youtubePublishTime?: string;
+  youtubePrivacy?: string;
 }) {
   const db = new Database(dbPath);
   const id = `schedule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   db.prepare(`
-    INSERT INTO video_schedules (id, title_id, scheduled_time, youtube_publish_time)
-    VALUES (?, ?, ?, ?)
-  `).run(id, data.titleId, data.scheduledTime, data.youtubePublishTime || null);
+    INSERT INTO video_schedules (id, title_id, scheduled_time, youtube_publish_time, youtube_privacy)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, data.titleId, data.scheduledTime, data.youtubePublishTime || null, data.youtubePrivacy || 'public');
 
   // 제목 상태를 'scheduled'로 변경
   db.prepare(`

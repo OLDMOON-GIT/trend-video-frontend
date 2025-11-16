@@ -34,7 +34,8 @@ function AutomationPageContent() {
     mediaMode: getSelectedMediaMode(),
     model: getSelectedModel(),
     youtubeSchedule: 'immediate',
-    youtubePublishAt: ''
+    youtubePublishAt: '',
+    youtubePrivacy: 'public'
   }));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
@@ -401,7 +402,12 @@ function AutomationPageContent() {
 
       // 스케줄 시간이 입력되었으면 스케줄 추가 (이미 검증 완료)
       if (newTitle.scheduleTime) {
-        await addScheduleToTitle(titleId, newTitle.scheduleTime);
+        await addScheduleToTitle(
+          titleId,
+          newTitle.scheduleTime,
+          newTitle.youtubePublishAt || undefined,
+          newTitle.youtubePrivacy
+        );
       }
 
       saveRecentTitle(newTitle.title);
@@ -421,6 +427,7 @@ function AutomationPageContent() {
         mediaMode: getSelectedMediaMode(), // localStorage에서 불러온 미디어 모드 유지
         youtubeSchedule: 'immediate',
         youtubePublishAt: '',
+        youtubePrivacy: 'public',
         model: getSelectedModel() // localStorage에서 불러온 모델 유지
       });
       setShowAddForm(false);
@@ -512,7 +519,7 @@ function AutomationPageContent() {
     }
   }
 
-  async function addScheduleToTitle(titleId: string, scheduledTime: string, youtubePublishTime?: string) {
+  async function addScheduleToTitle(titleId: string, scheduledTime: string, youtubePublishTime?: string, youtubePrivacy?: string) {
     try {
       const response = await fetch('/api/automation/schedules', {
         method: 'POST',
@@ -520,7 +527,8 @@ function AutomationPageContent() {
         body: JSON.stringify({
           titleId,
           scheduledTime,
-          youtubePublishTime: youtubePublishTime || null
+          youtubePublishTime: youtubePublishTime || null,
+          youtubePrivacy: youtubePrivacy || 'public'
         })
       });
 
@@ -1378,48 +1386,69 @@ function AutomationPageContent() {
                 </div>
 
                 {/* 유튜브 업로드 설정 */}
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">유튜브 업로드</label>
-                  <select
-                    value={newTitle.youtubeSchedule}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === 'scheduled') {
-                        // 현재 시간 + 3분을 기본값으로 설정 (로컬 시간)
-                        const now = new Date(Date.now() + 3 * 60 * 1000);
-                        const year = now.getFullYear();
-                        const month = String(now.getMonth() + 1).padStart(2, '0');
-                        const day = String(now.getDate()).padStart(2, '0');
-                        const hours = String(now.getHours()).padStart(2, '0');
-                        const minutes = String(now.getMinutes()).padStart(2, '0');
-                        const defaultTime = `${year}-${month}-${day}T${hours}:${minutes}`;
-                        setNewTitle(prev => ({ ...prev, youtubeSchedule: value, youtubePublishAt: defaultTime }));
-                      } else {
-                        setNewTitle(prev => ({ ...prev, youtubeSchedule: value }));
-                      }
-                    }}
-                    className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="immediate">즉시 업로드</option>
-                    <option value="scheduled">예약 업로드</option>
-                  </select>
-                  {newTitle.youtubeSchedule === 'scheduled' && (
-                    <div className="mt-3">
-                      <label className="text-xs text-slate-400 block mb-1">유튜브 공개 예약 시간</label>
-                      <input
-                        type="datetime-local"
-                        value={newTitle.youtubePublishAt}
-                        onChange={(e) => setNewTitle(prev => ({ ...prev, youtubePublishAt: e.target.value }))}
-                        min={new Date(Date.now() + 3 * 60 * 1000).toISOString().slice(0, 16)}
-                        className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                      />
-                      <p className="text-xs text-yellow-400 mt-1">⚠️ 비디오는 즉시 업로드되고 private 상태로 유지되다가 설정한 시간에 공개됩니다 (최소 3분 이후)</p>
-                    </div>
-                  )}
-                  {newTitle.youtubeSchedule === 'immediate' && (
-                    <p className="text-xs text-slate-400 mt-1">영상 생성 완료 후 즉시 유튜브에 업로드됩니다</p>
-                  )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">유튜브 업로드</label>
+                    <select
+                      value={newTitle.youtubeSchedule}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === 'scheduled') {
+                          // 현재 시간 + 3분을 기본값으로 설정 (로컬 시간)
+                          const now = new Date(Date.now() + 3 * 60 * 1000);
+                          const year = now.getFullYear();
+                          const month = String(now.getMonth() + 1).padStart(2, '0');
+                          const day = String(now.getDate()).padStart(2, '0');
+                          const hours = String(now.getHours()).padStart(2, '0');
+                          const minutes = String(now.getMinutes()).padStart(2, '0');
+                          const defaultTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+                          setNewTitle(prev => ({ ...prev, youtubeSchedule: value, youtubePublishAt: defaultTime }));
+                        } else {
+                          setNewTitle(prev => ({ ...prev, youtubeSchedule: value }));
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="immediate">즉시 업로드</option>
+                      <option value="scheduled">예약 업로드</option>
+                    </select>
+                    {newTitle.youtubeSchedule === 'immediate' && (
+                      <p className="text-xs text-slate-400 mt-1">영상 생성 완료 후 즉시 유튜브에 업로드됩니다</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">공개 설정</label>
+                    <select
+                      value={newTitle.youtubePrivacy}
+                      onChange={(e) => setNewTitle(prev => ({ ...prev, youtubePrivacy: e.target.value }))}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="public">🌐 공개 (Public)</option>
+                      <option value="unlisted">🔗 링크 공유 (Unlisted)</option>
+                      <option value="private">🔒 비공개 (Private)</option>
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {newTitle.youtubePrivacy === 'public' && '누구나 검색하고 볼 수 있습니다'}
+                      {newTitle.youtubePrivacy === 'unlisted' && '링크가 있는 사람만 볼 수 있습니다'}
+                      {newTitle.youtubePrivacy === 'private' && '본인만 볼 수 있습니다'}
+                    </p>
+                  </div>
                 </div>
+
+                {newTitle.youtubeSchedule === 'scheduled' && (
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">유튜브 공개 예약 시간</label>
+                    <input
+                      type="datetime-local"
+                      value={newTitle.youtubePublishAt}
+                      onChange={(e) => setNewTitle(prev => ({ ...prev, youtubePublishAt: e.target.value }))}
+                      min={new Date(Date.now() + 3 * 60 * 1000).toISOString().slice(0, 16)}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                    <p className="text-xs text-yellow-400 mt-1">⚠️ 비디오는 즉시 업로드되고 private 상태로 유지되다가 설정한 시간에 공개됩니다 (최소 3분 이후)</p>
+                  </div>
+                )}
 
                 {/* 스케줄 시간 입력 */}
                 <div>
