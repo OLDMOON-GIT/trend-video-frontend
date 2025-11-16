@@ -40,14 +40,32 @@ export async function GET(request: NextRequest) {
       case 'video': {
         // 영상 파일 찾기 (.mp4)
         try {
+          // output 폴더 존재 확인
+          if (!existsSync(outputPath)) {
+            console.error(`❌ output 폴더 없음: ${outputPath}`);
+            return NextResponse.json({
+              error: '영상 파일을 찾을 수 없습니다',
+              details: `output 폴더가 없습니다. scriptId: ${scriptId}, 경로: ${outputPath}`
+            }, { status: 404 });
+          }
+
+          console.log(`📂 output 폴더 읽기 시작: ${outputPath}`);
           const outputFiles = await fs.readdir(outputPath);
+          console.log(`📋 폴더 내 파일 목록:`, outputFiles);
+
           const videoFile = outputFiles.find(f => f.endsWith('.mp4'));
 
           if (!videoFile) {
-            return NextResponse.json({ error: '영상 파일을 찾을 수 없습니다' }, { status: 404 });
+            console.error(`❌ MP4 파일 없음. 폴더 내 파일:`, outputFiles);
+            return NextResponse.json({
+              error: '영상 파일을 찾을 수 없습니다',
+              details: `폴더에 MP4 파일이 없습니다. 폴더: ${outputPath}, 파일 개수: ${outputFiles.length}`
+            }, { status: 404 });
           }
 
           const videoPath = path.join(outputPath, videoFile);
+          console.log(`📹 영상 파일 다운로드 시작: ${videoPath}`);
+
           const stat = statSync(videoPath);
           const fileStream = createReadStream(videoPath);
 
@@ -59,8 +77,11 @@ export async function GET(request: NextRequest) {
             }
           });
         } catch (error: any) {
-          console.error('Video download error:', error);
-          return NextResponse.json({ error: '영상 파일 다운로드 실패', details: error.message }, { status: 500 });
+          console.error('❌ Video download error:', error);
+          return NextResponse.json({
+            error: '영상 파일 다운로드 실패',
+            details: `${error.message} (scriptId: ${scriptId}, outputPath: ${outputPath})`
+          }, { status: 500 });
         }
       }
 
@@ -92,25 +113,50 @@ export async function GET(request: NextRequest) {
       case 'materials': {
         // 재료 파일들 (images, audio) - ZIP으로 압축
         try {
+          // input 폴더 존재 확인
+          if (!existsSync(inputPath)) {
+            return NextResponse.json({
+              error: '재료 파일을 찾을 수 없습니다',
+              details: `input 폴더가 없습니다. scriptId: ${scriptId}`
+            }, { status: 404 });
+          }
+
           const zipFilename = `${sanitizedTitle}_materials.zip`;
           const tempZipPath = path.join(backendPath, 'temp', zipFilename);
 
           // temp 폴더 생성
           await fs.mkdir(path.join(backendPath, 'temp'), { recursive: true });
 
+          console.log('📦 재료 파일 ZIP 압축:', inputPath);
+
           // PowerShell로 ZIP 생성 (Windows 기본 명령어)
           await new Promise<void>((resolve, reject) => {
-            const ps = spawn('powershell.exe', [
-              '-Command',
-              `Compress-Archive -Path "${inputPath}\\*" -DestinationPath "${tempZipPath}" -Force`
-            ]);
+            const psCommand = `Compress-Archive -Path "${inputPath}\\*" -DestinationPath "${tempZipPath}" -Force`;
 
-            ps.on('close', (code) => {
-              if (code === 0) resolve();
-              else reject(new Error(`ZIP creation failed with code ${code}`));
+            console.log('PowerShell 명령:', psCommand);
+
+            const ps = spawn('powershell.exe', ['-Command', psCommand]);
+
+            let stderr = '';
+
+            ps.stderr?.on('data', (data) => {
+              stderr += data.toString();
             });
 
-            ps.on('error', reject);
+            ps.on('close', (code) => {
+              if (code === 0) {
+                console.log('✅ ZIP 생성 완료:', tempZipPath);
+                resolve();
+              } else {
+                console.error('❌ ZIP 생성 실패:', stderr);
+                reject(new Error(`ZIP creation failed: ${stderr || `exit code ${code}`}`));
+              }
+            });
+
+            ps.on('error', (err) => {
+              console.error('❌ PowerShell 프로세스 에러:', err);
+              reject(err);
+            });
           });
 
           const stat = statSync(tempZipPath);
@@ -144,22 +190,56 @@ export async function GET(request: NextRequest) {
           const zipFilename = `${sanitizedTitle}_all.zip`;
           const tempZipPath = path.join(backendPath, 'temp', zipFilename);
 
+          // 폴더 존재 확인
+          const inputExists = existsSync(inputPath);
+          const outputExists = existsSync(outputPath);
+
+          if (!inputExists && !outputExists) {
+            return NextResponse.json({
+              error: '프로젝트 폴더를 찾을 수 없습니다',
+              details: `input 폴더와 output 폴더가 모두 없습니다. scriptId: ${scriptId}`
+            }, { status: 404 });
+          }
+
           // temp 폴더 생성
           await fs.mkdir(path.join(backendPath, 'temp'), { recursive: true });
 
-          // PowerShell로 ZIP 생성 (input과 output 모두 포함)
-          await new Promise<void>((resolve, reject) => {
-            const ps = spawn('powershell.exe', [
-              '-Command',
-              `Compress-Archive -Path "${inputPath}","${outputPath}" -DestinationPath "${tempZipPath}" -Force`
-            ]);
+          // 존재하는 폴더만 압축 대상에 포함
+          const pathsToCompress: string[] = [];
+          if (inputExists) pathsToCompress.push(inputPath);
+          if (outputExists) pathsToCompress.push(outputPath);
 
-            ps.on('close', (code) => {
-              if (code === 0) resolve();
-              else reject(new Error(`ZIP creation failed with code ${code}`));
+          console.log('📦 ZIP 압축 대상:', pathsToCompress);
+
+          // PowerShell로 ZIP 생성
+          await new Promise<void>((resolve, reject) => {
+            const pathArgs = pathsToCompress.map(p => `"${p}"`).join(',');
+            const psCommand = `Compress-Archive -Path ${pathArgs} -DestinationPath "${tempZipPath}" -Force`;
+
+            console.log('PowerShell 명령:', psCommand);
+
+            const ps = spawn('powershell.exe', ['-Command', psCommand]);
+
+            let stderr = '';
+
+            ps.stderr?.on('data', (data) => {
+              stderr += data.toString();
             });
 
-            ps.on('error', reject);
+            ps.on('close', (code) => {
+              if (code === 0) {
+                console.log('✅ ZIP 생성 완료:', tempZipPath);
+                resolve();
+              } else {
+                console.error('❌ ZIP 생성 실패:', stderr);
+                reject(new Error(`ZIP creation failed: ${stderr || `exit code ${code}`}`));
+              }
+            });
+
+            ps.on('error', (err) => {
+              console.error('❌ PowerShell 프로세스 에러:', err);
+              reject(err);
+            });
           });
 
           const stat = statSync(tempZipPath);

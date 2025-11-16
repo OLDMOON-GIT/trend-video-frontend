@@ -714,25 +714,38 @@ export default function MyContentPage() {
         credentials: 'include'
       });
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        const contentDisposition = response.headers.get('Content-Disposition');
-        const fileNameMatch = contentDisposition?.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?;?/);
-        const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : 'script.txt';
-
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      } else {
+      if (!response.ok) {
         const data = await safeJsonResponse(response);
         alert('다운로드 실패: ' + (data.error || '알 수 없는 오류'));
+        return;
       }
+
+      // Content-Type 체크 (JSON 에러 응답 방지)
+      const contentType = response.headers.get('Content-Type');
+      if (contentType?.includes('application/json') && !contentType?.includes('attachment')) {
+        const data = await response.json();
+        if (data.error) {
+          alert('다운로드 실패: ' + data.error);
+          return;
+        }
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const fileNameMatch = contentDisposition?.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?;?/);
+      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : 'script.txt';
+
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('다운로드 완료');
     } catch (error) {
       console.error('Download error:', error);
       alert('다운로드 중 오류가 발생했습니다.');
@@ -2974,15 +2987,13 @@ export default function MyContentPage() {
                             <div className="flex flex-wrap gap-2 mt-4">
                             {(item.data.status === 'pending' || item.data.status === 'processing') && (
                               <>
-                                {user?.isAdmin && (
-                                  <button
-                                    onClick={() => handleOpenFolder(item.data.id)}
-                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
-                                    title="폴더 열기"
-                                  >
-                                    📁 폴더
-                                  </button>
-                                )}
+                                <button
+                                  onClick={() => handleOpenFolder(item.data.id)}
+                                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer"
+                                  title="폴더 열기"
+                                >
+                                  📁 폴더
+                                </button>
                                 <button
                                   onClick={() => setExpandedLogJobId(expandedLogJobId === item.data.id ? null : item.data.id)}
                                   className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer"
@@ -3009,15 +3020,13 @@ export default function MyContentPage() {
                                     {expandedLogJobId === item.data.id ? '📋 닫기' : `📋 로그`}
                                   </button>
                                 )}
-                                {user?.isAdmin && (
-                                  <button
-                                    onClick={() => handleOpenFolder(item.data.id)}
-                                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
-                                    title="폴더 열기"
-                                  >
-                                    📁 폴더
-                                  </button>
-                                )}
+                                <button
+                                  onClick={() => handleOpenFolder(item.data.id)}
+                                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                                  title="폴더 열기"
+                                >
+                                  📁 폴더
+                                </button>
 
                                 {/* 구분선 */}
                                 <div className="w-px h-8 bg-slate-600"></div>
@@ -4772,15 +4781,13 @@ export default function MyContentPage() {
                         <div className="flex flex-wrap gap-2 mt-4">
                         {(job.status === 'pending' || job.status === 'processing') && (
                           <>
-                            {user?.isAdmin && (
-                              <button
-                                onClick={() => handleOpenFolder(job.id)}
-                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
-                                title="폴더 열기"
-                              >
-                                📁 폴더
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleOpenFolder(job.id)}
+                              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                              title="폴더 열기"
+                            >
+                              📁 폴더
+                            </button>
                             {job.logs && job.logs.length > 0 && (
                               <button
                                 onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
@@ -4809,15 +4816,13 @@ export default function MyContentPage() {
                                 {expandedLogJobId === job.id ? '📋 닫기' : `📋 로그`}
                               </button>
                             )}
-                            {user?.isAdmin && (
-                              <button
-                                onClick={() => handleOpenFolder(job.id)}
-                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
-                                title="폴더 열기"
-                              >
-                                📁 폴더
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleOpenFolder(job.id)}
+                              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-500 cursor-pointer whitespace-nowrap"
+                              title="폴더 열기"
+                            >
+                              📁 폴더
+                            </button>
 
                             {/* 구분선 */}
                             <div className="w-px h-8 bg-slate-600"></div>

@@ -289,12 +289,34 @@ export function addSchedule(data: {
   youtubePrivacy?: string;
 }) {
   const db = new Database(dbPath);
+
+  // 🔒 중복 체크: 같은 title_id로 이미 pending/processing 스케줄이 있는지 확인
+  const existingSchedule = db.prepare(`
+    SELECT id FROM video_schedules
+    WHERE title_id = ?
+      AND status IN ('pending', 'processing')
+    LIMIT 1
+  `).get(data.titleId) as { id: string } | undefined;
+
+  if (existingSchedule) {
+    console.warn(`⚠️ [addSchedule] 중복 스케줄 생성 방지: title_id=${data.titleId}에 이미 진행 중인 스케줄(${existingSchedule.id})이 있습니다.`);
+    db.close();
+    return existingSchedule.id; // 기존 스케줄 ID 반환
+  }
+
   const id = `schedule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const privacyValue = data.youtubePrivacy || 'public';
+  console.log(`[addSchedule] 공개 설정 저장: ${privacyValue} (원본: ${data.youtubePrivacy})`);
 
   db.prepare(`
     INSERT INTO video_schedules (id, title_id, scheduled_time, youtube_publish_time, youtube_privacy)
     VALUES (?, ?, ?, ?, ?)
-  `).run(id, data.titleId, data.scheduledTime, data.youtubePublishTime || null, data.youtubePrivacy || 'public');
+  `).run(id, data.titleId, data.scheduledTime, data.youtubePublishTime || null, privacyValue);
+
+  // 저장된 값 확인
+  const saved = db.prepare('SELECT youtube_privacy FROM video_schedules WHERE id = ?').get(id) as any;
+  console.log(`[addSchedule] DB에 저장된 공개 설정: ${saved?.youtube_privacy}`);
 
   // 제목 상태를 'scheduled'로 변경
   db.prepare(`
@@ -597,7 +619,8 @@ export function getAllVideoTitles() {
       t.youtube_schedule,
       t.created_at,
       t.updated_at,
-      t.status,
+      t.status as title_status,
+      COALESCE(s.status, t.status) as status,
       t.user_id,
       s.id as schedule_id,
       s.script_id,
@@ -608,7 +631,7 @@ export function getAllVideoTitles() {
       s.youtube_publish_time
     FROM video_titles t
     LEFT JOIN (
-      SELECT title_id, id, script_id, video_id, youtube_upload_id, youtube_url, scheduled_time, youtube_publish_time,
+      SELECT title_id, id, script_id, video_id, youtube_upload_id, youtube_url, scheduled_time, youtube_publish_time, status,
              ROW_NUMBER() OVER (PARTITION BY title_id ORDER BY created_at DESC) as rn
       FROM video_schedules
     ) s ON t.id = s.title_id AND s.rn = 1
@@ -629,6 +652,7 @@ export function getAllSchedules() {
       s.title_id,
       s.scheduled_time,
       s.youtube_publish_time,
+      s.youtube_privacy,
       s.status,
       s.script_id,
       s.video_id,
@@ -637,7 +661,15 @@ export function getAllSchedules() {
       s.created_at,
       s.updated_at,
       t.title,
-      t.type
+      t.type,
+      t.product_data,
+      t.product_url,
+      t.tags,
+      t.category,
+      t.channel,
+      t.script_mode,
+      t.model,
+      t.user_id
     FROM video_schedules s
     JOIN video_titles t ON s.title_id = t.id
     LEFT JOIN youtube_uploads yu ON s.youtube_upload_id = yu.id

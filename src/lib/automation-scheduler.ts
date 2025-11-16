@@ -1038,7 +1038,18 @@ async function checkWaitingForUploadSchedules() {
         updateScheduleStatus(schedule.id, 'processing', { imagesReady: true });
 
         // video 단계 시작 (비동기)
-        const videoPipelineId = schedule.id + '_video';
+        // 기존에 생성된 video pipeline ID 찾기
+        const db = new Database(dbPath);
+        const videoPipeline = db.prepare(`
+          SELECT id FROM automation_pipelines
+          WHERE schedule_id = ? AND stage = 'video'
+          LIMIT 1
+        `).get(schedule.id) as any;
+        db.close();
+
+        const videoPipelineId = videoPipeline?.id || (schedule.id + '_video');
+        console.log(`[Scheduler] Using video pipeline ID: ${videoPipelineId}`);
+
         resumeVideoGeneration(schedule, videoPipelineId).catch((error: any) => {
           console.error(`[Scheduler] Failed to resume video generation for ${schedule.id}:`, error);
           addPipelineLog(videoPipelineId, 'error', `Video generation failed: ${error.message}`);
@@ -1079,7 +1090,8 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
     .run(videoResult.videoId, schedule.id);
   dbUpdateVideo.close();
 
-  updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId });
+  updateScheduleStatus(schedule.id, 'completed', { videoId: videoResult.videoId });
+  updateTitleStatus(schedule.title_id, 'completed');
   addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
   addTitleLog(schedule.title_id, 'info', `✅ 영상 생성 완료: ${videoResult.videoId}`);
 
@@ -1087,8 +1099,18 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   // TODO: upload와 publish 단계를 별도 함수로 분리하여 재사용
   console.log(`[Scheduler] Video generation completed for ${schedule.id}, continuing with upload...`);
 
-  // Upload 단계 시작
-  const uploadPipelineId = schedule.id + '_upload';
+  // Upload 단계 시작 - 기존 pipeline 찾기
+  const dbUpload = new Database(dbPath);
+  const uploadPipeline = dbUpload.prepare(`
+    SELECT id FROM automation_pipelines
+    WHERE schedule_id = ? AND stage = 'upload'
+    LIMIT 1
+  `).get(schedule.id) as any;
+  dbUpload.close();
+
+  const uploadPipelineId = uploadPipeline?.id || (schedule.id + '_upload');
+  console.log(`[Scheduler] Using upload pipeline ID: ${uploadPipelineId}`);
+
   addPipelineLog(uploadPipelineId, 'info', `Starting YouTube upload for video: ${videoResult.videoId}`);
   addTitleLog(schedule.title_id, 'info', `📤 YouTube 업로드 중...`);
   updatePipelineStatus(uploadPipelineId, 'running');
@@ -1113,8 +1135,18 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
   addTitleLog(schedule.title_id, 'info', `✅ YouTube 업로드 완료: ${uploadResult.videoUrl}`);
 
-  // Publish 단계
-  const publishPipelineId = schedule.id + '_publish';
+  // Publish 단계 - 기존 pipeline 찾기
+  const dbPublish = new Database(dbPath);
+  const publishPipeline = dbPublish.prepare(`
+    SELECT id FROM automation_pipelines
+    WHERE schedule_id = ? AND stage = 'publish'
+    LIMIT 1
+  `).get(schedule.id) as any;
+  dbPublish.close();
+
+  const publishPipelineId = publishPipeline?.id || (schedule.id + '_publish');
+  console.log(`[Scheduler] Using publish pipeline ID: ${publishPipelineId}`);
+
   addPipelineLog(publishPipelineId, 'info', `Scheduling YouTube publish`);
   addTitleLog(schedule.title_id, 'info', `📅 퍼블리시 예약 중...`);
   updatePipelineStatus(publishPipelineId, 'running');

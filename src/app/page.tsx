@@ -137,6 +137,21 @@ function HomeContent() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [titleQuery, setTitleQuery] = useState("");
   const [durationRange, setDurationRange] = useState(defaultDurationRange);
+  const [selectedContentCategories, setSelectedContentCategories] = useState<string[]>(() => {
+    // localStorage에서 저장된 콘텐츠 카테고리 불러오기 (기본값: 전체 선택)
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('selectedContentCategories');
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.error('Failed to load selectedContentCategories:', e);
+      }
+    }
+    // 기본값: 전체 선택 (categories는 아직 정의되지 않았으므로 나중에 useEffect에서 설정)
+    return [];
+  });
   const [selectedModel, setSelectedModel] = useState<ModelOption>(() => {
     // localStorage에서 저장된 소재찾기 LLM 모델 불러오기 (기본값: chatgpt)
     if (typeof window !== 'undefined') {
@@ -218,22 +233,41 @@ function HomeContent() {
   const [toast, setToast] = useState<{message: string; type: 'success' | 'info' | 'error'} | null>(null);
   const [isFilterExpanded, setIsFilterExpanded] = useState(() => {
     // 클라이언트에서만 localStorage 접근
-    if (typeof window === 'undefined') return false;
+    if (typeof window === 'undefined') return true;
     try {
       const saved = localStorage.getItem('trend-video-filters');
       if (saved) {
         const filters = JSON.parse(saved);
-        return filters.isFilterExpanded ?? false; // 기본값 false (접힌 상태)
+        return filters.isFilterExpanded ?? true; // 기본값 true (펼쳐진 상태)
       }
     } catch (e) {
       console.error('Failed to load isFilterExpanded:', e);
     }
-    return false; // 기본값 false (접힌 상태)
+    return true; // 기본값 true (펼쳐진 상태)
   });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [draggingCardIndex, setDraggingCardIndex] = useState<number | null>(null);
   const [manuallyOrderedMedia, setManuallyOrderedMedia] = useState<Array<{type: 'image' | 'video'; file: File}>>([]);
   const [isManualSort, setIsManualSort] = useState(false);
+
+  // 추천 제목 관련 state (소재찾기용)
+  const [materialSuggestedTitles, setMaterialSuggestedTitles] = useState<string[]>([]); // AI 변형 제목
+  const [isGeneratingMaterialSuggestions, setIsGeneratingMaterialSuggestions] = useState(false);
+  const [selectedMaterialSuggestions, setSelectedMaterialSuggestions] = useState<Set<string>>(new Set()); // AI 제목 선택
+  const [materialSuggestionCount, setMaterialSuggestionCount] = useState(10); // 기본값 10개로 변경
+  const [selectedRealTitles, setSelectedRealTitles] = useState<Set<string>>(new Set()); // 실제 YouTube 제목 선택
+
+  // AI 제목 생성 예상 비용 계산 (Claude 3.5 Sonnet 기준)
+  const estimatedCost = useMemo(() => {
+    // Input: 프롬프트 + YouTube 제목 24개 ≈ 1500 tokens
+    // Output: 제목 N개 * 50 tokens ≈ N * 50 tokens
+    // Claude 3.5 Sonnet: Input $3/1M, Output $15/1M
+    const inputTokens = 1500;
+    const outputTokens = materialSuggestionCount * 50;
+    const costUSD = (inputTokens * 3 + outputTokens * 15) / 1_000_000;
+    const costKRW = costUSD * 1350; // 환율 적용
+    return Math.ceil(costKRW); // 원 단위 올림
+  }, [materialSuggestionCount]);
 
   // 파일 업로드 시 통합 배열 업데이트 (시퀀스/타임스탬프 정렬)
   useEffect(() => {
@@ -380,7 +414,7 @@ function HomeContent() {
       }
     }
     // 기본 카테고리
-    return ['일반', '북한탈북자사연', '막장드라마', '감동실화', '복수극', '로맨스', '스릴러', '코미디'];
+    return ['일반', '시니어사연', '북한탈북자사연', '막장드라마', '감동실화', '복수극', '로맨스', '스릴러', '코미디', '상품'];
   });
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -1553,6 +1587,26 @@ function HomeContent() {
     }
   }, [selectedCategory]);
 
+  // 소재찾기 콘텐츠 카테고리 초기화 (localStorage에 없으면 전체 선택)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && selectedContentCategories.length === 0) {
+      const saved = localStorage.getItem('selectedContentCategories');
+      if (!saved && categories.length > 0) {
+        // 저장된 값이 없으면 전체 선택
+        setSelectedContentCategories(categories);
+        console.log('🎯 초기 콘텐츠 카테고리: 전체 선택');
+      }
+    }
+  }, [categories]);
+
+  // 선택된 콘텐츠 카테고리를 localStorage에 저장
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedContentCategories', JSON.stringify(selectedContentCategories));
+      console.log('💾 콘텐츠 카테고리 저장:', selectedContentCategories);
+    }
+  }, [selectedContentCategories]);
+
   // promptFormat을 localStorage에 저장 (포맷 선택 기억)
   // 단, product-info는 임시 모드이므로 저장하지 않음
   useEffect(() => {
@@ -1698,6 +1752,7 @@ function HomeContent() {
             max: durationRange.max * 60,
           },
           model: selectedModel,
+          contentCategories: selectedContentCategories.filter(cat => cat !== '일반'),
         }),
       });
 
@@ -1744,6 +1799,117 @@ function HomeContent() {
       setIsFetching(false);
     }
   }, [videoType, dateFilter, sortBy, viewRange, subRange, selectedCategories, titleQuery, durationRange, selectedModel, pushLog]);
+
+  // 제목에서 통계 정보 제거하는 함수
+  const cleanTitle = useCallback((title: string): string => {
+    return title
+      // [200만], [조회수 1억], [1000만 조회수] 등 제거
+      .replace(/\[[\d,]+[만억천]*(?:\s*조회수)?\]/gi, '')
+      .replace(/\[조회수\s*[\d,]+[만억천]*\]/gi, '')
+      // (200만), (조회수 1억) 등 제거
+      .replace(/\([\d,]+[만억천]*(?:\s*조회수)?\)/gi, '')
+      .replace(/\(조회수\s*[\d,]+[만억천]*\)/gi, '')
+      // 【200만】 같은 특수 괄호도 제거
+      .replace(/【[\d,]+[만억천]*(?:\s*조회수)?】/gi, '')
+      // 앞뒤 공백 제거
+      .trim()
+      // 연속된 공백 하나로
+      .replace(/\s+/g, ' ');
+  }, []);
+
+  // AI 변형 제목 생성 함수
+  const generateMaterialTitleSuggestions = useCallback(async () => {
+    if (selectedContentCategories.length === 0) {
+      showToast('카테고리를 선택해주세요', 'error');
+      return;
+    }
+
+    if (videos.length === 0) {
+      showToast('먼저 YouTube 데이터를 불러와주세요', 'error');
+      return;
+    }
+
+    setIsGeneratingMaterialSuggestions(true);
+    try {
+      // YouTube에서 가져온 영상 제목들 추출 및 통계 정보 제거
+      const youtubeTitles = videos
+        .map(v => cleanTitle(v.title))
+        .filter(title => title.length > 10) // 너무 짧은 제목 제외
+        .slice(0, 24);
+
+      const response = await fetch('/api/generate-title-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categories: selectedContentCategories.filter(cat => cat !== '일반'),
+          count: materialSuggestionCount,
+          youtubeTitles: youtubeTitles // 실제 YouTube 제목 전달
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '제목 생성 실패');
+      }
+
+      const data = await response.json();
+      setMaterialSuggestedTitles(data.titles || []);
+      showToast(`✅ ${data.titles.length}개 AI 변형 제목 생성 완료!`, 'success');
+    } catch (error: any) {
+      console.error('Title suggestion error:', error);
+      showToast(error.message || '제목 생성 중 오류 발생', 'error');
+    } finally {
+      setIsGeneratingMaterialSuggestions(false);
+    }
+  }, [selectedContentCategories, materialSuggestionCount, videos]);
+
+  // AI 변형 제목 선택 토글
+  const toggleMaterialSuggestion = useCallback((title: string) => {
+    setSelectedMaterialSuggestions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(title)) {
+        newSet.delete(title);
+      } else {
+        newSet.add(title);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // 실제 YouTube 제목 선택 토글
+  const toggleRealTitle = useCallback((title: string) => {
+    setSelectedRealTitles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(title)) {
+        newSet.delete(title);
+      } else {
+        newSet.add(title);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // 선택된 제목을 자동화로 전송 (실제 제목 + AI 제목 모두)
+  const sendToAutomation = useCallback(() => {
+    const totalSelected = selectedRealTitles.size + selectedMaterialSuggestions.size;
+
+    if (totalSelected === 0) {
+      showToast('제목을 선택해주세요', 'error');
+      return;
+    }
+
+    // localStorage에 선택된 제목들 저장 (실제 제목 + AI 제목)
+    const titlesToSend = [
+      ...Array.from(selectedRealTitles),
+      ...Array.from(selectedMaterialSuggestions)
+    ];
+    localStorage.setItem('automation_pending_titles', JSON.stringify(titlesToSend));
+
+    // 자동화 페이지로 이동
+    router.push('/automation?from=material-suggestions');
+
+    showToast(`✅ ${titlesToSend.length}개 제목을 자동화로 전송했습니다`, 'success');
+  }, [selectedRealTitles, selectedMaterialSuggestions, router]);
 
   const toggleSelect = useCallback((videoId: string) => {
     setSelectedIds((prev) =>
@@ -6106,6 +6272,193 @@ function HomeContent() {
           </div>
         )}
 
+        {/* 추천 제목 섹션 */}
+        <section className="flex flex-col gap-6">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white">✨ 추천 제목</h2>
+                <p className="text-sm text-slate-400 mt-1">YouTube 조회수 높은 제목 활용하기</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {(videos.length > 0 || materialSuggestedTitles.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={sendToAutomation}
+                    disabled={selectedRealTitles.size + selectedMaterialSuggestions.size === 0}
+                    className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 shadow-lg"
+                  >
+                    🚀 자동화로 전송 ({selectedRealTitles.size + selectedMaterialSuggestions.size})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 1. 실제 YouTube 제목 섹션 (무료) */}
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5">
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-lg font-bold text-emerald-400">📺 실제 YouTube 제목</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold">무료</span>
+                  </div>
+                  <p className="text-xs text-slate-400">조회수 높은 영상 제목 그대로 사용</p>
+                </div>
+
+                {videos.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-slate-300">
+                        총 {videos.length}개 | 선택됨 {selectedRealTitles.size}개
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedRealTitles(new Set(videos.map(v => v.title)));
+                          }}
+                          className="text-xs text-emerald-400 hover:text-emerald-300 transition"
+                        >
+                          전체 선택
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedRealTitles(new Set());
+                          }}
+                          className="text-xs text-slate-400 hover:text-slate-300 transition"
+                        >
+                          전체 해제
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                      {videos.map((video, idx) => (
+                        <label
+                          key={video.id}
+                          className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${
+                            selectedRealTitles.has(video.title)
+                              ? 'bg-emerald-500/20 border-emerald-500'
+                              : 'bg-white/5 border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedRealTitles.has(video.title)}
+                            onChange={() => toggleRealTitle(video.title)}
+                            className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-700 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-slate-900"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white leading-relaxed break-words">{video.title}</p>
+                            <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
+                              <span>#{idx + 1}</span>
+                              <span>👁️ {video.views.toLocaleString()}</span>
+                              <span>{video.channelName}</span>
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12 text-slate-400">
+                    <p className="text-sm">먼저 "YouTube 데이터 불러오기"를 클릭하세요</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. AI 변형 제목 섹션 (Claude 사용) */}
+              <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-5">
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-lg font-bold text-purple-400">🤖 AI 변형 제목</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs font-semibold">Claude</span>
+                  </div>
+                  <p className="text-xs text-slate-400">YouTube 제목 패턴 학습 후 새로 생성</p>
+                </div>
+
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={materialSuggestionCount}
+                      onChange={(e) => setMaterialSuggestionCount(Number(e.target.value))}
+                      className="rounded-lg bg-white/10 px-3 py-2 text-sm text-white border border-white/20 focus:outline-none focus:border-purple-400"
+                    >
+                      <option value={10}>10개</option>
+                      <option value={20}>20개</option>
+                      <option value={30}>30개</option>
+                    </select>
+                    <div className="flex-1 text-xs text-purple-300">
+                      예상 비용: <span className="font-semibold">약 {estimatedCost}원</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={generateMaterialTitleSuggestions}
+                    disabled={isGeneratingMaterialSuggestions || videos.length === 0}
+                    className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isGeneratingMaterialSuggestions ? '생성 중...' : '🎯 AI 생성'}
+                  </button>
+                </div>
+
+                {materialSuggestedTitles.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-slate-300">
+                        총 {materialSuggestedTitles.length}개 | 선택됨 {selectedMaterialSuggestions.size}개
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedMaterialSuggestions(new Set(materialSuggestedTitles));
+                          }}
+                          className="text-xs text-purple-400 hover:text-purple-300 transition"
+                        >
+                          전체 선택
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedMaterialSuggestions(new Set());
+                          }}
+                          className="text-xs text-slate-400 hover:text-slate-300 transition"
+                        >
+                          전체 해제
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                      {materialSuggestedTitles.map((title, idx) => (
+                        <label
+                          key={idx}
+                          className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${
+                            selectedMaterialSuggestions.has(title)
+                              ? 'bg-purple-500/20 border-purple-500'
+                              : 'bg-white/5 border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMaterialSuggestions.has(title)}
+                            onChange={() => toggleMaterialSuggestion(title)}
+                            className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500 focus:ring-offset-slate-900"
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm text-white leading-relaxed">{title}</p>
+                            <p className="text-xs text-slate-400 mt-1">AI #{idx + 1}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12 text-slate-400">
+                    <p className="text-sm">YouTube 제목 패턴을 학습하여 새로운 제목을 생성합니다</p>
+                    <p className="text-xs mt-2">먼저 YouTube 데이터를 불러온 후 "AI 생성" 버튼을 클릭하세요</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section className="flex flex-col gap-6">
           <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
@@ -6192,7 +6545,7 @@ function HomeContent() {
               {/* 필터 섹션 */}
               <aside className="space-y-8">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-200">제목 키워드</label>
+                <label className="block text-sm font-medium text-slate-200">제목 키워드 (선택)</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -6203,7 +6556,7 @@ function HomeContent() {
                         fetchVideos();
                       }
                     }}
-                    placeholder="예: 여행 브이로그"
+                    placeholder="추가 키워드 입력 (선택)"
                     className="flex-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white shadow-inner focus:border-emerald-300 focus:outline-none"
                   />
                 </div>
@@ -6291,23 +6644,107 @@ function HomeContent() {
                 </div>
               </div>
 
+              {/* 콘텐츠 카테고리 */}
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-200">카테고리</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategories([])}
-                    className="text-xs text-slate-300 underline underline-offset-4 hover:text-white"
-                  >
-                    전체 해제
-                  </button>
+                  <span className="text-sm font-medium text-slate-200">🎯 콘텐츠 카테고리</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryManager(!showCategoryManager)}
+                      className="text-xs text-slate-400 hover:text-emerald-400 transition"
+                    >
+                      {showCategoryManager ? '✕ 닫기' : '⚙️ 관리'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedContentCategories([...categories])}
+                      className="text-xs text-emerald-300 underline underline-offset-4 hover:text-white"
+                    >
+                      전체 선택
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedContentCategories([])}
+                      className="text-xs text-slate-300 underline underline-offset-4 hover:text-white"
+                    >
+                      전체 해제
+                    </button>
+                  </div>
                 </div>
+
+                {/* 카테고리 관리 UI */}
+                {showCategoryManager && (
+                  <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="새 카테고리 이름"
+                        className="flex-1 rounded-lg border border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder-slate-400"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newCategoryName.trim()) {
+                            if (!categories.includes(newCategoryName.trim())) {
+                              setCategories([...categories, newCategoryName.trim()]);
+                              setNewCategoryName('');
+                              showToast(`✅ 카테고리 "${newCategoryName.trim()}" 추가됨`, 'success');
+                            } else {
+                              showToast('❌ 이미 존재하는 카테고리입니다', 'error');
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newCategoryName.trim() && !categories.includes(newCategoryName.trim())) {
+                            setCategories([...categories, newCategoryName.trim()]);
+                            setNewCategoryName('');
+                            showToast(`✅ 카테고리 "${newCategoryName.trim()}" 추가됨`, 'success');
+                          }
+                        }}
+                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 transition"
+                      >
+                        추가
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {categories.map((cat) => (
+                        <div
+                          key={cat}
+                          className="flex items-center gap-1 rounded-lg bg-slate-700 px-3 py-1 text-sm"
+                        >
+                          <span className="text-white">{cat}</span>
+                          {cat !== '일반' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCategories(categories.filter(c => c !== cat));
+                                // 선택된 콘텐츠 카테고리에서도 제거
+                                setSelectedContentCategories(selectedContentCategories.filter(c => c !== cat));
+                                if (selectedCategory === cat) {
+                                  setSelectedCategory('일반');
+                                }
+                                showToast(`❌ 카테고리 "${cat}" 삭제됨`, 'info');
+                              }}
+                              className="ml-1 text-slate-400 hover:text-red-400 transition"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
-                  {CATEGORY_OPTIONS.map((option) => {
-                    const checked = selectedCategories.includes(option.id);
+                  {categories.map((cat) => {
+                    const checked = selectedContentCategories.includes(cat);
                     return (
                       <label
-                        key={option.id}
+                        key={cat}
                         className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs transition ${
                           checked
                             ? "border-emerald-300 bg-emerald-400/10 text-emerald-200"
@@ -6317,14 +6754,23 @@ function HomeContent() {
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => toggleCategory(option.id)}
+                          onChange={() => {
+                            if (checked) {
+                              setSelectedContentCategories(selectedContentCategories.filter(c => c !== cat));
+                            } else {
+                              setSelectedContentCategories([...selectedContentCategories, cat]);
+                            }
+                          }}
                           className="h-4 w-4 rounded border-slate-400 text-emerald-400 focus:ring-emerald-400"
                         />
-                        {option.label}
+                        {cat}
                       </label>
                     );
                   })}
                 </div>
+                <p className="text-xs text-emerald-300/70">
+                  💡 카테고리를 선택하면 해당 주제에 최적화된 영상을 검색합니다
+                </p>
               </div>
 
               <div className="space-y-3">

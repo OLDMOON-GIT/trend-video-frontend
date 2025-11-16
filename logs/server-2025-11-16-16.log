@@ -1,0 +1,39 @@
+[2025-11-16 13:19:43] > trend-video-frontend@0.1.0 dev:server-only
+[2025-11-16 13:19:43] > next dev
+[2025-11-16 13:19:44]  ⚠ Port 3000 is in use by an unknown process, using available port 3001 instead.
+[2025-11-16 13:19:45]  ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+[2025-11-16 13:19:45]  We detected multiple lockfiles and selected the directory of C:\Users\oldmoon\workspace\package-lock.json as the root directory.
+[2025-11-16 13:19:45]  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+[2025-11-16 13:19:45]    See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+[2025-11-16 13:19:45]  Detected additional lockfiles: 
+[2025-11-16 13:19:45]    * C:\Users\oldmoon\workspace\trend-video-frontend\package-lock.json
+[2025-11-16 13:19:45]    ▲ Next.js 16.0.0 (Turbopack)
+[2025-11-16 13:19:45]    - Local:        http://localhost:3001
+[2025-11-16 13:19:45]    - Network:      http://192.168.0.9:3001
+[2025-11-16 13:19:45]    - Environments: .env.local
+[2025-11-16 13:19:45]    - Experiments (use with caution):
+[2025-11-16 13:19:45]      · serverActions
+[2025-11-16 13:19:45]  ✓ Starting...
+[2025-11-16 13:19:46]  ⨯ Unable to acquire lock at C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\lock, is another instance of next dev running?
+[2025-11-16 13:19:46]    Suggestion: If you intended to restart next dev, terminate the other process, and then try again.
+[2025-11-16 13:19:47] [?25h
+
+[2025-11-16 16:09:44] > trend-video-frontend@0.1.0 dev:server-only
+[2025-11-16 16:09:44] > next dev
+[2025-11-16 16:09:45]  ⚠ Port 3000 is in use by process 11432, using available port 3001 instead.
+[2025-11-16 16:09:46]  ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+[2025-11-16 16:09:46]  We detected multiple lockfiles and selected the directory of C:\Users\oldmoon\workspace\package-lock.json as the root directory.
+[2025-11-16 16:09:46]  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+[2025-11-16 16:09:46]    See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+[2025-11-16 16:09:46]  Detected additional lockfiles: 
+[2025-11-16 16:09:46]    * C:\Users\oldmoon\workspace\trend-video-frontend\package-lock.json
+[2025-11-16 16:09:46]    ▲ Next.js 16.0.0 (Turbopack)
+[2025-11-16 16:09:46]    - Local:        http://localhost:3001
+[2025-11-16 16:09:46]    - Network:      http://10.31.14.142:3001
+[2025-11-16 16:09:46]    - Environments: .env.local
+[2025-11-16 16:09:46]    - Experiments (use with caution):
+[2025-11-16 16:09:46]      · serverActions
+[2025-11-16 16:09:46]  ✓ Starting...
+[2025-11-16 16:09:47]  ⨯ Unable to acquire lock at C:\Users\oldmoon\workspace\trend-video-frontend\.next\dev\lock, is another instance of next dev running?
+[2025-11-16 16:09:47]    Suggestion: If you intended to restart next dev, terminate the other process, and then try again.
+[2025-11-16 16:09:47] [?25h

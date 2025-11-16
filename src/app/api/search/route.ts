@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { getRandomKeyword, getCategoryKeywords, getCombinedKeywords } from "@/lib/category-keywords";
 
 import type { DateFilter, SortOption, VideoItem, VideoType } from "@/types/video";
 
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
 const DEFAULT_QUERY = "korea trending";
-const MAX_RESULTS = 24;
+const MAX_RESULTS = 50; // 카테고리 필터링을 위해 더 많은 결과 가져오기
 
 export async function POST(request: Request) {
   if (!process.env.YOUTUBE_API_KEY) {
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
     categoryIds: string[];
     titleQuery: string;
     durationRangeSeconds: { min: number; max: number };
+    contentCategories: string[]; // 콘텐츠 카테고리 배열 (시니어사연, 북한탈북자사연 등)
   }>;
 
   const videoType = body.videoType ?? "all";
@@ -36,7 +38,25 @@ export async function POST(request: Request) {
     ? body.categoryIds.filter((value): value is string => Boolean(value))
     : [];
   const categoryFilter = new Set(categoryIds);
-  const query = body.query?.trim() || DEFAULT_QUERY;
+  const contentCategories = Array.isArray(body.contentCategories)
+    ? body.contentCategories.filter((value): value is string => Boolean(value))
+    : [];
+
+  // 콘텐츠 카테고리가 제공되면 해당 카테고리의 키워드 사용
+  let query = body.query?.trim() || DEFAULT_QUERY;
+  let categoryKeywordsForFilter: string[] = [];
+  if (contentCategories.length > 0) {
+    // 여러 카테고리의 키워드를 합쳐서 랜덤 선택
+    const combinedKeywords = getCombinedKeywords(contentCategories);
+    categoryKeywordsForFilter = combinedKeywords; // 제목 필터링용으로 저장
+    if (combinedKeywords.length > 0) {
+      const randomKeyword = combinedKeywords[Math.floor(Math.random() * combinedKeywords.length)];
+      query = randomKeyword;
+      console.log(`🎯 카테고리 [${contentCategories.join(', ')}] → 검색어: "${query}"`);
+      console.log(`📋 필터 키워드 (${categoryKeywordsForFilter.length}개):`, categoryKeywordsForFilter.join(', '));
+    }
+  }
+
   const titleQuery = body.titleQuery?.trim() ?? "";
 
   try {
@@ -135,6 +155,8 @@ export async function POST(request: Request) {
           return null;
         }
 
+        // 카테고리 키워드 필터링 제거 - YouTube API 검색 결과를 그대로 사용
+
         const videoDurationSeconds = parseIsoDuration(item.contentDetails?.duration ?? "");
         if (videoDurationSeconds < durationRange.min || videoDurationSeconds > durationRange.max) {
           return null;
@@ -170,7 +192,10 @@ export async function POST(request: Request) {
 
     const sortedVideos = sortVideos(videos, sortBy);
 
-    return NextResponse.json({ videos: sortedVideos });
+    // 최대 24개까지만 반환
+    const limitedVideos = sortedVideos.slice(0, 24);
+
+    return NextResponse.json({ videos: limitedVideos });
   } catch (error) {
     console.error("YouTube API pipeline failed", error);
     return NextResponse.json({ error: "YouTube API request failed" }, { status: 500 });

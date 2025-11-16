@@ -136,6 +136,14 @@ export default function CoupangProductsAdminPage() {
   // 크롤링 큐 통계
   const [queueTotalCount, setQueueTotalCount] = useState(0);
 
+  // 쿠팡 파트너스 통계
+  const [stats, setStats] = useState({
+    totalClicks: 0,
+    totalLinks: 0,
+    estimatedRevenue: 0,
+    conversionRate: 0
+  });
+
   // 베스트셀러
   const [bestsellerCategory, setBestsellerCategory] = useState('all');
   const [bestsellerResults, setBestsellerResults] = useState<any[]>([]);

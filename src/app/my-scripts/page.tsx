@@ -105,26 +105,39 @@ export default function MyScriptsPage() {
         credentials: 'include'
       });
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        // Content-Disposition 헤더에서 파일명 추출
-        const contentDisposition = response.headers.get('Content-Disposition');
-        const fileNameMatch = contentDisposition?.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?;?/);
-        const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : 'script.txt';
-
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      } else {
+      if (!response.ok) {
         const data = await response.json();
         alert('다운로드 실패: ' + (data.error || '알 수 없는 오류'));
+        return;
       }
+
+      // Content-Type 체크 (JSON 에러 응답 방지)
+      const contentType = response.headers.get('Content-Type');
+      if (contentType?.includes('application/json') && !contentType?.includes('attachment')) {
+        const data = await response.json();
+        if (data.error) {
+          alert('다운로드 실패: ' + data.error);
+          return;
+        }
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      // Content-Disposition 헤더에서 파일명 추출
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const fileNameMatch = contentDisposition?.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?;?/);
+      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : 'script.txt';
+
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      console.log('✅ 다운로드 완료:', fileName);
     } catch (error) {
       console.error('Download error:', error);
       alert('다운로드 중 오류가 발생했습니다.');

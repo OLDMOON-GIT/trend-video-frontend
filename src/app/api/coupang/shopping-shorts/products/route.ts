@@ -29,7 +29,7 @@ interface Product {
   createdAt: string;
   publishedAt?: string;
   coupangProduct?: any;
-  douyinVideos?: any[];
+  videos?: any[];
 }
 
 async function getAllTasks(): Promise<TaskStatus[]> {
@@ -67,7 +67,7 @@ function extractProductsFromTasks(tasks: TaskStatus[]): Product[] {
           status = 'failed';
         } else if (result.published) {
           status = 'published';
-        } else if (result.douyin_video || result.downloaded_video) {
+        } else if (result.video || result.downloaded_video) {
           status = 'processing';
         }
 
@@ -78,12 +78,12 @@ function extractProductsFromTasks(tasks: TaskStatus[]): Product[] {
           productNameChinese: result.product_info?.product_name_zh,
           category: result.coupang_product?.categoryName || '기타',
           status,
-          videoUrl: result.douyin_video?.video_url || result.downloaded_video,
+          videoUrl: result.video?.video_url || result.downloaded_video,
           thumbnailUrl: result.coupang_product?.productImage,
           createdAt: task.startTime,
           publishedAt: result.published_at,
           coupangProduct: result.coupang_product,
-          douyinVideos: result.douyin_videos || []
+          videos: result.videos || []
         });
       }
     } else if (task.status === 'running') {

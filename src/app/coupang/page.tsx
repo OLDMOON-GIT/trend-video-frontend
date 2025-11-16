@@ -90,7 +90,7 @@ export default function CoupangPartnersPage() {
 
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error' | 'info'} | null>(null);
 
-  // Shopping Shorts Automation (Coupang → Douyin)
+  // Shopping Shorts Automation
   const [productLimit, setProductLimit] = useState(3);
   const [videosPerProduct, setVideosPerProduct] = useState(2);
   const [category, setCategory] = useState('electronics');
@@ -102,11 +102,6 @@ export default function CoupangPartnersPage() {
   const [shoppingProducts, setShoppingProducts] = useState<any[]>([]);
   const [productCounts, setProductCounts] = useState({ mylist: 0, crawling: 0, waiting: 0, published: 0 });
   const [loadingProducts, setLoadingProducts] = useState(false);
-
-  // Douyin Direct Download
-  const [douyinUrl, setDouyinUrl] = useState('');
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadedVideo, setDownloadedVideo] = useState<string | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ message, type });
@@ -510,46 +505,6 @@ export default function CoupangPartnersPage() {
       }
     } catch (error) {
       console.error('작업 상태 조회 실패:', error);
-    }
-  };
-
-  // Douyin Direct Download Function
-  const downloadDouyinVideo = async () => {
-    if (!douyinUrl.trim()) {
-      showToast('Douyin URL을 입력하세요', 'error');
-      return;
-    }
-
-    if (!douyinUrl.includes('douyin.com') && !douyinUrl.includes('iesdouyin.com')) {
-      showToast('올바른 Douyin URL이 아닙니다', 'error');
-      return;
-    }
-
-    setIsDownloading(true);
-    setDownloadedVideo(null);
-
-    try {
-      const response = await fetch('/api/douyin/download', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ videoUrl: douyinUrl })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setDownloadedVideo(data.videoPath);
-        showToast('영상 다운로드 완료!', 'success');
-      } else {
-        showToast('다운로드 실패: ' + data.error, 'error');
-      }
-    } catch (error: any) {
-      showToast('다운로드 실패: ' + error.message, 'error');
-    } finally {
-      setIsDownloading(false);
     }
   };
 
@@ -1159,21 +1114,20 @@ export default function CoupangPartnersPage() {
         <div className="space-y-6 lg:col-span-2">
           {/* Pipeline Info */}
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-            <h2 className="mb-4 text-xl font-bold text-white">🎬 쿠팡 → Douyin 쇼츠 자동화</h2>
+            <h2 className="mb-4 text-xl font-bold text-white">🎬 쇼핑 쇼츠 자동화</h2>
             <div className="rounded-lg bg-blue-500/20 p-4">
-              <p className="text-sm font-semibold text-blue-300">자동화 프로세스 (새 파이프라인):</p>
+              <p className="text-sm font-semibold text-blue-300">자동화 프로세스:</p>
               <ol className="mt-2 space-y-1 text-sm text-blue-200">
                 <li>1. 🛒 쿠팡 베스트셀러 상품 가져오기</li>
-                <li>2. 🔤 상품명 → 중국어 키워드 번역 (GPT-4)</li>
-                <li>3. 🔍 Douyin에서 중국어 키워드로 영상 검색</li>
-                <li>4. 📥 영상 다운로드 (워터마크 없는 영상)</li>
-                <li>5. 🔊 한국어 TTS 음성 생성 (예정)</li>
-                <li>6. 📝 자막 + 쿠팡링크 합성 (예정)</li>
-                <li>7. ⬆️ YouTube/Instagram/TikTok 업로드 (예정)</li>
+                <li>2. 🔤 상품명 → 키워드 분석 (GPT-4)</li>
+                <li>3. 📥 영상 콘텐츠 수집</li>
+                <li>4. 🔊 한국어 TTS 음성 생성 (예정)</li>
+                <li>5. 📝 자막 + 쿠팡링크 합성 (예정)</li>
+                <li>6. ⬆️ YouTube/Instagram/TikTok 업로드 (예정)</li>
               </ol>
             </div>
             <div className="mt-3 rounded-lg bg-emerald-500/20 p-3 text-xs text-emerald-300">
-              💡 베스트 전략: 한국에서 잘 팔리는 상품 → 중국 영상 찾기 → 한국어로 재편집
+              💡 베스트 전략: 한국에서 잘 팔리는 상품 자동 분석 및 쇼츠 제작
             </div>
           </section>
 
@@ -1226,7 +1180,7 @@ export default function CoupangPartnersPage() {
                   className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  각 상품당 Douyin에서 검색할 영상 개수 (1-5)
+                  각 상품당 생성할 영상 개수 (1-5)
                 </p>
               </div>
 
@@ -1314,49 +1268,6 @@ export default function CoupangPartnersPage() {
             </div>
           </section>
 
-          {/* Douyin Direct Download */}
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-            <h2 className="mb-4 text-xl font-bold text-white">🎬 영상 크롤링 (Douyin URL)</h2>
-
-            <div className="mb-4 rounded-lg bg-blue-500/20 p-3 text-sm text-blue-300">
-              💡 Douyin 링크를 입력하면 워터마크 없는 고화질 영상을 다운로드합니다
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">
-                  Douyin Video URL
-                </label>
-                <input
-                  type="text"
-                  value={douyinUrl}
-                  onChange={(e) => setDouyinUrl(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && downloadDouyinVideo()}
-                  placeholder="https://www.douyin.com/video/..."
-                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  Douyin 영상 링크를 붙여넣으세요
-                </p>
-              </div>
-
-              <button
-                onClick={downloadDouyinVideo}
-                disabled={isDownloading || !douyinUrl.trim()}
-                className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-3 font-bold text-white transition hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50"
-              >
-                {isDownloading ? '⏳ 다운로드 중...' : '📥 영상 다운로드'}
-              </button>
-
-              {downloadedVideo && (
-                <div className="rounded-lg bg-emerald-500/20 p-4">
-                  <p className="text-sm font-semibold text-emerald-300">✅ 다운로드 완료</p>
-                  <p className="mt-1 text-xs text-emerald-200 break-all">{downloadedVideo}</p>
-                </div>
-              )}
-            </div>
-          </section>
-
           {/* Task Progress */}
           {currentTask && (
             <section className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
@@ -1427,7 +1338,7 @@ export default function CoupangPartnersPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h3 className="font-semibold text-white">
-                          {result.product_info?.product_name_ko || result.douyin_video?.title?.substring(0, 50)}
+                          {result.product_info?.product_name_ko || '상품 정보'}
                         </h3>
                         {result.coupang_product && (
                           <div className="mt-2 text-sm">

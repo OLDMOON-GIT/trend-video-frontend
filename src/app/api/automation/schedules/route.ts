@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { titleId, scheduledTime, youtubePublishTime, forceExecute } = body;
+    const { titleId, scheduledTime, youtubePublishTime, youtubePrivacy, forceExecute } = body;
 
     if (!titleId || !scheduledTime) {
       return NextResponse.json({ error: 'Title ID and scheduled time are required' }, { status: 400 });
@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
     const scheduleId = addSchedule({
       titleId,
       scheduledTime,
-      youtubePublishTime
+      youtubePublishTime,
+      youtubePrivacy: youtubePrivacy || 'public'
     });
 
     return NextResponse.json({ success: true, scheduleId });

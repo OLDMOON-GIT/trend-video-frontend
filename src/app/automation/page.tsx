@@ -35,7 +35,7 @@ function AutomationPageContent() {
     model: getSelectedModel(),
     youtubeSchedule: 'immediate',
     youtubePublishAt: '',
-    youtubePrivacy: 'public'
+    youtubePrivacy: getSelectedPrivacy()
   }));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
@@ -107,6 +107,15 @@ function AutomationPageContent() {
     return 'imagen3';
   }
 
+  // localStorage에서 선택한 공개 설정 불러오기
+  function getSelectedPrivacy(): string {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('automation_selected_privacy');
+      return saved || 'public';
+    }
+    return 'public';
+  }
+
   // 현재 시간을 datetime-local 형식으로 반환
   function getCurrentTimeForInput() {
     const now = new Date();
@@ -160,11 +169,17 @@ function AutomationPageContent() {
       if (prefillData) {
         try {
           const data = JSON.parse(prefillData);
+          console.log('🛍️ [상품관리 → 자동화] 정보 자동 입력:', data);
 
-          // 폼 열기
+          // productData를 별도로 저장 (대본 생성 시 사용)
+          if (data.productData) {
+            const productDataStr = JSON.stringify(data.productData);
+            localStorage.setItem('current_product_data', productDataStr);
+            console.log('✅ productData 저장 완료');
+          }
+
+          // 폼 열기 + 정보 채우기 (자동 시작 X)
           setShowAddForm(true);
-
-          // 폼에 상품 정보 미리 채우기
           setNewTitle(prev => ({
             ...prev,
             title: data.title ? `[광고] ${data.title}` : '[광고] ',
@@ -173,23 +188,15 @@ function AutomationPageContent() {
             tags: data.tags || '',
             productUrl: data.productUrl || '',
             scriptMode: 'chrome',
-            mediaMode: getSelectedMediaMode(), // localStorage에서 불러오기
-            model: getSelectedModel(), // localStorage에서 불러오기
+            mediaMode: getSelectedMediaMode(),
+            model: getSelectedModel(),
             youtubeSchedule: 'immediate'
           }));
-
-          // productData를 별도로 저장 (대본 생성 시 사용)
-          if (data.productData) {
-            const productDataStr = JSON.stringify(data.productData);
-            localStorage.setItem('current_product_data', productDataStr);
-            // state에도 저장하여 UI에 표시
-            setCurrentProductData(data.productData);
-          }
+          setCurrentProductData(data.productData);
 
           // 사용 후 삭제
           localStorage.removeItem('automation_prefill');
 
-          console.log('✅ 상품 정보가 폼에 자동 입력되었습니다:', data);
         } catch (error) {
           console.error('❌ 상품 정보 파싱 실패:', error);
         }
@@ -224,6 +231,50 @@ function AutomationPageContent() {
 
     return () => clearInterval(interval);
   }, [titles]);
+
+  // 소재찾기에서 전달받은 제목 자동 추가
+  useEffect(() => {
+    const from = searchParams.get('from');
+    if (from === 'material-suggestions') {
+      try {
+        const pendingTitles = localStorage.getItem('automation_pending_titles');
+        if (pendingTitles) {
+          const titlesToAdd = JSON.parse(pendingTitles);
+          console.log('📥 소재찾기에서 전달받은 제목:', titlesToAdd);
+
+          // localStorage 클리어
+          localStorage.removeItem('automation_pending_titles');
+
+          // 제목 추가 폼 표시
+          setShowAddForm(true);
+
+          // 제목이 있으면 첫 번째 제목을 입력 폼에 설정
+          if (titlesToAdd.length > 0) {
+            setNewTitle(prev => ({
+              ...prev,
+              title: titlesToAdd[0]
+            }));
+
+            // 나머지 제목들은 순차적으로 추가
+            if (titlesToAdd.length > 1) {
+              setTimeout(async () => {
+                for (let i = 1; i < titlesToAdd.length; i++) {
+                  await addTitle(titlesToAdd[i], true);
+                  await new Promise(resolve => setTimeout(resolve, 500)); // 500ms 대기
+                }
+                await fetchData();
+                alert(`✅ ${titlesToAdd.length}개 제목이 자동으로 추가되었습니다!`);
+              }, 1000);
+            } else {
+              alert(`✅ 1개 제목이 입력 폼에 추가되었습니다. 설정 후 등록하세요!`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('제목 자동 추가 오류:', error);
+      }
+    }
+  }, [searchParams]);
 
   async function fetchChannels() {
     try {
@@ -333,19 +384,23 @@ function AutomationPageContent() {
     }
   }
 
-  async function addTitle() {
-    // 중복 제출 방지
-    if (isSubmitting) {
+  async function addTitle(customTitle?: string, autoMode: boolean = false) {
+    // 중복 제출 방지 (강화) - 자동 모드는 예외
+    if (isSubmitting && !autoMode) {
       console.warn('⚠️ 이미 제목 추가 중입니다. 중복 제출을 방지합니다.');
       return;
     }
 
-    if (!newTitle.title || !newTitle.type) {
-      alert('제목과 타입은 필수입니다');
+    const titleToAdd = customTitle || newTitle.title;
+
+    if (!titleToAdd || !newTitle.type) {
+      if (!autoMode) {
+        alert('제목과 타입은 필수입니다');
+      }
       return;
     }
 
-    if (titleError) {
+    if (titleError && !autoMode) {
       alert(titleError);
       return;
     }
@@ -380,7 +435,7 @@ function AutomationPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: newTitle.title,
+          title: titleToAdd,
           type: newTitle.type,
           category: newTitle.category,
           tags: newTitle.tags,
@@ -410,30 +465,37 @@ function AutomationPageContent() {
         );
       }
 
-      saveRecentTitle(newTitle.title);
+      saveRecentTitle(titleToAdd);
 
-      // 다음 제목 추가 시에도 동일한 채널 유지 (localStorage에 저장됨)
-      const currentChannel = newTitle.channel;
+      // 자동 모드가 아닐 때만 폼 초기화
+      if (!autoMode) {
+        // 다음 제목 추가 시에도 동일한 채널 유지 (localStorage에 저장됨)
+        const currentChannel = newTitle.channel;
 
-      setNewTitle({
-        title: '',
-        type: getSelectedType(), // localStorage에서 불러온 타입 유지
-        category: getSelectedCategory(), // localStorage에서 불러온 카테고리 유지
-        tags: '',
-        productUrl: '',
-        scheduleTime: '',
-        channel: currentChannel, // 현재 선택된 채널 유지
-        scriptMode: 'chrome',
-        mediaMode: getSelectedMediaMode(), // localStorage에서 불러온 미디어 모드 유지
-        youtubeSchedule: 'immediate',
-        youtubePublishAt: '',
-        youtubePrivacy: 'public',
-        model: getSelectedModel() // localStorage에서 불러온 모델 유지
-      });
-      setShowAddForm(false);
-      setCurrentProductData(null); // 상품정보 초기화
+        setNewTitle({
+          title: '',
+          type: getSelectedType(), // localStorage에서 불러온 타입 유지
+          category: getSelectedCategory(), // localStorage에서 불러온 카테고리 유지
+          tags: '',
+          productUrl: '',
+          scheduleTime: '',
+          channel: currentChannel, // 현재 선택된 채널 유지
+          scriptMode: 'chrome',
+          mediaMode: getSelectedMediaMode(), // localStorage에서 불러온 미디어 모드 유지
+          youtubeSchedule: 'immediate',
+          youtubePublishAt: '',
+          youtubePrivacy: getSelectedPrivacy(), // localStorage에서 불러온 공개 설정 유지
+          model: getSelectedModel() // localStorage에서 불러온 모델 유지
+        });
+        setShowAddForm(false);
+        setCurrentProductData(null); // 상품정보 초기화
+      }
+
       await fetchData();
-      setQueueTab('scheduled'); // 예약 큐 탭으로 자동 전환
+
+      if (!autoMode) {
+        setQueueTab('scheduled'); // 예약 큐 탭으로 자동 전환
+      }
     } catch (error) {
       console.error('Failed to add title:', error);
     } finally {
@@ -982,13 +1044,13 @@ function AutomationPageContent() {
       formData.append('scheduleId', scheduleId);
       formData.append('scriptId', scriptId);
 
-      // 이미지 파일 추가
-      images.forEach((file) => {
+      // 동영상 파일 먼저 추가 (scene_0부터 시작)
+      videos.forEach((file) => {
         formData.append(`media`, file);
       });
 
-      // 동영상 파일 추가
-      videos.forEach((file) => {
+      // 이미지 파일 나중에 추가
+      images.forEach((file) => {
         formData.append(`media`, file);
       });
 
@@ -1019,7 +1081,7 @@ function AutomationPageContent() {
         setExpandedLogsFor(titleId);
 
         await fetchData();
-        setQueueTab('waiting_upload'); // 업로드 대기 탭으로 자동 전환
+        setQueueTab('processing'); // 업로드 성공 후 바로 진행 큐로 전환
 
         // 영상 제작 시작 (대본 작성/이미지 생성 건너뛰고 바로 영상 생성)
         const titleInfo = titles.find((t: any) => t.id === titleId);
@@ -1036,7 +1098,26 @@ function AutomationPageContent() {
           }
           const { storyJson } = await storyRes.json();
 
-          // 2. 영상 생성 API 호출 (내부 요청 형식)
+          // 2. 스케줄 상태를 'processing'으로 변경
+          const updateRes = await fetch(`/api/automation/schedules`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              id: scheduleId,
+              status: 'processing'
+            })
+          });
+
+          if (!updateRes.ok) {
+            console.error('❌ 스케줄 상태 업데이트 실패');
+          } else {
+            console.log('✅ 스케줄 상태를 processing으로 변경');
+          }
+
+          await fetchData(); // 상태 업데이트 후 데이터 새로고침
+
+          // 3. 영상 생성 API 호출 (내부 요청 형식)
           const videoRes = await fetch('/api/generate-video-upload', {
             method: 'POST',
             headers: {
@@ -1063,13 +1144,13 @@ function AutomationPageContent() {
 
             // 영상 제작 실패 시 스케줄 상태를 failed로 변경
             try {
-              await fetch(`/api/automation/schedules/${scheduleId}`, {
+              await fetch(`/api/automation/schedules`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({
-                  status: 'failed',
-                  error: videoData.error || '영상 제작 실패'
+                  id: scheduleId,
+                  status: 'failed'
                 })
               });
               await fetchData();
@@ -1084,13 +1165,13 @@ function AutomationPageContent() {
 
         // 미디어 업로드 실패 시 스케줄 상태를 failed로 변경
         try {
-          await fetch(`/api/automation/schedules/${scheduleId}`, {
+          await fetch(`/api/automation/schedules`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({
-              status: 'failed',
-              error: data.error || '미디어 업로드 실패'
+              id: scheduleId,
+              status: 'failed'
             })
           });
           await fetchData();
@@ -1104,13 +1185,13 @@ function AutomationPageContent() {
 
       // 예외 발생 시 스케줄 상태를 failed로 변경
       try {
-        await fetch(`/api/automation/schedules/${scheduleId}`, {
+        await fetch(`/api/automation/schedules`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            status: 'failed',
-            error: error instanceof Error ? error.message : '알 수 없는 오류'
+            id: scheduleId,
+            status: 'failed'
           })
         });
         await fetchData();
@@ -1421,7 +1502,11 @@ function AutomationPageContent() {
                     <label className="text-xs text-slate-400 block mb-1">공개 설정</label>
                     <select
                       value={newTitle.youtubePrivacy}
-                      onChange={(e) => setNewTitle(prev => ({ ...prev, youtubePrivacy: e.target.value }))}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewTitle(prev => ({ ...prev, youtubePrivacy: value }));
+                        localStorage.setItem('automation_selected_privacy', value);
+                      }}
                       className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                     >
                       <option value="public">🌐 공개 (Public)</option>
@@ -1465,7 +1550,7 @@ function AutomationPageContent() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={addTitle}
+                  onClick={() => addTitle()}
                   disabled={isSubmitting}
                   className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition"
                 >
@@ -1489,7 +1574,8 @@ function AutomationPageContent() {
                       mediaMode: getSelectedMediaMode(), // localStorage에서 불러온 미디어 모드 유지
                       model: getSelectedModel(), // localStorage에서 불러온 모델 유지
                       youtubeSchedule: 'immediate',
-                      youtubePublishAt: ''
+                      youtubePublishAt: '',
+                      youtubePrivacy: getSelectedPrivacy() // localStorage에서 불러온 공개 설정 유지
                     });
                   }}
                   className="flex-1 px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
@@ -1631,16 +1717,24 @@ function AutomationPageContent() {
               ) : (
                 titles
                   .filter((title: any) => {
+                    // 제목에 연결된 스케줄 조회
+                    const titleSchedules = schedules.filter(s => s.title_id === title.id);
+
                     if (queueTab === 'scheduled') {
-                      return ['scheduled', 'pending'].includes(title.status);
+                      // 스케줄이 하나라도 scheduled/pending 상태면 표시
+                      return titleSchedules.some(s => ['scheduled', 'pending'].includes(s.status));
                     } else if (queueTab === 'processing') {
-                      return title.status === 'processing';
+                      // 스케줄이 하나라도 processing 상태면 표시
+                      return titleSchedules.some(s => s.status === 'processing');
                     } else if (queueTab === 'waiting_upload') {
-                      return title.status === 'waiting_for_upload';
+                      // 스케줄이 하나라도 waiting_for_upload 상태면 표시
+                      return titleSchedules.some(s => s.status === 'waiting_for_upload');
                     } else if (queueTab === 'failed') {
-                      return title.status === 'failed';
+                      // 스케줄이 하나라도 failed 상태면 표시
+                      return titleSchedules.some(s => s.status === 'failed');
                     } else if (queueTab === 'completed') {
-                      return title.status === 'completed';
+                      // 스케줄이 하나라도 completed 상태면 표시
+                      return titleSchedules.some(s => s.status === 'completed');
                     }
                     return true;
                   })

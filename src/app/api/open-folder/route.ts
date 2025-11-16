@@ -82,17 +82,29 @@ async function handleOpenFolder(request: NextRequest) {
                 contentStr = contentStr.substring(jsonStart);
               }
 
-              const scriptData = JSON.parse(contentStr);
+              // 빈 content 체크
+              if (!contentStr || contentStr.length === 0 || !contentStr.includes('{')) {
+                console.warn(`⚠️ 대본 content가 비어있거나 JSON이 아님: ${scriptId}`);
+                // 빈 폴더만 생성
+                console.log(`✅ 빈 폴더 생성 완료: ${folderPath}`);
+              } else {
+                try {
+                  const scriptData = JSON.parse(contentStr);
 
-              // story.json 파일 생성
-              const storyJson = {
-                ...scriptData,
-                scenes: scriptData.scenes || []
-              };
+                  // story.json 파일 생성
+                  const storyJson = {
+                    ...scriptData,
+                    scenes: scriptData.scenes || []
+                  };
 
-              const storyJsonPath = path.join(folderPath, 'story.json');
-              fs.writeFileSync(storyJsonPath, JSON.stringify(storyJson, null, 2), 'utf-8');
-              console.log(`✅ 폴더와 story.json 생성 완료: ${folderPath}`);
+                  const storyJsonPath = path.join(folderPath, 'story.json');
+                  fs.writeFileSync(storyJsonPath, JSON.stringify(storyJson, null, 2), 'utf-8');
+                  console.log(`✅ 폴더와 story.json 생성 완료: ${folderPath}`);
+                } catch (parseError: any) {
+                  console.error(`⚠️ JSON 파싱 실패: ${parseError.message}`);
+                  console.log(`✅ 빈 폴더만 생성 완료: ${folderPath}`);
+                }
+              }
             } else {
               console.warn(`⚠️ 스크립트를 찾을 수 없음: ${scriptId}, 빈 폴더만 생성`);
             }

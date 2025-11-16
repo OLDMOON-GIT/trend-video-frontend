@@ -98,10 +98,74 @@ export async function POST(request: NextRequest) {
       console.log(`[Upload Media] Created story.json in ${scriptFolderPath}`);
     }
 
+    // 기존 생성된 scene 파일들 삭제 (업로드된 파일이 우선순위)
+    try {
+      const existingFiles = fs.readdirSync(scriptFolderPath);
+      const sceneFiles = existingFiles.filter(f => /^scene_\d+\.(png|jpg|jpeg|webp|mp4)$/i.test(f));
+
+      if (sceneFiles.length > 0) {
+        console.log(`[Upload Media] 기존 scene 파일 ${sceneFiles.length}개 삭제 중...`);
+        for (const sceneFile of sceneFiles) {
+          const sceneFilePath = path.join(scriptFolderPath, sceneFile);
+          fs.unlinkSync(sceneFilePath);
+          console.log(`[Upload Media] 삭제됨: ${sceneFile}`);
+        }
+      }
+    } catch (error: any) {
+      console.warn(`[Upload Media] 기존 scene 파일 삭제 중 오류 (무시): ${error.message}`);
+    }
+
+    // story.json에서 씬 개수 확인
+    let sceneCount = 0;
+    try {
+      const storyJsonPath = path.join(scriptFolderPath, 'story.json');
+      if (fs.existsSync(storyJsonPath)) {
+        const storyData = JSON.parse(fs.readFileSync(storyJsonPath, 'utf-8'));
+        sceneCount = storyData.scenes?.length || 0;
+        console.log(`[Upload Media] 씬 개수: ${sceneCount}`);
+      }
+    } catch (error: any) {
+      console.warn(`[Upload Media] story.json 읽기 실패 (무시): ${error.message}`);
+    }
+
+    // 영상+이미지가 함께 있고, 미디어가 씬보다 많을 때만 첫 이미지를 썸네일로 분리
+    const hasVideo = videos.length > 0;
+    const hasImage = images.length > 0;
+    let thumbnailFile: File | null = null;
+    let sceneMediaFiles = mediaFiles;
+
+    if (hasVideo && hasImage && mediaFiles.length > sceneCount && sceneCount > 0) {
+      // 첫 번째 이미지 찾기 (비디오가 앞에 있어도 상관없음)
+      const firstImageIndex = mediaFiles.findIndex(f => f.type.startsWith('image/'));
+
+      if (firstImageIndex !== -1) {
+        thumbnailFile = mediaFiles[firstImageIndex];
+        // 첫 번째 이미지를 제외한 나머지
+        sceneMediaFiles = [
+          ...mediaFiles.slice(0, firstImageIndex),
+          ...mediaFiles.slice(firstImageIndex + 1)
+        ];
+        console.log(`[Upload Media] 📌 썸네일 분리: 영상+이미지 있고 미디어(${mediaFiles.length}) > 씬(${sceneCount})`);
+        console.log(`[Upload Media]    🖼️ 썸네일: ${thumbnailFile.name}`);
+        console.log(`[Upload Media]    📹 씬 미디어: ${sceneMediaFiles.length}개`);
+      }
+    } else {
+      console.log(`[Upload Media] 📌 썸네일 분리 안 함: 영상(${hasVideo}), 이미지(${hasImage}), 미디어(${mediaFiles.length}) vs 씬(${sceneCount})`);
+    }
+
+    // 썸네일 저장
+    if (thumbnailFile) {
+      const buffer = Buffer.from(await thumbnailFile.arrayBuffer());
+      const ext = path.extname(thumbnailFile.name) || '.jpg';
+      const thumbnailPath = path.join(scriptFolderPath, `thumbnail${ext}`);
+      fs.writeFileSync(thumbnailPath, buffer);
+      console.log(`[Upload Media] 💾 Saved 🖼️ Thumbnail: thumbnail${ext}`);
+    }
+
     // 미디어 파일 저장 (이미지 + 비디오 통합 시퀀스)
     let savedCount = 0;
-    for (let i = 0; i < mediaFiles.length; i++) {
-      const file = mediaFiles[i];
+    for (let i = 0; i < sceneMediaFiles.length; i++) {
+      const file = sceneMediaFiles[i];
       const buffer = Buffer.from(await file.arrayBuffer());
 
       // 파일명 결정: scene_0, scene_1, ...
@@ -119,12 +183,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Upload Media] Completed: ${savedCount} files saved to ${scriptFolderPath}`);
 
+    const thumbnailMsg = thumbnailFile ? ` + 썸네일 1개` : '';
     return NextResponse.json({
       success: true,
       count: savedCount,
       images: images.length,
       videos: videos.length,
-      message: `${savedCount}개 파일이 업로드되었습니다. (이미지: ${images.length}, 동영상: ${videos.length})`
+      hasThumbnail: !!thumbnailFile,
+      message: `${savedCount}개 파일이 업로드되었습니다${thumbnailMsg}. (이미지: ${images.length}, 동영상: ${videos.length})`
     });
 
   } catch (error: any) {

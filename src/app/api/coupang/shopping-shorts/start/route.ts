@@ -79,12 +79,12 @@ export async function POST(request: NextRequest) {
       status: 'running',
       progress: '파이프라인 시작 중...',
       startTime: new Date().toISOString(),
-      logs: [`[${new Date().toISOString()}] 쿠팡 → Douyin 쇼츠 자동화 파이프라인 시작`]
+      logs: [`[${new Date().toISOString()}] 쇼핑 쇼츠 자동화 파이프라인 시작`]
     };
     await saveTaskStatus(taskId, initialStatus);
 
     // Python 스크립트 경로 (새 파이프라인)
-    const scriptPath = path.join(BACKEND_DIR, 'src', 'pipelines', 'coupang_to_douyin_pipeline.py');
+    const scriptPath = path.join(BACKEND_DIR, 'src', 'pipelines', 'coupang_shorts_pipeline.py');
 
     // Python 프로세스 실행
     const pythonProcess = spawn('python', [
@@ -117,8 +117,8 @@ export async function POST(request: NextRequest) {
         currentStatus.progress = '쿠팡 베스트셀러 가져오는 중...';
       } else if (log.includes('Step 2:') || log.includes('상품명 번역')) {
         currentStatus.progress = '상품명 중국어로 번역 중...';
-      } else if (log.includes('Step 3:') || log.includes('Douyin 영상 검색')) {
-        currentStatus.progress = 'Douyin 영상 검색 중...';
+      } else if (log.includes('Step 3:') || log.includes('영상 검색')) {
+        currentStatus.progress = '영상 콘텐츠 수집 중...';
       } else if (log.includes('Step 4:') || log.includes('영상 다운로드')) {
         currentStatus.progress = '영상 다운로드 중...';
       } else if (log.includes('Step 5:') || log.includes('TTS')) {
