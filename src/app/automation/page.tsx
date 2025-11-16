@@ -2899,6 +2899,74 @@ function AutomationPageContent() {
         </div>
 
       </div>
+
+      {/* 테스트 로그 모달 */}
+      {testModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 rounded-lg shadow-2xl border border-slate-700 max-w-4xl w-full max-h-[80vh] flex flex-col">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-700">
+              <h3 className="text-lg font-semibold text-white">🧪 자동 제목 생성 테스트</h3>
+              <button
+                onClick={() => setTestModalOpen(false)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 로그 영역 */}
+            <div className="flex-1 overflow-y-auto p-4 bg-slate-950 font-mono text-sm">
+              {testLogs.length === 0 && testInProgress && (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                  <span>테스트 시작 중...</span>
+                </div>
+              )}
+              {testLogs.map((log, idx) => (
+                <div
+                  key={idx}
+                  className={`mb-1 ${
+                    log.includes('❌') || log.includes('실패')
+                      ? 'text-red-400'
+                      : log.includes('✅') || log.includes('성공')
+                      ? 'text-green-400'
+                      : log.includes('⚠️')
+                      ? 'text-yellow-400'
+                      : log.includes('🔍') || log.includes('📋')
+                      ? 'text-blue-400'
+                      : log.includes('🤖')
+                      ? 'text-purple-400'
+                      : 'text-slate-300'
+                  }`}
+                >
+                  {log}
+                </div>
+              ))}
+            </div>
+
+            {/* 모달 푸터 */}
+            <div className="p-4 border-t border-slate-700 flex justify-between items-center">
+              <div className="text-sm text-slate-400">
+                {testInProgress ? (
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                    테스트 진행 중...
+                  </span>
+                ) : (
+                  <span>테스트 완료</span>
+                )}
+              </div>
+              <button
+                onClick={() => setTestModalOpen(false)}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
