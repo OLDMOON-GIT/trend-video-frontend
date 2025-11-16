@@ -38,6 +38,9 @@ export async function POST(request: NextRequest) {
 
     let existingJobId: string | undefined;
 
+    // 미디어 파일 임시 저장용 (요청별 로컬 변수로 동시성 문제 방지)
+    let tempMediaFiles: Array<{ file: File; mediaType: 'image' | 'video' }> = [];
+
     if (isInternal) {
       // 내부 요청: JSON으로 받음
       const body = await request.json();
@@ -111,13 +114,12 @@ export async function POST(request: NextRequest) {
         console.log('🖼️ 썸네일 파일 수신:', thumbnailFile.name);
       }
 
-      // 미디어 파일을 저장할 배열 생성 (일반 요청용)
-      (global as any).tempMediaFiles = [];
+      // 미디어 파일을 로컬 배열에 저장 (요청 컨텍스트 분리로 동시성 문제 방지)
       for (let i = 0; i < 100; i++) {
         const media = formDataGeneral.get(`media_${i}`) as File;
         if (media) {
           const mediaType: 'image' | 'video' = media.type.startsWith('image/') ? 'image' : 'video';
-          (global as any).tempMediaFiles.push({ file: media, mediaType });
+          tempMediaFiles.push({ file: media, mediaType });
         }
       }
 
@@ -163,11 +165,10 @@ export async function POST(request: NextRequest) {
     type MediaFile = File & { mediaType: 'image' | 'video' };
     let allMediaFiles: MediaFile[] = [];
 
-    if (!isInternal && (global as any).tempMediaFiles) {
-      allMediaFiles = (global as any).tempMediaFiles.map((item: any) =>
+    if (!isInternal && tempMediaFiles.length > 0) {
+      allMediaFiles = tempMediaFiles.map((item) =>
         Object.assign(item.file, { mediaType: item.mediaType })
       );
-      delete (global as any).tempMediaFiles;
 
       console.log('📷 수신된 미디어 순서 (Frontend 정렬 그대로 유지):');
       allMediaFiles.forEach((f, i) => {
@@ -426,7 +427,7 @@ async function generateVideoFromUpload(
       await addJobLog(jobId, `\n🖼️ 썸네일 파일 저장: thumbnail.${ext}`);
       console.log(`✅ 썸네일 파일 저장됨: ${thumbnailPath}`);
     } else if (config.useThumbnailFromFirstImage && config.scriptId) {
-      // 자동화 요청: 첫 번째 이미지를 썸네일로 복사
+      // 자동화 요청: 첫 번째 이미지를 썸네일로 이동 (씬에서 제외)
       try {
         const files = await fs.readdir(config.inputPath);
         const sortedImages = files
@@ -439,13 +440,13 @@ async function generateVideoFromUpload(
           const sourcePath = path.join(config.inputPath, firstImage);
           const thumbnailPath = path.join(config.inputPath, `thumbnail.${ext}`);
 
-          // 파일 복사 (scene_0는 유지, 썸네일은 별도로 저장)
-          await fs.copyFile(sourcePath, thumbnailPath);
-          await addJobLog(jobId, `\n🖼️ [자동화] 첫 번째 이미지를 썸네일로 복사: ${firstImage} → thumbnail.${ext}`);
-          console.log(`✅ [자동화] 썸네일 복사됨: ${firstImage} → thumbnail.${ext}`);
+          // 파일 이동 (scene_0를 thumbnail로 변경, 씬에서 제외됨)
+          await fs.rename(sourcePath, thumbnailPath);
+          await addJobLog(jobId, `\n🖼️ [자동화] 첫 번째 이미지를 썸네일로 이동: ${firstImage} → thumbnail.${ext} (씬에서 제외)`);
+          console.log(`✅ [자동화] 썸네일 이동됨: ${firstImage} → thumbnail.${ext} (씬에서 제외)`);
         }
       } catch (error) {
-        console.warn('⚠️ 자동화 썸네일 복사 실패:', error);
+        console.warn('⚠️ 자동화 썸네일 이동 실패:', error);
       }
     }
 
