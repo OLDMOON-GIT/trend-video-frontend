@@ -172,8 +172,8 @@ function AutomationPageContent() {
             tags: data.tags || '',
             productUrl: data.productUrl || '',
             scriptMode: 'chrome',
-            mediaMode: 'imagen3',
-            model: 'gpt-4o',
+            mediaMode: getSelectedMediaMode(), // localStorage에서 불러오기
+            model: getSelectedModel(), // localStorage에서 불러오기
             youtubeSchedule: 'immediate'
           }));
 
@@ -838,15 +838,50 @@ function AutomationPageContent() {
       // API 호출하여 파일 다운로드
       const url = `/api/automation/download?scriptId=${encodeURIComponent(scriptId)}&type=${type}&title=${encodeURIComponent(title)}`;
 
-      // 숨겨진 a 태그를 만들어서 클릭 (페이지 이동 없이 다운로드)
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
+
+      // 에러 응답 체크
+      if (!response.ok) {
+        const contentType = response.headers.get('Content-Type');
+        if (contentType?.includes('application/json')) {
+          const error = await response.json();
+          alert(`다운로드 실패: ${error.error || '알 수 없는 오류'}`);
+          return;
+        }
+        alert(`다운로드 실패: ${response.status} ${response.statusText}`);
+        return;
+      }
+
+      // Content-Type이 JSON인 경우 (에러 응답)
+      const contentType = response.headers.get('Content-Type');
+      if (contentType?.includes('application/json') && !contentType?.includes('attachment')) {
+        const data = await response.json();
+        if (data.error) {
+          alert(`다운로드 실패: ${data.error}`);
+          return;
+        }
+      }
+
+      // 파일 다운로드
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = '';
+      a.href = downloadUrl;
+
+      // Content-Disposition에서 파일명 추출
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const fileNameMatch = contentDisposition?.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?;?/);
+      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `${title}_${type}.zip`;
+
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
 
-      console.log(`✅ ${typeLabels[type]} 다운로드 요청 완료`);
+      console.log(`✅ ${typeLabels[type]} 다운로드 완료`);
     } catch (error) {
       console.error('Download error:', error);
       alert('다운로드 중 오류가 발생했습니다.');
@@ -1010,13 +1045,64 @@ function AutomationPageContent() {
             console.log('✅ [영상 제작] 성공:', videoData.jobId);
           } else {
             console.error('❌ [영상 제작] 실패:', videoData.error);
+
+            // 영상 제작 실패 시 스케줄 상태를 failed로 변경
+            try {
+              await fetch(`/api/automation/schedules/${scheduleId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  status: 'failed',
+                  error: videoData.error || '영상 제작 실패'
+                })
+              });
+              await fetchData();
+              setQueueTab('failed'); // 실패 탭으로 전환
+            } catch (updateError) {
+              console.error('❌ 상태 업데이트 실패:', updateError);
+            }
           }
         }
       } else {
         console.error('❌ 업로드 실패:', data.error || '알 수 없는 오류');
+
+        // 미디어 업로드 실패 시 스케줄 상태를 failed로 변경
+        try {
+          await fetch(`/api/automation/schedules/${scheduleId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              status: 'failed',
+              error: data.error || '미디어 업로드 실패'
+            })
+          });
+          await fetchData();
+          setQueueTab('failed'); // 실패 탭으로 전환
+        } catch (updateError) {
+          console.error('❌ 상태 업데이트 실패:', updateError);
+        }
       }
     } catch (error) {
       console.error('❌ Image upload error:', error);
+
+      // 예외 발생 시 스케줄 상태를 failed로 변경
+      try {
+        await fetch(`/api/automation/schedules/${scheduleId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            status: 'failed',
+            error: error instanceof Error ? error.message : '알 수 없는 오류'
+          })
+        });
+        await fetchData();
+        setQueueTab('failed'); // 실패 탭으로 전환
+      } catch (updateError) {
+        console.error('❌ 상태 업데이트 실패:', updateError);
+      }
     } finally {
       setUploadingFor(null);
     }
@@ -1357,15 +1443,15 @@ function AutomationPageContent() {
                     const currentChannel = newTitle.channel;
                     setNewTitle({
                       title: '',
-                      type: 'longform',
-                      category: '',
+                      type: getSelectedType(), // localStorage에서 불러온 타입 유지
+                      category: getSelectedCategory(), // localStorage에서 불러온 카테고리 유지
                       tags: '',
                       productUrl: '',
                       scheduleTime: '',
                       channel: currentChannel, // 현재 선택된 채널 유지
                       scriptMode: 'chrome',
-                      mediaMode: 'imagen3',
-                      model: 'gpt-4o',
+                      mediaMode: getSelectedMediaMode(), // localStorage에서 불러온 미디어 모드 유지
+                      model: getSelectedModel(), // localStorage에서 불러온 모델 유지
                       youtubeSchedule: 'immediate',
                       youtubePublishAt: ''
                     });
@@ -1598,6 +1684,39 @@ function AutomationPageContent() {
                               onChange={(e) => setEditForm({ ...editForm, product_url: e.target.value })}
                               className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                             />
+                          </div>
+                        )}
+
+                        {/* 상품정보 (product-info 타입일 때만) */}
+                        {editForm.type === 'product-info' && (
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-1">상품 정보</label>
+                            {editForm.product_data ? (
+                              <div className="w-full px-4 py-3 bg-emerald-900/30 text-emerald-200 rounded-lg border border-emerald-500/50">
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-emerald-400 font-semibold">상품명:</span>
+                                    <p className="text-white mt-1">{editForm.product_data.productName || editForm.title}</p>
+                                  </div>
+                                  {editForm.product_data.productPrice && (
+                                    <div>
+                                      <span className="text-emerald-400 font-semibold">가격:</span>
+                                      <p className="text-white mt-1">{editForm.product_data.productPrice}</p>
+                                    </div>
+                                  )}
+                                  {editForm.product_data.productUrl && (
+                                    <div className="col-span-2">
+                                      <span className="text-emerald-400 font-semibold">URL:</span>
+                                      <p className="text-white mt-1 text-xs break-all">{editForm.product_data.productUrl}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full px-4 py-2 bg-slate-700 text-slate-400 rounded-lg border border-slate-600 text-sm">
+                                상품 정보가 없습니다
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -2230,7 +2349,7 @@ function AutomationPageContent() {
                             acceptJson={false}
                             acceptImages={true}
                             acceptVideos={true}
-                            mode={title.type === 'shortform' ? 'shortform' : 'longform'}
+                            mode={title.type === 'longform' ? 'longform' : 'shortform'}
                             maxImages={50}
                           />
 
