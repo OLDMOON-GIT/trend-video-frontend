@@ -198,7 +198,7 @@ export async function POST(
       }
     }
 
-    console.log('\n🎬 ========== 숏폼 변환 시작 (각 씬 50 words) ==========');
+    console.log('\n🎬 ========== 숏폼 변환 시작 (3분 분량으로 요약) ==========');
     console.log('📋 원본 대본 내용:\n');
 
     // 원본 대본 출력 (처음 1000자)
@@ -214,37 +214,50 @@ export async function POST(
       console.log(`   (대본 미리보기 실패)\n`);
     }
 
+    // 원본 씬 개수 확인
+    const originalData = JSON.parse(scriptContent);
+    const numScenes = originalData.scenes?.length || 0;
+
+    // 3분 숏폼에 맞는 총 단어 수 계산
+    // TTS 속도: 약 150-180 words/min
+    // 3분 = 450-540 words
+    // 안전하게 500 words로 설정
+    const targetTotalWords = 500;
+    const wordsPerScene = Math.floor(targetTotalWords / numScenes);
+
+    console.log(`\n📊 대본 변환 계산:`);
+    console.log(`   원본 씬 개수: ${numScenes}개`);
+    console.log(`   목표 총 분량: ${targetTotalWords} words (약 3분)`);
+    console.log(`   씬당 분량: ${wordsPerScene} words\n`);
+
     console.log(`\n🤖 AI (${agentName}) 호출 중...\n`);
 
     // AI Aggregator로 숏폼 대본 생성
-    const prompt = `당신은 영상 대본을 숏폼으로 요약하는 전문가입니다.
+    const prompt = `당신은 영상 대본을 3분 숏폼으로 요약하는 전문가입니다.
 
 ⚠️ **절대적 규칙: 씬 개수를 절대 줄이지 마세요!**
-원본에 10개 씬이 있으면 숏폼도 반드시 10개 씬이어야 합니다.
-원본에 8개 씬이 있으면 숏폼도 반드시 8개 씬이어야 합니다.
+원본에 ${numScenes}개 씬이 있으면 숏폼도 반드시 ${numScenes}개 씬이어야 합니다.
+
+**전체 분량 목표:**
+- 총 ${targetTotalWords} words (약 3분 숏폼)
+- ${numScenes}개 씬 × ${wordsPerScene} words/씬 = ${targetTotalWords} words
 
 **작업 내용:**
-1. 원본 대본의 **모든 씬을 그대로 유지**
+1. 원본 대본의 **모든 ${numScenes}개 씬을 그대로 유지**
 2. 각 씬의 **나레이션만 요약**
 3. 씬 순서와 구조는 원본과 100% 동일하게
 
 **씬 개수 유지 (필수):**
-- 원본 씬 개수 확인 → 숏폼도 동일한 개수로 출력
+- 원본: ${numScenes}개 씬 → 숏폼: ${numScenes}개 씬 (정확히 일치)
 - 씬을 병합하거나 삭제하지 않음
 - 씬을 추가하지 않음
-- 예시: 원본 8개 씬 → 숏폼 8개 씬 (정확히 일치)
 
 **나레이션 요약 규칙:**
-1. 각 씬의 나레이션을 **정확히 50 단어(words)**로 요약
+1. 각 씬의 나레이션을 **정확히 ${wordsPerScene} 단어(words)**로 요약
 2. 원본 나레이션의 핵심 내용만 남김
 3. 감정과 임팩트는 유지
 4. 구어체, 짧은 문장 사용
-5. 단어 수 카운트: 50 words (띄어쓰기 기준)
-
-**예시:**
-- 원본 10개 씬 → 숏폼 10개 씬, 각 50 words
-- 원본 8개 씬 → 숏폼 8개 씬, 각 50 words
-- 원본 5개 씬 → 숏폼 5개 씬, 각 50 words
+5. 단어 수 카운트: ${wordsPerScene} words (띄어쓰기 기준)
 
 **출력 형식:**
 - 순수 JSON만 출력 (코드펜스, "JSON" 접두사 없음)
@@ -390,15 +403,19 @@ ${scriptContent}
 
     // 생성된 숏폼 대본 출력
     console.log(`\n✅ ${agentName.toUpperCase()} AI 응답 완료!\n`);
-    console.log('📋 생성된 숏폼 대본 (각 씬 50 words):\n');
+    console.log(`📋 생성된 숏폼 대본 (목표: ${wordsPerScene} words/씬):\n`);
     console.log(`   씬 개수: ${shortsScript.scenes?.length || 0}개`);
+
+    let totalWords = 0;
     if (shortsScript.scenes && shortsScript.scenes.length > 0) {
       shortsScript.scenes.forEach((scene: any, idx: number) => {
         const words = scene.narration?.split(/\s+/).length || 0;
+        totalWords += words;
         console.log(`\n   씬 ${idx + 1} (${words} words): ${scene.narration?.substring(0, 100) || '내용 없음'}...`);
       });
     }
-    console.log('\n');
+    console.log(`\n   📊 총 단어 수: ${totalWords} words (목표: ${targetTotalWords} words)`);
+    console.log(`   ⏱️ 예상 재생시간: ${(totalWords / 165).toFixed(1)}분 (TTS 속도 165 words/min 기준)\n`);
 
     // 새 작업 ID 먼저 생성
     const timestamp = Date.now();
