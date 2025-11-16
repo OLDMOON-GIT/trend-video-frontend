@@ -1995,59 +1995,65 @@ async function generateTitleWithMultiModelEvaluation(
   let logId: string | null = null;
 
   try {
+    // 제목 풀 사용 설정 확인
+    const settings = getAutomationSettings();
+    const useTitlePool = settings.use_title_pool === 'true';
+
     // 로그 시작
     logId = startAutoGenerationLog({
       userId,
       channelId,
       channelName,
       category,
-      step: '고품질 제목 풀 확인 중...'
+      step: useTitlePool ? '고품질 제목 풀 확인 중...' : 'AI로 제목 생성 준비 중...'
     });
 
-    // 🎯 1단계: 제목 풀에서 먼저 확인 (90점 이상)
-    console.log(`[TitlePool] Checking title pool for category "${category}"...`);
-    const poolTitle = getTitleFromPool(category, 90);
+    // 🎯 선택사항: 제목 풀 사용 (설정에 따라)
+    if (useTitlePool) {
+      console.log(`[TitlePool] Checking title pool for category "${category}"...`);
+      const poolTitle = getTitleFromPool(category, 90);
 
-    if (poolTitle) {
-      console.log(`[TitlePool] ✅ Found high-quality title from pool (score: ${poolTitle.score})`);
-      console.log(`[TitlePool] Title: "${poolTitle.title}"`);
+      if (poolTitle) {
+        console.log(`[TitlePool] ✅ Found high-quality title from pool (score: ${poolTitle.score})`);
+        console.log(`[TitlePool] Title: "${poolTitle.title}"`);
 
-      // 카테고리별 비디오 타입 결정
-      let videoType = 'longform';
-      if (category.includes('숏') || category === 'shortform' || category === 'Shorts') {
-        videoType = 'shortform';
-      }
+        // 카테고리별 비디오 타입 결정
+        let videoType = 'longform';
+        if (category.includes('숏') || category === 'shortform' || category === 'Shorts') {
+          videoType = 'shortform';
+        }
 
-      // video_titles에 추가
-      const titleId = addVideoTitle({
-        title: poolTitle.title,
-        type: videoType,
-        category,
-        channel: channelId,
-        scriptMode: 'chrome',
-        mediaMode: 'dalle3',
-        model: 'ollama-pool', // 풀에서 가져왔음을 표시
-        userId
-      });
-
-      // 로그 완료
-      if (logId) {
-        updateAutoGenerationLog(logId, {
-          status: 'completed',
-          step: '제목 풀에서 선택 완료 (비용 $0)',
-          bestTitle: poolTitle.title,
-          bestScore: poolTitle.score,
-          resultTitleId: titleId
+        // video_titles에 추가
+        const titleId = addVideoTitle({
+          title: poolTitle.title,
+          type: videoType,
+          category,
+          channel: channelId,
+          scriptMode: 'chrome',
+          mediaMode: 'dalle3',
+          model: 'ollama-pool', // 풀에서 가져왔음을 표시
+          userId
         });
+
+        // 로그 완료
+        if (logId) {
+          updateAutoGenerationLog(logId, {
+            status: 'completed',
+            step: '제목 풀에서 선택 완료 (비용 $0)',
+            bestTitle: poolTitle.title,
+            bestScore: poolTitle.score,
+            resultTitleId: titleId
+          });
+        }
+
+        return {
+          titleId,
+          title: poolTitle.title
+        };
       }
 
-      return {
-        titleId,
-        title: poolTitle.title
-      };
+      console.log(`[TitlePool] ⚠️ No high-quality titles in pool, falling back to AI generation...`);
     }
-
-    console.log(`[TitlePool] ⚠️ No high-quality titles in pool, generating with AI...`);
 
     // 카테고리별 기본 모델 결정
     let defaultModel = 'claude'; // 기본값

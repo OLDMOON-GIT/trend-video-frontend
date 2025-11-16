@@ -255,8 +255,8 @@ export async function POST(request: NextRequest) {
 
                 dbForInsert.prepare(`
                   INSERT INTO video_titles (
-                    title_id, user_id, title, category, type, status,
-                    channel_id, product_url, product_data, created_at
+                    id, user_id, title, category, type, status,
+                    channel, product_url, product_data, created_at
                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
                 `).run(
                   titleId,
