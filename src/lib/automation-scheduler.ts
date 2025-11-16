@@ -50,7 +50,7 @@ export function startAutomationScheduler() {
   const settings = getAutomationSettings();
   const enabled = settings.enabled === 'true';
   // 최소 3초 간격 (중복 실행 방지)
-  const checkInterval = Math.max(3, parseInt(settings.check_interval || '60')) * 1000;
+  const checkInterval = Math.max(3, parseInt(settings.check_interval || '10')) * 1000;
 
   if (!enabled) {
     console.log('⚠️ Automation is disabled in settings');
@@ -61,11 +61,14 @@ export function startAutomationScheduler() {
 
   // 즉시 한 번 실행
   processPendingSchedules();
+  checkAndCreateAutoSchedules(); // 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성
 
   // 주기적으로 실행
   schedulerInterval = setInterval(() => {
     processPendingSchedules();
     checkWaitingForUploadSchedules(); // 이미지 업로드 대기 중인 스케줄 체크
+    checkReadyToUploadSchedules(); // 영상 생성 완료되어 업로드 대기 중인 스케줄 체크
+    checkAndCreateAutoSchedules(); // 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성
   }, checkInterval);
 }
 
@@ -232,9 +235,134 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
     addTitleLog(schedule.title_id, 'info', `✅ Script generated successfully: ${scriptResult.scriptId}`);
 
     // ============================================================
+    // 상품 타입이면 상품설명 대본 자동 생성
+    // ============================================================
+    if (schedule.type === 'product' || schedule.type === 'product-info') {
+      addPipelineLog(scriptPipelineId, 'info', `🛍️ 상품 타입 감지 - 상품설명 대본 생성 시작...`);
+      addTitleLog(schedule.title_id, 'info', `🛍️ 상품설명 대본 생성 중...`);
+
+      try {
+        // 원본 스크립트 내용 읽기
+        addTitleLog(schedule.title_id, 'info', `📖 원본 스크립트 읽는 중...`);
+        const dbReadScript = new Database(dbPath);
+        const sourceScript = dbReadScript.prepare(`
+          SELECT content FROM contents WHERE id = ?
+        `).get(scriptResult.scriptId) as { content: string } | undefined;
+        dbReadScript.close();
+
+        if (!sourceScript || !sourceScript.content) {
+          throw new Error('원본 스크립트를 찾을 수 없습니다');
+        }
+        addTitleLog(schedule.title_id, 'info', `✅ 원본 스크립트 로드 완료`);
+
+        // product-info 프롬프트 템플릿 읽기
+        addTitleLog(schedule.title_id, 'info', `📋 상품설명 프롬프트 템플릿 로드 중...`);
+        const promptResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/product-info-prompt`);
+        if (!promptResponse.ok) {
+          throw new Error('상품설명 프롬프트 템플릿을 불러올 수 없습니다');
+        }
+        const promptData = await promptResponse.json();
+        addTitleLog(schedule.title_id, 'info', `✅ 프롬프트 템플릿 로드 완료`);
+
+        // 상품설명 대본 생성 API 호출
+        const modelName = schedule.model === 'claude' ? 'Claude' : schedule.model === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+        addTitleLog(schedule.title_id, 'info', `🤖 ${modelName}로 상품설명 생성 중... (1-2분 소요)`);
+
+        const productInfoResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-script`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Request': 'automation-system'
+          },
+          body: JSON.stringify({
+            userId: schedule.user_id,
+            prompt: promptData.prompt,
+            topic: schedule.title,
+            format: 'product-info',
+            model: schedule.model || 'claude',
+            productInfo: sourceScript.content // 원본 스크립트 내용 전달
+          })
+        });
+
+        if (!productInfoResponse.ok) {
+          const errorText = await productInfoResponse.text();
+          throw new Error(`상품설명 대본 생성 API 실패: ${productInfoResponse.status} - ${errorText}`);
+        }
+
+        const productInfoData = await productInfoResponse.json();
+        console.log(`✅ [SCHEDULER] 상품설명 대본 생성 완료: ${productInfoData.id}`);
+        addPipelineLog(scriptPipelineId, 'info', `✅ 상품설명 대본 생성 완료: ${productInfoData.id}`);
+        addTitleLog(schedule.title_id, 'info', `✅ 상품설명 대본 생성 완료! (ID: ${productInfoData.id})`);
+      } catch (error: any) {
+        console.error(`❌ [SCHEDULER] 상품설명 대본 생성 실패:`, error);
+        addPipelineLog(scriptPipelineId, 'warning', `⚠️ 상품설명 대본 생성 실패 (계속 진행): ${error.message}`);
+        addTitleLog(schedule.title_id, 'warning', `⚠️ 상품설명 대본 생성 실패 (영상 생성은 계속됨)`);
+        // 상품설명 생성 실패해도 영상 생성은 계속 진행
+      }
+    }
+
+    // ============================================================
     // 직접 업로드 모드 체크: media_mode가 'upload'이면 이미지 업로드 대기
     // ============================================================
     if (schedule.media_mode === 'upload') {
+      // 프로젝트 폴더와 story.json 생성
+      const BACKEND_PATH = path.join(process.cwd(), '..', 'trend-video-backend');
+      const projectFolderPath = path.join(BACKEND_PATH, 'input', `project_${scriptResult.scriptId}`);
+
+      try {
+        // 폴더가 없으면 생성
+        if (!fs.existsSync(projectFolderPath)) {
+          fs.mkdirSync(projectFolderPath, { recursive: true });
+          console.log(`📁 [SCHEDULER] 프로젝트 폴더 생성: ${projectFolderPath}`);
+        }
+
+        // DB에서 스크립트 내용 가져오기
+        const dbReadScript = new Database(dbPath);
+        const scriptContent = dbReadScript.prepare(`
+          SELECT content FROM contents WHERE id = ?
+        `).get(scriptResult.scriptId) as { content: string } | undefined;
+        dbReadScript.close();
+
+        if (scriptContent && scriptContent.content) {
+          // content 파싱
+          let contentStr = typeof scriptContent.content === 'string' ? scriptContent.content : JSON.stringify(scriptContent.content);
+
+          // JSON 정리
+          contentStr = contentStr.trim();
+          if (contentStr.startsWith('JSON')) {
+            contentStr = contentStr.substring(4).trim();
+          }
+          const jsonStart = contentStr.indexOf('{');
+          if (jsonStart > 0) {
+            contentStr = contentStr.substring(jsonStart);
+          }
+
+          // story.json 생성
+          if (contentStr && contentStr.length > 0 && contentStr.includes('{')) {
+            try {
+              const scriptData = JSON.parse(contentStr);
+              const storyJson = {
+                ...scriptData,
+                scenes: scriptData.scenes || []
+              };
+
+              const storyJsonPath = path.join(projectFolderPath, 'story.json');
+              fs.writeFileSync(storyJsonPath, JSON.stringify(storyJson, null, 2), 'utf-8');
+              console.log(`✅ [SCHEDULER] story.json 생성 완료: ${storyJsonPath}`);
+              addTitleLog(schedule.title_id, 'info', `✅ 프로젝트 폴더 및 story.json 생성 완료`);
+            } catch (parseError: any) {
+              console.error(`❌ [SCHEDULER] JSON 파싱 실패: ${parseError.message}`);
+              addTitleLog(schedule.title_id, 'warning', `⚠️ story.json 생성 실패 (수동으로 대본 확인 필요)`);
+            }
+          } else {
+            console.warn(`⚠️ [SCHEDULER] 대본 content가 비어있거나 JSON이 아님`);
+          }
+        }
+      } catch (folderError: any) {
+        console.error(`❌ [SCHEDULER] 폴더 생성 실패: ${folderError.message}`);
+        addTitleLog(schedule.title_id, 'warning', `⚠️ 프로젝트 폴더 생성 실패 (계속 진행)`);
+      }
+
       updateScheduleStatus(schedule.id, 'waiting_for_upload', { scriptId: scriptResult.scriptId });
       updateTitleStatus(schedule.title_id, 'waiting_for_upload'); // 타이틀 상태도 업데이트
       addPipelineLog(videoPipelineId, 'info', `⏸️ Waiting for manual image upload...`);
@@ -265,13 +393,12 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
       .run(videoResult.videoId, schedule.id);
     dbUpdateVideo.close();
 
-    updateScheduleStatus(schedule.id, 'completed', { videoId: videoResult.videoId });
-    updateTitleStatus(schedule.title_id, 'completed');
+    updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId }); // completed 아니라 processing (업로드 진행)
     addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
     addTitleLog(schedule.title_id, 'info', `✅ Video generated successfully: ${videoResult.videoId}`);
 
-    console.log(`[Scheduler] Video generation completed for schedule ${schedule.id}`);
-    return; // 영상 생성 완료, YouTube 업로드는 별도 처리
+    console.log(`[Scheduler] Video generation completed for schedule ${schedule.id}, continuing with upload...`);
+    // return 삭제 - 자동으로 업로드 진행
 
     // ============================================================
     // Stage 3: 유튜브 업로드
@@ -703,6 +830,13 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
     if (jobId) {
       addPipelineLog(pipelineId, 'info', `Video generation job: ${jobId}`);
 
+      // ✅ FIX: jobId를 즉시 저장하여 진행 중 로그 조회 가능하도록
+      const dbSaveJob = new Database(dbPath);
+      dbSaveJob.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+        .run(jobId, schedule.id);
+      dbSaveJob.close();
+      console.log(`✅ [SCHEDULER] Saved video_id to schedule: ${jobId}`);
+
       // 작업 완료 대기 (최대 30분)
       const maxWaitTime = 30 * 60 * 1000; // 30분
       const startTime = Date.now();
@@ -1032,6 +1166,7 @@ async function checkWaitingForUploadSchedules() {
         console.log(`[Scheduler] Images: ${imageFiles.join(', ')}`);
 
         // 이미지가 업로드되었으므로 processing 상태로 변경하고 video 단계 시작
+        console.log(`[Scheduler] ✅ ${imageFiles.length} images found for ${schedule.id}`);
         addPipelineLog(schedule.id, 'info', `✅ ${imageFiles.length}개 이미지 업로드 확인됨, 영상 생성을 시작합니다`);
         addTitleLog(schedule.title_id, 'info', `✅ 이미지 ${imageFiles.length}개 업로드 확인됨! 영상 생성을 시작합니다...`);
 
@@ -1049,9 +1184,11 @@ async function checkWaitingForUploadSchedules() {
 
         const videoPipelineId = videoPipeline?.id || (schedule.id + '_video');
         console.log(`[Scheduler] Using video pipeline ID: ${videoPipelineId}`);
+        console.log(`[Scheduler] Starting resumeVideoGeneration for ${schedule.id}`);
 
         resumeVideoGeneration(schedule, videoPipelineId).catch((error: any) => {
           console.error(`[Scheduler] Failed to resume video generation for ${schedule.id}:`, error);
+          console.error(`[Scheduler] Error stack:`, error.stack);
           addPipelineLog(videoPipelineId, 'error', `Video generation failed: ${error.message}`);
           addTitleLog(schedule.title_id, 'error', `❌ 영상 생성 실패: ${error.message}`);
           updatePipelineStatus(videoPipelineId, 'failed');
@@ -1068,6 +1205,131 @@ async function checkWaitingForUploadSchedules() {
   }
 }
 
+// 영상 생성 완료되어 업로드 대기 중인 스케줄 체크 및 업로드 시작
+async function checkReadyToUploadSchedules() {
+  try {
+    const db = new Database(dbPath);
+    const readySchedules = db.prepare(`
+      SELECT s.*, t.title, t.type, t.user_id
+      FROM video_schedules s
+      JOIN video_titles t ON s.title_id = t.id
+      WHERE s.video_id IS NOT NULL
+        AND s.youtube_url IS NULL
+        AND s.status = 'processing'
+      ORDER BY s.created_at ASC
+      LIMIT 5
+    `).all() as any[];
+    db.close();
+
+    if (readySchedules.length === 0) {
+      return;
+    }
+
+    console.log(`[Scheduler] Found ${readySchedules.length} schedule(s) ready for upload`);
+
+    for (const schedule of readySchedules) {
+      try {
+        console.log(`[Scheduler] Starting upload for schedule ${schedule.id}, video: ${schedule.video_id}`);
+
+        // Upload pipeline 찾기
+        const dbUpload = new Database(dbPath);
+        const uploadPipeline = dbUpload.prepare(`
+          SELECT id, status FROM automation_pipelines
+          WHERE schedule_id = ? AND stage = 'upload'
+          LIMIT 1
+        `).get(schedule.id) as any;
+        dbUpload.close();
+
+        if (!uploadPipeline) {
+          console.log(`[Scheduler] No upload pipeline found for ${schedule.id}, skipping`);
+          continue;
+        }
+
+        // 이미 running이거나 completed면 스킵
+        if (uploadPipeline.status === 'running' || uploadPipeline.status === 'completed') {
+          console.log(`[Scheduler] Upload pipeline already ${uploadPipeline.status} for ${schedule.id}, skipping`);
+          continue;
+        }
+
+        const uploadPipelineId = uploadPipeline.id;
+        const maxRetry = 3;
+
+        // 비동기로 업로드 시작
+        resumeUploadPipeline(schedule, uploadPipelineId, maxRetry).catch((error: any) => {
+          console.error(`[Scheduler] Failed to upload for ${schedule.id}:`, error);
+          addPipelineLog(uploadPipelineId, 'error', `Upload failed: ${error.message}`);
+          addTitleLog(schedule.title_id, 'error', `❌ 업로드 실패: ${error.message}`);
+          updatePipelineStatus(uploadPipelineId, 'failed');
+          updateScheduleStatus(schedule.id, 'failed');
+        });
+
+      } catch (error: any) {
+        console.error(`[Scheduler] Error checking ready schedule ${schedule.id}:`, error);
+      }
+    }
+
+  } catch (error: any) {
+    console.error('[Scheduler] Error in checkReadyToUploadSchedules:', error);
+  }
+}
+
+// 영상 생성 완료 후 업로드 재개
+async function resumeUploadPipeline(schedule: any, uploadPipelineId: string, maxRetry: number) {
+  addPipelineLog(uploadPipelineId, 'info', `Starting YouTube upload for video: ${schedule.video_id}`);
+  addTitleLog(schedule.title_id, 'info', `📤 YouTube 업로드 중...`);
+  updatePipelineStatus(uploadPipelineId, 'running');
+
+  const uploadResult = await uploadToYouTube(schedule.video_id, schedule, uploadPipelineId, maxRetry);
+
+  if (!uploadResult.success) {
+    throw new Error(`YouTube upload failed: ${uploadResult.error}`);
+  }
+
+  updatePipelineStatus(uploadPipelineId, 'completed');
+
+  // video_schedules 테이블에 youtube_url 저장
+  const db = new Database(dbPath);
+  db.prepare(`
+    UPDATE video_schedules
+    SET youtube_url = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(uploadResult.videoUrl, schedule.id);
+  db.close();
+
+  addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
+  addTitleLog(schedule.title_id, 'info', `✅ YouTube 업로드 완료: ${uploadResult.videoUrl}`);
+
+  // Publish 단계
+  const dbPublish = new Database(dbPath);
+  const publishPipeline = dbPublish.prepare(`
+    SELECT id FROM automation_pipelines
+    WHERE schedule_id = ? AND stage = 'publish'
+    LIMIT 1
+  `).get(schedule.id) as any;
+  dbPublish.close();
+
+  const publishPipelineId = publishPipeline?.id || (schedule.id + '_publish');
+
+  addPipelineLog(publishPipelineId, 'info', `Scheduling YouTube publish`);
+  addTitleLog(schedule.title_id, 'info', `📅 퍼블리시 예약 중...`);
+  updatePipelineStatus(publishPipelineId, 'running');
+
+  const publishResult = await scheduleYouTubePublish(uploadResult.uploadId || '', schedule, publishPipelineId);
+
+  if (!publishResult.success) {
+    throw new Error(`YouTube publish scheduling failed: ${publishResult.error}`);
+  }
+
+  updatePipelineStatus(publishPipelineId, 'completed');
+  updateScheduleStatus(schedule.id, 'completed');
+  updateTitleStatus(schedule.title_id, 'completed');
+
+  addPipelineLog(publishPipelineId, 'info', `Pipeline completed successfully`);
+  addTitleLog(schedule.title_id, 'info', `🎉 모든 작업이 완료되었습니다!`);
+
+  console.log(`[Scheduler] Upload pipeline completed for schedule ${schedule.id}`);
+}
+
 // 이미지 업로드 후 video 생성 재개
 async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   const maxRetry = 3;
@@ -1082,13 +1344,20 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
     throw new Error(`Video generation failed: ${videoResult.error}`);
   }
 
+  if (!videoResult.videoId) {
+    throw new Error('Video generation succeeded but videoId is missing');
+  }
+
+  console.log(`✅ [SCHEDULER] Video generation completed, videoId: ${videoResult.videoId}, schedule: ${schedule.id}`);
+
   updatePipelineStatus(videoPipelineId, 'completed');
 
-  // video_schedules 테이블에 video_id 저장
+  // video_schedules 테이블에 video_id 저장 (이미 저장되어 있지만 최종 확인)
   const dbUpdateVideo = new Database(dbPath);
   dbUpdateVideo.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
     .run(videoResult.videoId, schedule.id);
   dbUpdateVideo.close();
+  console.log(`✅ [SCHEDULER] Video ID saved to schedule: ${videoResult.videoId} -> ${schedule.id}`);
 
   updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId });
   addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
@@ -1164,4 +1433,165 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   addTitleLog(schedule.title_id, 'info', `🎉 모든 작업이 완료되었습니다!`);
 
   console.log(`[Scheduler] Pipeline completed for schedule ${schedule.id}`);
+}
+
+// ========== 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성 ==========
+
+/**
+ * 채널별 주기를 확인하고, 주기가 도래했으면 자동으로 제목 생성 → 스케줄 추가
+ * 1. 모든 활성화된 채널 설정 조회
+ * 2. 각 채널의 다음 스케줄 시간 계산
+ * 3. 다음 스케줄이 없으면 (또는 주기가 도래했으면):
+ *    - 카테고리에서 랜덤하게 선택
+ *    - AI로 제목 생성
+ *    - 제목 DB에 추가
+ *    - 스케줄 자동 추가
+ */
+async function checkAndCreateAutoSchedules() {
+  try {
+    const db = new Database(dbPath);
+
+    // 1. 모든 활성화된 채널 설정 조회
+    const channelSettings = db.prepare(`
+      SELECT * FROM youtube_channel_settings
+      WHERE is_active = 1
+    `).all() as any[];
+
+    db.close();
+
+    if (channelSettings.length === 0) {
+      console.log('[AutoScheduler] No active channel settings found');
+      return;
+    }
+
+    console.log(`[AutoScheduler] Checking ${channelSettings.length} active channels for auto-scheduling`);
+
+    for (const setting of channelSettings) {
+      try {
+        // categories가 없으면 자동 생성 불가
+        if (!setting.categories) {
+          console.log(`[AutoScheduler] Channel ${setting.channel_name}: No categories configured, skipping auto-generation`);
+          continue;
+        }
+
+        const categories = JSON.parse(setting.categories);
+        if (!categories || categories.length === 0) {
+          console.log(`[AutoScheduler] Channel ${setting.channel_name}: Empty categories, skipping auto-generation`);
+          continue;
+        }
+
+        // 2. 이 채널의 최근 스케줄 확인
+        const db2 = new Database(dbPath);
+        const lastSchedule = db2.prepare(`
+          SELECT s.*, t.channel
+          FROM video_schedules s
+          JOIN video_titles t ON s.title_id = t.id
+          WHERE t.channel = ? AND t.user_id = ?
+          ORDER BY s.scheduled_time DESC
+          LIMIT 1
+        `).get(setting.channel_id, setting.user_id) as any;
+        db2.close();
+
+        // 3. 다음 스케줄 시간 계산
+        const { calculateNextScheduleTime } = await import('./automation');
+        const nextScheduleTime = calculateNextScheduleTime(
+          setting.user_id,
+          setting.channel_id,
+          lastSchedule ? new Date(lastSchedule.scheduled_time) : undefined
+        );
+
+        if (!nextScheduleTime) {
+          console.log(`[AutoScheduler] Channel ${setting.channel_name}: Could not calculate next schedule time`);
+          continue;
+        }
+
+        // 4. 다음 스케줄이 이미 존재하는지 확인
+        const db3 = new Database(dbPath);
+        const existingSchedule = db3.prepare(`
+          SELECT s.id
+          FROM video_schedules s
+          JOIN video_titles t ON s.title_id = t.id
+          WHERE t.channel = ? AND t.user_id = ?
+            AND s.scheduled_time >= ?
+            AND s.status IN ('pending', 'processing')
+          LIMIT 1
+        `).get(
+          setting.channel_id,
+          setting.user_id,
+          nextScheduleTime.toISOString()
+        ) as any;
+        db3.close();
+
+        if (existingSchedule) {
+          console.log(`[AutoScheduler] Channel ${setting.channel_name}: Schedule already exists for next time, skipping`);
+          continue;
+        }
+
+        // 5. 카테고리에서 랜덤 선택
+        const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+
+        console.log(`[AutoScheduler] Channel ${setting.channel_name}: Generating title for category "${randomCategory}"`);
+
+        // 6. AI로 제목 생성 (generate-title-suggestions API 호출)
+        const titleResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-title-suggestions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            categories: [randomCategory],
+            count: 1,
+            youtubeTitles: [] // 기존 제목 없이 새로 생성
+          })
+        });
+
+        if (!titleResponse.ok) {
+          throw new Error(`Title generation failed: ${titleResponse.statusText}`);
+        }
+
+        const titleData = await titleResponse.json();
+        const generatedTitle = titleData.titles?.[0];
+
+        if (!generatedTitle) {
+          throw new Error('No title generated');
+        }
+
+        console.log(`[AutoScheduler] Channel ${setting.channel_name}: Generated title "${generatedTitle}"`);
+
+        // 7. 제목 DB에 추가
+        const { addVideoTitle } = await import('./automation');
+        const titleId = addVideoTitle({
+          title: generatedTitle,
+          type: 'longform', // 기본값, 필요 시 채널 설정에 추가 가능
+          category: randomCategory,
+          channel: setting.channel_id,
+          scriptMode: 'chrome',
+          mediaMode: 'dalle3',
+          model: 'claude',
+          userId: setting.user_id
+        });
+
+        console.log(`[AutoScheduler] Channel ${setting.channel_name}: Created title ${titleId}`);
+
+        // 8. 스케줄 자동 추가
+        const { addSchedule } = await import('./automation');
+        const scheduleId = addSchedule({
+          titleId,
+          scheduledTime: nextScheduleTime.toISOString(),
+          youtubePrivacy: 'public' // 기본값, 필요 시 채널 설정에 추가 가능
+        });
+
+        console.log(`[AutoScheduler] ✅ Channel ${setting.channel_name}: Auto-scheduled "${generatedTitle}" for ${nextScheduleTime.toISOString()}`);
+
+        // 9. 로그 추가
+        const { addTitleLog } = await import('./automation');
+        addTitleLog(titleId, 'info', `🤖 완전 자동화: 주기 도래로 제목 자동 생성 및 스케줄 추가 (채널: ${setting.channel_name}, 카테고리: ${randomCategory})`);
+
+      } catch (channelError: any) {
+        console.error(`[AutoScheduler] Error processing channel ${setting.channel_name}:`, channelError);
+        // 개별 채널 실패는 전체 프로세스를 중단하지 않음
+      }
+    }
+
+  } catch (error: any) {
+    console.error('[AutoScheduler] Error in checkAndCreateAutoSchedules:', error);
+  }
 }

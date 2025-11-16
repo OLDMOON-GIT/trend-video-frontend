@@ -2805,7 +2805,7 @@ export default function MyContentPage() {
                                     {item.data.type === 'shortform' ? '⚡ 숏폼' :
                                      item.data.type === 'longform' ? '📝 롱폼' :
                                      item.data.type === 'product' ? '🛍️ 상품' :
-                                     item.data.type === 'product-info' ? '📝 상품정보' :
+                                     item.data.type === 'product-info' ? '📝 상품설명' :
                                      item.data.type === 'sora2' ? '🎬 Sora2' :
                                      item.data.type}
                                   </span>
@@ -3166,7 +3166,7 @@ export default function MyContentPage() {
                                     {item.data.type === 'shortform' ? '⚡ 숏폼' :
                                      item.data.type === 'longform' ? '📝 롱폼' :
                                      item.data.type === 'product' ? '🛍️ 상품' :
-                                     item.data.type === 'product-info' ? '📝 상품정보' :
+                                     item.data.type === 'product-info' ? '📝 상품설명' :
                                      item.data.type === 'sora2' ? '🎬 Sora2' :
                                      item.data.type}
                                   </span>
@@ -3399,7 +3399,7 @@ export default function MyContentPage() {
                                       className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-500 cursor-pointer whitespace-nowrap"
                                       title="상품 기입 정보 생성 (YouTube/릴스용)"
                                     >
-                                      🛍️ 상품정보
+                                      🛍️ 상품설명
                                     </button>
                                   )}
 
@@ -3857,7 +3857,7 @@ export default function MyContentPage() {
                                 {script.type === 'shortform' ? '⚡ 숏폼' :
                                  script.type === 'longform' ? '📝 롱폼' :
                                  script.type === 'product' ? '🛍️ 상품' :
-                                 script.type === 'product-info' ? '📝 상품정보' :
+                                 script.type === 'product-info' ? '📝 상품설명' :
                                  '🎬 Sora2'}
                               </span>
                             )}
@@ -3884,7 +3884,7 @@ export default function MyContentPage() {
                                 <span className="inline-flex items-center gap-1">
                                   <span className="text-purple-400">🎭</span>
                                   <span className="text-purple-300 font-medium">
-                                    {script.type === 'product-info' ? '상품정보' : (script as any).category}
+                                    {script.type === 'product-info' ? '상품설명' : (script as any).category}
                                   </span>
                                 </span>
                               </p>

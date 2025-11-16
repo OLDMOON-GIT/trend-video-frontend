@@ -485,7 +485,7 @@ function HomeContent() {
         shortform: '숏폼 (9:16 세로)',
         sora2: 'Sora2 (AI 시네마틱)',
         product: '상품 (AI 마케팅)',
-        'product-info': '상품정보 (상세 설명)'
+        'product-info': '상품설명'
       };
 
       if (confirm(`⚠️ 포맷 변경 경고\n\n현재 불러온 대본은 ${formatNames[originalFormat]} 형식입니다.\n${formatNames[newFormat]}(으)로 변경하시겠습니까?\n\n대본 내용이 형식에 맞지 않을 수 있습니다.`)) {

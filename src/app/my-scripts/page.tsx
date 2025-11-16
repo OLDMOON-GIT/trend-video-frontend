@@ -454,7 +454,7 @@ export default function MyScriptsPage() {
                         }}
                         className="rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-amber-500 hover:to-yellow-500"
                       >
-                        📝 상품정보
+                        📝 상품설명
                       </button>
                     )}
                     <button

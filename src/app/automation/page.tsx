@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ScheduleCalendar from '@/components/automation/ScheduleCalendar';
 import ChannelSettings from '@/components/automation/ChannelSettings';
+import CategoryManagement from '@/components/automation/CategoryManagement';
 import MediaUploadBox from '@/components/MediaUploadBox';
 
 function AutomationPageContent() {
@@ -44,13 +45,14 @@ function AutomationPageContent() {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
   const [channels, setChannels] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [titleError, setTitleError] = useState<string>('');
   const [expandedLogsFor, setExpandedLogsFor] = useState<string | null>(null);
   const [logsMap, setLogsMap] = useState<Record<string, any[]>>({});
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [mainTab, setMainTab] = useState<'queue' | 'schedule-management'>('queue');
   const [queueTab, setQueueTab] = useState<'scheduled' | 'processing' | 'waiting_upload' | 'failed' | 'completed'>('scheduled');
-  const [scheduleManagementTab, setScheduleManagementTab] = useState<'channel-settings' | 'calendar'>('channel-settings');
+  const [scheduleManagementTab, setScheduleManagementTab] = useState<'channel-settings' | 'category-management' | 'calendar'>('channel-settings');
   const [progressMap, setProgressMap] = useState<Record<string, { scriptProgress?: number; videoProgress?: number }>>({});
   const [uploadingFor, setUploadingFor] = useState<string | null>(null); // 업로드 중인 스케줄 ID
   const [uploadedImagesFor, setUploadedImagesFor] = useState<Record<string, File[]>>({}); // 스케줄별 업로드된 이미지
@@ -738,7 +740,15 @@ function AutomationPageContent() {
       t.status === 'processing' || t.status === 'scheduled'
     );
 
-    if (activeTitles.length === 0) return;
+    // 진행 중인 작업이 없으면 자동 업데이트만 중단 (로그는 닫지 않음)
+    if (activeTitles.length === 0) {
+      return;
+    }
+
+    // 진행 중인 작업이 있고, 현재 열린 로그가 없거나 진행 중인 작업의 로그가 아니면 자동으로 열기
+    if (!expandedLogsFor || !activeTitles.find((t: any) => t.id === expandedLogsFor)) {
+      setExpandedLogsFor(activeTitles[0].id);
+    }
 
     // 즉시 로드
     activeTitles.forEach((t: any) => {
@@ -1717,7 +1727,7 @@ function AutomationPageContent() {
           {mainTab === 'schedule-management' && (
             <div>
               {/* 주기관리 서브 탭 */}
-              <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="grid grid-cols-3 gap-2 mb-4">
                 <button
                   onClick={() => setScheduleManagementTab('channel-settings')}
                   className={`py-3 px-4 rounded-lg font-semibold transition ${
@@ -1727,6 +1737,17 @@ function AutomationPageContent() {
                   }`}
                 >
                   ⚙️ 채널 설정
+                </button>
+                <button
+                  onClick={() => setScheduleManagementTab('category-management')}
+                  className={`py-3 px-4 rounded-lg font-semibold transition ${
+                    scheduleManagementTab === 'category-management'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                  id="category-management"
+                >
+                  🏷️ 카테고리 관리
                 </button>
                 <button
                   onClick={() => setScheduleManagementTab('calendar')}
@@ -1744,6 +1765,13 @@ function AutomationPageContent() {
               {scheduleManagementTab === 'channel-settings' && (
                 <div>
                   <ChannelSettings />
+                </div>
+              )}
+
+              {/* 카테고리 관리 */}
+              {scheduleManagementTab === 'category-management' && (
+                <div>
+                  <CategoryManagement />
                 </div>
               )}
 

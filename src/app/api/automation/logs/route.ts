@@ -10,7 +10,7 @@ import path from 'path';
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
-    if (!user || !user.isAdmin) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -23,6 +23,18 @@ export async function GET(request: NextRequest) {
 
     const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
     const db = new Database(dbPath);
+
+    // 본인의 제목인지 확인 (admin은 모든 로그 볼 수 있음)
+    if (!user.isAdmin) {
+      const titleOwner = db.prepare(`
+        SELECT user_id FROM video_titles WHERE id = ?
+      `).get(titleId) as { user_id?: string } | undefined;
+
+      if (!titleOwner || titleOwner.user_id !== user.userId) {
+        db.close();
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
 
     // 1. title_logs에서 기본 로그 가져오기
     const titleLogs = db.prepare(`
@@ -39,19 +51,21 @@ export async function GET(request: NextRequest) {
       LIMIT 1
     `).get(titleId) as { video_id?: string } | undefined;
 
-    let pythonLogs: string[] = [];
+    let pythonLogs: any[] = [];
 
-    // 3. video_id가 있으면 jobs 테이블에서 Python 로그 가져오기
+    // 3. video_id가 있으면 job_logs 테이블에서 Python 로그 가져오기 (실시간!)
     if (schedule?.video_id) {
-      const job = db.prepare(`
-        SELECT logs FROM jobs
-        WHERE id = ?
-      `).get(schedule.video_id) as { logs?: string } | undefined;
+      // job_logs 테이블에서 해당 job의 최근 500개 로그만 가져오기 (성능 최적화)
+      // title_logs와 병합 후 200개로 제한하므로 충분함
+      const jobLogs = db.prepare(`
+        SELECT log_message, created_at FROM job_logs
+        WHERE job_id = ?
+        ORDER BY id DESC
+        LIMIT 500
+      `).all(schedule.video_id) as Array<{ log_message: string; created_at: string }>;
 
-      if (job?.logs) {
-        // Python 로그를 줄 단위로 분리
-        pythonLogs = job.logs.split('\n').filter(line => line.trim());
-      }
+      // 시간순 정렬 (DESC로 가져와서 reverse)
+      pythonLogs = jobLogs.reverse();
     }
 
     db.close();
@@ -64,8 +78,10 @@ export async function GET(request: NextRequest) {
       source: 'title'
     }));
 
-    // 5. Python 로그 포맷 변환 (타임스탬프 없으면 현재 시간 사용)
-    const formattedPythonLogs = pythonLogs.map((line: string) => {
+    // 5. Python 로그 포맷 변환 (job_logs 테이블에서 가져온 데이터)
+    const formattedPythonLogs = pythonLogs.map((row: { log_message: string; created_at: string }) => {
+      const line = row.log_message;
+
       // Python 로그 형식: "2025-11-14 17:36:09,615 - INFO - 메시지"
       const pythonMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - (\w+) - (.+)$/);
 
@@ -78,11 +94,11 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      // FFmpeg나 기타 출력 (타임스탬프 없음)
+      // FFmpeg나 기타 출력 (created_at 타임스탬프 사용)
       return {
-        timestamp: new Date().toISOString(),
+        timestamp: row.created_at,
         level: 'info',
-        message: line,
+        message: line.trim(),
         source: 'python'
       };
     });
