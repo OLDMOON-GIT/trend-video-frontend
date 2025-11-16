@@ -12,6 +12,10 @@ const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 export function initAutomationTables() {
   const db = new Database(dbPath);
 
+  // SQLite 동시성 설정 (WAL 모드)
+  db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
+
   // 1. 제목 리스트 테이블
   db.exec(`
     CREATE TABLE IF NOT EXISTS video_titles (
@@ -427,15 +431,38 @@ export function addPipelineLog(
   message: string,
   metadata?: any
 ) {
-  try {
-    const db = new Database(dbPath);
-    db.prepare(`
-      INSERT INTO automation_logs (pipeline_id, log_level, message)
-      VALUES (?, ?, ?)
-    `).run(pipelineId, level, message);
-    db.close();
-  } catch (error) {
-    console.error('Failed to add pipeline log:', error);
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const db = new Database(dbPath);
+      // SQLite 동시성 설정
+      db.pragma('journal_mode = WAL'); // Write-Ahead Logging 모드
+      db.pragma('busy_timeout = 5000'); // 5초 대기
+
+      db.prepare(`
+        INSERT INTO automation_logs (pipeline_id, log_level, message)
+        VALUES (?, ?, ?)
+      `).run(pipelineId, level, message);
+      db.close();
+      return; // 성공하면 반환
+    } catch (error: any) {
+      lastError = error;
+
+      // SQLITE_BUSY 에러면 재시도
+      if (error.code === 'SQLITE_BUSY' && attempt < maxRetries - 1) {
+        const delay = 100 * (attempt + 1); // 100ms, 200ms, 300ms
+        // 동기 sleep
+        const start = Date.now();
+        while (Date.now() - start < delay) {}
+        continue;
+      }
+
+      // 다른 에러거나 마지막 시도면 로그만 출력
+      console.error(`Failed to add pipeline log (attempt ${attempt + 1}/${maxRetries}):`, error);
+      break;
+    }
   }
 }
 
@@ -445,15 +472,36 @@ export function addTitleLog(
   level: 'info' | 'warn' | 'error' | 'debug',
   message: string
 ) {
-  try {
-    const db = new Database(dbPath);
-    db.prepare(`
-      INSERT INTO title_logs (title_id, level, message, created_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(titleId, level, message);
-    db.close();
-  } catch (error) {
-    console.error('Failed to add title log:', error);
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const db = new Database(dbPath);
+      // SQLite 동시성 설정
+      db.pragma('journal_mode = WAL');
+      db.pragma('busy_timeout = 5000');
+
+      db.prepare(`
+        INSERT INTO title_logs (title_id, level, message, created_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(titleId, level, message);
+      db.close();
+      return; // 성공하면 반환
+    } catch (error: any) {
+      lastError = error;
+
+      // SQLITE_BUSY 에러면 재시도
+      if (error.code === 'SQLITE_BUSY' && attempt < maxRetries - 1) {
+        const delay = 100 * (attempt + 1);
+        const start = Date.now();
+        while (Date.now() - start < delay) {}
+        continue;
+      }
+
+      console.error(`Failed to add title log (attempt ${attempt + 1}/${maxRetries}):`, error);
+      break;
+    }
   }
 }
 
