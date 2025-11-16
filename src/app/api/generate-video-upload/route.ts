@@ -270,7 +270,8 @@ export async function POST(request: NextRequest) {
 
     // Job을 DB에 저장 (existingJobId가 있으면 이미 생성됨, 없으면 생성)
     if (!existingJobId) {
-      await createJob(userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2', undefined, ttsVoice, category);
+      await createJob(userId, jobId, videoTitle, videoFormat as 'longform' | 'shortform' | 'sora2', scriptId, ttsVoice, category);
+      console.log(`✅ [Job 생성] sourceContentId: ${scriptId || 'none'}`);
     } else {
       console.log(`📝 [기존 placeholder Job 사용] ${jobId}`);
     }
