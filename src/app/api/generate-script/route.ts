@@ -562,6 +562,50 @@ START YOUR RESPONSE WITH { NOW.`
               }
             }
 
+            // 상품정보 플레이스홀더 치환 (AI 응답에서 생성된 플레이스홀더 제거)
+            if (productInfo && (format === 'product' || format === 'product-info')) {
+              console.log('🔄 AI 응답 내 플레이스홀더 치환 시작...');
+              const jsonString = JSON.stringify(parseResult.data);
+
+              // 치환 전 플레이스홀더 확인
+              const hasThumbnail = jsonString.includes('{thumbnail}');
+              const hasProductLink = jsonString.includes('{product_link}');
+              const hasProductDescription = jsonString.includes('{product_description}');
+
+              if (hasThumbnail || hasProductLink || hasProductDescription) {
+                console.log('⚠️ AI 응답에 플레이스홀더 발견:');
+                console.log('  - {thumbnail}:', hasThumbnail);
+                console.log('  - {product_link}:', hasProductLink);
+                console.log('  - {product_description}:', hasProductDescription);
+
+                // 치환할 값 준비
+                const thumbnail = productInfo.thumbnail || '';
+                const productLink = productInfo.product_link || '';
+                const productDescription = productInfo.description || '';
+
+                console.log('🔧 치환할 값:');
+                console.log('  - thumbnail:', thumbnail.substring(0, 100));
+                console.log('  - product_link:', productLink.substring(0, 100));
+                console.log('  - description:', productDescription.substring(0, 100));
+
+                // JSON 문자열에서 플레이스홀더 치환
+                let replacedJson = jsonString
+                  .replace(/{thumbnail}/g, thumbnail)
+                  .replace(/{product_link}/g, productLink)
+                  .replace(/{product_description}/g, productDescription);
+
+                // 다시 JSON으로 파싱
+                try {
+                  parseResult.data = JSON.parse(replacedJson);
+                  console.log('✅ AI 응답 플레이스홀더 치환 완료');
+                } catch (e) {
+                  console.error('❌ 치환 후 JSON 파싱 실패, 원본 유지');
+                }
+              } else {
+                console.log('✅ AI 응답에 플레이스홀더 없음 (정상)');
+              }
+            }
+
             // JSON 포맷팅 (예쁘게 정리)
             finalContent = JSON.stringify(parseResult.data, null, 2);
             console.log('✨ JSON 포맷팅 완료');

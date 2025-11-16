@@ -774,12 +774,40 @@ export async function POST(request: NextRequest) {
           console.log('🛍️🛍️🛍️ AI 응답 플레이스홀더 치환 시작:', productInfo);
           addLog(taskId, '🛍️ 상품 정보 플레이스홀더 치환 중...');
 
-          scriptContent = scriptContent
-            .replace(/{thumbnail}/g, productInfo.thumbnail || '')
-            .replace(/{product_link}/g, productInfo.product_link || '')
-            .replace(/{product_description}/g, productInfo.description || '');
+          // JSON인 경우 파싱 후 치환 (구조 유지)
+          try {
+            const parsedContent = JSON.parse(scriptContent);
+            const jsonString = JSON.stringify(parsedContent);
 
-          console.log('✅ AI 응답 플레이스홀더 치환 완료');
+            // 플레이스홀더 확인
+            const hasThumbnail = jsonString.includes('{thumbnail}');
+            const hasProductLink = jsonString.includes('{product_link}');
+            const hasProductDescription = jsonString.includes('{product_description}');
+
+            if (hasThumbnail || hasProductLink || hasProductDescription) {
+              console.log('⚠️ AI 응답에 플레이스홀더 발견:', { hasThumbnail, hasProductLink, hasProductDescription });
+
+              // JSON 문자열에서 플레이스홀더 치환
+              let replacedJson = jsonString
+                .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+                .replace(/{product_link}/g, productInfo.product_link || '')
+                .replace(/{product_description}/g, productInfo.description || '');
+
+              // 다시 JSON으로 파싱하고 포맷팅
+              scriptContent = JSON.stringify(JSON.parse(replacedJson), null, 2);
+              console.log('✅ AI 응답 플레이스홀더 치환 완료 (JSON)');
+            } else {
+              console.log('✅ AI 응답에 플레이스홀더 없음 (정상)');
+            }
+          } catch (e) {
+            // JSON이 아니면 문자열 치환
+            scriptContent = scriptContent
+              .replace(/{thumbnail}/g, productInfo.thumbnail || '')
+              .replace(/{product_link}/g, productInfo.product_link || '')
+              .replace(/{product_description}/g, productInfo.description || '');
+            console.log('✅ AI 응답 플레이스홀더 치환 완료 (문자열)');
+          }
+
           addLog(taskId, '✅ 상품 정보 플레이스홀더 치환 완료');
         }
 
