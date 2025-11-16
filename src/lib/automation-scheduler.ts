@@ -1991,7 +1991,7 @@ async function generateTitleWithMultiModelEvaluation(
   channelId: string,
   channelName: string
 ): Promise<{ titleId: string; title: string } | null> {
-  const { startAutoGenerationLog, updateAutoGenerationLog } = await import('./automation');
+  const { startAutoGenerationLog, updateAutoGenerationLog, getTitleFromPool, addVideoTitle } = await import('./automation');
   let logId: string | null = null;
 
   try {
@@ -2001,8 +2001,53 @@ async function generateTitleWithMultiModelEvaluation(
       channelId,
       channelName,
       category,
-      step: '멀티 모델 AI로 제목 생성 중...'
+      step: '고품질 제목 풀 확인 중...'
     });
+
+    // 🎯 1단계: 제목 풀에서 먼저 확인 (90점 이상)
+    console.log(`[TitlePool] Checking title pool for category "${category}"...`);
+    const poolTitle = getTitleFromPool(category, 90);
+
+    if (poolTitle) {
+      console.log(`[TitlePool] ✅ Found high-quality title from pool (score: ${poolTitle.score})`);
+      console.log(`[TitlePool] Title: "${poolTitle.title}"`);
+
+      // 카테고리별 비디오 타입 결정
+      let videoType = 'longform';
+      if (category.includes('숏') || category === 'shortform' || category === 'Shorts') {
+        videoType = 'shortform';
+      }
+
+      // video_titles에 추가
+      const titleId = addVideoTitle({
+        title: poolTitle.title,
+        type: videoType,
+        category,
+        channel: channelId,
+        scriptMode: 'chrome',
+        mediaMode: 'dalle3',
+        model: 'ollama-pool', // 풀에서 가져왔음을 표시
+        userId
+      });
+
+      // 로그 완료
+      if (logId) {
+        updateAutoGenerationLog(logId, {
+          status: 'completed',
+          step: '제목 풀에서 선택 완료 (비용 $0)',
+          bestTitle: poolTitle.title,
+          bestScore: poolTitle.score,
+          resultTitleId: titleId
+        });
+      }
+
+      return {
+        titleId,
+        title: poolTitle.title
+      };
+    }
+
+    console.log(`[TitlePool] ⚠️ No high-quality titles in pool, generating with AI...`);
 
     // 카테고리별 기본 모델 결정
     let defaultModel = 'claude'; // 기본값
@@ -2027,7 +2072,7 @@ async function generateTitleWithMultiModelEvaluation(
       });
     }
 
-    // 1. 선택된 모델로 제목 생성
+    // 2. 선택된 모델로 제목 생성
     const titles = await generateTitlesWithModel(category, defaultModel);
 
     // 2. 제목 수집

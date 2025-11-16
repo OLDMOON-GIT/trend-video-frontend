@@ -283,6 +283,26 @@ export function initAutomationTables() {
     // 이미 존재하면 무시
   }
 
+  // 9. 고품질 제목 풀 테이블 (Ollama 배치 생성용)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS title_pool (
+      id TEXT PRIMARY KEY,
+      category TEXT NOT NULL,
+      title TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      validated INTEGER DEFAULT 0,
+      used INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(category, title)
+    );
+  `);
+
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_title_pool_category_score ON title_pool(category, score DESC, used ASC);`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
   db.close();
   console.log('✅ Automation tables initialized');
 }
@@ -1311,4 +1331,79 @@ export function getOngoingAutoGenerationLogs(userId: string) {
     titles_generated: log.titles_generated ? JSON.parse(log.titles_generated) : null,
     product_info: log.product_info ? JSON.parse(log.product_info) : null,
   }));
+}
+
+// ============================================================
+// 제목 풀 관리 함수 (Ollama 배치 생성용)
+// ============================================================
+
+// 제목 풀에서 미사용 고득점 제목 가져오기
+export function getTitleFromPool(category: string, minScore: number = 90) {
+  const db = new Database(dbPath);
+
+  const title = db.prepare(`
+    SELECT * FROM title_pool
+    WHERE category = ? AND score >= ? AND used = 0
+    ORDER BY score DESC, RANDOM()
+    LIMIT 1
+  `).get(category, minScore);
+
+  if (title) {
+    // 사용 표시
+    db.prepare(`
+      UPDATE title_pool
+      SET used = 1
+      WHERE id = ?
+    `).run(title.id);
+  }
+
+  db.close();
+  return title;
+}
+
+// 제목 풀 통계
+export function getTitlePoolStats() {
+  const db = new Database(dbPath);
+
+  const stats = db.prepare(`
+    SELECT
+      category,
+      COUNT(*) as total,
+      SUM(CASE WHEN used = 0 THEN 1 ELSE 0 END) as unused,
+      AVG(score) as avg_score,
+      MAX(score) as max_score
+    FROM title_pool
+    GROUP BY category
+  `).all();
+
+  db.close();
+  return stats;
+}
+
+// 제목 풀에 제목 추가
+export function addTitleToPool({
+  category,
+  title,
+  score,
+  validated = 0
+}: {
+  category: string;
+  title: string;
+  score: number;
+  validated?: number;
+}) {
+  const db = new Database(dbPath);
+  const id = `pool_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+
+  try {
+    db.prepare(`
+      INSERT INTO title_pool (id, category, title, score, validated)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, category, title, score, validated);
+    db.close();
+    return id;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }

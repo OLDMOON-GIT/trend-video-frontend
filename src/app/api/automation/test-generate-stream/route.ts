@@ -11,62 +11,97 @@ interface ChannelSetting {
   categories: string;
 }
 
-// 규칙 기반 제목 점수 평가
+// 규칙 기반 제목 점수 평가 (80점+ 고품질 기준)
 function evaluateTitleWithRules(title: string, category: string): number {
   let score = 0;
 
-  // 1. 제목 길이 평가 (20-60자가 최적)
+  // 1. 제목 길이 평가 (40-60자가 최적, 짧으면 감점)
   const length = title.length;
-  if (length >= 20 && length <= 60) {
-    score += 30;
-  } else if (length >= 15 && length < 20) {
-    score += 20;
-  } else if (length > 60 && length <= 80) {
-    score += 20;
-  } else if (length < 15) {
-    score += 5;
+  if (length >= 40 && length <= 60) {
+    score += 25;
+  } else if (length >= 30 && length < 40) {
+    score += 15;
+  } else if (length >= 20 && length < 30) {
+    score += 8;
+  } else if (length < 20) {
+    score += 0; // 너무 짧으면 점수 없음
+  } else if (length > 60 && length <= 70) {
+    score += 15;
   } else {
-    score += 10;
+    score += 5;
   }
 
-  // 2. 특수문자 평가 (호기심 유발)
-  const hasQuestion = title.includes('?');
-  const hasExclamation = title.includes('!');
-  const hasEllipsis = title.includes('...');
-  const hasQuotes = title.includes('"') || title.includes("'");
-
-  if (hasQuestion) score += 10;
-  if (hasExclamation) score += 8;
-  if (hasEllipsis) score += 5;
-  if (hasQuotes) score += 5;
-
-  // 3. 감정 키워드 평가
-  const emotionalKeywords = [
-    '후회', '복수', '반전', '충격', '눈물', '감동',
-    '배신', '비밀', '진실', '최후', '귀환', '성공',
-    '통쾌', '화려', '무릎', '외면', '당당', '전설',
-    '알고보니', '결국', '드디어', '끝판왕', '최고'
+  // 2. 명확한 주어 패턴 (고득점 필수)
+  const subjectPatterns = [
+    '무시당했던', '차별받던', '배신당한', '왕따 당했던',
+    '내쫓았던', '괴롭혔던', '무능력자 취급받던',
+    '탈북', '북한 출신', '평생'
   ];
+  let hasSubject = false;
+  for (const pattern of subjectPatterns) {
+    if (title.includes(pattern)) {
+      hasSubject = true;
+      score += 15;
+      break;
+    }
+  }
 
+  // 3. 구체적 숫자/시간 (필수 요소)
+  const timePatterns = [
+    /\d+년/, /\d+개월/, /\d+일/,
+    /\d+년 ?후/, /\d+년 ?만에/, /\d+년간/
+  ];
+  let hasTime = false;
+  for (const pattern of timePatterns) {
+    if (pattern.test(title)) {
+      hasTime = true;
+      score += 15;
+      break;
+    }
+  }
+
+  // 4. 과거→현재 대비 구조
+  const contrastWords = ['되어', '된', '가 되', '로 성공한', '에서'];
+  let hasContrast = false;
+  for (const word of contrastWords) {
+    if (title.includes(word)) {
+      hasContrast = true;
+      score += 10;
+      break;
+    }
+  }
+
+  // 5. 강한 훅 키워드 (호기심 유발)
+  const hookKeywords = ['이유', '진실', '비밀', '반전', '방법', '비결', '순간'];
+  let hasHook = false;
+  for (const keyword of hookKeywords) {
+    if (title.includes(keyword)) {
+      hasHook = true;
+      score += 12;
+      break;
+    }
+  }
+
+  // 6. 감정 키워드 평가 (강화)
+  const emotionalKeywords = [
+    '통쾌한', '눈물겨운', '충격적', '처절한', '놀라운',
+    '후회', '복수', '반전', '충격', '감동',
+    '배신', '성공', '귀환', '당당', '끝판왕'
+  ];
   let emotionalCount = 0;
   for (const keyword of emotionalKeywords) {
     if (title.includes(keyword)) {
       emotionalCount++;
     }
   }
-  score += Math.min(emotionalCount * 5, 20);
+  score += Math.min(emotionalCount * 4, 12);
 
-  // 4. 숫자 포함 여부 (구체성)
-  if (/\d+/.test(title)) {
-    score += 8;
-  }
-
-  // 5. 카테고리 관련 키워드 평가
+  // 7. 카테고리 관련 키워드 평가
   const categoryKeywords: Record<string, string[]> = {
     '시니어사연': ['시어머니', '며느리', '고부갈등', '시댁', '양로원'],
-    '복수극': ['복수', '무시', 'CEO', '귀환', '배신자', '신입'],
-    '탈북자사연': ['탈북', '북한', '남한', '자유', '대한민국'],
-    '막장드라마': ['출생', '비밀', '재벌', '배다른', '친자확인'],
+    '복수극': ['복수', '무시', 'CEO', '귀환', '배신자', '신입', '청소부', '판사'],
+    '탈북자사연': ['탈북', '북한', '남한', '자유', '대한민국', '변호사', '유튜버'],
+    '막장드라마': ['출생', '비밀', '재벌', '배다른', '친자확인', '재산'],
   };
 
   const keywords = categoryKeywords[category] || [];
@@ -76,12 +111,17 @@ function evaluateTitleWithRules(title: string, category: string): number {
       categoryCount++;
     }
   }
-  score += Math.min(categoryCount * 7, 15);
+  score += Math.min(categoryCount * 4, 8);
 
-  // 6. 문장 구조 평가
+  // 8. 문장 구조 평가 (쉼표 1-2개)
   const hasComma = (title.match(/,/g) || []).length;
   if (hasComma >= 1 && hasComma <= 2) {
-    score += 7;
+    score += 3;
+  }
+
+  // 보너스: 모든 핵심 요소 충족 시
+  if (hasSubject && hasTime && hasContrast && hasHook) {
+    score += 10; // 완벽한 구조 보너스
   }
 
   return Math.min(100, Math.max(0, score));
