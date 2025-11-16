@@ -655,7 +655,8 @@ export async function POST(request: NextRequest) {
             ...process.env,
             PYTHONIOENCODING: 'utf-8',
             PYTHONUTF8: '1',  // Python 3.7+ UTF-8 모드 강제
-            PYTHONUNBUFFERED: '1'  // Python 출력 버퍼링 비활성화 (실시간 로그)
+            PYTHONUNBUFFERED: '1',  // Python 출력 버퍼링 비활성화 (실시간 로그)
+            JOB_ID: taskId  // DB 로깅용 JOB_ID 전달
           }
         });
 

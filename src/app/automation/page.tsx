@@ -218,6 +218,13 @@ function AutomationPageContent() {
     }
   }, [searchParams]);
 
+  // 제목 풀 탭 전환 시 데이터 로드
+  useEffect(() => {
+    if (mainTab === 'title-pool') {
+      fetchTitlePool();
+    }
+  }, [mainTab, poolCategory, poolMinScore]);
+
   // titleId 파라미터 처리 (titles 로드 후)
   useEffect(() => {
     const titleId = searchParams.get('titleId');
@@ -364,6 +371,35 @@ function AutomationPageContent() {
       setRecentTitles(updated);
     } catch (error) {
       console.error('Failed to save recent title:', error);
+    }
+  }
+
+  async function fetchTitlePool() {
+    try {
+      setPoolLoading(true);
+
+      // 통계 로드
+      const statsRes = await fetch('/api/admin/title-pool/stats');
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setPoolStats(data.stats || []);
+      }
+
+      // 제목 로드
+      const params = new URLSearchParams({
+        category: poolCategory,
+        minScore: poolMinScore.toString(),
+        limit: '100'
+      });
+      const titlesRes = await fetch(`/api/admin/title-pool?${params}`);
+      if (titlesRes.ok) {
+        const data = await titlesRes.json();
+        setPoolTitles(data.titles || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch title pool:', error);
+    } finally {
+      setPoolLoading(false);
     }
   }
 
@@ -1968,12 +2004,172 @@ function AutomationPageContent() {
           {/* 제목 풀 */}
           {mainTab === 'title-pool' && (
             <div className="space-y-4">
+              {/* 통계 카드 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {poolStats.map((stat: any) => (
+                  <div key={stat.category} className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                    <div className="text-sm text-slate-400 mb-2">{stat.category}</div>
+                    <div className="text-3xl font-bold mb-2">{stat.total}</div>
+                    <div className="text-sm text-slate-400">
+                      미사용: {stat.unused}개 | 평균: {stat.avg_score.toFixed(1)}점
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      최고: {stat.max_score}점
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 필터 */}
               <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-                <iframe
-                  src="/admin/title-pool"
-                  className="w-full h-[800px] border-0"
-                  title="제목 풀 관리"
-                />
+                <div className="flex gap-4 items-center">
+                  <div className="flex-1">
+                    <label className="block text-sm text-slate-400 mb-2">카테고리</label>
+                    <select
+                      value={poolCategory}
+                      onChange={(e) => setPoolCategory(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                    >
+                      <option value="all">전체</option>
+                      {poolStats.map((stat: any) => (
+                        <option key={stat.category} value={stat.category}>
+                          {stat.category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-sm text-slate-400 mb-2">최소 점수</label>
+                    <input
+                      type="number"
+                      value={poolMinScore}
+                      onChange={(e) => setPoolMinScore(Number(e.target.value))}
+                      min="0"
+                      max="100"
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 제목 목록 */}
+              <div className="bg-slate-800 rounded-lg border border-slate-700">
+                <div className="p-4 border-b border-slate-700">
+                  <h2 className="text-xl font-bold">
+                    제목 목록 ({poolTitles.length}개)
+                  </h2>
+                </div>
+
+                {poolLoading ? (
+                  <div className="p-8 text-center text-slate-400">로딩 중...</div>
+                ) : poolTitles.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400">
+                    제목이 없습니다. <br />
+                    <code className="text-xs bg-slate-700 px-2 py-1 rounded mt-2 inline-block">
+                      node batch-generate-titles.js
+                    </code> 실행으로 제목을 생성하세요.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-slate-700">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">점수</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">카테고리</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">제목</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">상태</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">생성일</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {poolTitles.map((title: any) => (
+                          <tr key={title.id} className="border-b border-slate-700 hover:bg-slate-750">
+                            <td className="px-4 py-3">
+                              <span className={`font-bold ${
+                                title.score >= 95 ? 'text-green-400' :
+                                title.score >= 90 ? 'text-blue-400' :
+                                'text-yellow-400'
+                              }`}>
+                                {title.score}점
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-400">
+                              {title.category}
+                            </td>
+                            <td className="px-4 py-3">
+                              {title.title}
+                            </td>
+                            <td className="px-4 py-3">
+                              {title.used === 1 ? (
+                                <span className="text-xs bg-slate-600 text-slate-300 px-2 py-1 rounded">
+                                  사용됨
+                                </span>
+                              ) : (
+                                <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+                                  미사용
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-400">
+                              {new Date(title.created_at).toLocaleString('ko-KR')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 생성된 제목 목록 (video_titles) */}
+              <div className="bg-slate-800 rounded-lg border border-slate-700">
+                <div className="p-4 border-b border-slate-700">
+                  <h2 className="text-xl font-bold">
+                    생성된 제목 ({titles.length}개)
+                  </h2>
+                </div>
+
+                {titles.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400">생성된 제목이 없습니다.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-slate-700">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">제목</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">카테고리</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">상태</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">모델</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">생성일</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {titles.slice(0, 50).map((title: any) => (
+                          <tr key={title.id} className="border-b border-slate-700 hover:bg-slate-750">
+                            <td className="px-4 py-3">{title.title}</td>
+                            <td className="px-4 py-3 text-sm text-slate-400">{title.category}</td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                title.status === 'completed' ? 'bg-green-600' :
+                                title.status === 'processing' ? 'bg-blue-600' :
+                                title.status === 'scheduled' ? 'bg-yellow-600' :
+                                title.status === 'failed' ? 'bg-red-600' :
+                                'bg-slate-600'
+                              }`}>
+                                {title.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-400">{title.model}</td>
+                            <td className="px-4 py-3 text-sm text-slate-400">
+                              {new Date(title.created_at).toLocaleString('ko-KR')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
