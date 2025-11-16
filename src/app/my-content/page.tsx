@@ -3868,13 +3868,15 @@ export default function MyContentPage() {
                               <span className="text-slate-500">•</span>
                               <span>{formatDate(script.createdAt)}</span>
                             </p>
-                            {/* 카테고리 표시 (product-info 타입은 제외) */}
-                            {(script as any).category && script.type !== 'product-info' && (
+                            {/* 카테고리 표시 */}
+                            {((script as any).category || script.type === 'product-info') && (
                               <p className="flex items-center gap-2">
                                 <span className="text-slate-500">•</span>
                                 <span className="inline-flex items-center gap-1">
                                   <span className="text-purple-400">🎭</span>
-                                  <span className="text-purple-300 font-medium">{(script as any).category}</span>
+                                  <span className="text-purple-300 font-medium">
+                                    {script.type === 'product-info' ? '상품정보' : (script as any).category}
+                                  </span>
                                 </span>
                               </p>
                             )}
