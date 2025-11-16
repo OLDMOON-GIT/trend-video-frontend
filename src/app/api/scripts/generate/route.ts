@@ -268,9 +268,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, videoFormat, useClaudeLocal, scriptModel, model, productInfo, category, userId: internalUserId } = body;
+    const { title, type, videoFormat, useClaudeLocal, scriptModel, model, category, userId: internalUserId } = body;
+    let productInfo = body.productInfo; // let으로 선언하여 나중에 재할당 가능
 
     console.log('🔍 [AUTH] internalUserId from body:', internalUserId);
+    console.log('🛍️ [PRODUCT-INFO] productInfo 수신:', productInfo ? 'YES ✅' : 'NO ❌');
+    if (productInfo) {
+      console.log('  - title:', productInfo.title);
+      console.log('  - thumbnail:', productInfo.thumbnail);
+      console.log('  - product_link:', productInfo.product_link);
+      console.log('  - description:', productInfo.description);
+    }
 
     // 내부 요청일 경우 body에서 userId를 가져와 user 객체 생성
     if (isInternalRequest && internalUserId) {
@@ -339,6 +347,31 @@ export async function POST(request: NextRequest) {
 
     console.log(`  📌 대본 타입: ${scriptType} (입력: ${inputType})`);
 
+    // 🔒 중복 체크: 같은 제목으로 이미 생성 중인 대본이 있는지 확인
+    const Database = require('better-sqlite3');
+    const dbCheck = new Database(dbPath);
+    const existingScript = dbCheck.prepare(`
+      SELECT id, status FROM contents
+      WHERE user_id = ?
+        AND title = ?
+        AND type = 'script'
+        AND format = ?
+        AND status IN ('pending', 'processing')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(user.userId, title, scriptType) as { id: string; status: string } | undefined;
+
+    if (existingScript) {
+      console.warn(`⚠️ [SCRIPT] 중복 대본 생성 방지: title="${title}"에 이미 ${existingScript.status} 중인 대본(${existingScript.id})이 있습니다.`);
+      dbCheck.close();
+      return NextResponse.json({
+        success: true,
+        taskId: existingScript.id,
+        message: '이미 생성 중인 대본이 있습니다'
+      });
+    }
+    dbCheck.close();
+
     // contents 테이블을 사용하여 스크립트 작업 생성
     const { createContent } = await import('@/lib/content');
 
@@ -376,6 +409,36 @@ export async function POST(request: NextRequest) {
       const productPromptTemplate = await getProductPrompt();
       prompt = productPromptTemplate.replace(/{title}/g, title);
 
+      // productInfo가 없으면 DB에서 찾아오기
+      if (!productInfo) {
+        console.log('⚠️ productInfo가 전달되지 않음, DB에서 찾는 중...');
+
+        // title이 "[광고] XXX"와 같은 형식이면 그대로 사용
+        const searchTitle = title;
+        console.log('  검색 제목:', searchTitle);
+
+        // DB에서 제목의 product_data 찾기
+        const db = Database(dbPath);
+        const videoTitle = db.prepare(`
+          SELECT product_data FROM video_titles
+          WHERE title = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(searchTitle) as { product_data: string } | undefined;
+        db.close();
+
+        if (videoTitle && videoTitle.product_data) {
+          try {
+            productInfo = JSON.parse(videoTitle.product_data);
+            console.log('✅ DB에서 productInfo 로드 성공:', productInfo);
+          } catch (e) {
+            console.error('❌ product_data JSON 파싱 실패:', e);
+          }
+        } else {
+          console.error('❌ DB에서 제목을 찾을 수 없음:', searchTitle);
+        }
+      }
+
       // productInfo가 있으면 플레이스홀더 치환
       if (productInfo) {
         console.log('🛍️ 상품 정보 치환 시작:', productInfo);
@@ -385,7 +448,7 @@ export async function POST(request: NextRequest) {
           .replace(/{product_description}/g, productInfo.description || '');
         console.log('✅ 상품 정보 플레이스홀더 치환 완료');
       } else {
-        console.warn('⚠️ productInfo가 없습니다! 플레이스홀더가 그대로 남아있을 수 있습니다.');
+        console.warn('⚠️ productInfo를 찾을 수 없습니다! 플레이스홀더가 그대로 남아있을 수 있습니다.');
       }
 
       console.log('✅ 상품 프롬프트 사용');
@@ -393,6 +456,36 @@ export async function POST(request: NextRequest) {
       // 상품정보: 상품 기입 정보 전용 프롬프트 사용
       const productInfoPromptTemplate = await getProductInfoPrompt();
       prompt = productInfoPromptTemplate.replace(/{title}/g, title);
+
+      // productInfo가 없으면 DB에서 찾아오기
+      if (!productInfo) {
+        console.log('⚠️ productInfo가 전달되지 않음, DB에서 찾는 중...');
+
+        // title에서 원본 제목 추출: "[광고] XXX - 상품 기입 정보" → "[광고] XXX"
+        const originalTitle = title.replace(/ - 상품 기입 정보$/, '');
+        console.log('  원본 제목:', originalTitle);
+
+        // DB에서 원본 제목의 product_data 찾기
+        const db = Database(dbPath);
+        const videoTitle = db.prepare(`
+          SELECT product_data FROM video_titles
+          WHERE title = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(originalTitle) as { product_data: string } | undefined;
+        db.close();
+
+        if (videoTitle && videoTitle.product_data) {
+          try {
+            productInfo = JSON.parse(videoTitle.product_data);
+            console.log('✅ DB에서 productInfo 로드 성공:', productInfo);
+          } catch (e) {
+            console.error('❌ product_data JSON 파싱 실패:', e);
+          }
+        } else {
+          console.error('❌ DB에서 원본 제목을 찾을 수 없음:', originalTitle);
+        }
+      }
 
       // productInfo가 있으면 플레이스홀더 치환
       if (productInfo) {
@@ -420,7 +513,7 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ 상품 정보 플레이스홀더 치환 완료');
       } else {
-        console.warn('⚠️ productInfo가 없습니다! 플레이스홀더가 그대로 남아있을 수 있습니다.');
+        console.error('❌ productInfo를 찾을 수 없습니다! 프롬프트에 플레이스홀더가 그대로 남습니다.');
       }
 
       console.log('✅ 상품정보 프롬프트 사용');
@@ -770,8 +863,15 @@ export async function POST(request: NextRequest) {
         }
 
         // productInfo가 있으면 AI 응답에서 플레이스홀더 치환
-        if (productInfo && (scriptType === 'product' || scriptType === 'product-info')) {
-          console.log('🛍️🛍️🛍️ AI 응답 플레이스홀더 치환 시작:', productInfo);
+        console.log(`🔍 [PLACEHOLDER-CHECK] scriptType: ${scriptType}, productInfo: ${productInfo ? 'YES' : 'NO'}`);
+        if (scriptType === 'product' || scriptType === 'product-info') {
+          // product, product-info 타입이면 무조건 플레이스홀더 치환 시도
+          // productInfo가 없으면 빈 문자열로 치환
+          const safeProductInfo = productInfo || { thumbnail: '', product_link: '', description: '' };
+
+          console.log('🛍️🛍️🛍️ AI 응답 플레이스홀더 치환 시작:', safeProductInfo);
+          console.log('  - 치환 대상 타입:', scriptType);
+          console.log('  - productInfo 전달됨:', !!productInfo);
           addLog(taskId, '🛍️ 상품 정보 플레이스홀더 치환 중...');
 
           // JSON인 경우 파싱 후 치환 (구조 유지)
@@ -784,31 +884,40 @@ export async function POST(request: NextRequest) {
             const hasProductLink = jsonString.includes('{product_link}');
             const hasProductDescription = jsonString.includes('{product_description}');
 
+            console.log('🔍 플레이스홀더 확인:', { hasThumbnail, hasProductLink, hasProductDescription });
+
             if (hasThumbnail || hasProductLink || hasProductDescription) {
-              console.log('⚠️ AI 응답에 플레이스홀더 발견:', { hasThumbnail, hasProductLink, hasProductDescription });
+              console.log('⚠️ AI 응답에 플레이스홀더 발견! 치환 시작...');
+              console.log('  - {thumbnail} 치환:', safeProductInfo.thumbnail);
+              console.log('  - {product_link} 치환:', safeProductInfo.product_link);
+              console.log('  - {product_description} 치환:', safeProductInfo.description);
 
               // JSON 문자열에서 플레이스홀더 치환
               let replacedJson = jsonString
-                .replace(/{thumbnail}/g, productInfo.thumbnail || '')
-                .replace(/{product_link}/g, productInfo.product_link || '')
-                .replace(/{product_description}/g, productInfo.description || '');
+                .replace(/{thumbnail}/g, safeProductInfo.thumbnail || '')
+                .replace(/{product_link}/g, safeProductInfo.product_link || '')
+                .replace(/{product_description}/g, safeProductInfo.description || '');
 
               // 다시 JSON으로 파싱하고 포맷팅
               scriptContent = JSON.stringify(JSON.parse(replacedJson), null, 2);
               console.log('✅ AI 응답 플레이스홀더 치환 완료 (JSON)');
+              console.log('  - 치환 후 내용 샘플:', scriptContent.substring(0, 300));
             } else {
               console.log('✅ AI 응답에 플레이스홀더 없음 (정상)');
             }
           } catch (e) {
             // JSON이 아니면 문자열 치환
+            console.log('⚠️ JSON 파싱 실패, 문자열 치환 시도');
             scriptContent = scriptContent
-              .replace(/{thumbnail}/g, productInfo.thumbnail || '')
-              .replace(/{product_link}/g, productInfo.product_link || '')
-              .replace(/{product_description}/g, productInfo.description || '');
+              .replace(/{thumbnail}/g, safeProductInfo.thumbnail || '')
+              .replace(/{product_link}/g, safeProductInfo.product_link || '')
+              .replace(/{product_description}/g, safeProductInfo.description || '');
             console.log('✅ AI 응답 플레이스홀더 치환 완료 (문자열)');
           }
 
           addLog(taskId, '✅ 상품 정보 플레이스홀더 치환 완료');
+        } else {
+          console.log(`⚠️ [PLACEHOLDER-SKIP] 상품 타입이 아니므로 치환 스킵 (type: ${scriptType})`);
         }
 
         addLog(taskId, '💾 contents 테이블에 저장 중...');

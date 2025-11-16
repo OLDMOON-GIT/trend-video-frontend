@@ -98,6 +98,12 @@ async function processPendingSchedules() {
 
     console.log(`[Scheduler] Found ${pendingSchedules.length} pending schedule(s)`);
 
+    // Debug: 첫번째 스케줄의 전체 키 로깅
+    if (pendingSchedules.length > 0) {
+      console.log('🔍 [SCHEDULER] First schedule keys:', Object.keys(pendingSchedules[0]));
+      console.log('🔍 [SCHEDULER] First schedule has product_data?:', !!(pendingSchedules[0] as any).product_data);
+    }
+
     for (const schedule of pendingSchedules) {
       try {
         // 파이프라인이 이미 존재하는지 먼저 확인 (DB 잠금으로 race condition 방지)
@@ -357,6 +363,9 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     user_id: schedule.user_id,
     hasUserId: !!schedule.user_id
   });
+  console.log('🔍 [SCHEDULER] Full schedule keys:', Object.keys(schedule));
+  console.log('🔍 [SCHEDULER] schedule.product_data exists?:', !!schedule.product_data);
+  console.log('🔍 [SCHEDULER] schedule.type:', schedule.type);
 
   try {
     addPipelineLog(pipelineId, 'info', `📝 대본 생성 시작...`);
@@ -368,16 +377,23 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
       try {
         productInfo = JSON.parse(schedule.product_data);
         console.log('🛍️ [SCHEDULER] Product data found:', productInfo);
+        console.log('  - title:', productInfo?.title);
+        console.log('  - thumbnail:', productInfo?.thumbnail);
+        console.log('  - product_link:', productInfo?.product_link);
+        console.log('  - description:', productInfo?.description);
       } catch (e) {
         console.error('❌ [SCHEDULER] Failed to parse product_data:', e);
+        console.error('  - Raw product_data:', schedule.product_data);
       }
+    } else {
+      console.warn(`⚠️ [SCHEDULER] No product_data for type: ${schedule.type}`);
     }
 
     const requestBody = {
       title: schedule.title,
       type: schedule.type,
       productUrl: schedule.product_url,
-      productInfo: productInfo,
+      productInfo: productInfo || null, // undefined 대신 null 사용 (JSON.stringify에서 제외되지 않도록)
       model: schedule.model || 'claude',
       useClaudeLocal: schedule.script_mode !== 'api',
       userId: schedule.user_id,
@@ -385,6 +401,7 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     };
 
     console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
+    console.log(`  - productInfo 전달: ${requestBody.productInfo ? 'YES ✅' : 'NO ❌'}`);
 
     // API 방식으로 대본 생성 (내부 요청 헤더 포함)
     console.log('📤 [SCHEDULER] Calling /api/scripts/generate...');
@@ -496,6 +513,10 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       throw new Error(`Script not found: ${scriptId}`);
     }
 
+    if (!content.user_id) {
+      throw new Error(`Script ${scriptId} has no user_id`);
+    }
+
     // content 파싱
     let scriptData;
     try {
@@ -597,78 +618,35 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
     };
 
     // ============================================================
-    // 중복 실행 방지: 같은 title로 이미 실행 중인 job이 있는지 확인
-    // 트랜잭션으로 race condition 방지
+    // 중복 실행 방지: 같은 source_content_id로 이미 실행 중인 job이 있는지 확인
     // ============================================================
     const dbCheck = new Database(dbPath);
-    let jobId: string;
+    let jobId: string | undefined;
     let shouldCallApi = true;
 
-    try {
-      // BEGIN TRANSACTION
-      dbCheck.exec('BEGIN IMMEDIATE TRANSACTION');
+    const existingJob = dbCheck.prepare(`
+      SELECT id, status, title
+      FROM jobs
+      WHERE source_content_id = ?
+        AND status IN ('pending', 'processing')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(scriptId) as any;
 
-      const existingJob = dbCheck.prepare(`
-        SELECT id, status, title
-        FROM jobs
-        WHERE title LIKE '%' || ? || '%'
-          AND status IN ('pending', 'processing')
-        ORDER BY created_at DESC
-        LIMIT 1
-      `).get(content.title) as any;
+    dbCheck.close();
 
-      if (existingJob) {
-        console.log(`🔍 [DUPLICATE CHECK] Found existing job: ${existingJob.id} (status: ${existingJob.status})`);
-        addPipelineLog(pipelineId, 'info', `⚠️ 이미 실행 중인 작업 발견: ${existingJob.id}`);
-        addTitleLog(titleId, 'info', `⚠️ 기존 작업을 재사용합니다: ${existingJob.id}`);
+    if (existingJob) {
+      console.log(`🔍 [DUPLICATE CHECK] Found existing job: ${existingJob.id} (status: ${existingJob.status})`);
+      addPipelineLog(pipelineId, 'info', `⚠️ 이미 실행 중인 작업 발견: ${existingJob.id}`);
+      addTitleLog(titleId, 'info', `⚠️ 기존 작업을 재사용합니다: ${existingJob.id}`);
 
-        jobId = existingJob.id;
-        shouldCallApi = false;
-
-        dbCheck.exec('COMMIT');
-      } else {
-        // 새로운 job placeholder 생성 (즉시 processing 상태로)
-        jobId = `auto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        dbCheck.prepare(`
-          INSERT INTO jobs (id, title, status, created_at, updated_at)
-          VALUES (?, ?, 'processing', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(jobId, content.title);
-
-        console.log(`✅ [DUPLICATE CHECK] Created job placeholder: ${jobId}`);
-        addPipelineLog(pipelineId, 'info', `📝 Job placeholder 생성: ${jobId}`);
-
-        dbCheck.exec('COMMIT');
-        shouldCallApi = true;
-      }
-    } catch (error: any) {
-      dbCheck.exec('ROLLBACK');
-
-      // UNIQUE 제약조건 위반 (다른 프로세스가 먼저 생성함)
-      if (error.code === 'SQLITE_CONSTRAINT' || error.message?.includes('UNIQUE')) {
-        console.log(`⚠️ [DUPLICATE CHECK] Another process created job first, retrying...`);
-
-        // 다시 조회
-        const retryJob = dbCheck.prepare(`
-          SELECT id FROM jobs
-          WHERE title LIKE '%' || ? || '%'
-            AND status IN ('pending', 'processing')
-          ORDER BY created_at DESC
-          LIMIT 1
-        `).get(content.title) as any;
-
-        if (retryJob) {
-          jobId = retryJob.id;
-          shouldCallApi = false;
-          console.log(`♻️ [DUPLICATE CHECK] Using job created by other process: ${jobId}`);
-        } else {
-          throw error;
-        }
-      } else {
-        throw error;
-      }
-    } finally {
-      dbCheck.close();
+      jobId = existingJob.id;
+      shouldCallApi = false;
+    } else {
+      // 새로운 job 생성은 API에서 처리 (fresh created_at 타임스탬프로)
+      console.log(`✅ [DUPLICATE CHECK] No existing job found, will create new job via API`);
+      addPipelineLog(pipelineId, 'info', `📝 API를 통해 새 Job 생성 예정`);
+      shouldCallApi = true;
     }
 
     console.log('📤 [SCHEDULER] Calling /api/generate-video-upload...');
@@ -685,8 +663,8 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
 
     // 기존 job이 없을 때만 API 호출
     if (shouldCallApi) {
-      // jobId를 requestBody에 추가 (API에서 placeholder job 업데이트용)
-      requestBody.jobId = jobId;
+      // API가 fresh created_at 타임스탬프로 새 job을 생성하도록 jobId를 전달하지 않음
+      // (메인 페이지와 동일한 방식)
 
       // /api/generate-video-upload 호출
       response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload`, {
@@ -842,8 +820,37 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
       throw new Error(`Video file not found at path: ${videoPath}`);
     }
 
+    // 🔒 중복 체크: 이미 업로드된 영상인지 확인
+    const dbUploadCheck = new Database(dbPath);
+    const existingUpload = dbUploadCheck.prepare(`
+      SELECT id, video_url FROM youtube_uploads
+      WHERE job_id = ?
+        AND video_url IS NOT NULL
+        AND video_url != ''
+      LIMIT 1
+    `).get(videoId) as { id: string; video_url: string } | undefined;
+    dbUploadCheck.close();
+
+    if (existingUpload) {
+      console.warn(`⚠️ [YOUTUBE] 중복 업로드 방지: videoId=${videoId}는 이미 업로드됨 (${existingUpload.video_url})`);
+      addPipelineLog(pipelineId, 'info', `⚠️ 이미 업로드된 영상입니다: ${existingUpload.video_url}`);
+
+      // 스케줄 상태 업데이트
+      const dbStatus = new Database(dbPath);
+      dbStatus.prepare(`
+        UPDATE video_schedules
+        SET status = 'completed', youtube_url = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(existingUpload.video_url, schedule.id);
+      dbStatus.close();
+
+      return; // 중복 업로드 방지
+    }
+
     // YouTube API 호출
+    const privacyValue = schedule.youtube_privacy || 'public';
     addPipelineLog(pipelineId, 'info', `Calling YouTube upload API for video: ${job.title}`);
+    addPipelineLog(pipelineId, 'info', `YouTube 공개 설정: ${privacyValue} (DB값: ${schedule.youtube_privacy})`);
 
     const uploadResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/youtube/upload`, {
       method: 'POST',
@@ -856,11 +863,12 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
         title: job.title || schedule.title,
         description: '', // 빈 문자열 (상품정보 대본이 있으면 자동으로 추가될 예정)
         tags: schedule.tags ? schedule.tags.split(',').map((t: string) => t.trim()) : [],
-        privacy: schedule.youtube_schedule === 'immediate' ? 'public' : 'private', // immediate면 바로 공개, 아니면 private
+        privacy: privacyValue, // 사용자 설정 우선, 없으면 public
         channelId: schedule.channel,
         jobId: videoId,
         publishAt: schedule.youtube_publish_time,
-        userId: schedule.user_id // 내부 요청용 userId 전달
+        userId: schedule.user_id, // 내부 요청용 userId 전달
+        type: job.type // 상품 타입 전달 (상품정보 대본 검색용)
       })
     });
 
