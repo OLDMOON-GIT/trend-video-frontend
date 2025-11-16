@@ -758,6 +758,53 @@ export function getPipelineDetails(scheduleId: string) {
 
 // ========== 채널 설정 관리 함수 ==========
 
+// 채널 색상 팔레트 (16가지)
+const CHANNEL_COLORS = [
+  '#3b82f6', // blue-500
+  '#ef4444', // red-500
+  '#10b981', // green-500
+  '#f59e0b', // amber-500
+  '#8b5cf6', // violet-500
+  '#ec4899', // pink-500
+  '#14b8a6', // teal-500
+  '#f97316', // orange-500
+  '#06b6d4', // cyan-500
+  '#6366f1', // indigo-500
+  '#a855f7', // purple-500
+  '#84cc16', // lime-500
+  '#eab308', // yellow-500
+  '#22c55e', // green-600
+  '#d946ef', // fuchsia-500
+  '#0ea5e9', // sky-500
+];
+
+// 사용 중인 색상과 겹치지 않는 색상 자동 선택
+function getAvailableChannelColor(userId: string): string {
+  const db = new Database(dbPath);
+
+  try {
+    // 이미 사용 중인 색상 조회
+    const usedColors = db.prepare(`
+      SELECT DISTINCT color FROM youtube_channel_settings
+      WHERE user_id = ?
+    `).all(userId) as Array<{ color: string }>;
+
+    const usedColorSet = new Set(usedColors.map(c => c.color));
+
+    // 사용되지 않은 색상 찾기
+    for (const color of CHANNEL_COLORS) {
+      if (!usedColorSet.has(color)) {
+        return color;
+      }
+    }
+
+    // 모든 색상이 사용 중이면 첫 번째 색상 반환
+    return CHANNEL_COLORS[0];
+  } finally {
+    db.close();
+  }
+}
+
 // 채널 설정 추가 또는 업데이트
 export function upsertChannelSettings(data: {
   userId: string;
@@ -778,6 +825,9 @@ export function upsertChannelSettings(data: {
   // weekdays와 categories를 JSON 문자열로 변환
   const weekdaysJson = data.weekdays ? JSON.stringify(data.weekdays) : null;
   const categoriesJson = data.categories ? JSON.stringify(data.categories) : null;
+
+  // 색상이 지정되지 않은 경우 자동으로 겹치지 않는 색상 할당
+  const assignedColor = data.color || getAvailableChannelColor(data.userId);
 
   try {
     db.prepare(`
@@ -801,7 +851,7 @@ export function upsertChannelSettings(data: {
       data.userId,
       data.channelId,
       data.channelName,
-      data.color || '#3b82f6',
+      assignedColor,
       data.postingMode || 'fixed_interval',
       data.intervalValue || null,
       data.intervalUnit || null,

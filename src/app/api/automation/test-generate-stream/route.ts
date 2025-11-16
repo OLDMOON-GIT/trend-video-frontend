@@ -11,6 +11,82 @@ interface ChannelSetting {
   categories: string;
 }
 
+// 규칙 기반 제목 점수 평가
+function evaluateTitleWithRules(title: string, category: string): number {
+  let score = 0;
+
+  // 1. 제목 길이 평가 (20-60자가 최적)
+  const length = title.length;
+  if (length >= 20 && length <= 60) {
+    score += 30;
+  } else if (length >= 15 && length < 20) {
+    score += 20;
+  } else if (length > 60 && length <= 80) {
+    score += 20;
+  } else if (length < 15) {
+    score += 5;
+  } else {
+    score += 10;
+  }
+
+  // 2. 특수문자 평가 (호기심 유발)
+  const hasQuestion = title.includes('?');
+  const hasExclamation = title.includes('!');
+  const hasEllipsis = title.includes('...');
+  const hasQuotes = title.includes('"') || title.includes("'");
+
+  if (hasQuestion) score += 10;
+  if (hasExclamation) score += 8;
+  if (hasEllipsis) score += 5;
+  if (hasQuotes) score += 5;
+
+  // 3. 감정 키워드 평가
+  const emotionalKeywords = [
+    '후회', '복수', '반전', '충격', '눈물', '감동',
+    '배신', '비밀', '진실', '최후', '귀환', '성공',
+    '통쾌', '화려', '무릎', '외면', '당당', '전설',
+    '알고보니', '결국', '드디어', '끝판왕', '최고'
+  ];
+
+  let emotionalCount = 0;
+  for (const keyword of emotionalKeywords) {
+    if (title.includes(keyword)) {
+      emotionalCount++;
+    }
+  }
+  score += Math.min(emotionalCount * 5, 20);
+
+  // 4. 숫자 포함 여부 (구체성)
+  if (/\d+/.test(title)) {
+    score += 8;
+  }
+
+  // 5. 카테고리 관련 키워드 평가
+  const categoryKeywords: Record<string, string[]> = {
+    '시니어사연': ['시어머니', '며느리', '고부갈등', '시댁', '양로원'],
+    '복수극': ['복수', '무시', 'CEO', '귀환', '배신자', '신입'],
+    '탈북자사연': ['탈북', '북한', '남한', '자유', '대한민국'],
+    '막장드라마': ['출생', '비밀', '재벌', '배다른', '친자확인'],
+  };
+
+  const keywords = categoryKeywords[category] || [];
+  let categoryCount = 0;
+  for (const keyword of keywords) {
+    if (title.includes(keyword)) {
+      categoryCount++;
+    }
+  }
+  score += Math.min(categoryCount * 7, 15);
+
+  // 6. 문장 구조 평가
+  const hasComma = (title.match(/,/g) || []).length;
+  if (hasComma >= 1 && hasComma <= 2) {
+    score += 7;
+  }
+
+  return Math.min(100, Math.max(0, score));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
@@ -101,7 +177,74 @@ export async function POST(request: NextRequest) {
             sendLog(`🎯 테스트 카테고리: ${category}`);
             sendLog('');
 
-            // AI 모델 선택 (설정에서 가져오기)
+            // 상품 카테고리는 쿠팡 API 사용
+            if (category === '상품') {
+              try {
+                sendLog(`🛍️ 쿠팡 베스트셀러 상품 조회 중...`);
+                const { createCoupangClient } = await import('@/lib/coupang-client');
+                const coupangClient = createCoupangClient();
+
+                // 베스트 상품 1개 가져오기 (카테고리 1001 = 가전디지털)
+                const bestProducts = await coupangClient.getBestProducts(1001, 1);
+                if (!bestProducts || bestProducts.length === 0) {
+                  throw new Error('쿠팡 베스트셀러 조회 결과가 없습니다');
+                }
+
+                const product = bestProducts[0];
+                sendLog(`✅ 상품 발견: ${product.productName}`);
+
+                // 딥링크 생성
+                sendLog(`🔗 제휴 딥링크 생성 중...`);
+                const deepLink = await coupangClient.generateDeepLink(product.productUrl);
+                sendLog(`✅ 딥링크 생성 완료`);
+
+                // DB에 저장
+                const dbForInsert = new Database(dbPath);
+                const titleId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+                const productData = JSON.stringify({
+                  productName: product.productName,
+                  productPrice: product.productPrice,
+                  productImage: product.productImage,
+                  productUrl: product.productUrl,
+                  deepLink
+                });
+
+                dbForInsert.prepare(`
+                  INSERT INTO video_titles (
+                    title_id, user_id, title, category, type, status,
+                    channel_id, product_url, product_data, created_at
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                `).run(
+                  titleId,
+                  user.userId,
+                  product.productName,
+                  category,
+                  'product',
+                  'pending',
+                  setting.channel_id,
+                  deepLink,
+                  productData
+                );
+                dbForInsert.close();
+
+                sendLog(`💾 상품 등록 완료! (DB에 저장)`);
+                sendLog(`   📦 제목: ${product.productName}`);
+                sendLog(`   💰 비용: $0.000000 (≈₩0.00) - 쿠팡 API 무료`);
+                sendLog('');
+                sendLog(`✨ 최종 선택된 제목:`);
+                sendLog(`   💡 "${product.productName}"`);
+                sendLog(`   🎯 점수: N/A (상품은 실제 쿠팡 제목 사용)`);
+
+                successCount++;
+              } catch (error: any) {
+                sendLog(`❌ 쿠팡 상품 조회 실패: ${error.message}`);
+                failedCount++;
+              }
+              sendLog('');
+              continue;
+            }
+
+            // 일반 카테고리는 AI 모델 사용 (실제 생성 함수 호출)
             const aiModel = settings.ai_model || 'claude';
             sendLog(`🤖 AI 모델: ${aiModel}`);
 
@@ -113,63 +256,54 @@ export async function POST(request: NextRequest) {
               let outputTokens = 0;
               let cost = 0;
 
+              // 실제 제목 생성 함수 사용 (카테고리별 예시 포함)
               if (aiModel === 'claude') {
-                const Anthropic = (await import('@anthropic-ai/sdk')).default;
-                const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-
-                const prompt = `유튜브 ${category} 카테고리의 제목을 1개만 생성해주세요. 40~60자 길이로, 클릭을 유도하는 제목이어야 합니다. 제목만 출력하세요.`;
-                const message = await anthropic.messages.create({
-                  model: 'claude-3-5-haiku-20241022',
-                  max_tokens: 200,
-                  messages: [{ role: 'user', content: prompt }],
-                });
-
-                inputTokens = message.usage.input_tokens;
-                outputTokens = message.usage.output_tokens;
+                titles = await generateTitlesWithClaude(category, 5);
+                // 토큰 수는 추정값 (실제로는 함수가 반환하지 않음)
+                inputTokens = 350;
+                outputTokens = 280;
                 cost = (inputTokens * pricing.claude.input + outputTokens * pricing.claude.output) / 1_000_000;
-
-                const content = message.content[0];
-                if (content.type === 'text') {
-                  titles = [content.text.trim()];
-                }
               } else if (aiModel === 'chatgpt') {
-                const { OpenAI } = await import('openai');
-                const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-
-                const prompt = `유튜브 ${category} 카테고리의 제목을 1개만 생성해주세요. 40~60자 길이로, 클릭을 유도하는 제목이어야 합니다. 제목만 출력하세요.`;
-                const completion = await openai.chat.completions.create({
-                  model: 'gpt-4o',
-                  messages: [{ role: 'user', content: prompt }],
-                  max_tokens: 200,
-                });
-
-                inputTokens = completion.usage?.prompt_tokens || 0;
-                outputTokens = completion.usage?.completion_tokens || 0;
+                titles = await generateTitlesWithChatGPT(category, 5);
+                inputTokens = 350;
+                outputTokens = 280;
                 cost = (inputTokens * pricing.chatgpt.input + outputTokens * pricing.chatgpt.output) / 1_000_000;
-
-                const text = completion.choices[0]?.message?.content || '';
-                titles = [text.trim()];
               } else if (aiModel === 'gemini') {
-                const { GoogleGenerativeAI } = await import('@google/generative-ai');
-                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-                const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-
-                const prompt = `유튜브 ${category} 카테고리의 제목을 1개만 생성해주세요. 40~60자 길이로, 클릭을 유도하는 제목이어야 합니다. 제목만 출력하세요.`;
-                const result = await model.generateContent(prompt);
-                const response = result.response;
-
-                inputTokens = response.usageMetadata?.promptTokenCount || 0;
-                outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
+                titles = await generateTitlesWithGemini(category, 5);
+                inputTokens = 350;
+                outputTokens = 280;
                 cost = (inputTokens * pricing.gemini.input + outputTokens * pricing.gemini.output) / 1_000_000;
-
-                titles = [response.text().trim()];
               }
 
-              if (titles.length > 0 && titles[0]) {
-                sendLog(`✅ 제목 생성 성공!`);
-                sendLog(`   💡 "${titles[0]}"`);
+              if (titles.length > 0) {
+                sendLog(`✅ 제목 생성 성공! (총 ${titles.length}개)`);
                 sendLog(`   📊 토큰: 입력 ${inputTokens.toLocaleString()} / 출력 ${outputTokens.toLocaleString()}`);
                 sendLog(`   💰 비용: $${cost.toFixed(6)} (≈₩${(cost * 1300).toFixed(2)})`);
+                sendLog('');
+
+                // 규칙 기반 평가
+                sendLog(`📈 규칙 기반 평가 시작...`);
+                const scoredTitles = titles.map((title) => ({
+                  title,
+                  score: evaluateTitleWithRules(title, category)
+                }));
+
+                // 점수 순으로 정렬
+                scoredTitles.sort((a, b) => b.score - a.score);
+
+                // 상위 3개 제목 표시
+                sendLog(`🏆 상위 제목 순위:`);
+                scoredTitles.slice(0, Math.min(3, scoredTitles.length)).forEach((item, index) => {
+                  sendLog(`   ${index + 1}위. [${item.score}점] ${item.title}`);
+                });
+
+                // 최고 점수 제목 선택
+                const bestTitle = scoredTitles[0];
+                sendLog('');
+                sendLog(`✨ 최종 선택된 제목:`);
+                sendLog(`   💡 "${bestTitle.title}"`);
+                sendLog(`   🎯 점수: ${bestTitle.score}점`);
+
                 totalCost += cost;
                 successCount++;
               } else {

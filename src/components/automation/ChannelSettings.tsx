@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface Channel {
   channelId: string;
@@ -46,6 +46,9 @@ export default function ChannelSettings() {
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
   const [triggering, setTriggering] = useState(false);
+
+  // 설정 편집 섹션 ref
+  const editingRef = useRef<HTMLDivElement>(null);
 
   // 채널 목록 조회
   const fetchChannels = async () => {
@@ -146,6 +149,15 @@ export default function ChannelSettings() {
     const interval = setInterval(fetchSchedulerStatus, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // 채널 선택 시 설정 편집 영역으로 스크롤
+  useEffect(() => {
+    if (editingSetting && editingRef.current) {
+      setTimeout(() => {
+        editingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [editingSetting]);
 
   // 채널 선택
   const handleChannelSelect = (channelId: string) => {
@@ -425,7 +437,7 @@ export default function ChannelSettings() {
 
       {/* 설정 편집 */}
       {editingSetting && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div ref={editingRef} className="bg-white rounded-lg shadow p-4">
           <h3 className="text-lg font-bold mb-4">
             {editingSetting.channel_name} 설정
           </h3>
