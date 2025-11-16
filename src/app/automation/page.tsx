@@ -1944,6 +1944,57 @@ function AutomationPageContent() {
                                   🎬 영상
                                 </button>
                               )}
+                              {/* 다운로드 버튼 */}
+                              {scriptId && (
+                                <div className="relative inline-block">
+                                  <button
+                                    onClick={() => setDownloadMenuFor(prev => ({ ...prev, [title.id]: !prev[title.id] }))}
+                                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm transition"
+                                  >
+                                    📥 다운로드
+                                  </button>
+                                  {downloadMenuFor[title.id] && (
+                                    <div className="absolute right-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 min-w-[120px]">
+                                      <button
+                                        onClick={() => {
+                                          handleDownload(scriptId, 'video', title.title);
+                                          setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
+                                        }}
+                                        className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-700 rounded-t-lg"
+                                      >
+                                        🎬 영상만
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          handleDownload(scriptId, 'script', title.title);
+                                          setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
+                                        }}
+                                        className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-700"
+                                      >
+                                        📄 대본만
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          handleDownload(scriptId, 'materials', title.title);
+                                          setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
+                                        }}
+                                        className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-700"
+                                      >
+                                        🖼️ 소재만
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          handleDownload(scriptId, 'all', title.title);
+                                          setDownloadMenuFor(prev => ({ ...prev, [title.id]: false }));
+                                        }}
+                                        className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-slate-700 rounded-b-lg"
+                                      >
+                                        📦 전체
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </>
                           );
                         })()}
@@ -1959,41 +2010,10 @@ function AutomationPageContent() {
                             </button>
                           );
                         })()}
-                        {/* 대본 보기 버튼 (completed 상태이고 script_id가 있을 때만) */}
+                        {/* 대본 재생성 버튼 (failed 상태이고 script_id가 있을 때만) */}
                         {(() => {
                           const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
-                          return title.status === 'completed' && scriptId && (
-                            <button
-                              onClick={() => {
-                                window.location.href = '/my-content?tab=scripts';
-                              }}
-                              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-sm transition"
-                              title="내 콘텐츠에서 대본 보기"
-                            >
-                              📝 대본
-                            </button>
-                          );
-                        })()}
-                        {/* 영상 보기 버튼 (completed 상태이고 video_id가 있을 때만) */}
-                        {(() => {
-                          const schedule = titleSchedules.find((s: any) => s.video_id);
-                          const videoId = schedule?.video_id;
-                          return title.status === 'completed' && videoId && (
-                            <button
-                              onClick={() => {
-                                window.location.href = '/my-content?tab=videos';
-                              }}
-                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-sm transition"
-                              title="내 콘텐츠에서 영상 보기"
-                            >
-                              🎬 영상
-                            </button>
-                          );
-                        })()}
-                        {/* 대본 재생성 버튼 (failed 또는 completed 상태이고 script_id가 있을 때만) */}
-                        {(() => {
-                          const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
-                          return (title.status === 'failed' || title.status === 'completed') && scriptId && (
+                          return title.status === 'failed' && scriptId && (
                             <button
                               onClick={() => handleRegenerateScript(scriptId, title.id, title.title)}
                               className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm transition"
@@ -2003,12 +2023,12 @@ function AutomationPageContent() {
                             </button>
                           );
                         })()}
-                        {/* 영상 재생성 버튼 (failed 또는 completed 상태이고 video_id가 있을 때만) */}
+                        {/* 영상 재생성 버튼 (failed 상태이고 video_id가 있을 때만) */}
                         {(() => {
                           const schedule = titleSchedules.find((s: any) => s.script_id || s.video_id);
                           const videoId = schedule?.video_id;
                           const scriptId = schedule?.script_id;
-                          return (title.status === 'failed' || title.status === 'completed') && (videoId || scriptId) && (
+                          return title.status === 'failed' && (videoId || scriptId) && (
                             <button
                               onClick={() => handleRegenerateVideo(videoId || null, scriptId || null, title.title)}
                               className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded text-sm transition"
@@ -2067,11 +2087,15 @@ function AutomationPageContent() {
                       const schedule = titleSchedules.find((s: any) => s.youtube_url || s.youtube_upload_id);
                       if (!schedule) return null;
 
+                      // 채널 ID로 채널 이름 찾기
+                      const channelInfo = channels.find((ch: any) => ch.id === title.channel);
+                      const channelName = channelInfo?.channelTitle || title.channel;
+
                       return (
                         <div className="mb-3 p-2 bg-red-900/30 rounded border border-red-500/30">
                           <p className="text-xs font-semibold text-red-400 mb-1">📺 YouTube</p>
                           {title.channel && (
-                            <p className="text-xs text-slate-300">채널: {title.channel}</p>
+                            <p className="text-xs text-slate-300">채널: {channelName}</p>
                           )}
                           {schedule.youtube_url && (
                             <p className="text-xs truncate">

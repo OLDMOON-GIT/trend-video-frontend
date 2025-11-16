@@ -534,7 +534,7 @@ export function getAllVideoTitles() {
       t.priority,
       t.product_url,
       t.product_data,
-      COALESCE(yc.channel_name, t.channel) as channel,
+      t.channel,
       t.script_mode,
       t.media_mode,
       t.model,
@@ -551,7 +551,6 @@ export function getAllVideoTitles() {
       s.scheduled_time,
       s.youtube_publish_time
     FROM video_titles t
-    LEFT JOIN youtube_channel_settings yc ON t.channel = yc.channel_id AND t.user_id = yc.user_id
     LEFT JOIN (
       SELECT title_id, id, script_id, video_id, youtube_upload_id, youtube_url, scheduled_time, youtube_publish_time,
              ROW_NUMBER() OVER (PARTITION BY title_id ORDER BY created_at DESC) as rn
