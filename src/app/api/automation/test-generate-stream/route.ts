@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import { getAutomationSettings } from '@/lib/automation';
-import { getAllSettings } from '@/lib/db';
+import Database from 'better-sqlite3';
+import path from 'path';
 import { generateTitlesWithClaude, generateTitlesWithChatGPT, generateTitlesWithGemini } from '@/lib/ai-title-generation';
 
 interface ChannelSetting {
@@ -42,7 +43,14 @@ export async function POST(request: NextRequest) {
           }
 
           // 모든 채널 설정 조회
-          const allSettings = getAllSettings() as ChannelSetting[];
+          const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
+          const db = new Database(dbPath);
+          const allSettings = db.prepare(`
+            SELECT * FROM youtube_channel_settings
+            WHERE is_active = 1
+          `).all() as ChannelSetting[];
+          db.close();
+
           sendLog(`🔍 총 ${allSettings.length}개 채널 설정을 찾았습니다.`);
           sendLog('');
 
