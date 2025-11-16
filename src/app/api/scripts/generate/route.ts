@@ -839,6 +839,18 @@ export async function POST(request: NextRequest) {
             addLog(taskId, `✅ JSON 추출 완료 (${cleanedContent.length}자)`);
             console.log('✅ JSON 추출 완료:', cleanedContent.substring(0, 200) + '...');
 
+            // 2.5. 한글 따옴표 제거 (JSON 파싱 오류 방지)
+            const beforeLength = cleanedContent.length;
+            cleanedContent = cleanedContent
+              .replace(/"/g, '')  // 한글 여는 따옴표 제거
+              .replace(/"/g, ''); // 한글 닫는 따옴표 제거
+
+            const removedCount = beforeLength - cleanedContent.length;
+            if (removedCount > 0) {
+              addLog(taskId, `🔧 한글 따옴표 ${removedCount}개 제거`);
+              console.log(`🔧 한글 따옴표 ${removedCount}개 제거`);
+            }
+
             // 3. JSON 유효성 검증 및 포맷팅
             try {
               const parsed = JSON.parse(cleanedContent);

@@ -1827,52 +1827,100 @@ function HomeContent() {
     const variations: string[] = [];
     const youtubeTitles = videos.map(v => cleanTitle(v.title)).slice(0, 24);
 
-    // 치환 패턴
+    // 확장된 치환 패턴
     const replacements: Record<string, string[]> = {
-      '그녀': ['그', '그 여자', '그 사람', '여성'],
-      '그': ['남자', '그 사람', '그 남성'],
-      '남자': ['그', '남성', '사람'],
-      '여자': ['그녀', '여성', '사람'],
-      '10년': ['5년', '3년', '7년', '15년'],
+      // 가족 관계
+      '할머니': ['할아버지', '노인', '어르신'],
+      '할아버지': ['할머니', '노인', '어르신'],
+      '시어머니': ['장인어른', '시아버지', '장모님'],
+      '시아버지': ['장인어른', '시어머니', '장모님'],
+      '며느리': ['사위', '자부', '아들 배우자'],
+      '사위': ['며느리', '딸 배우자'],
+      '남편': ['아내', '배우자', '부인'],
+      '아내': ['남편', '배우자', '남편분'],
+      '아들': ['딸', '자식', '자녀'],
+      '딸': ['아들', '자식', '자녀'],
+      '형': ['누나', '언니', '오빠'],
+      '동생': ['형', '누나', '언니'],
+      '엄마': ['아빠', '부모님', '어머니'],
+      '아빠': ['엄마', '부모님', '아버지'],
+
+      // 성별/인칭
+      '그녀': ['그', '그 남자', '그 사람'],
+      '그': ['그녀', '그 여자', '그 사람'],
+      '남자': ['여자', '사람', '남성'],
+      '여자': ['남자', '사람', '여성'],
+
+      // 시간
+      '10년': ['5년', '3년', '7년', '15년', '20년'],
       '5년': ['3년', '7년', '10년'],
+      '3년': ['5년', '7년', '10년'],
+      '1년': ['2년', '3년', '6개월'],
+      '20년': ['10년', '15년', '30년'],
+
+      // 직위/직급
       'CEO': ['사장', '회장', '대표', '임원'],
-      '사장': ['CEO', '대표', '회장'],
+      '사장': ['CEO', '대표', '회장', '임원'],
       '회장': ['CEO', '사장', '대표'],
-      '무시당했던': ['무시받았던', '홀대받았던', '천대받았던'],
-      '배신당한': ['배신받은', '속은', '당한'],
-      '시어머니': ['시모', '시댁', '남편 어머니'],
-      '며느리': ['손자며느리', '아들 부인', '아들 배우자'],
-      '복수': ['반격', '역습', '보복'],
+      '대표': ['사장', 'CEO', '회장'],
+      '부장': ['과장', '차장', '임원'],
+      '과장': ['대리', '차장', '부장'],
+      '사원': ['대리', '직원', '신입'],
+
+      // 감정/상태
+      '무시당했던': ['무시받았던', '홀대받았던', '천대받았던', '무시당한'],
+      '무시받은': ['무시당한', '홀대받은', '천대받은'],
+      '배신당한': ['배신받은', '속은', '당한', '배신당했던'],
+      '사랑받는': ['존경받는', '인정받는', '칭찬받는'],
+      '미움받던': ['무시받던', '홀대받던', '천대받던'],
+
+      // 행동
+      '복수': ['반격', '역습', '보복', '복수극'],
+      '반격': ['복수', '역습', '보복'],
+      '귀환': ['복귀', '등장', '돌아옴'],
+      '등장': ['나타남', '출현', '복귀'],
       '나타났다': ['돌아왔다', '복귀했다', '등장했다', '나타났습니다'],
-      '되어': ['되어서', '되고', '이 되어'],
+      '돌아왔다': ['나타났다', '복귀했다', '등장했다'],
+
+      // 장소
+      '회사': ['직장', '사무실', '일터'],
+      '집': ['가정', '집안', '가족'],
+      '학교': ['대학', '학원', '교육기관'],
+
+      // 결과/상태
+      '성공': ['대성공', '승리', '성취'],
+      '실패': ['좌절', '패배', '실수'],
+      '되어': ['되어서', '되고', '이 되어', '되자'],
+      '했다': ['했습니다', '했어요', '하다'],
+      '된': ['되는', '된', '되었던'],
     };
 
     youtubeTitles.forEach(title => {
-      // 각 제목당 2-3개 변형 생성
-      let count = 0;
-      const maxVariations = 2;
+      // 각 제목당 여러 개 변형 생성
+      const titleVariations: string[] = [];
 
       for (const [key, values] of Object.entries(replacements)) {
-        if (count >= maxVariations) break;
-
         if (title.includes(key)) {
           values.forEach(replacement => {
-            if (count >= maxVariations) return;
             const varied = title.replace(new RegExp(key, 'g'), replacement);
-            if (varied !== title && !variations.includes(varied)) {
-              variations.push(varied);
-              count++;
+            if (varied !== title && !titleVariations.includes(varied)) {
+              titleVariations.push(varied);
             }
           });
         }
       }
+
+      // 이 제목에서 생성된 변형들 추가
+      variations.push(...titleVariations);
     });
 
     // 중복 제거 및 개수 제한
-    const uniqueVariations = [...new Set(variations)].slice(0, materialSuggestionCount);
+    const uniqueVariations = [...new Set(variations)]
+      .filter(v => v.length > 10) // 너무 짧은 제목 제외
+      .slice(0, materialSuggestionCount);
 
     setMaterialSuggestedTitles(uniqueVariations);
-    showToast(`✅ ${uniqueVariations.length}개 무료 변형 제목 생성 완료!`, 'success');
+    showToast(`✅ ${uniqueVariations.length}개 무료 변형 제목 생성 완료! (0원)`, 'success');
   }, [videos, cleanTitle, materialSuggestionCount]);
 
   // AI 변형 제목 생성 함수
@@ -6423,50 +6471,49 @@ function HomeContent() {
                 )}
               </div>
 
-              {/* 2. AI 변형 제목 섹션 (Claude 사용) */}
+              {/* 2. 변형 제목 섹션 */}
               <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-5">
                 <div className="mb-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-bold text-purple-400">🤖 AI 변형 제목</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs font-semibold">Claude</span>
+                    <h3 className="text-lg font-bold text-purple-400">⚡ 변형 제목 생성</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold">무료</span>
                   </div>
-                  <p className="text-xs text-slate-400">YouTube 제목 패턴 학습 후 새로 생성</p>
+                  <p className="text-xs text-slate-400">키워드 치환으로 새로운 제목 생성 (할머니→할아버지, CEO→사장 등)</p>
                 </div>
 
                 <div className="space-y-3 mb-4">
                   <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-400">생성 개수:</label>
                     <select
                       value={materialSuggestionCount}
                       onChange={(e) => setMaterialSuggestionCount(Number(e.target.value))}
-                      className="rounded-lg bg-white/10 px-3 py-2 text-sm text-white border border-white/20 focus:outline-none focus:border-purple-400"
+                      className="flex-1 rounded-lg bg-white/10 px-3 py-2 text-sm text-white border border-white/20 focus:outline-none focus:border-emerald-400"
                     >
                       <option value={10}>10개</option>
                       <option value={20}>20개</option>
                       <option value={30}>30개</option>
                       <option value={50}>50개</option>
+                      <option value={100}>100개</option>
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={generateFreeVariations}
-                      disabled={videos.length === 0}
-                      className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      ⚡ 무료 변형
-                    </button>
-                    <button
-                      type="button"
-                      onClick={generateMaterialTitleSuggestions}
-                      disabled={isGeneratingMaterialSuggestions || videos.length === 0}
-                      className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isGeneratingMaterialSuggestions ? '생성 중...' : `🤖 AI (${estimatedCost}원)`}
-                    </button>
-                  </div>
-                  <div className="text-xs text-slate-400 bg-slate-800/50 rounded p-2">
-                    <p className="mb-1"><span className="text-emerald-400">⚡ 무료 변형:</span> 키워드 치환 (즉시 생성, 비용 0원)</p>
-                    <p><span className="text-purple-400">🤖 AI 생성:</span> Claude API (자연스러운 변형, 약 {estimatedCost}원)</p>
+                  <button
+                    type="button"
+                    onClick={generateFreeVariations}
+                    disabled={videos.length === 0}
+                    className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 shadow-lg"
+                  >
+                    ⚡ 무료 제목 생성 (0원)
+                  </button>
+                  <div className="text-xs text-slate-400 bg-emerald-900/20 rounded p-3 border border-emerald-500/30">
+                    <p className="font-semibold text-emerald-400 mb-2">🎯 변형 예시:</p>
+                    <div className="space-y-1 text-xs">
+                      <p>• 할머니 → 할아버지 / 노인 / 어르신</p>
+                      <p>• 시어머니 → 장인어른 / 시아버지 / 장모님</p>
+                      <p>• 며느리 → 사위 / 자부</p>
+                      <p>• 10년 → 5년 / 3년 / 7년 / 15년</p>
+                      <p>• CEO → 사장 / 회장 / 대표</p>
+                      <p>• 무시당했던 → 무시받았던 / 홀대받았던</p>
+                    </div>
                   </div>
                 </div>
 

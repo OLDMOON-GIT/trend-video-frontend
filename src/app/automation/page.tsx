@@ -1612,57 +1612,104 @@ function AutomationPageContent() {
 
           {/* 큐 서브 탭 */}
           {mainTab === 'queue' && (
-            <div className="grid grid-cols-5 gap-2 mb-4">
-              <button
-                onClick={() => setQueueTab('scheduled')}
-                className={`py-3 px-4 rounded-lg font-semibold transition ${
-                  queueTab === 'scheduled'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                📅 예약 큐 ({titles.filter((t: any) => t.status === 'scheduled' || t.status === 'pending').length})
-              </button>
-              <button
-                onClick={() => setQueueTab('processing')}
-                className={`py-3 px-4 rounded-lg font-semibold transition ${
-                  queueTab === 'processing'
-                    ? 'bg-yellow-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                ⏳ 진행 큐 ({titles.filter((t: any) => t.status === 'processing').length})
-              </button>
-              <button
-                onClick={() => setQueueTab('waiting_upload')}
-                className={`py-3 px-4 rounded-lg font-semibold transition ${
-                  queueTab === 'waiting_upload'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                📤 업로드 대기 ({titles.filter((t: any) => t.status === 'waiting_for_upload').length})
-              </button>
-              <button
-                onClick={() => setQueueTab('failed')}
-                className={`py-3 px-4 rounded-lg font-semibold transition ${
-                  queueTab === 'failed'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                ❌ 실패 큐 ({titles.filter((t: any) => t.status === 'failed').length})
-              </button>
-              <button
-                onClick={() => setQueueTab('completed')}
-                className={`py-3 px-4 rounded-lg font-semibold transition ${
-                  queueTab === 'completed'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                ✅ 완료 큐 ({titles.filter((t: any) => t.status === 'completed').length})
-              </button>
+            <div>
+              <div className="grid grid-cols-5 gap-2 mb-2">
+                <button
+                  onClick={() => setQueueTab('scheduled')}
+                  className={`py-3 px-4 rounded-lg font-semibold transition ${
+                    queueTab === 'scheduled'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  📅 예약 큐 ({titles.filter((t: any) => t.status === 'scheduled' || t.status === 'pending').length})
+                </button>
+                <button
+                  onClick={() => setQueueTab('processing')}
+                  className={`py-3 px-4 rounded-lg font-semibold transition ${
+                    queueTab === 'processing'
+                      ? 'bg-yellow-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  ⏳ 진행 큐 ({titles.filter((t: any) => t.status === 'processing').length})
+                </button>
+                <button
+                  onClick={() => setQueueTab('waiting_upload')}
+                  className={`py-3 px-4 rounded-lg font-semibold transition ${
+                    queueTab === 'waiting_upload'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  📤 업로드 대기 ({titles.filter((t: any) => t.status === 'waiting_for_upload').length})
+                </button>
+                <button
+                  onClick={() => setQueueTab('failed')}
+                  className={`py-3 px-4 rounded-lg font-semibold transition ${
+                    queueTab === 'failed'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  ❌ 실패 큐 ({titles.filter((t: any) => t.status === 'failed').length})
+                </button>
+                <button
+                  onClick={() => setQueueTab('completed')}
+                  className={`py-3 px-4 rounded-lg font-semibold transition ${
+                    queueTab === 'completed'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  ✅ 완료 큐 ({titles.filter((t: any) => t.status === 'completed').length})
+                </button>
+              </div>
+              {/* 전체 삭제 버튼 */}
+              <div className="flex justify-end mb-4">
+                <button
+                  onClick={async () => {
+                    const currentTitles = titles.filter((t: any) => {
+                      if (queueTab === 'scheduled') return t.status === 'scheduled' || t.status === 'pending';
+                      if (queueTab === 'processing') return t.status === 'processing';
+                      if (queueTab === 'waiting_upload') return t.status === 'waiting_for_upload';
+                      if (queueTab === 'failed') return t.status === 'failed';
+                      if (queueTab === 'completed') return t.status === 'completed';
+                      return false;
+                    });
+
+                    if (currentTitles.length === 0) {
+                      alert('삭제할 항목이 없습니다.');
+                      return;
+                    }
+
+                    const queueName = queueTab === 'scheduled' ? '예약 큐' :
+                                     queueTab === 'processing' ? '진행 큐' :
+                                     queueTab === 'waiting_upload' ? '업로드 대기' :
+                                     queueTab === 'failed' ? '실패 큐' : '완료 큐';
+
+                    if (!confirm(`${queueName}의 모든 항목(${currentTitles.length}개)을 삭제하시겠습니까?`)) {
+                      return;
+                    }
+
+                    try {
+                      for (const title of currentTitles) {
+                        await fetch(`/api/automation/titles?id=${title.id}`, {
+                          method: 'DELETE'
+                        });
+                      }
+                      await fetchData();
+                      alert(`✅ ${currentTitles.length}개 항목이 삭제되었습니다.`);
+                    } catch (error) {
+                      console.error('전체 삭제 실패:', error);
+                      alert('❌ 삭제 중 오류가 발생했습니다.');
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-semibold transition"
+                >
+                  🗑️ 현재 큐 전체 삭제
+                </button>
+              </div>
             </div>
           )}
 
@@ -1717,24 +1764,16 @@ function AutomationPageContent() {
               ) : (
                 titles
                   .filter((title: any) => {
-                    // 제목에 연결된 스케줄 조회
-                    const titleSchedules = schedules.filter(s => s.title_id === title.id);
-
                     if (queueTab === 'scheduled') {
-                      // 스케줄이 하나라도 scheduled/pending 상태면 표시
-                      return titleSchedules.some(s => ['scheduled', 'pending'].includes(s.status));
+                      return title.status === 'scheduled' || title.status === 'pending';
                     } else if (queueTab === 'processing') {
-                      // 스케줄이 하나라도 processing 상태면 표시
-                      return titleSchedules.some(s => s.status === 'processing');
+                      return title.status === 'processing';
                     } else if (queueTab === 'waiting_upload') {
-                      // 스케줄이 하나라도 waiting_for_upload 상태면 표시
-                      return titleSchedules.some(s => s.status === 'waiting_for_upload');
+                      return title.status === 'waiting_for_upload';
                     } else if (queueTab === 'failed') {
-                      // 스케줄이 하나라도 failed 상태면 표시
-                      return titleSchedules.some(s => s.status === 'failed');
+                      return title.status === 'failed';
                     } else if (queueTab === 'completed') {
-                      // 스케줄이 하나라도 completed 상태면 표시
-                      return titleSchedules.some(s => s.status === 'completed');
+                      return title.status === 'completed';
                     }
                     return true;
                   })
