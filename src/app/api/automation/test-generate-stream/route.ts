@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
                 const prompt = `유튜브 ${category} 카테고리의 제목을 1개만 생성해주세요. 40~60자 길이로, 클릭을 유도하는 제목이어야 합니다. 제목만 출력하세요.`;
                 const message = await anthropic.messages.create({
-                  model: 'claude-3-5-sonnet-20241022',
+                  model: 'claude-3-5-sonnet-20240620',
                   max_tokens: 200,
                   messages: [{ role: 'user', content: prompt }],
                 });

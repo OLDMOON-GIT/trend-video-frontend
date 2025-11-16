@@ -36859,3 +36859,153 @@
 [2025-11-17 02:16:40]   1562 |           setting.channel_id,
 [2025-11-17 02:16:40]   1563 |           lastSchedule ? new Date(lastSchedule.scheduled_time) : undefined
 [2025-11-17 02:16:40] [AutoScheduler] ✅ Completed: 2 success, 2 failed, 2 skipped
+
+[2025-11-17 02:18:28] > trend-video-frontend@0.1.0 dev:server-only
+[2025-11-17 02:18:28] > next dev
+[2025-11-17 02:18:29]  ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+[2025-11-17 02:18:29]  We detected multiple lockfiles and selected the directory of C:\Users\oldmoon\workspace\package-lock.json as the root directory.
+[2025-11-17 02:18:29]  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+[2025-11-17 02:18:29]    See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+[2025-11-17 02:18:29]  Detected additional lockfiles: 
+[2025-11-17 02:18:29]    * C:\Users\oldmoon\workspace\trend-video-frontend\package-lock.json
+[2025-11-17 02:18:29]    ▲ Next.js 16.0.0 (Turbopack)
+[2025-11-17 02:18:29]    - Local:        http://localhost:3000
+[2025-11-17 02:18:29]    - Network:      http://192.168.0.9:3000
+[2025-11-17 02:18:29]    - Environments: .env.local
+[2025-11-17 02:18:29]    - Experiments (use with caution):
+[2025-11-17 02:18:29]      · serverActions
+[2025-11-17 02:18:29]  ✓ Starting...
+[2025-11-17 02:18:29]  ✓ Ready in 1103ms
+[2025-11-17 02:18:32]  GET /automation 200 in 2.4s (compile: 2.3s, render: 171ms)
+[2025-11-17 02:18:33] ✅ SQLite 데이터베이스 초기화 완료
+[2025-11-17 02:18:33] ✅ contents 테이블 생성 완료
+[2025-11-17 02:18:33] ✅ social_media_accounts 테이블 생성 완료
+[2025-11-17 02:18:33] ✅ social_media_uploads 테이블 생성 완료
+[2025-11-17 02:18:33] ✅ api_costs 테이블 생성 완료
+[2025-11-17 02:18:33] ✅ Automation tables initialized
+[2025-11-17 02:18:33] ⏸️ [AUTO-START] Automation scheduler is disabled in settings
+[2025-11-17 02:18:33]  GET /api/automation/schedules 200 in 476ms (compile: 328ms, render: 148ms)
+[2025-11-17 02:18:33]  GET /api/automation/titles 200 in 487ms (compile: 371ms, render: 116ms)
+[2025-11-17 02:18:33]  GET /api/auth/session 200 in 509ms (compile: 419ms, render: 91ms)
+[2025-11-17 02:18:33]  GET /api/automation/scheduler 200 in 498ms (compile: 466ms, render: 33ms)
+[2025-11-17 02:18:33]  GET /api/credits 200 in 526ms (compile: 315ms, render: 211ms)
+[2025-11-17 02:18:33]  GET /api/youtube/channels 200 in 505ms (compile: 421ms, render: 85ms)
+[2025-11-17 02:18:33]  GET /api/automation/categories 200 in 97ms (compile: 85ms, render: 12ms)
+[2025-11-17 02:19:04]  DELETE /api/automation/titles?id=title_1763313400604_p411dzh3c 200 in 16ms (compile: 7ms, render: 10ms)
+[2025-11-17 02:19:04]  DELETE /api/automation/titles?id=title_1763313398943_28rh5m4sf 200 in 20ms (compile: 4ms, render: 16ms)
+[2025-11-17 02:19:04]  DELETE /api/automation/titles?id=title_1763313377474_nvhh8lwbq 200 in 12ms (compile: 3ms, render: 10ms)
+[2025-11-17 02:19:04]  DELETE /api/automation/titles?id=title_1763313374839_cjvqu42cc 200 in 15ms (compile: 3ms, render: 12ms)
+[2025-11-17 02:19:04]  DELETE /api/automation/titles?id=title_1763313340385_29cz6ue8i 200 in 13ms (compile: 4ms, render: 10ms)
+[2025-11-17 02:19:04]  DELETE /api/automation/titles?id=title_1763313338982_pit81d3p4 200 in 12ms (compile: 3ms, render: 9ms)
+[2025-11-17 02:19:04]  DELETE /api/automation/titles?id=title_1763313317271_gztg2oxyp 200 in 14ms (compile: 3ms, render: 11ms)
+[2025-11-17 02:19:04]  DELETE /api/automation/titles?id=title_1763313314969_hfos8ko1e 200 in 13ms (compile: 3ms, render: 9ms)
+[2025-11-17 02:19:04]  GET /api/automation/titles 200 in 16ms (compile: 1907µs, render: 14ms)
+[2025-11-17 02:19:04]  GET /api/automation/schedules 200 in 17ms (compile: 3ms, render: 14ms)
+[2025-11-17 02:19:04] ⏸️ [AUTO-START] Automation scheduler is disabled in settings
+[2025-11-17 02:19:04]  GET /api/automation/scheduler 200 in 97ms (compile: 86ms, render: 11ms)
+[2025-11-17 02:19:08]  GET /automation 200 in 47ms (compile: 5ms, render: 42ms)
+[2025-11-17 02:19:08]  GET /api/auth/session 200 in 30ms (compile: 5ms, render: 25ms)
+[2025-11-17 02:19:08]  GET /api/automation/scheduler 200 in 41ms (compile: 7ms, render: 34ms)
+[2025-11-17 02:19:08]  GET /api/automation/titles 200 in 46ms (compile: 14ms, render: 32ms)
+[2025-11-17 02:19:08]  GET /api/automation/schedules 200 in 50ms (compile: 21ms, render: 29ms)
+[2025-11-17 02:19:08]  GET /api/credits 200 in 86ms (compile: 10ms, render: 76ms)
+[2025-11-17 02:19:08]  GET /api/automation/categories 200 in 38ms (compile: 21ms, render: 17ms)
+[2025-11-17 02:19:08]  GET /api/youtube/channels 200 in 75ms (compile: 27ms, render: 48ms)
+[2025-11-17 02:19:11]  GET /automation 200 in 29ms (compile: 3ms, render: 27ms)
+[2025-11-17 02:19:12]  GET /api/auth/session 200 in 20ms (compile: 3ms, render: 17ms)
+[2025-11-17 02:19:12]  GET /api/automation/scheduler 200 in 36ms (compile: 6ms, render: 30ms)
+[2025-11-17 02:19:12]  GET /api/automation/titles 200 in 48ms (compile: 12ms, render: 36ms)
+[2025-11-17 02:19:12]  GET /api/automation/schedules 200 in 52ms (compile: 16ms, render: 36ms)
+[2025-11-17 02:19:12]  GET /api/credits 200 in 73ms (compile: 8ms, render: 65ms)
+[2025-11-17 02:19:12]  GET /api/automation/categories 200 in 35ms (compile: 9ms, render: 26ms)
+[2025-11-17 02:19:12]  GET /api/youtube/channels 200 in 55ms (compile: 8ms, render: 48ms)
+[2025-11-17 02:19:34]  GET /automation 200 in 32ms (compile: 3ms, render: 28ms)
+[2025-11-17 02:19:34]  GET /api/auth/session 200 in 24ms (compile: 4ms, render: 20ms)
+[2025-11-17 02:19:34]  GET /api/automation/scheduler 200 in 42ms (compile: 8ms, render: 34ms)
+[2025-11-17 02:19:34]  GET /api/automation/schedules 200 in 45ms (compile: 12ms, render: 33ms)
+[2025-11-17 02:19:34]  GET /api/automation/titles 200 in 48ms (compile: 20ms, render: 28ms)
+[2025-11-17 02:19:34]  GET /api/credits 200 in 77ms (compile: 10ms, render: 67ms)
+[2025-11-17 02:19:35]  GET /api/automation/categories 200 in 31ms (compile: 16ms, render: 15ms)
+[2025-11-17 02:19:35]  GET /api/youtube/channels 200 in 69ms (compile: 24ms, render: 44ms)
+[2025-11-17 02:19:45]  GET /automation 200 in 42ms (compile: 3ms, render: 39ms)
+[2025-11-17 02:19:45]  GET /api/auth/session 200 in 23ms (compile: 5ms, render: 18ms)
+[2025-11-17 02:19:45]  GET /api/automation/scheduler 200 in 42ms (compile: 7ms, render: 35ms)
+[2025-11-17 02:19:45]  GET /api/automation/titles 200 in 46ms (compile: 13ms, render: 33ms)
+[2025-11-17 02:19:45]  GET /api/automation/schedules 200 in 45ms (compile: 11ms, render: 35ms)
+[2025-11-17 02:19:45]  GET /api/credits 200 in 77ms (compile: 10ms, render: 67ms)
+[2025-11-17 02:19:45]  GET /api/automation/categories 200 in 31ms (compile: 14ms, render: 17ms)
+[2025-11-17 02:19:45]  GET /api/youtube/channels 200 in 52ms (compile: 9ms, render: 44ms)
+[2025-11-17 02:20:21]  GET /automation 200 in 39ms (compile: 4ms, render: 35ms)
+[2025-11-17 02:20:21]  GET /api/auth/session 200 in 32ms (compile: 15ms, render: 17ms)
+[2025-11-17 02:20:22]  GET /api/automation/scheduler 200 in 38ms (compile: 10ms, render: 28ms)
+[2025-11-17 02:20:22]  GET /api/automation/titles 200 in 48ms (compile: 13ms, render: 34ms)
+[2025-11-17 02:20:22]  GET /api/automation/schedules 200 in 51ms (compile: 21ms, render: 31ms)
+[2025-11-17 02:20:22]  GET /api/credits 200 in 81ms (compile: 7ms, render: 74ms)
+[2025-11-17 02:20:22]  GET /api/automation/categories 200 in 30ms (compile: 8ms, render: 22ms)
+[2025-11-17 02:20:22]  GET /api/youtube/channels 200 in 64ms (compile: 26ms, render: 38ms)
+[2025-11-17 02:21:13]  GET /automation 200 in 51ms (compile: 5ms, render: 46ms)
+[2025-11-17 02:21:13]  GET /api/auth/session 200 in 32ms (compile: 4ms, render: 28ms)
+[2025-11-17 02:21:13]  GET /api/automation/scheduler 200 in 43ms (compile: 5ms, render: 38ms)
+[2025-11-17 02:21:13]  GET /api/automation/titles 200 in 47ms (compile: 16ms, render: 31ms)
+[2025-11-17 02:21:14]  GET /api/automation/schedules 200 in 53ms (compile: 25ms, render: 28ms)
+[2025-11-17 02:21:14]  GET /api/credits 200 in 85ms (compile: 10ms, render: 75ms)
+[2025-11-17 02:21:14]  GET /api/automation/categories 200 in 35ms (compile: 20ms, render: 15ms)
+[2025-11-17 02:21:14]  GET /api/youtube/channels 200 in 68ms (compile: 25ms, render: 43ms)
+[2025-11-17 02:21:17]  ⨯ ./trend-video-frontend/src/app/api/automation/test-generate-stream/route.ts:4:1
+[2025-11-17 02:21:17] Export getAllSettings doesn't exist in target module
+[2025-11-17 02:21:17] [0m [90m 2 |[39m [36mimport[39m { getCurrentUser } [36mfrom[39m [32m'@/lib/session'[39m[33m;[39m
+[2025-11-17 02:21:17]  [90m 3 |[39m [36mimport[39m { getAutomationSettings } [36mfrom[39m [32m'@/lib/automation'[39m[33m;[39m
+[2025-11-17 02:21:17] [31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { getAllSettings } [36mfrom[39m [32m'@/lib/db'[39m[33m;[39m
+[2025-11-17 02:21:17]  [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+[2025-11-17 02:21:17]  [90m 5 |[39m [36mimport[39m { generateTitlesWithClaude[33m,[39m generateTitlesWithChatGPT[33m,[39m generateTitlesWithGemini } [36mfrom[39m [32m'@/lib/ai-title-generation'[39m[33m;[39m
+[2025-11-17 02:21:17]  [90m 6 |[39m
+[2025-11-17 02:21:17]  [90m 7 |[39m [36minterface[39m [33mChannelSetting[39m {[0m
+[2025-11-17 02:21:17] The export getAllSettings was not found in module [project]/trend-video-frontend/src/lib/db.ts [app-route] (ecmascript).
+[2025-11-17 02:21:17] Did you mean to import getSettings?
+[2025-11-17 02:21:17] All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+[2025-11-17 02:21:18]  POST /api/automation/test-generate-stream 500 in 1209ms (compile: 1061ms, render: 147ms)
+[2025-11-17 02:21:38]  GET /automation 200 in 38ms (compile: 5ms, render: 33ms)
+[2025-11-17 02:21:39]  GET /api/auth/session 500 in 51ms (compile: 17ms, render: 33ms)
+[2025-11-17 02:21:39]  GET /api/credits 500 in 50ms (compile: 34ms, render: 16ms)
+[2025-11-17 02:21:39]  GET /api/automation/scheduler 500 in 91ms (compile: 41ms, render: 50ms)
+[2025-11-17 02:21:39]  GET /api/automation/titles 500 in 89ms (compile: 51ms, render: 38ms)
+[2025-11-17 02:21:39]  GET /api/automation/schedules 500 in 88ms (compile: 63ms, render: 25ms)
+[2025-11-17 02:21:39]  GET /api/youtube/channels 500 in 88ms (compile: 73ms, render: 15ms)
+[2025-11-17 02:21:39]  GET /api/automation/categories 500 in 77ms (compile: 65ms, render: 12ms)
+[2025-11-17 02:22:26]  GET /automation 200 in 35ms (compile: 3ms, render: 32ms)
+[2025-11-17 02:22:27]  GET /api/auth/session 500 in 57ms (compile: 25ms, render: 31ms)
+[2025-11-17 02:22:27]  GET /api/credits 500 in 74ms (compile: 41ms, render: 33ms)
+[2025-11-17 02:22:27]  GET /api/automation/scheduler 500 in 78ms (compile: 33ms, render: 45ms)
+[2025-11-17 02:22:27]  GET /api/automation/titles 500 in 77ms (compile: 41ms, render: 36ms)
+[2025-11-17 02:22:27]  GET /api/automation/schedules 500 in 77ms (compile: 48ms, render: 29ms)
+[2025-11-17 02:22:27]  GET /api/youtube/channels 500 in 76ms (compile: 59ms, render: 17ms)
+[2025-11-17 02:22:27]  GET /api/automation/categories 500 in 65ms (compile: 52ms, render: 14ms)
+[2025-11-17 02:22:30]  GET /automation 200 in 30ms (compile: 3ms, render: 27ms)
+[2025-11-17 02:22:31]  GET /api/auth/session 500 in 41ms (compile: 10ms, render: 32ms)
+[2025-11-17 02:22:31]  GET /api/credits 500 in 41ms (compile: 23ms, render: 18ms)
+[2025-11-17 02:22:31]  GET /api/automation/scheduler 500 in 88ms (compile: 34ms, render: 55ms)
+[2025-11-17 02:22:31]  GET /api/automation/titles 500 in 87ms (compile: 46ms, render: 42ms)
+[2025-11-17 02:22:31]  GET /api/automation/schedules 500 in 87ms (compile: 53ms, render: 34ms)
+[2025-11-17 02:22:31]  GET /api/youtube/channels 500 in 84ms (compile: 60ms, render: 24ms)
+[2025-11-17 02:22:31]  GET /api/automation/categories 500 in 69ms (compile: 60ms, render: 9ms)
+[2025-11-17 02:23:09]  GET /my-content 200 in 682ms (compile: 607ms, render: 75ms)
+[2025-11-17 02:23:09]  GET /api/auth/session 500 in 40ms (compile: 17ms, render: 23ms)
+[2025-11-17 02:23:09]  GET /api/credits 500 in 40ms (compile: 27ms, render: 13ms)
+[2025-11-17 02:23:09]  GET /api/auth/session 500 in 21ms (compile: 10ms, render: 10ms)
+[2025-11-17 02:23:10]  GET /auth 200 in 438ms (compile: 402ms, render: 36ms)
+[2025-11-17 02:25:07]  GET /automation 200 in 42ms (compile: 4ms, render: 38ms)
+[2025-11-17 02:25:07]  GET /api/auth/session 500 in 76ms (compile: 23ms, render: 53ms)
+[2025-11-17 02:25:07]  GET /api/credits 500 in 75ms (compile: 38ms, render: 37ms)
+[2025-11-17 02:25:07]  GET /api/automation/scheduler 500 in 95ms (compile: 38ms, render: 57ms)
+[2025-11-17 02:25:07]  GET /api/automation/titles 500 in 95ms (compile: 50ms, render: 45ms)
+[2025-11-17 02:25:07]  GET /api/automation/schedules 500 in 95ms (compile: 63ms, render: 32ms)
+[2025-11-17 02:25:07]  GET /api/youtube/channels 500 in 93ms (compile: 77ms, render: 16ms)
+[2025-11-17 02:25:07]  GET /api/automation/categories 500 in 26ms (compile: 14ms, render: 12ms)
+[2025-11-17 02:29:13]  GET /automation 200 in 49ms (compile: 5ms, render: 44ms)
+[2025-11-17 02:29:13]  GET /api/auth/session 500 in 84ms (compile: 26ms, render: 58ms)
+[2025-11-17 02:29:13]  GET /api/credits 500 in 84ms (compile: 53ms, render: 31ms)
+[2025-11-17 02:29:13]  GET /api/automation/titles 500 in 100ms (compile: 49ms, render: 51ms)
+[2025-11-17 02:29:13]  GET /api/automation/schedules 500 in 99ms (compile: 61ms, render: 37ms)
+[2025-11-17 02:29:13]  GET /api/youtube/channels 500 in 98ms (compile: 71ms, render: 27ms)
+[2025-11-17 02:29:13]  GET /api/automation/scheduler 500 in 132ms (compile: 110ms, render: 22ms)
+[2025-11-17 02:29:13]  GET /api/automation/categories 500 in 48ms (compile: 38ms, render: 10ms)

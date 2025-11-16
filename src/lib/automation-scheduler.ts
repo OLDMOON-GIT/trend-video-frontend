@@ -1898,6 +1898,90 @@ async function generateProductTitle(
 }
 
 // ============================================================
+// 규칙 기반 제목 점수 평가 (AI 비용 절감)
+// ============================================================
+
+/**
+ * 간단한 규칙 기반으로 제목 점수를 평가합니다.
+ * AI API 호출 없이 로컬에서 빠르게 평가할 수 있습니다.
+ */
+function evaluateTitleWithRules(title: string, category: string): number {
+  let score = 0;
+
+  // 1. 제목 길이 평가 (20-60자가 최적)
+  const length = title.length;
+  if (length >= 20 && length <= 60) {
+    score += 30; // 최적 길이
+  } else if (length >= 15 && length < 20) {
+    score += 20; // 약간 짧음
+  } else if (length > 60 && length <= 80) {
+    score += 20; // 약간 김
+  } else if (length < 15) {
+    score += 5; // 너무 짧음
+  } else {
+    score += 10; // 너무 김
+  }
+
+  // 2. 특수문자 평가 (호기심 유발)
+  const hasQuestion = title.includes('?');
+  const hasExclamation = title.includes('!');
+  const hasEllipsis = title.includes('...');
+  const hasQuotes = title.includes('"') || title.includes("'");
+
+  if (hasQuestion) score += 10;
+  if (hasExclamation) score += 8;
+  if (hasEllipsis) score += 5;
+  if (hasQuotes) score += 5;
+
+  // 3. 감정 키워드 평가
+  const emotionalKeywords = [
+    '후회', '복수', '반전', '충격', '눈물', '감동',
+    '배신', '비밀', '진실', '최후', '귀환', '성공',
+    '통쾌', '화려', '무릎', '외면', '당당', '전설',
+    '알고보니', '결국', '드디어', '끝판왕', '최고'
+  ];
+
+  let emotionalCount = 0;
+  for (const keyword of emotionalKeywords) {
+    if (title.includes(keyword)) {
+      emotionalCount++;
+    }
+  }
+  score += Math.min(emotionalCount * 5, 20); // 최대 20점
+
+  // 4. 숫자 포함 여부 (구체성)
+  if (/\d+/.test(title)) {
+    score += 8;
+  }
+
+  // 5. 카테고리 관련 키워드 평가
+  const categoryKeywords: Record<string, string[]> = {
+    '시니어사연': ['시어머니', '며느리', '고부갈등', '시댁', '양로원'],
+    '복수극': ['복수', '무시', 'CEO', '귀환', '배신자', '신입'],
+    '탈북자사연': ['탈북', '북한', '남한', '자유', '대한민국'],
+    '막장드라마': ['출생', '비밀', '재벌', '배다른', '친자확인'],
+  };
+
+  const keywords = categoryKeywords[category] || [];
+  let categoryCount = 0;
+  for (const keyword of keywords) {
+    if (title.includes(keyword)) {
+      categoryCount++;
+    }
+  }
+  score += Math.min(categoryCount * 7, 15); // 최대 15점
+
+  // 6. 문장 구조 평가
+  const hasComma = (title.match(/,/g) || []).length;
+  if (hasComma >= 1 && hasComma <= 2) {
+    score += 7; // 적절한 구조
+  }
+
+  // 최종 점수를 0-100 범위로 제한
+  return Math.min(100, Math.max(0, score));
+}
+
+// ============================================================
 // 다른 카테고리: 멀티 모델 AI 평가 및 최고 점수 제목 선택
 // ============================================================
 
@@ -1963,19 +2047,31 @@ async function generateTitleWithMultiModelEvaluation(
 
     console.log(`[TitleGen] Generated ${allTitles.length} titles`);
 
-    // 로그 업데이트: 평가 생략 (비용 절감)
+    // 로그 업데이트: 규칙 기반 평가
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'evaluating',
-        step: `첫 번째 제목 선택 (평가 생략으로 비용 절감)`
+        step: `규칙 기반으로 제목 평가 중... (AI 비용 절감)`
       });
     }
 
-    // 3. 평가 없이 첫 번째 제목 사용 (비용 절감)
-    const bestTitle = allTitles[0];
-    const scoredTitles = allTitles; // 로그용
+    // 3. 규칙 기반으로 각 제목 평가
+    const scoredTitles = allTitles.map((item: any) => ({
+      ...item,
+      score: evaluateTitleWithRules(item.title, category)
+    }));
 
-    console.log(`[TitleGen] Selected title: "${bestTitle.title}" (model: ${bestTitle.model})`);
+    // 4. 최고 점수의 제목 선택
+    scoredTitles.sort((a, b) => b.score - a.score);
+    const bestTitle = scoredTitles[0];
+
+    console.log(`[TitleGen] Evaluated ${scoredTitles.length} titles with rule-based scoring`);
+    console.log(`[TitleGen] Best title (score: ${bestTitle.score}): "${bestTitle.title}" (model: ${bestTitle.model})`);
+
+    // 상위 3개 제목 로그 출력
+    scoredTitles.slice(0, 3).forEach((item: any, index: number) => {
+      console.log(`  ${index + 1}. [${item.score}점] ${item.title}`);
+    });
 
     // 5. video_titles에 추가
     const { addVideoTitle } = await import('./automation');
@@ -1994,10 +2090,10 @@ async function generateTitleWithMultiModelEvaluation(
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'completed',
-        step: '제목 선정 완료 (비용 절감 모드)',
+        step: '제목 선정 완료 (규칙 기반 평가)',
         titlesGenerated: scoredTitles,
         bestTitle: bestTitle.title,
-        bestScore: 100, // 평가 생략하므로 기본 점수
+        bestScore: bestTitle.score,
         resultTitleId: titleId
       });
     }
