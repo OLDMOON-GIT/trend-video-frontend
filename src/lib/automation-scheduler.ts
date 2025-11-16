@@ -2119,7 +2119,6 @@ async function generateTitleWithMultiModelEvaluation(
     });
 
     // 5. video_titles에 추가
-    const { addVideoTitle } = await import('./automation');
     const titleId = addVideoTitle({
       title: bestTitle.title,
       type: videoType, // 카테고리에 따라 longform 또는 shortform

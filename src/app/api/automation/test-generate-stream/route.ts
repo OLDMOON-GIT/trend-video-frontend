@@ -217,36 +217,40 @@ export async function POST(request: NextRequest) {
             sendLog(`🎯 테스트 카테고리: ${category}`);
             sendLog('');
 
-            // 상품 카테고리는 쿠팡 API 사용
+            // 상품 카테고리는 상품관리(coupang_products)에서 가져오기
             if (category === '상품') {
               try {
-                sendLog(`🛍️ 쿠팡 베스트셀러 상품 조회 중...`);
-                const { createCoupangClient } = await import('@/lib/coupang-client');
-                const coupangClient = createCoupangClient();
+                sendLog(`🛍️ 상품관리에서 등록된 상품 조회 중...`);
 
-                // 베스트 상품 1개 가져오기 (카테고리 1001 = 가전디지털)
-                const bestProducts = await coupangClient.getBestProducts(1001, 1);
-                if (!bestProducts || bestProducts.length === 0) {
-                  throw new Error('쿠팡 베스트셀러 조회 결과가 없습니다');
+                // DB에서 사용자가 등록한 상품 중 랜덤으로 1개 가져오기
+                const dbForProduct = new Database(dbPath);
+                const product = dbForProduct.prepare(`
+                  SELECT * FROM coupang_products
+                  WHERE user_id = ? AND status = 'active'
+                  ORDER BY RANDOM()
+                  LIMIT 1
+                `).get(user.userId) as any;
+                dbForProduct.close();
+
+                if (!product) {
+                  throw new Error('상품관리에 등록된 상품이 없습니다. 먼저 상품을 등록해주세요.');
                 }
 
-                const product = bestProducts[0];
-                sendLog(`✅ 상품 발견: ${product.productName}`);
+                sendLog(`✅ 상품 발견: ${product.title}`);
+                sendLog(`   🔗 딥링크: ${product.deep_link}`);
+                sendLog(`   💰 가격: ${product.discount_price ? product.discount_price.toLocaleString() : 'N/A'}원`);
 
-                // 딥링크 생성
-                sendLog(`🔗 제휴 딥링크 생성 중...`);
-                const deepLink = await coupangClient.generateDeepLink(product.productUrl);
-                sendLog(`✅ 딥링크 생성 완료`);
-
-                // DB에 저장
+                // video_titles 테이블에 저장
                 const dbForInsert = new Database(dbPath);
                 const titleId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
                 const productData = JSON.stringify({
-                  productName: product.productName,
-                  productPrice: product.productPrice,
-                  productImage: product.productImage,
-                  productUrl: product.productUrl,
-                  deepLink
+                  productId: product.id,
+                  productName: product.title,
+                  productPrice: product.discount_price || product.original_price,
+                  productImage: product.image_url,
+                  productUrl: product.product_url,
+                  deepLink: product.deep_link,
+                  category: product.category
                 });
 
                 dbForInsert.prepare(`
@@ -257,27 +261,26 @@ export async function POST(request: NextRequest) {
                 `).run(
                   titleId,
                   user.userId,
-                  product.productName,
+                  product.title,
                   category,
                   'product',
                   'pending',
                   setting.channel_id,
-                  deepLink,
+                  product.deep_link,
                   productData
                 );
                 dbForInsert.close();
 
-                sendLog(`💾 상품 등록 완료! (DB에 저장)`);
-                sendLog(`   📦 제목: ${product.productName}`);
-                sendLog(`   💰 비용: $0.000000 (≈₩0.00) - 쿠팡 API 무료`);
+                sendLog(`💾 상품 등록 완료! (video_titles에 저장)`);
+                sendLog(`   💰 비용: $0.000000 (≈₩0.00) - 상품관리 DB 사용`);
                 sendLog('');
                 sendLog(`✨ 최종 선택된 제목:`);
-                sendLog(`   💡 "${product.productName}"`);
+                sendLog(`   💡 "${product.title}"`);
                 sendLog(`   🎯 점수: N/A (상품은 실제 쿠팡 제목 사용)`);
 
                 successCount++;
               } catch (error: any) {
-                sendLog(`❌ 쿠팡 상품 조회 실패: ${error.message}`);
+                sendLog(`❌ 상품 조회 실패: ${error.message}`);
                 failedCount++;
               }
               sendLog('');
