@@ -15,10 +15,11 @@ interface ChannelSetting {
   color: string;
   posting_mode: 'fixed_interval' | 'weekday_time';
   interval_value?: number;
-  interval_unit?: 'hours' | 'days';
+  interval_unit?: 'minutes' | 'hours' | 'days';
   weekdays?: number[];
   posting_time?: string;
   isActive: boolean;
+  categories?: string[]; // 자동 제목 생성용 카테고리 리스트
 }
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -42,6 +43,9 @@ export default function ChannelSettings() {
   const [editingSetting, setEditingSetting] = useState<Partial<ChannelSetting> | null>(
     null
   );
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
+  const [triggering, setTriggering] = useState(false);
 
   // 채널 목록 조회
   const fetchChannels = async () => {
@@ -78,8 +82,69 @@ export default function ChannelSettings() {
     }
   };
 
+  // 카테고리 목록 조회
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/automation/categories');
+      if (!response.ok) throw new Error('Failed to fetch categories');
+
+      const data = await response.json();
+      setAvailableCategories(data.categories?.map((c: any) => c.name) || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  // 스케줄러 상태 조회
+  const fetchSchedulerStatus = async () => {
+    try {
+      const response = await fetch('/api/automation/scheduler-status');
+      if (!response.ok) throw new Error('Failed to fetch scheduler status');
+
+      const data = await response.json();
+      setSchedulerStatus(data.status);
+    } catch (error) {
+      console.error('Error fetching scheduler status:', error);
+    }
+  };
+
+  // 수동 트리거
+  const handleManualTrigger = async () => {
+    if (triggering) return;
+
+    try {
+      setTriggering(true);
+      const response = await fetch('/api/automation/trigger-auto-schedule', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to trigger auto-schedule');
+      }
+
+      alert(data.message || '자동 생성 완료!');
+      await Promise.all([fetchSettings(), fetchSchedulerStatus()]);
+    } catch (error: any) {
+      console.error('Error triggering auto-schedule:', error);
+      alert('오류: ' + error.message);
+    } finally {
+      setTriggering(false);
+    }
+  };
+
   useEffect(() => {
-    Promise.all([fetchChannels(), fetchSettings()]);
+    Promise.all([
+      fetchChannels(),
+      fetchSettings(),
+      fetchCategories(),
+      fetchSchedulerStatus(),
+    ]);
+
+    // 30초마다 스케줄러 상태 갱신
+    const interval = setInterval(fetchSchedulerStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // 채널 선택
@@ -105,6 +170,7 @@ export default function ChannelSettings() {
         weekdays: [1, 3, 5], // 월, 수, 금
         posting_time: '18:00',
         isActive: true,
+        categories: [], // 빈 배열로 시작
       });
     }
 
@@ -172,8 +238,80 @@ export default function ChannelSettings() {
     setEditingSetting({ ...editingSetting, weekdays: newWeekdays });
   };
 
+  // 카테고리 토글
+  const toggleCategory = (category: string) => {
+    if (!editingSetting) return;
+
+    const categories = editingSetting.categories || [];
+    const newCategories = categories.includes(category)
+      ? categories.filter((c) => c !== category)
+      : [...categories, category];
+
+    setEditingSetting({ ...editingSetting, categories: newCategories });
+  };
+
+  // 카테고리 직접 추가
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+  const addCustomCategory = () => {
+    if (!editingSetting || !newCategoryInput.trim()) return;
+
+    const categories = editingSetting.categories || [];
+    if (categories.includes(newCategoryInput.trim())) {
+      alert('이미 추가된 카테고리입니다.');
+      return;
+    }
+
+    setEditingSetting({
+      ...editingSetting,
+      categories: [...categories, newCategoryInput.trim()],
+    });
+    setNewCategoryInput('');
+  };
+
   return (
     <div className="space-y-4">
+      {/* 스케줄러 상태 및 수동 트리거 */}
+      <div className="bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg shadow p-4 text-white">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <h3 className="text-sm font-medium opacity-90">🤖 자동화 스케줄러 상태</h3>
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs">상태:</span>
+                {schedulerStatus?.isRunning ? (
+                  <span className="text-xs bg-green-400 text-green-900 px-2 py-0.5 rounded-full font-medium">
+                    ● 실행 중
+                  </span>
+                ) : (
+                  <span className="text-xs bg-red-400 text-red-900 px-2 py-0.5 rounded-full font-medium">
+                    ○ 정지됨
+                  </span>
+                )}
+              </div>
+              {schedulerStatus?.lastAutoScheduleCheck && (
+                <div className="text-xs opacity-80">
+                  마지막 체크: {new Date(schedulerStatus.lastAutoScheduleCheck).toLocaleString('ko-KR')}
+                </div>
+              )}
+              {schedulerStatus?.lastAutoScheduleResult && (
+                <div className="text-xs opacity-80">
+                  결과: ✅ {schedulerStatus.lastAutoScheduleResult.success}개 생성,
+                  ⏭️ {schedulerStatus.lastAutoScheduleResult.skipped}개 건너뜀,
+                  ❌ {schedulerStatus.lastAutoScheduleResult.failed}개 실패
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleManualTrigger}
+            disabled={triggering}
+            className="px-4 py-2 bg-white text-purple-600 rounded-lg font-medium hover:bg-purple-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {triggering ? '실행 중...' : '🚀 지금 자동 생성 실행'}
+          </button>
+        </div>
+      </div>
+
       {/* 채널 목록 */}
       <div className="bg-white rounded-lg shadow p-4">
         <h2 className="text-lg font-bold mb-4">채널별 스케줄 설정</h2>
@@ -209,15 +347,29 @@ export default function ChannelSettings() {
                     <div className="flex-1">
                       <div className="font-medium">{channel.channelName}</div>
                       {setting && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          {setting.posting_mode === 'fixed_interval'
-                            ? `${setting.interval_value}${
-                                setting.interval_unit === 'hours' ? '시간' : '일'
-                              }마다`
-                            : `${setting.weekdays
-                                ?.map((d) => WEEKDAY_LABELS[d])
-                                .join(', ')} ${setting.posting_time}`}
-                        </div>
+                        <>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {setting.posting_mode === 'fixed_interval'
+                              ? `${setting.interval_value}${
+                                  setting.interval_unit === 'minutes' ? '분' :
+                                  setting.interval_unit === 'hours' ? '시간' : '일'
+                                }마다`
+                              : `${setting.weekdays
+                                  ?.map((d) => WEEKDAY_LABELS[d])
+                                  .join(', ')} ${setting.posting_time}`}
+                          </div>
+                          {/* 완전 자동화 상태 표시 */}
+                          {setting.categories && setting.categories.length > 0 && (
+                            <div className="mt-2 flex items-center gap-1">
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                                🤖 완전 자동화
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                카테고리 {setting.categories.length}개
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                     {setting && (
@@ -229,17 +381,40 @@ export default function ChannelSettings() {
                   </div>
 
                   {setting && (
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSetting(channel.channelId);
-                        }}
-                        className="text-xs text-red-600 hover:text-red-700"
-                      >
-                        삭제
-                      </button>
-                    </div>
+                    <>
+                      {/* 카테고리 표시 (접혀있을 때) */}
+                      {setting.categories && setting.categories.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="text-xs text-gray-600 mb-1">자동 제목 카테고리:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {setting.categories.slice(0, 3).map((cat) => (
+                              <span
+                                key={cat}
+                                className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded"
+                              >
+                                {cat}
+                              </span>
+                            ))}
+                            {setting.categories.length > 3 && (
+                              <span className="text-xs text-gray-500">
+                                +{setting.categories.length - 3}개
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSetting(channel.channelId);
+                          }}
+                          className="text-xs text-red-600 hover:text-red-700"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               );
@@ -335,11 +510,12 @@ export default function ChannelSettings() {
                     onChange={(e) =>
                       setEditingSetting({
                         ...editingSetting,
-                        interval_unit: e.target.value as 'hours' | 'days',
+                        interval_unit: e.target.value as 'minutes' | 'hours' | 'days',
                       })
                     }
                     className="w-full px-3 py-2 border rounded"
                   >
+                    <option value="minutes">분 (테스트용, 최소 5분)</option>
                     <option value="hours">시간</option>
                     <option value="days">일</option>
                   </select>
@@ -384,6 +560,92 @@ export default function ChannelSettings() {
                 </div>
               </>
             )}
+
+            {/* 카테고리 선택 (완전 자동화용) */}
+            <div className="pt-4 border-t">
+              <div className="mb-2">
+                <label className="block text-sm font-medium mb-1">
+                  자동 제목 생성 카테고리
+                  <span className="ml-2 text-xs text-gray-500">
+                    (주기 도래 시 선택한 카테고리에서 제목 자동 생성)
+                  </span>
+                </label>
+              </div>
+
+              {/* 등록된 카테고리 버튼들 */}
+              <div className="flex flex-wrap gap-2 mb-3">
+                {availableCategories.length === 0 ? (
+                  <div className="text-sm text-yellow-400 p-3 bg-yellow-400/10 border border-yellow-400/30 rounded">
+                    ⚠️ 등록된 카테고리가 없습니다.
+                    <a href="#category-management" className="ml-2 underline hover:text-yellow-300">
+                      카테고리 관리 탭에서 먼저 카테고리를 등록해주세요.
+                    </a>
+                  </div>
+                ) : (
+                  availableCategories.map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => toggleCategory(category)}
+                      className={`px-3 py-1 rounded-full text-sm ${
+                        editingSetting.categories?.includes(category)
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* 사용자 정의 카테고리 추가 */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCategoryInput}
+                  onChange={(e) => setNewCategoryInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addCustomCategory();
+                    }
+                  }}
+                  placeholder="직접 입력 (예: 운동, 재테크)"
+                  className="flex-1 px-3 py-2 border rounded text-sm"
+                />
+                <button
+                  onClick={addCustomCategory}
+                  className="px-4 py-2 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
+                >
+                  추가
+                </button>
+              </div>
+
+              {/* 선택된 카테고리 표시 */}
+              {editingSetting.categories && editingSetting.categories.length > 0 && (
+                <div className="mt-3 p-3 bg-blue-50 rounded">
+                  <div className="text-xs font-medium text-blue-900 mb-2">
+                    선택된 카테고리 ({editingSetting.categories.length}개)
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {editingSetting.categories.map((cat) => (
+                      <span
+                        key={cat}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                      >
+                        {cat}
+                        <button
+                          onClick={() => toggleCategory(cat)}
+                          className="hover:text-blue-600"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* 저장 버튼 */}
             <div className="flex gap-2 pt-4">

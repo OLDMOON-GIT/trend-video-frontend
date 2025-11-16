@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     const weekdays = body.weekdays;
     const postingTime = body.postingTime || body.posting_time;
     const isActive = body.isActive !== undefined ? body.isActive : body.is_active;
+    const categories = body.categories;
 
     console.log('📝 채널 설정 저장 요청:', { channelId, channelName, postingMode, intervalValue, intervalUnit });
 
@@ -112,7 +113,8 @@ export async function POST(request: NextRequest) {
       intervalUnit,
       weekdays,
       postingTime,
-      isActive
+      isActive,
+      categories
     });
 
     return NextResponse.json({ success: true, id });

@@ -234,6 +234,55 @@ export function initAutomationTables() {
     );
   `);
 
+  // categories 컬럼 추가 (자동 제목 생성용 카테고리 리스트, JSON 배열)
+  try {
+    db.exec(`ALTER TABLE youtube_channel_settings ADD COLUMN categories TEXT;`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
+  // 7. 카테고리 관리 테이블
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS video_categories (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, name)
+    );
+  `);
+
+  // 8. 자동 생성 현황 로그 테이블
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auto_generation_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      channel_name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      status TEXT DEFAULT 'started' CHECK(status IN ('started', 'fetching', 'generating', 'evaluating', 'completed', 'failed')),
+      step TEXT,
+      models_used TEXT,
+      titles_generated TEXT,
+      best_title TEXT,
+      best_score REAL,
+      result_title_id TEXT,
+      product_info TEXT,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME
+    );
+  `);
+
+  // 인덱스 추가
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_auto_gen_logs_user_status ON auto_generation_logs(user_id, status);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_auto_gen_logs_created ON auto_generation_logs(created_at DESC);`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
   db.close();
   console.log('✅ Automation tables initialized');
 }
@@ -721,19 +770,21 @@ export function upsertChannelSettings(data: {
   weekdays?: number[]; // [0-6], 0=일요일, 6=토요일
   postingTime?: string; // HH:mm 형식
   isActive?: boolean;
+  categories?: string[]; // 자동 제목 생성용 카테고리 리스트
 }) {
   const db = new Database(dbPath);
   const id = `channel_settings_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  // weekdays를 JSON 문자열로 변환
+  // weekdays와 categories를 JSON 문자열로 변환
   const weekdaysJson = data.weekdays ? JSON.stringify(data.weekdays) : null;
+  const categoriesJson = data.categories ? JSON.stringify(data.categories) : null;
 
   try {
     db.prepare(`
       INSERT INTO youtube_channel_settings
         (id, user_id, channel_id, channel_name, color, posting_mode,
-         interval_value, interval_unit, weekdays, posting_time, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         interval_value, interval_unit, weekdays, posting_time, is_active, categories)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, channel_id) DO UPDATE SET
         channel_name = excluded.channel_name,
         color = excluded.color,
@@ -743,6 +794,7 @@ export function upsertChannelSettings(data: {
         weekdays = excluded.weekdays,
         posting_time = excluded.posting_time,
         is_active = excluded.is_active,
+        categories = excluded.categories,
         updated_at = CURRENT_TIMESTAMP
     `).run(
       id,
@@ -755,7 +807,8 @@ export function upsertChannelSettings(data: {
       data.intervalUnit || null,
       weekdaysJson,
       data.postingTime || null,
-      data.isActive !== undefined ? (data.isActive ? 1 : 0) : 1
+      data.isActive !== undefined ? (data.isActive ? 1 : 0) : 1,
+      categoriesJson
     );
   } catch (error) {
     db.close();
@@ -777,10 +830,11 @@ export function getChannelSettings(userId: string) {
 
   db.close();
 
-  // weekdays JSON 파싱
+  // weekdays와 categories JSON 파싱
   return settings.map((setting: any) => ({
     ...setting,
     weekdays: setting.weekdays ? JSON.parse(setting.weekdays) : null,
+    categories: setting.categories ? JSON.parse(setting.categories) : null,
     isActive: setting.is_active === 1
   }));
 }
@@ -800,6 +854,7 @@ export function getChannelSetting(userId: string, channelId: string) {
   return {
     ...setting,
     weekdays: setting.weekdays ? JSON.parse(setting.weekdays) : null,
+    categories: setting.categories ? JSON.parse(setting.categories) : null,
     isActive: setting.is_active === 1
   };
 }
@@ -816,6 +871,7 @@ export function updateChannelSettings(
     weekdays?: number[];
     postingTime?: string;
     isActive?: boolean;
+    categories?: string[];
   }
 ) {
   const db = new Database(dbPath);
@@ -850,6 +906,10 @@ export function updateChannelSettings(
   if (updates.isActive !== undefined) {
     fields.push('is_active = ?');
     values.push(updates.isActive ? 1 : 0);
+  }
+  if (updates.categories !== undefined) {
+    fields.push('categories = ?');
+    values.push(JSON.stringify(updates.categories));
   }
 
   values.push(userId, channelId);
@@ -890,7 +950,11 @@ export function calculateNextScheduleTime(
     if (!setting.interval_value || !setting.interval_unit) return null;
 
     const nextDate = new Date(now);
-    if (setting.interval_unit === 'hours') {
+    if (setting.interval_unit === 'minutes') {
+      // 최소 5분 제한
+      const minutes = Math.max(5, setting.interval_value);
+      nextDate.setMinutes(nextDate.getMinutes() + minutes);
+    } else if (setting.interval_unit === 'hours') {
       nextDate.setHours(nextDate.getHours() + setting.interval_value);
     } else if (setting.interval_unit === 'days') {
       nextDate.setDate(nextDate.getDate() + setting.interval_value);
@@ -926,4 +990,263 @@ export function calculateNextScheduleTime(
   }
 
   return null;
+}
+
+// ===== 카테고리 관리 함수 =====
+
+// 카테고리 추가
+export function addCategory(data: {
+  userId: string;
+  name: string;
+  description?: string;
+}): string {
+  const db = new Database(dbPath);
+  const id = `cat_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  db.prepare(`
+    INSERT INTO video_categories (id, user_id, name, description)
+    VALUES (?, ?, ?, ?)
+  `).run(id, data.userId, data.name.trim(), data.description || '');
+
+  db.close();
+  return id;
+}
+
+// 카테고리 목록 조회
+export function getCategories(userId: string) {
+  const db = new Database(dbPath);
+  const categories = db.prepare(`
+    SELECT * FROM video_categories
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+  `).all(userId);
+  db.close();
+  return categories;
+}
+
+// 카테고리 수정
+export function updateCategory(data: {
+  id: string;
+  userId: string;
+  name?: string;
+  description?: string;
+}) {
+  const db = new Database(dbPath);
+
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (data.name) {
+    updates.push('name = ?');
+    values.push(data.name.trim());
+  }
+
+  if (data.description !== undefined) {
+    updates.push('description = ?');
+    values.push(data.description);
+  }
+
+  if (updates.length > 0) {
+    values.push(data.id, data.userId);
+    db.prepare(`
+      UPDATE video_categories
+      SET ${updates.join(', ')}
+      WHERE id = ? AND user_id = ?
+    `).run(...values);
+  }
+
+  db.close();
+}
+
+// 카테고리 삭제
+export function deleteCategory(id: string, userId: string) {
+  const db = new Database(dbPath);
+  db.prepare(`
+    DELETE FROM video_categories
+    WHERE id = ? AND user_id = ?
+  `).run(id, userId);
+  db.close();
+}
+
+// 기본 카테고리 초기화 (사용자별)
+export function initDefaultCategories(userId: string) {
+  const db = new Database(dbPath);
+
+  // 이미 카테고리가 있는지 확인
+  const existingCount = db.prepare(`
+    SELECT COUNT(*) as count FROM video_categories WHERE user_id = ?
+  `).get(userId) as { count: number };
+
+  if (existingCount.count > 0) {
+    db.close();
+    return; // 이미 카테고리가 있으면 스킵
+  }
+
+  // 기본 카테고리 목록
+  const defaultCategories = [
+    { name: '상품', description: '상품 관련 영상' },
+    { name: '시니어사연', description: '시니어 사연 영상' },
+    { name: '복수극', description: '복수 이야기' },
+    { name: '막장드라마', description: '막장 드라마' },
+    { name: '감동실화', description: '감동 실화' },
+    { name: '북한탈북자사연', description: '북한 탈북자 사연' },
+  ];
+
+  const stmt = db.prepare(`
+    INSERT INTO video_categories (id, user_id, name, description)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  for (const category of defaultCategories) {
+    const id = `cat_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    try {
+      stmt.run(id, userId, category.name, category.description);
+    } catch (e) {
+      // 중복 등의 에러는 무시
+      console.error(`Failed to insert default category ${category.name}:`, e);
+    }
+  }
+
+  db.close();
+  console.log(`✅ Default categories initialized for user ${userId}`);
+}
+
+// ===== 자동 생성 로그 함수 =====
+
+// 자동 생성 로그 시작
+export function startAutoGenerationLog(data: {
+  userId: string;
+  channelId: string;
+  channelName: string;
+  category: string;
+}): string {
+  const db = new Database(dbPath);
+  const id = `autogen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  db.prepare(`
+    INSERT INTO auto_generation_logs
+      (id, user_id, channel_id, channel_name, category, status, step)
+    VALUES (?, ?, ?, ?, ?, 'started', '자동 생성 시작')
+  `).run(id, data.userId, data.channelId, data.channelName, data.category);
+
+  db.close();
+  return id;
+}
+
+// 자동 생성 로그 업데이트
+export function updateAutoGenerationLog(
+  logId: string,
+  data: {
+    status?: string;
+    step?: string;
+    modelsUsed?: string[];
+    titlesGenerated?: any[];
+    bestTitle?: string;
+    bestScore?: number;
+    resultTitleId?: string;
+    productInfo?: any;
+    errorMessage?: string;
+  }
+) {
+  const db = new Database(dbPath);
+
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (data.status) {
+    updates.push('status = ?');
+    values.push(data.status);
+  }
+
+  if (data.step) {
+    updates.push('step = ?');
+    values.push(data.step);
+  }
+
+  if (data.modelsUsed) {
+    updates.push('models_used = ?');
+    values.push(JSON.stringify(data.modelsUsed));
+  }
+
+  if (data.titlesGenerated) {
+    updates.push('titles_generated = ?');
+    values.push(JSON.stringify(data.titlesGenerated));
+  }
+
+  if (data.bestTitle) {
+    updates.push('best_title = ?');
+    values.push(data.bestTitle);
+  }
+
+  if (data.bestScore !== undefined) {
+    updates.push('best_score = ?');
+    values.push(data.bestScore);
+  }
+
+  if (data.resultTitleId) {
+    updates.push('result_title_id = ?');
+    values.push(data.resultTitleId);
+  }
+
+  if (data.productInfo) {
+    updates.push('product_info = ?');
+    values.push(JSON.stringify(data.productInfo));
+  }
+
+  if (data.errorMessage) {
+    updates.push('error_message = ?');
+    values.push(data.errorMessage);
+  }
+
+  if (data.status === 'completed' || data.status === 'failed') {
+    updates.push('completed_at = CURRENT_TIMESTAMP');
+  }
+
+  if (updates.length > 0) {
+    values.push(logId);
+    db.prepare(`
+      UPDATE auto_generation_logs
+      SET ${updates.join(', ')}
+      WHERE id = ?
+    `).run(...values);
+  }
+
+  db.close();
+}
+
+// 자동 생성 로그 조회
+export function getAutoGenerationLogs(userId: string, limit: number = 50) {
+  const db = new Database(dbPath);
+  const logs = db.prepare(`
+    SELECT * FROM auto_generation_logs
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(userId, limit);
+  db.close();
+
+  return logs.map((log: any) => ({
+    ...log,
+    models_used: log.models_used ? JSON.parse(log.models_used) : null,
+    titles_generated: log.titles_generated ? JSON.parse(log.titles_generated) : null,
+    product_info: log.product_info ? JSON.parse(log.product_info) : null,
+  }));
+}
+
+// 진행 중인 자동 생성 로그 조회
+export function getOngoingAutoGenerationLogs(userId: string) {
+  const db = new Database(dbPath);
+  const logs = db.prepare(`
+    SELECT * FROM auto_generation_logs
+    WHERE user_id = ? AND status NOT IN ('completed', 'failed')
+    ORDER BY created_at DESC
+  `).all(userId);
+  db.close();
+
+  return logs.map((log: any) => ({
+    ...log,
+    models_used: log.models_used ? JSON.parse(log.models_used) : null,
+    titles_generated: log.titles_generated ? JSON.parse(log.titles_generated) : null,
+    product_info: log.product_info ? JSON.parse(log.product_info) : null,
+  }));
 }

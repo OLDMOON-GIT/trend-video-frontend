@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ScheduleCalendar from '@/components/automation/ScheduleCalendar';
 import ChannelSettings from '@/components/automation/ChannelSettings';
 import CategoryManagement from '@/components/automation/CategoryManagement';
+import GenerationDashboard from '@/components/automation/GenerationDashboard';
 import MediaUploadBox from '@/components/MediaUploadBox';
 
 function AutomationPageContent() {
@@ -162,6 +163,7 @@ function AutomationPageContent() {
     fetchData();
     loadRecentTitles();
     fetchChannels();
+    fetchCategories();
 
     // 상품관리에서 왔는지 체크
     const fromProduct = searchParams.get('fromProduct');
@@ -313,6 +315,22 @@ function AutomationPageContent() {
     } catch (error) {
       console.error('❌ 채널 조회 실패:', error);
       setChannels([]);
+    }
+  }
+
+  async function fetchCategories() {
+    try {
+      const response = await fetch('/api/automation/categories');
+      const data = await response.json();
+      if (data.categories && data.categories.length > 0) {
+        setCategories(data.categories.map((c: any) => c.name));
+        console.log('✅ 카테고리 로드:', data.categories.length, '개');
+      } else {
+        setCategories([]);
+      }
+    } catch (error) {
+      console.error('❌ 카테고리 조회 실패:', error);
+      setCategories([]);
     }
   }
 
@@ -672,8 +690,10 @@ function AutomationPageContent() {
       if (data.logs) {
         setLogsMap(prev => {
           const prevLogs = prev[titleId] || [];
-          // 로그가 변경되지 않았으면 상태 업데이트 안 함
-          if (JSON.stringify(prevLogs) === JSON.stringify(data.logs)) {
+          // 로그 개수와 마지막 로그가 같으면 업데이트 안 함 (성능 최적화)
+          if (prevLogs.length === data.logs.length &&
+              prevLogs.length > 0 &&
+              JSON.stringify(prevLogs[prevLogs.length - 1]) === JSON.stringify(data.logs[data.logs.length - 1])) {
             return prev;
           }
           return { ...prev, [titleId]: data.logs };
@@ -766,6 +786,16 @@ function AutomationPageContent() {
 
     return () => clearInterval(interval);
   }, [titles]);
+
+  // 로그가 업데이트될 때 자동으로 스크롤을 맨 아래로 이동
+  useEffect(() => {
+    Object.keys(logsMap).forEach(titleId => {
+      const logContainer = document.getElementById(`log-container-${titleId}`);
+      if (logContainer) {
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+    });
+  }, [logsMap]);
 
   function toggleLogs(titleId: string) {
     if (expandedLogsFor === titleId) {
@@ -1337,15 +1367,11 @@ function AutomationPageContent() {
                     className="px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
                   >
                     <option value="">🎭 카테고리 선택 (선택)</option>
-                    <option value="일반">일반</option>
-                    <option value="상품">상품</option>
-                    <option value="북한탈북자사연">북한탈북자사연</option>
-                    <option value="막장드라마">막장드라마</option>
-                    <option value="감동실화">감동실화</option>
-                    <option value="복수극">복수극</option>
-                    <option value="로맨스">로맨스</option>
-                    <option value="스릴러">스릴러</option>
-                    <option value="코미디">코미디</option>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
                   </select>
                   <input
                     type="text"
@@ -2044,7 +2070,7 @@ function AutomationPageContent() {
 
                       {/* 로그 표시 - 진행중이면 항상, 나머지는 로그 버튼 눌렀을 때만 */}
                       {(title.status === 'processing' || expandedLogsFor === title.id) && (
-                        <div className="mb-3 max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                        <div id={`log-container-${title.id}`} className="mb-3 max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
                           {!logsMap[title.id] || logsMap[title.id].length === 0 ? (
                             <div className="text-center text-slate-400 py-4 text-sm">
                               {title.status === 'processing' ? (
@@ -2663,7 +2689,7 @@ function AutomationPageContent() {
 
                     {/* 로그 표시 - 진행중이면 항상, 나머지는 로그 버튼 눌렀을 때만 */}
                     {(title.status === 'processing' || expandedLogsFor === title.id) && (
-                      <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
+                      <div id={`log-container-${title.id}`} className="max-h-96 overflow-y-auto rounded-lg border border-slate-600 bg-slate-900/80 p-4">
                         {!logsMap[title.id] || logsMap[title.id].length === 0 ? (
                           <div className="text-center text-slate-400 py-4 text-sm">
                             {title.status === 'processing' ? (

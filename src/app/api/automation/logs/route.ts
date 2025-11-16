@@ -55,17 +55,14 @@ export async function GET(request: NextRequest) {
 
     // 3. video_id가 있으면 job_logs 테이블에서 Python 로그 가져오기 (실시간!)
     if (schedule?.video_id) {
-      // job_logs 테이블에서 해당 job의 최근 500개 로그만 가져오기 (성능 최적화)
-      // title_logs와 병합 후 200개로 제한하므로 충분함
+      // job_logs 테이블에서 해당 job의 모든 로그 가져오기 (시간순 정렬)
       const jobLogs = db.prepare(`
         SELECT log_message, created_at FROM job_logs
         WHERE job_id = ?
-        ORDER BY id DESC
-        LIMIT 500
+        ORDER BY id ASC
       `).all(schedule.video_id) as Array<{ log_message: string; created_at: string }>;
 
-      // 시간순 정렬 (DESC로 가져와서 reverse)
-      pythonLogs = jobLogs.reverse();
+      pythonLogs = jobLogs;
     }
 
     db.close();
@@ -108,10 +105,8 @@ export async function GET(request: NextRequest) {
       return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
     });
 
-    // 7. 최근 200개만 반환
-    const recentLogs = allLogs.slice(-200);
-
-    return NextResponse.json({ logs: recentLogs });
+    // 7. 모든 로그 반환 (제한 없음 - 프론트엔드에서 스크롤로 처리)
+    return NextResponse.json({ logs: allLogs });
   } catch (error: any) {
     console.error('GET /api/automation/logs error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
