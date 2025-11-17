@@ -2065,10 +2065,7 @@ function AutomationPageContent() {
                   <div className="p-8 text-center text-white">로딩 중...</div>
                 ) : poolTitles.length === 0 ? (
                   <div className="p-8 text-center text-white">
-                    제목이 없습니다. <br />
-                    <code className="text-xs bg-slate-700 text-white px-2 py-1 rounded mt-2 inline-block">
-                      node batch-generate-titles.js
-                    </code> 실행으로 제목을 생성하세요.
+                    제목 풀이 비어있습니다.
                   </div>
                 ) : (
                   <div className="overflow-x-auto">

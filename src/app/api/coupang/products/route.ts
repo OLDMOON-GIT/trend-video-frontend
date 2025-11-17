@@ -88,7 +88,7 @@ async function callCoupangAPI(accessKey: string, secretKey: string, method: stri
 
 /**
  * GET /api/coupang/products - 베스트셀러 상품 목록 가져오기
- * Query: categoryId (선택사항, 기본값: 1001 - 가전디지털)
+ * Query: categoryId (선택사항, 기본값: all - 모든 주요 카테고리)
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -105,8 +105,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // 쿼리 파라미터
     const { searchParams } = new URL(request.url);
-    const categoryId = searchParams.get('categoryId') || '1001'; // 기본: 가전디지털
-    // limit 파라미터는 쿠팡 API가 지원하지 않으므로 제거
+    const categoryId = searchParams.get('categoryId') || 'all'; // 기본: 모든 카테고리
 
     // 캐시 키: userId와 categoryId 조합
     const cacheKey = `${user.userId}_${categoryId}`;
@@ -116,7 +115,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const now = Date.now();
 
     if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-      console.log('💾 캐시에서 베스트셀러 반환:', cacheKey, `(${Math.floor((CACHE_DURATION - (now - cached.timestamp)) / 1000 / 60)}분 남음)`);
+      const hoursLeft = Math.floor((CACHE_DURATION - (now - cached.timestamp)) / 1000 / 60 / 60);
+      console.log('💾 캐시에서 베스트셀러 반환:', cacheKey, `(${hoursLeft}시간 남음)`);
       return NextResponse.json({
         success: true,
         products: cached.data,
@@ -126,52 +126,74 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // 쿠팡 베스트셀러 API 호출 (쿼리 파라미터 없음)
-    const url = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/${categoryId}`;
-    const response = await callCoupangAPI(settings.accessKey, settings.secretKey, 'GET', url);
+    // 조회할 카테고리 목록 결정
+    const categoriesToFetch = categoryId === 'all' || categoryId === '1001'
+      ? MAJOR_CATEGORIES
+      : [categoryId];
 
-    console.log('🛒 쿠팡 베스트셀러 API 호출:', url);
-    console.log('📡 응답 상태:', response.status);
+    console.log('🛒 베스트셀러 조회 시작:', categoriesToFetch.length, '개 카테고리');
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log('✅ 쿠팡 API 성공:', data);
+    // 모든 카테고리에서 상품 조회 (천천히)
+    const allProducts: any[] = [];
 
-      // 상품 데이터 파싱
-      const products = data.data?.map((item: any) => ({
-        productId: item.productId,
-        productName: item.productName,
-        productPrice: item.productPrice,
-        productImage: item.productImage,
-        productUrl: item.productUrl,
-        categoryName: item.categoryName,
-        isRocket: item.isRocket || false,
-        rank: item.rank
-      })) || [];
+    for (let i = 0; i < categoriesToFetch.length; i++) {
+      const catId = categoriesToFetch[i];
 
-      // 캐시에 저장
-      bestsellerCache.set(cacheKey, {
-        data: products,
-        timestamp: now
-      });
-      console.log('💾 베스트셀러 캐시 저장:', cacheKey, `(${products.length}개 상품)`);
+      try {
+        const url = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/${catId}`;
+        const response = await callCoupangAPI(settings.accessKey, settings.secretKey, 'GET', url);
 
-      return NextResponse.json({
-        success: true,
-        products,
-        total: products.length,
-        cached: false
-      });
-    } else {
-      const errorText = await response.text();
-      console.error('❌ 쿠팡 API 실패:', response.status, errorText);
+        console.log(`🛒 [${i + 1}/${categoriesToFetch.length}] 카테고리 ${catId} 조회 중...`);
 
-      return NextResponse.json({
-        success: false,
-        error: `쿠팡 API 호출 실패 (${response.status})`,
-        details: errorText
-      }, { status: 400 });
+        if (response.ok) {
+          const data = await response.json();
+          const products = data.data?.map((item: any) => ({
+            productId: item.productId,
+            productName: item.productName,
+            productPrice: item.productPrice,
+            productImage: item.productImage,
+            productUrl: item.productUrl,
+            categoryName: item.categoryName,
+            isRocket: item.isRocket || false,
+            rank: item.rank,
+            categoryId: catId
+          })) || [];
+
+          allProducts.push(...products);
+          console.log(`✅ 카테고리 ${catId}: ${products.length}개 상품`);
+        } else {
+          console.error(`❌ 카테고리 ${catId} 조회 실패:`, response.status);
+        }
+
+        // 다음 카테고리 조회 전 대기 (API 부담 줄이기)
+        if (i < categoriesToFetch.length - 1) {
+          await delay(500); // 500ms 대기
+        }
+      } catch (error) {
+        console.error(`❌ 카테고리 ${catId} 조회 중 오류:`, error);
+      }
     }
+
+    // 중복 제거 (productId 기준)
+    const uniqueProducts = Array.from(
+      new Map(allProducts.map(p => [p.productId, p])).values()
+    );
+
+    console.log(`✅ 총 ${uniqueProducts.length}개 상품 조회 완료 (중복 제거 전: ${allProducts.length})`);
+
+    // 캐시에 저장
+    bestsellerCache.set(cacheKey, {
+      data: uniqueProducts,
+      timestamp: now
+    });
+    console.log('💾 베스트셀러 캐시 저장:', cacheKey, `(24시간 유지, ${uniqueProducts.length}개 상품)`);
+
+    return NextResponse.json({
+      success: true,
+      products: uniqueProducts,
+      total: uniqueProducts.length,
+      cached: false
+    });
 
   } catch (error: any) {
     console.error('쿠팡 상품 조회 실패:', error);

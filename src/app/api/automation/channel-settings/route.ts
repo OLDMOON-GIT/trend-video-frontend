@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const intervalValue = body.intervalValue || body.interval_value;
     const intervalUnit = body.intervalUnit || body.interval_unit;
     const weekdays = body.weekdays;
-    const postingTime = body.postingTime || body.posting_time;
+    const postingTimes = body.postingTimes || body.posting_times || (body.postingTime ? [body.postingTime] : body.posting_time ? [body.posting_time] : ['18:00']); // 배열로 변경, 하위 호환성 유지
     const isActive = body.isActive !== undefined ? body.isActive : body.is_active;
     const categories = body.categories;
 

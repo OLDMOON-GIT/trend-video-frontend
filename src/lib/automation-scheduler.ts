@@ -2057,14 +2057,21 @@ async function generateTitleWithMultiModelEvaluation(
       userId,
       channelId,
       channelName,
-      category,
-      step: useTitlePool ? '고품질 제목 풀 확인 중...' : 'AI로 제목 생성 준비 중...'
+      category
     });
+
+    // 초기 상태 업데이트
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'started',
+        step: useTitlePool ? '고품질 제목 풀 확인 중...' : 'AI로 제목 생성 준비 중...'
+      });
+    }
 
     // 🎯 선택사항: 제목 풀 사용 (설정에 따라)
     if (useTitlePool) {
       console.log(`[TitlePool] Checking title pool for category "${category}"...`);
-      const poolTitle = getTitleFromPool(category, 90);
+      const poolTitle = getTitleFromPool(category, 90) as any;
 
       if (poolTitle) {
         console.log(`[TitlePool] ✅ Found high-quality title from pool (score: ${poolTitle.score})`);

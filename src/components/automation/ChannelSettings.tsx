@@ -17,7 +17,7 @@ interface ChannelSetting {
   interval_value?: number;
   interval_unit?: 'minutes' | 'hours' | 'days';
   weekdays?: number[];
-  posting_time?: string;
+  posting_times?: string[]; // 여러 시간대 지원 (배열로 변경)
   isActive: boolean;
   categories?: string[]; // 자동 제목 생성용 카테고리 리스트
 }
@@ -180,7 +180,7 @@ export default function ChannelSettings() {
         interval_value: 3,
         interval_unit: 'days',
         weekdays: [1, 3, 5], // 월, 수, 금
-        posting_time: '18:00',
+        posting_times: ['09:00', '12:00', '15:00', '18:00', '21:00'], // 하루 5회 기본값
         isActive: true,
         categories: [], // 빈 배열로 시작
       });
@@ -368,7 +368,7 @@ export default function ChannelSettings() {
                                 }마다`
                               : `${setting.weekdays
                                   ?.map((d) => WEEKDAY_LABELS[d])
-                                  .join(', ')} ${setting.posting_time}`}
+                                  .join(', ')} ${(setting.posting_times || []).join(', ')}`}
                           </div>
                           {/* 완전 자동화 상태 표시 */}
                           {setting.categories && setting.categories.length > 0 && (
@@ -557,18 +557,52 @@ export default function ChannelSettings() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">업로드 시간</label>
-                  <input
-                    type="time"
-                    value={editingSetting.posting_time || '18:00'}
-                    onChange={(e) =>
-                      setEditingSetting({
-                        ...editingSetting,
-                        posting_time: e.target.value,
-                      })
-                    }
-                    className="px-3 py-2 border rounded"
-                  />
+                  <label className="block text-sm font-medium mb-2">
+                    업로드 시간 (하루에 여러 시간 설정 가능)
+                  </label>
+                  <div className="space-y-2">
+                    {(editingSetting.posting_times || ['18:00']).map((time, index) => (
+                      <div key={index} className="flex gap-2 items-center">
+                        <input
+                          type="time"
+                          value={time}
+                          onChange={(e) => {
+                            const newTimes = [...(editingSetting.posting_times || [])];
+                            newTimes[index] = e.target.value;
+                            setEditingSetting({
+                              ...editingSetting,
+                              posting_times: newTimes,
+                            });
+                          }}
+                          className="px-3 py-2 border rounded"
+                        />
+                        <button
+                          onClick={() => {
+                            const newTimes = (editingSetting.posting_times || []).filter((_, i) => i !== index);
+                            setEditingSetting({
+                              ...editingSetting,
+                              posting_times: newTimes.length > 0 ? newTimes : ['18:00'],
+                            });
+                          }}
+                          className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-sm"
+                        >
+                          ❌ 삭제
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const currentTimes = editingSetting.posting_times || ['18:00'];
+                        setEditingSetting({
+                          ...editingSetting,
+                          posting_times: [...currentTimes, '18:00'],
+                        });
+                      }}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
+                    >
+                      ➕ 시간 추가
+                    </button>
+                  </div>
                 </div>
               </>
             )}
