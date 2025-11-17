@@ -7,9 +7,10 @@ const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 // Ollama 설정
 const OLLAMA_MODEL = 'qwen2.5:7b';
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 10; // 100개 → 10개로 축소
 const MIN_SCORE = 90;
 const CATEGORIES = ['시니어사연', '복수극', '탈북자사연', '막장드라마'];
+const TIMEOUT_MS = 60000; // 60초 타임아웃
 
 // 규칙 기반 점수 평가
 function evaluateTitleWithRules(title: string, category: string): number {
@@ -107,31 +108,45 @@ async function generateWithOllama(category: string, count: number): Promise<stri
 
 제목:`;
 
-  const response = await fetch(OLLAMA_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: OLLAMA_MODEL,
-      prompt: prompt,
-      stream: false,
-      options: {
-        temperature: 0.9,
-        top_p: 0.95
-      }
-    })
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  if (!response.ok) {
-    throw new Error(`Ollama 오류: ${response.statusText}`);
+  try {
+    const response = await fetch(OLLAMA_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt: prompt,
+        stream: false,
+        options: {
+          temperature: 0.9,
+          top_p: 0.95
+        }
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Ollama 오류: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const titles = data.response
+      .split('\n')
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.length > 0 && !line.match(/^[\d.]+\s/));
+
+    return titles;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Ollama 응답 시간 초과 (60초)');
+    }
+    throw error;
   }
-
-  const data = await response.json();
-  const titles = data.response
-    .split('\n')
-    .map((line: string) => line.trim())
-    .filter((line: string) => line.length > 0 && !line.match(/^[\d.]+\s/));
-
-  return titles;
 }
 
 export async function POST(request: NextRequest) {
@@ -195,8 +210,8 @@ export async function POST(request: NextRequest) {
 
           sendLog(`📊 기존 제목 수: ${existingTitles.length}개`);
 
-          for (let batch = 0; batch < 10; batch++) {
-            sendLog(`\n[배치 ${batch + 1}/10] ${BATCH_SIZE}개 생성 중...`);
+          for (let batch = 0; batch < 100; batch++) {
+            sendLog(`\n[배치 ${batch + 1}/100] ${BATCH_SIZE}개 생성 중...`);
 
             try {
               const titles = await generateWithOllama(category, BATCH_SIZE);
@@ -248,8 +263,8 @@ export async function POST(request: NextRequest) {
               sendLog(`💾 저장: ${saved}개 (중복 ${highScoreTitles.length - saved}개)`);
               stats.total += saved;
 
-              // 딜레이
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              // 딜레이 (Ollama 과부하 방지)
+              await new Promise(resolve => setTimeout(resolve, 500));
 
             } catch (error: any) {
               sendLog(`❌ 배치 생성 실패: ${error.message}`);

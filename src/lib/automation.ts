@@ -1390,7 +1390,7 @@ export function getTitleFromPool(category: string, minScore: number = 90) {
       UPDATE title_pool
       SET used = 1
       WHERE id = ?
-    `).run(title.id);
+    `).run((title as any).id);
   }
 
   db.close();
