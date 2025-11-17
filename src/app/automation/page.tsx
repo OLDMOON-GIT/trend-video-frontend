@@ -74,6 +74,9 @@ function AutomationPageContent() {
   const [poolCategory, setPoolCategory] = useState<string>('all');
   const [poolMinScore, setPoolMinScore] = useState(90);
   const [poolLoading, setPoolLoading] = useState(false);
+  const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [generateLogs, setGenerateLogs] = useState<string[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // localStorage에서 선택한 채널 불러오기
   function getSelectedChannel(): string {
@@ -401,6 +404,62 @@ function AutomationPageContent() {
       console.error('Failed to fetch title pool:', error);
     } finally {
       setPoolLoading(false);
+    }
+  }
+
+  async function generateTitlePool() {
+    setGenerateModalOpen(true);
+    setGenerateLogs([]);
+    setIsGenerating(true);
+
+    try {
+      const response = await fetch('/api/title-pool/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        setGenerateLogs(prev => [...prev, '❌ 제목 생성 API 호출 실패']);
+        setIsGenerating(false);
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        setGenerateLogs(prev => [...prev, '❌ 스트림을 읽을 수 없습니다']);
+        setIsGenerating(false);
+        return;
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value);
+        const lines = text.split('\n').filter(line => line.trim());
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.message) {
+                setGenerateLogs(prev => [...prev, data.message]);
+              }
+            } catch (e) {
+              // JSON 파싱 실패는 무시
+            }
+          }
+        }
+      }
+
+      setIsGenerating(false);
+      setGenerateLogs(prev => [...prev, '\n✅ 제목 생성 완료! 조회 버튼을 눌러 새로고침하세요.']);
+    } catch (error: any) {
+      console.error('Failed to generate titles:', error);
+      setGenerateLogs(prev => [...prev, `❌ 제목 생성 실패: ${error.message}`]);
+      setIsGenerating(false);
     }
   }
 
@@ -2021,6 +2080,17 @@ function AutomationPageContent() {
                 ))}
               </div>
 
+              {/* 제목 생성 버튼 */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => generateTitlePool()}
+                  disabled={isGenerating}
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-600 text-white rounded-lg font-bold transition"
+                >
+                  {isGenerating ? '⏳ 생성 중...' : '🔄 Ollama로 제목 생성'}
+                </button>
+              </div>
+
               {/* 필터 */}
               <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
                 <div className="flex gap-4 items-end">
@@ -3131,6 +3201,91 @@ function AutomationPageContent() {
         </div>
 
       </div>
+
+      {/* 제목 생성 로그 모달 */}
+      {generateModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 rounded-lg shadow-2xl border border-slate-700 max-w-4xl w-full max-h-[80vh] flex flex-col">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-700">
+              <h3 className="text-lg font-semibold text-white">🔄 Ollama 제목 생성</h3>
+              <button
+                onClick={() => setGenerateModalOpen(false)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 로그 영역 */}
+            <div className="flex-1 overflow-y-auto p-4 bg-slate-950 font-mono text-sm">
+              {generateLogs.length === 0 && isGenerating && (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
+                  <span>제목 생성 시작 중...</span>
+                </div>
+              )}
+              {generateLogs.map((log, idx) => (
+                <div
+                  key={idx}
+                  className={`mb-1 ${
+                    log.includes('❌') || log.includes('실패')
+                      ? 'text-red-400'
+                      : log.includes('✅') || log.includes('완료') || log.includes('성공')
+                      ? 'text-green-400'
+                      : log.includes('⚠️')
+                      ? 'text-yellow-400'
+                      : log.includes('🎯') || log.includes('💾')
+                      ? 'text-cyan-400'
+                      : log.includes('📂') || log.includes('📊')
+                      ? 'text-blue-400'
+                      : log.includes('━')
+                      ? 'text-slate-600'
+                      : log.includes('🚀') || log.includes('🎉')
+                      ? 'text-purple-400'
+                      : 'text-slate-300'
+                  }`}
+                >
+                  {log}
+                </div>
+              ))}
+            </div>
+
+            {/* 모달 푸터 */}
+            <div className="p-4 border-t border-slate-700 flex justify-between items-center">
+              <div className="text-sm text-slate-400">
+                {isGenerating ? (
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-500"></div>
+                    제목 생성 진행 중...
+                  </span>
+                ) : (
+                  <span>제목 생성 완료</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {!isGenerating && (
+                  <button
+                    onClick={() => {
+                      setGenerateModalOpen(false);
+                      fetchTitlePool(); // 새로고침
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition"
+                  >
+                    새로고침
+                  </button>
+                )}
+                <button
+                  onClick={() => setGenerateModalOpen(false)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 테스트 로그 모달 */}
       {testModalOpen && (

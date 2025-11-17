@@ -923,10 +923,11 @@ export function getChannelSettings(userId: string) {
 
   db.close();
 
-  // weekdays와 categories JSON 파싱
+  // weekdays, posting_times, categories JSON 파싱
   return settings.map((setting: any) => ({
     ...setting,
     weekdays: setting.weekdays ? JSON.parse(setting.weekdays) : null,
+    posting_times: setting.posting_times ? JSON.parse(setting.posting_times) : null,
     categories: setting.categories ? JSON.parse(setting.categories) : null,
     isActive: setting.is_active === 1
   }));
@@ -947,6 +948,7 @@ export function getChannelSetting(userId: string, channelId: string) {
   return {
     ...setting,
     weekdays: setting.weekdays ? JSON.parse(setting.weekdays) : null,
+    posting_times: setting.posting_times ? JSON.parse(setting.posting_times) : null,
     categories: setting.categories ? JSON.parse(setting.categories) : null,
     isActive: setting.is_active === 1
   };
@@ -962,7 +964,7 @@ export function updateChannelSettings(
     intervalValue?: number;
     intervalUnit?: 'hours' | 'days';
     weekdays?: number[];
-    postingTime?: string;
+    postingTimes?: string[];
     isActive?: boolean;
     categories?: string[];
   }
@@ -992,9 +994,9 @@ export function updateChannelSettings(
     fields.push('weekdays = ?');
     values.push(JSON.stringify(updates.weekdays));
   }
-  if (updates.postingTime !== undefined) {
-    fields.push('posting_time = ?');
-    values.push(updates.postingTime);
+  if (updates.postingTimes !== undefined) {
+    fields.push('posting_times = ?');
+    values.push(JSON.stringify(updates.postingTimes));
   }
   if (updates.isActive !== undefined) {
     fields.push('is_active = ?');
@@ -1044,9 +1046,9 @@ export function calculateNextScheduleTime(
 
     const nextDate = new Date(now);
 
-    // posting_time이 설정되어 있으면 해당 시간으로 설정
-    if (setting.posting_time) {
-      const [hours, minutes] = setting.posting_time.split(':').map(Number);
+    // posting_times가 설정되어 있으면 첫 번째 시간으로 설정
+    if (setting.posting_times && setting.posting_times.length > 0) {
+      const [hours, minutes] = setting.posting_times[0].split(':').map(Number);
       nextDate.setHours(hours, minutes, 0, 0);
     }
 
@@ -1060,38 +1062,49 @@ export function calculateNextScheduleTime(
       nextDate.setDate(nextDate.getDate() + setting.interval_value);
 
       // 일 단위일 때, 설정한 시간이 이미 지났으면 다음 주기로
-      if (setting.posting_time && nextDate <= now) {
+      if (setting.posting_times && setting.posting_times.length > 0 && nextDate <= now) {
         nextDate.setDate(nextDate.getDate() + setting.interval_value);
       }
     }
 
     return nextDate;
   } else if (setting.posting_mode === 'weekday_time') {
-    // 요일/시간 지정 모드
-    if (!setting.weekdays || !setting.posting_time) return null;
+    // 요일/시간 지정 모드 (여러 시간대 지원)
+    if (!setting.weekdays || !setting.posting_times || setting.posting_times.length === 0) return null;
 
     const weekdays = setting.weekdays;
-    const [hours, minutes] = setting.posting_time.split(':').map(Number);
+    const postingTimes = setting.posting_times;
 
-    // 다음 가능한 날짜 찾기
-    const nextDate = new Date(now);
-    nextDate.setHours(hours, minutes, 0, 0);
+    // 모든 가능한 다음 시간 후보들을 찾기
+    const candidates: Date[] = [];
 
-    // 현재 시간이 오늘의 설정 시간을 지났으면 다음날부터 시작
-    if (nextDate <= now) {
-      nextDate.setDate(nextDate.getDate() + 1);
-    }
+    // 오늘과 앞으로 7일 동안 검색
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const checkDate = new Date(now);
+      checkDate.setDate(checkDate.getDate() + dayOffset);
+      const dayOfWeek = checkDate.getDay();
 
-    // 최대 7일 검색
-    for (let i = 0; i < 7; i++) {
-      const dayOfWeek = nextDate.getDay();
+      // 이 날짜가 설정된 요일인지 확인
       if (weekdays.includes(dayOfWeek)) {
-        return nextDate;
+        // 모든 posting_times에 대해 확인
+        for (const time of postingTimes) {
+          const [hours, minutes] = time.split(':').map(Number);
+          const candidate = new Date(checkDate);
+          candidate.setHours(hours, minutes, 0, 0);
+
+          // 미래 시간만 추가
+          if (candidate > now) {
+            candidates.push(candidate);
+          }
+        }
       }
-      nextDate.setDate(nextDate.getDate() + 1);
     }
 
-    return null;
+    // 가장 가까운 미래 시간 찾기
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => a.getTime() - b.getTime());
+    return candidates[0];
   }
 
   return null;

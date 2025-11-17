@@ -2315,8 +2315,8 @@ export async function checkCompletedShortformJobs() {
         console.log(`✅ [SHORTFORM] Shortform completed! Starting YouTube upload...`);
         addTitleLog(schedule.title_id, 'info', `✅ 숏폼 생성 완료! YouTube 업로드 시작...`);
 
-        // 파이프라인 생성
-        const uploadPipelineId = createPipeline(schedule.id, 'upload', 'shortform_upload');
+        // 파이프라인 ID 생성
+        const uploadPipelineId = schedule.id + '_shortform_upload';
         updatePipelineStatus(uploadPipelineId, 'running');
 
         // YouTube 업로드 (롱폼 링크를 설명란에 추가)

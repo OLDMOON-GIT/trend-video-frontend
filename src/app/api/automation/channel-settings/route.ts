@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       intervalValue,
       intervalUnit,
       weekdays,
-      postingTime: postingTimes,
+      postingTimes,
       isActive,
       categories
     });
