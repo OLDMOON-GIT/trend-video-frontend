@@ -3034,6 +3034,27 @@ export default function CoupangProductsAdminPage() {
                       setBestsellerResults([]);
                       try {
                         const categoryId = getCategoryId(bestsellerCategory);
+                        const cacheKey = `bestseller_${categoryId || 'all'}`;
+                        const cacheExpiry = 60 * 60 * 1000; // 1시간
+
+                        // 캐시 확인
+                        const cached = localStorage.getItem(cacheKey);
+                        if (cached) {
+                          try {
+                            const { data, timestamp } = JSON.parse(cached);
+                            const now = Date.now();
+                            if (now - timestamp < cacheExpiry) {
+                              console.log('💾 [캐시] 베스트셀러 캐시 사용:', Math.floor((cacheExpiry - (now - timestamp)) / 1000 / 60), '분 남음');
+                              setBestsellerResults(data);
+                              toast.success(`${data.length}개 베스트셀러 상품 (캐시)`);
+                              setIsFetchingBestseller(false);
+                              return;
+                            }
+                          } catch (e) {
+                            // 캐시 파싱 실패시 무시하고 새로 조회
+                          }
+                        }
+
                         const url = categoryId
                           ? `/api/coupang/products?categoryId=${categoryId}&limit=100`
                           : `/api/coupang/products?limit=100`;
@@ -3053,6 +3074,14 @@ export default function CoupangProductsAdminPage() {
                             new Map((data.products || []).map((p: any) => [p.productId, p])).values()
                           );
                           setBestsellerResults(uniqueProducts);
+
+                          // 캐시 저장
+                          localStorage.setItem(cacheKey, JSON.stringify({
+                            data: uniqueProducts,
+                            timestamp: Date.now()
+                          }));
+                          console.log('💾 [캐시] 베스트셀러 캐시 저장:', uniqueProducts.length, '개 상품');
+
                           toast.success(`${uniqueProducts.length}개 베스트셀러 상품 조회 완료`);
                         } else {
                           throw new Error(data.error || '베스트셀러 조회 실패');

@@ -128,15 +128,32 @@ function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isMounted, setIsMounted] = useState(false);
-  const [viewRange, setViewRange] = useState(defaultViewRange);
-  const [subRange, setSubRange] = useState(defaultSubRange);
-  const [videoType, setVideoType] = useState<VideoType | "all">("all");
-  const [dateFilter, setDateFilter] = useState<DateFilter>("any");
-  const [sortBy, setSortBy] = useState<SortOption>("views");
+
+  // localStorage에서 필터 복원
+  const loadFilters = (): Partial<StoredFilters> => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const saved = localStorage.getItem('trend-video-filters');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load filters:', e);
+    }
+    return {};
+  };
+
+  const savedFilters = loadFilters();
+
+  const [viewRange, setViewRange] = useState(savedFilters.viewRange || defaultViewRange);
+  const [subRange, setSubRange] = useState(savedFilters.subRange || defaultSubRange);
+  const [videoType, setVideoType] = useState<VideoType | "all">(savedFilters.videoType || "all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>(savedFilters.dateFilter || "any");
+  const [sortBy, setSortBy] = useState<SortOption>(savedFilters.sortBy || "views");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [titleQuery, setTitleQuery] = useState("");
-  const [durationRange, setDurationRange] = useState(defaultDurationRange);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(savedFilters.selectedCategories || []);
+  const [titleQuery, setTitleQuery] = useState(savedFilters.titleQuery || "");
+  const [durationRange, setDurationRange] = useState(savedFilters.durationRange || defaultDurationRange);
   const [selectedContentCategories, setSelectedContentCategories] = useState<string[]>(() => {
     // localStorage에서 저장된 콘텐츠 카테고리 불러오기 (기본값: 전체 선택)
     if (typeof window !== 'undefined') {
@@ -268,6 +285,29 @@ function HomeContent() {
     const costKRW = costUSD * 1350; // 환율 적용
     return Math.ceil(costKRW); // 원 단위 올림
   }, [materialSuggestionCount]);
+
+  // 필터 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const filters: StoredFilters = {
+      viewRange,
+      subRange,
+      videoType,
+      dateFilter,
+      sortBy,
+      selectedCategories,
+      titleQuery,
+      durationRange,
+      selectedModel
+    };
+
+    try {
+      localStorage.setItem('trend-video-filters', JSON.stringify(filters));
+    } catch (e) {
+      console.error('Failed to save filters:', e);
+    }
+  }, [isMounted, viewRange, subRange, videoType, dateFilter, sortBy, selectedCategories, titleQuery, durationRange, selectedModel]);
 
   // 파일 업로드 시 통합 배열 업데이트 (시퀀스/타임스탬프 정렬)
   useEffect(() => {

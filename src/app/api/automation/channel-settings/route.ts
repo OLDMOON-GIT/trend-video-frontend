@@ -60,8 +60,7 @@ export async function POST(request: NextRequest) {
     const postingMode = body.postingMode || body.posting_mode;
     const intervalValue = body.intervalValue || body.interval_value;
     const intervalUnit = body.intervalUnit || body.interval_unit;
-    const weekdays = body.weekdays;
-    const postingTimes = body.postingTimes || body.posting_times || (body.postingTime ? [body.postingTime] : body.posting_time ? [body.posting_time] : ['18:00']); // 배열로 변경, 하위 호환성 유지
+    const weekdayTimes = body.weekdayTimes || body.weekday_times;
     const isActive = body.isActive !== undefined ? body.isActive : body.is_active;
     const categories = body.categories;
 
@@ -89,25 +88,27 @@ export async function POST(request: NextRequest) {
         );
       }
     } else if (postingMode === 'weekday_time') {
-      if (!weekdays || !Array.isArray(weekdays) || weekdays.length === 0) {
+      if (!weekdayTimes || typeof weekdayTimes !== 'object' || Object.keys(weekdayTimes).length === 0) {
         return NextResponse.json(
-          { error: 'weekdays array is required for weekday_time mode' },
+          { error: 'weekdayTimes object is required for weekday_time mode' },
           { status: 400 }
         );
       }
-      if (!postingTimes || !Array.isArray(postingTimes) || postingTimes.length === 0) {
-        return NextResponse.json(
-          { error: 'postingTimes array is required for weekday_time mode' },
-          { status: 400 }
-        );
-      }
-      // 모든 시간이 HH:mm 형식인지 검증
-      for (const time of postingTimes) {
-        if (!/^\d{2}:\d{2}$/.test(time)) {
+      // 각 요일의 시간들이 HH:mm 형식인지 검증
+      for (const [weekday, times] of Object.entries(weekdayTimes)) {
+        if (!Array.isArray(times) || times.length === 0) {
           return NextResponse.json(
-            { error: 'All posting times must be in HH:mm format' },
+            { error: `weekday ${weekday} must have at least one time` },
             { status: 400 }
           );
+        }
+        for (const time of times as string[]) {
+          if (!/^\d{2}:\d{2}$/.test(time)) {
+            return NextResponse.json(
+              { error: 'All posting times must be in HH:mm format' },
+              { status: 400 }
+            );
+          }
         }
       }
     }
@@ -120,8 +121,7 @@ export async function POST(request: NextRequest) {
       postingMode,
       intervalValue,
       intervalUnit,
-      weekdays,
-      postingTimes,
+      weekdayTimes,
       isActive,
       categories
     });

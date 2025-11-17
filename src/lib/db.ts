@@ -2049,12 +2049,13 @@ export function getApiCostStats(startDate?: string, endDate?: string): {
     stats.totalCredits += credits;
 
     // costType별 집계
-    if (!stats.byCostType[row.cost_type]) {
-      stats.byCostType[row.cost_type] = { count: 0, totalCost: 0, totalCredits: 0 };
+    const costType = row.cost_type as CostType;
+    if (!stats.byCostType[costType]) {
+      stats.byCostType[costType] = { count: 0, totalCost: 0, totalCredits: 0 };
     }
-    stats.byCostType[row.cost_type].count++;
-    stats.byCostType[row.cost_type].totalCost += amount;
-    stats.byCostType[row.cost_type].totalCredits += credits;
+    stats.byCostType[costType].count++;
+    stats.byCostType[costType].totalCost += amount;
+    stats.byCostType[costType].totalCredits += credits;
 
     // service별 집계
     if (!stats.byService[row.service_name]) {

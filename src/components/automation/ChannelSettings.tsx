@@ -16,8 +16,7 @@ interface ChannelSetting {
   posting_mode: 'fixed_interval' | 'weekday_time';
   interval_value?: number;
   interval_unit?: 'minutes' | 'hours' | 'days';
-  weekdays?: number[];
-  posting_times?: string[]; // 여러 시간대 지원 (배열로 변경)
+  weekday_times?: { [weekday: string]: string[] }; // 요일별 시간대 (예: {"1": ["09:00", "12:00"], "3": ["15:00"]})
   isActive: boolean;
   categories?: string[]; // 자동 제목 생성용 카테고리 리스트
 }
@@ -179,8 +178,11 @@ export default function ChannelSettings() {
         posting_mode: 'fixed_interval',
         interval_value: 3,
         interval_unit: 'days',
-        weekdays: [1, 3, 5], // 월, 수, 금
-        posting_times: ['09:00', '12:00', '15:00', '18:00', '21:00'], // 하루 5회 기본값
+        weekday_times: {
+          '1': ['09:00', '12:00', '15:00', '18:00', '21:00'], // 월요일
+          '3': ['09:00', '12:00', '15:00', '18:00', '21:00'], // 수요일
+          '5': ['09:00', '12:00', '15:00', '18:00', '21:00'], // 금요일
+        },
         isActive: true,
         categories: [], // 빈 배열로 시작
       });
@@ -238,16 +240,28 @@ export default function ChannelSettings() {
     }
   };
 
-  // 요일 토글
+  // 요일 토글 (시간 초기화)
   const toggleWeekday = (day: number) => {
     if (!editingSetting) return;
 
-    const weekdays = editingSetting.weekdays || [];
-    const newWeekdays = weekdays.includes(day)
-      ? weekdays.filter((d) => d !== day)
-      : [...weekdays, day].sort();
+    const weekdayTimes = editingSetting.weekday_times || {};
+    const dayKey = day.toString();
 
-    setEditingSetting({ ...editingSetting, weekdays: newWeekdays });
+    if (weekdayTimes[dayKey]) {
+      // 이미 있으면 제거
+      const newWeekdayTimes = { ...weekdayTimes };
+      delete newWeekdayTimes[dayKey];
+      setEditingSetting({ ...editingSetting, weekday_times: newWeekdayTimes });
+    } else {
+      // 없으면 추가 (기본 시간: 09:00, 12:00, 15:00, 18:00, 21:00)
+      setEditingSetting({
+        ...editingSetting,
+        weekday_times: {
+          ...weekdayTimes,
+          [dayKey]: ['09:00', '12:00', '15:00', '18:00', '21:00'],
+        },
+      });
+    }
   };
 
   // 카테고리 토글
@@ -366,9 +380,11 @@ export default function ChannelSettings() {
                                   setting.interval_unit === 'minutes' ? '분' :
                                   setting.interval_unit === 'hours' ? '시간' : '일'
                                 }마다`
-                              : `${setting.weekdays
-                                  ?.map((d) => WEEKDAY_LABELS[d])
-                                  .join(', ')} ${(setting.posting_times || []).join(', ')}`}
+                              : setting.weekday_times
+                              ? Object.entries(setting.weekday_times)
+                                  .map(([day, times]) => `${WEEKDAY_LABELS[parseInt(day)]}: ${(times as string[]).join(', ')}`)
+                                  .join(' / ')
+                              : '설정 없음'}
                           </div>
                           {/* 완전 자동화 상태 표시 */}
                           {setting.categories && setting.categories.length > 0 && (
@@ -539,69 +555,98 @@ export default function ChannelSettings() {
             {editingSetting.posting_mode === 'weekday_time' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium mb-2">요일 선택</label>
-                  <div className="flex gap-2">
-                    {WEEKDAY_LABELS.map((label, index) => (
-                      <button
-                        key={index}
-                        onClick={() => toggleWeekday(index)}
-                        className={`w-10 h-10 rounded ${
-                          editingSetting.weekdays?.includes(index)
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    업로드 시간 (하루에 여러 시간 설정 가능)
-                  </label>
-                  <div className="space-y-2">
-                    {(editingSetting.posting_times || ['18:00']).map((time, index) => (
-                      <div key={index} className="flex gap-2 items-center">
-                        <input
-                          type="time"
-                          value={time}
-                          onChange={(e) => {
-                            const newTimes = [...(editingSetting.posting_times || [])];
-                            newTimes[index] = e.target.value;
-                            setEditingSetting({
-                              ...editingSetting,
-                              posting_times: newTimes,
-                            });
-                          }}
-                          className="px-3 py-2 border rounded"
-                        />
-                        <button
-                          onClick={() => {
-                            const newTimes = (editingSetting.posting_times || []).filter((_, i) => i !== index);
-                            setEditingSetting({
-                              ...editingSetting,
-                              posting_times: newTimes.length > 0 ? newTimes : ['18:00'],
-                            });
-                          }}
-                          className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-sm"
-                        >
-                          ❌ 삭제
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => {
-                        const currentTimes = editingSetting.posting_times || ['18:00'];
-                        setEditingSetting({
-                          ...editingSetting,
-                          posting_times: [...currentTimes, '18:00'],
-                        });
-                      }}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
-                    >
-                      ➕ 시간 추가
-                    </button>
+                  <label className="block text-sm font-medium mb-2">요일별 업로드 시간 설정</label>
+                  <div className="space-y-3">
+                    {WEEKDAY_LABELS.map((label, weekday) => {
+                      const dayKey = weekday.toString();
+                      const isActive = editingSetting.weekday_times && editingSetting.weekday_times[dayKey];
+                      const times = isActive ? editingSetting.weekday_times?.[dayKey] || [] : [];
+
+                      return (
+                        <div key={weekday} className="border rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <button
+                              onClick={() => toggleWeekday(weekday)}
+                              className={`px-4 py-2 rounded font-semibold ${
+                                isActive
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-200 text-gray-700'
+                              }`}
+                            >
+                              {label}요일 {isActive ? '✓' : ''}
+                            </button>
+                            {isActive && (
+                              <button
+                                onClick={() => {
+                                  const weekdayTimes = editingSetting.weekday_times || {};
+                                  setEditingSetting({
+                                    ...editingSetting,
+                                    weekday_times: {
+                                      ...weekdayTimes,
+                                      [dayKey]: [...times, '18:00'],
+                                    },
+                                  });
+                                }}
+                                className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
+                              >
+                                ➕ 시간 추가
+                              </button>
+                            )}
+                          </div>
+                          {isActive && (
+                            <div className="space-y-2 pl-4">
+                              {times.map((time, timeIndex) => (
+                                <div key={timeIndex} className="flex gap-2 items-center">
+                                  <input
+                                    type="time"
+                                    value={time}
+                                    onChange={(e) => {
+                                      const weekdayTimes = editingSetting.weekday_times || {};
+                                      const newTimes = [...times];
+                                      newTimes[timeIndex] = e.target.value;
+                                      setEditingSetting({
+                                        ...editingSetting,
+                                        weekday_times: {
+                                          ...weekdayTimes,
+                                          [dayKey]: newTimes,
+                                        },
+                                      });
+                                    }}
+                                    className="px-3 py-2 border rounded"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const weekdayTimes = editingSetting.weekday_times || {};
+                                      const newTimes = times.filter((_, i) => i !== timeIndex);
+                                      if (newTimes.length === 0) {
+                                        // 마지막 시간이면 요일 자체를 제거
+                                        const updated = { ...weekdayTimes };
+                                        delete updated[dayKey];
+                                        setEditingSetting({
+                                          ...editingSetting,
+                                          weekday_times: updated,
+                                        });
+                                      } else {
+                                        setEditingSetting({
+                                          ...editingSetting,
+                                          weekday_times: {
+                                            ...weekdayTimes,
+                                            [dayKey]: newTimes,
+                                          },
+                                        });
+                                      }
+                                    }}
+                                    className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-sm"
+                                  >
+                                    ❌
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </>

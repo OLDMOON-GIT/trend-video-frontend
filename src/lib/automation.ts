@@ -225,8 +225,7 @@ export function initAutomationTables() {
       posting_mode TEXT DEFAULT 'fixed_interval' CHECK(posting_mode IN ('fixed_interval', 'weekday_time')),
       interval_value INTEGER,
       interval_unit TEXT CHECK(interval_unit IN ('hours', 'days')),
-      weekdays TEXT,
-      posting_times TEXT,
+      weekday_times TEXT,
       is_active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -241,26 +240,34 @@ export function initAutomationTables() {
     // 이미 존재하면 무시
   }
 
-  // posting_time → posting_times 마이그레이션 (기존 데이터 변환)
+  // posting_times → weekday_times 마이그레이션 (기존 데이터 변환)
   try {
-    // 기존 posting_time 컬럼이 있는지 확인
-    const hasOldColumn = db.prepare(`SELECT name FROM pragma_table_info('youtube_channel_settings') WHERE name='posting_time'`).get();
+    // 기존 posting_times 컬럼이 있는지 확인
+    const hasOldColumn = db.prepare(`SELECT name FROM pragma_table_info('youtube_channel_settings') WHERE name='posting_times'`).get();
 
     if (hasOldColumn) {
-      console.log('🔄 posting_time → posting_times 마이그레이션 시작...');
+      console.log('🔄 posting_times → weekday_times 마이그레이션 시작...');
 
-      // 기존 데이터를 posting_times로 변환 (단일 시간 → 배열)
-      const settings = db.prepare('SELECT id, posting_time FROM youtube_channel_settings WHERE posting_time IS NOT NULL').all();
+      // 기존 데이터를 weekday_times로 변환
+      const settings = db.prepare('SELECT id, weekdays, posting_times FROM youtube_channel_settings WHERE posting_times IS NOT NULL AND weekdays IS NOT NULL').all();
 
       for (const setting of settings as any[]) {
-        const postingTimes = JSON.stringify([setting.posting_time]);
-        db.prepare('UPDATE youtube_channel_settings SET posting_times = ? WHERE id = ?').run(postingTimes, setting.id);
+        const weekdays = JSON.parse(setting.weekdays);
+        const postingTimes = JSON.parse(setting.posting_times);
+
+        // weekdays 배열을 weekday_times 객체로 변환
+        const weekdayTimes: any = {};
+        for (const day of weekdays) {
+          weekdayTimes[day.toString()] = postingTimes;
+        }
+
+        db.prepare('UPDATE youtube_channel_settings SET weekday_times = ? WHERE id = ?').run(JSON.stringify(weekdayTimes), setting.id);
       }
 
       console.log(`✅ ${settings.length}개 설정 마이그레이션 완료`);
     }
   } catch (e) {
-    console.log('⚠️ posting_times 마이그레이션 스킵 (이미 완료되었거나 필요 없음)');
+    console.log('⚠️ weekday_times 마이그레이션 스킵 (이미 완료되었거나 필요 없음)');
   }
 
   // 7. 카테고리 관리 테이블
@@ -856,17 +863,15 @@ export function upsertChannelSettings(data: {
   postingMode?: 'fixed_interval' | 'weekday_time';
   intervalValue?: number;
   intervalUnit?: 'hours' | 'days';
-  weekdays?: number[]; // [0-6], 0=일요일, 6=토요일
-  postingTimes?: string[]; // HH:mm 형식 배열
+  weekdayTimes?: { [weekday: string]: string[] }; // 요일별 시간 (예: {"1": ["09:00", "12:00"]})
   isActive?: boolean;
   categories?: string[]; // 자동 제목 생성용 카테고리 리스트
 }) {
   const db = new Database(dbPath);
   const id = `channel_settings_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  // weekdays, postingTimes, categories를 JSON 문자열로 변환
-  const weekdaysJson = data.weekdays ? JSON.stringify(data.weekdays) : null;
-  const postingTimesJson = data.postingTimes ? JSON.stringify(data.postingTimes) : null;
+  // weekdayTimes, categories를 JSON 문자열로 변환
+  const weekdayTimesJson = data.weekdayTimes ? JSON.stringify(data.weekdayTimes) : null;
   const categoriesJson = data.categories ? JSON.stringify(data.categories) : null;
 
   // 색상이 지정되지 않은 경우 자동으로 겹치지 않는 색상 할당
@@ -876,16 +881,15 @@ export function upsertChannelSettings(data: {
     db.prepare(`
       INSERT INTO youtube_channel_settings
         (id, user_id, channel_id, channel_name, color, posting_mode,
-         interval_value, interval_unit, weekdays, posting_times, is_active, categories)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         interval_value, interval_unit, weekday_times, is_active, categories)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, channel_id) DO UPDATE SET
         channel_name = excluded.channel_name,
         color = excluded.color,
         posting_mode = excluded.posting_mode,
         interval_value = excluded.interval_value,
         interval_unit = excluded.interval_unit,
-        weekdays = excluded.weekdays,
-        posting_times = excluded.posting_times,
+        weekday_times = excluded.weekday_times,
         is_active = excluded.is_active,
         categories = excluded.categories,
         updated_at = CURRENT_TIMESTAMP
@@ -898,8 +902,7 @@ export function upsertChannelSettings(data: {
       data.postingMode || 'fixed_interval',
       data.intervalValue || null,
       data.intervalUnit || null,
-      weekdaysJson,
-      postingTimesJson,
+      weekdayTimesJson,
       data.isActive !== undefined ? (data.isActive ? 1 : 0) : 1,
       categoriesJson
     );
@@ -923,11 +926,10 @@ export function getChannelSettings(userId: string) {
 
   db.close();
 
-  // weekdays, posting_times, categories JSON 파싱
+  // weekday_times, categories JSON 파싱
   return settings.map((setting: any) => ({
     ...setting,
-    weekdays: setting.weekdays ? JSON.parse(setting.weekdays) : null,
-    posting_times: setting.posting_times ? JSON.parse(setting.posting_times) : null,
+    weekday_times: setting.weekday_times ? JSON.parse(setting.weekday_times) : null,
     categories: setting.categories ? JSON.parse(setting.categories) : null,
     isActive: setting.is_active === 1
   }));
@@ -947,8 +949,7 @@ export function getChannelSetting(userId: string, channelId: string) {
 
   return {
     ...setting,
-    weekdays: setting.weekdays ? JSON.parse(setting.weekdays) : null,
-    posting_times: setting.posting_times ? JSON.parse(setting.posting_times) : null,
+    weekday_times: setting.weekday_times ? JSON.parse(setting.weekday_times) : null,
     categories: setting.categories ? JSON.parse(setting.categories) : null,
     isActive: setting.is_active === 1
   };
@@ -963,8 +964,7 @@ export function updateChannelSettings(
     postingMode?: 'fixed_interval' | 'weekday_time';
     intervalValue?: number;
     intervalUnit?: 'hours' | 'days';
-    weekdays?: number[];
-    postingTimes?: string[];
+    weekdayTimes?: { [weekday: string]: string[] };
     isActive?: boolean;
     categories?: string[];
   }
@@ -990,13 +990,9 @@ export function updateChannelSettings(
     fields.push('interval_unit = ?');
     values.push(updates.intervalUnit);
   }
-  if (updates.weekdays !== undefined) {
-    fields.push('weekdays = ?');
-    values.push(JSON.stringify(updates.weekdays));
-  }
-  if (updates.postingTimes !== undefined) {
-    fields.push('posting_times = ?');
-    values.push(JSON.stringify(updates.postingTimes));
+  if (updates.weekdayTimes !== undefined) {
+    fields.push('weekday_times = ?');
+    values.push(JSON.stringify(updates.weekdayTimes));
   }
   if (updates.isActive !== undefined) {
     fields.push('is_active = ?');
@@ -1046,12 +1042,6 @@ export function calculateNextScheduleTime(
 
     const nextDate = new Date(now);
 
-    // posting_times가 설정되어 있으면 첫 번째 시간으로 설정
-    if (setting.posting_times && setting.posting_times.length > 0) {
-      const [hours, minutes] = setting.posting_times[0].split(':').map(Number);
-      nextDate.setHours(hours, minutes, 0, 0);
-    }
-
     if (setting.interval_unit === 'minutes') {
       // 최소 5분 제한
       const minutes = Math.max(5, setting.interval_value);
@@ -1060,20 +1050,14 @@ export function calculateNextScheduleTime(
       nextDate.setHours(nextDate.getHours() + setting.interval_value);
     } else if (setting.interval_unit === 'days') {
       nextDate.setDate(nextDate.getDate() + setting.interval_value);
-
-      // 일 단위일 때, 설정한 시간이 이미 지났으면 다음 주기로
-      if (setting.posting_times && setting.posting_times.length > 0 && nextDate <= now) {
-        nextDate.setDate(nextDate.getDate() + setting.interval_value);
-      }
     }
 
     return nextDate;
   } else if (setting.posting_mode === 'weekday_time') {
-    // 요일/시간 지정 모드 (여러 시간대 지원)
-    if (!setting.weekdays || !setting.posting_times || setting.posting_times.length === 0) return null;
+    // 요일/시간 지정 모드 (요일별 독립 시간대 지원)
+    if (!setting.weekday_times || Object.keys(setting.weekday_times).length === 0) return null;
 
-    const weekdays = setting.weekdays;
-    const postingTimes = setting.posting_times;
+    const weekdayTimes = setting.weekday_times;
 
     // 모든 가능한 다음 시간 후보들을 찾기
     const candidates: Date[] = [];
@@ -1083,11 +1067,14 @@ export function calculateNextScheduleTime(
       const checkDate = new Date(now);
       checkDate.setDate(checkDate.getDate() + dayOffset);
       const dayOfWeek = checkDate.getDay();
+      const dayKey = dayOfWeek.toString();
 
-      // 이 날짜가 설정된 요일인지 확인
-      if (weekdays.includes(dayOfWeek)) {
-        // 모든 posting_times에 대해 확인
-        for (const time of postingTimes) {
+      // 이 요일에 설정된 시간이 있는지 확인
+      if (weekdayTimes[dayKey] && Array.isArray(weekdayTimes[dayKey])) {
+        const times = weekdayTimes[dayKey];
+
+        // 모든 시간에 대해 확인
+        for (const time of times) {
           const [hours, minutes] = time.split(':').map(Number);
           const candidate = new Date(checkDate);
           candidate.setHours(hours, minutes, 0, 0);
