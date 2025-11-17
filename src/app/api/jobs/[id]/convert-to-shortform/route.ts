@@ -232,50 +232,29 @@ export async function POST(
 
     console.log(`\n🤖 AI (${agentName}) 호출 중...\n`);
 
+    // 원본 대본 파싱 (전체 내용 포함 - 드라마틱한 요약을 위해)
+    const summaryScript = JSON.parse(scriptContent);
+
     // AI Aggregator로 숏폼 대본 생성
-    const prompt = `당신은 영상 대본을 3분 숏폼으로 요약하는 전문가입니다.
+    const prompt = `3분 숏폼 요약 (드라마틱하게): ${numScenes}씬 × ${wordsPerScene}words = ${targetTotalWords}words
 
-⚠️ **절대적 규칙: 씬 개수를 절대 줄이지 마세요!**
-원본에 ${numScenes}개 씬이 있으면 숏폼도 반드시 ${numScenes}개 씬이어야 합니다.
+규칙: 씬${numScenes}개 유지, scene_id 동일, image_prompt 금지
 
-**전체 분량 목표:**
-- 총 ${targetTotalWords} words (약 3분 숏폼)
-- ${numScenes}개 씬 × ${wordsPerScene} words/씬 = ${targetTotalWords} words
+⚠️ **중요: 반드시 순수 JSON만 출력**
+- 첫 글자는 반드시 {
+- 마지막 글자는 반드시 }
+- \`\`\`json 같은 코드펜스 절대 금지
+- "JSON:" 같은 접두사 절대 금지
+- 설명 없이 JSON만 출력
 
-**작업 내용:**
-1. 원본 대본의 **모든 ${numScenes}개 씬을 그대로 유지**
-2. 각 씬의 **나레이션만 요약**
-3. 씬 순서와 구조는 원본과 100% 동일하게
-
-**씬 개수 유지 (필수):**
-- 원본: ${numScenes}개 씬 → 숏폼: ${numScenes}개 씬 (정확히 일치)
-- 씬을 병합하거나 삭제하지 않음
-- 씬을 추가하지 않음
-
-**나레이션 요약 규칙:**
-1. 각 씬의 나레이션을 **정확히 ${wordsPerScene} 단어(words)**로 요약
-2. 원본 나레이션의 핵심 내용만 남김
-3. 감정과 임팩트는 유지
-4. 구어체, 짧은 문장 사용
-5. 단어 수 카운트: ${wordsPerScene} words (띄어쓰기 기준)
-
-**출력 형식:**
-- 순수 JSON만 출력 (코드펜스, "JSON" 접두사 없음)
-- 첫 글자: {, 마지막 글자: }
-- scenes 배열: 원본과 **정확히 동일한 개수**
-- 각 씬: scene_number, narration만 포함
-- **image_prompt 생성 금지** (원본 이미지 재사용)
-
-**검증:**
-출력 전에 반드시 확인:
-1. scenes 배열 길이 === 원본 씬 개수?
-2. 모든 씬에 scene_number, narration 있음?
-3. image_prompt 필드 없음?
+JSON 형식:
+{"title":"제목","scenes":[{"scene_id":"scene_00_bomb","narration":"나레이션 텍스트"}]}
 
 원본 대본:
 ${scriptContent}
 
-위 원본의 **모든 씬을 유지**하면서 3분 숏폼으로 요약된 JSON을 출력하세요:`;
+위 대본에서 가장 드라마틱한 핵심만 뽑아 각 씬 ${wordsPerScene}words로 요약.
+반드시 순수 JSON만 출력 (첫글자 {, 마지막글자 })`;
 
     // 프롬프트 파일 저장
     const promptFileName = `shortform_summary_${Date.now()}.txt`;
@@ -285,7 +264,7 @@ ${scriptContent}
     console.log(`📄 프롬프트 파일 저장: ${promptFilePath}`);
 
     // AI Aggregator 실행
-    const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', agentName, '--auto-close'];
+    const pythonArgs = ['-m', 'src.ai_aggregator.main', '-f', `prompts_temp/${promptFileName}`, '-a', agentName, '--auto-close'];
     console.log(`🐍 Python 명령어: python ${pythonArgs.join(' ')}`);
 
     const aiProcess = spawn('python', pythonArgs, {

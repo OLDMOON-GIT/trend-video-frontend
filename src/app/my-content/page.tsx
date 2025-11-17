@@ -3067,21 +3067,6 @@ export default function MyContentPage() {
                                 >
                                   📥 다운로드
                                 </a>
-                                {/* 쇼츠 버튼: 롱폼 영상에만 표시 */}
-                                {item.data.type === 'longform' && (
-                                  <button
-                                    onClick={() => handleConvertToShorts(item.data.id, item.data.title || '제목 없음')}
-                                    disabled={convertingJobs.has(item.data.id)}
-                                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition whitespace-nowrap ${
-                                      convertingJobs.has(item.data.id)
-                                        ? 'bg-purple-400 cursor-not-allowed opacity-60'
-                                        : 'bg-purple-600 hover:bg-purple-500 cursor-pointer'
-                                    }`}
-                                    title={convertingJobs.has(item.data.id) ? '변환 중...' : '쇼츠로 변환 (200 크레딧)'}
-                                  >
-                                    {convertingJobs.has(item.data.id) ? '⏳ 변환 중...' : '⚡ 쇼츠'}
-                                  </button>
-                                )}
                                 {/* 숏폼 버튼: 롱폼 영상에만 표시 */}
                                 {item.data.type === 'longform' && (
                                   <button

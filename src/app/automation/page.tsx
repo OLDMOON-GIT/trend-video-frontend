@@ -2008,12 +2008,12 @@ function AutomationPageContent() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {poolStats.map((stat: any) => (
                   <div key={stat.category} className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-                    <div className="text-sm text-slate-400 mb-2">{stat.category}</div>
-                    <div className="text-3xl font-bold mb-2">{stat.total}</div>
-                    <div className="text-sm text-slate-400">
+                    <div className="text-sm text-white mb-2">{stat.category}</div>
+                    <div className="text-3xl font-bold text-white mb-2">{stat.total}</div>
+                    <div className="text-sm text-slate-200">
                       미사용: {stat.unused}개 | 평균: {stat.avg_score.toFixed(1)}점
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="text-xs text-slate-300 mt-1">
                       최고: {stat.max_score}점
                     </div>
                   </div>
@@ -2024,7 +2024,7 @@ function AutomationPageContent() {
               <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
                 <div className="flex gap-4 items-center">
                   <div className="flex-1">
-                    <label className="block text-sm text-slate-400 mb-2">카테고리</label>
+                    <label className="block text-sm text-white mb-2">카테고리</label>
                     <select
                       value={poolCategory}
                       onChange={(e) => setPoolCategory(e.target.value)}
@@ -2040,7 +2040,7 @@ function AutomationPageContent() {
                   </div>
 
                   <div className="flex-1">
-                    <label className="block text-sm text-slate-400 mb-2">최소 점수</label>
+                    <label className="block text-sm text-white mb-2">최소 점수</label>
                     <input
                       type="number"
                       value={poolMinScore}
@@ -2056,17 +2056,17 @@ function AutomationPageContent() {
               {/* 제목 목록 */}
               <div className="bg-slate-800 rounded-lg border border-slate-700">
                 <div className="p-4 border-b border-slate-700">
-                  <h2 className="text-xl font-bold">
+                  <h2 className="text-xl font-bold text-white">
                     제목 목록 ({poolTitles.length}개)
                   </h2>
                 </div>
 
                 {poolLoading ? (
-                  <div className="p-8 text-center text-slate-400">로딩 중...</div>
+                  <div className="p-8 text-center text-white">로딩 중...</div>
                 ) : poolTitles.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400">
+                  <div className="p-8 text-center text-white">
                     제목이 없습니다. <br />
-                    <code className="text-xs bg-slate-700 px-2 py-1 rounded mt-2 inline-block">
+                    <code className="text-xs bg-slate-700 text-white px-2 py-1 rounded mt-2 inline-block">
                       node batch-generate-titles.js
                     </code> 실행으로 제목을 생성하세요.
                   </div>
@@ -2075,16 +2075,16 @@ function AutomationPageContent() {
                     <table className="w-full">
                       <thead className="bg-slate-700">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">점수</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">카테고리</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">제목</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">상태</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">생성일</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">점수</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">카테고리</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">제목</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">상태</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">생성일</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="bg-slate-800">
                         {poolTitles.map((title: any) => (
-                          <tr key={title.id} className="border-b border-slate-700 hover:bg-slate-750">
+                          <tr key={title.id} className="border-b border-slate-700 hover:bg-slate-700">
                             <td className="px-4 py-3">
                               <span className={`font-bold ${
                                 title.score >= 95 ? 'text-green-400' :
@@ -2094,10 +2094,10 @@ function AutomationPageContent() {
                                 {title.score}점
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-400">
+                            <td className="px-4 py-3 text-sm text-white">
                               {title.category}
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 text-white">
                               {title.title}
                             </td>
                             <td className="px-4 py-3">
@@ -2111,7 +2111,7 @@ function AutomationPageContent() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-400">
+                            <td className="px-4 py-3 text-sm text-white">
                               {new Date(title.created_at).toLocaleString('ko-KR')}
                             </td>
                           </tr>
@@ -2125,32 +2125,32 @@ function AutomationPageContent() {
               {/* 생성된 제목 목록 (video_titles) */}
               <div className="bg-slate-800 rounded-lg border border-slate-700">
                 <div className="p-4 border-b border-slate-700">
-                  <h2 className="text-xl font-bold">
+                  <h2 className="text-xl font-bold text-white">
                     생성된 제목 ({titles.length}개)
                   </h2>
                 </div>
 
                 {titles.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400">생성된 제목이 없습니다.</div>
+                  <div className="p-8 text-center text-white">생성된 제목이 없습니다.</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-slate-700">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">제목</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">카테고리</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">상태</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">모델</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">생성일</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">제목</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">카테고리</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">상태</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">모델</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-white">생성일</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="bg-slate-800">
                         {titles.slice(0, 50).map((title: any) => (
-                          <tr key={title.id} className="border-b border-slate-700 hover:bg-slate-750">
-                            <td className="px-4 py-3">{title.title}</td>
-                            <td className="px-4 py-3 text-sm text-slate-400">{title.category}</td>
+                          <tr key={title.id} className="border-b border-slate-700 hover:bg-slate-700">
+                            <td className="px-4 py-3 text-white">{title.title}</td>
+                            <td className="px-4 py-3 text-sm text-white">{title.category}</td>
                             <td className="px-4 py-3">
-                              <span className={`text-xs px-2 py-1 rounded ${
+                              <span className={`text-xs text-white px-2 py-1 rounded ${
                                 title.status === 'completed' ? 'bg-green-600' :
                                 title.status === 'processing' ? 'bg-blue-600' :
                                 title.status === 'scheduled' ? 'bg-yellow-600' :
@@ -2160,8 +2160,8 @@ function AutomationPageContent() {
                                 {title.status}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-400">{title.model}</td>
-                            <td className="px-4 py-3 text-sm text-slate-400">
+                            <td className="px-4 py-3 text-sm text-white">{title.model}</td>
+                            <td className="px-4 py-3 text-sm text-white">
                               {new Date(title.created_at).toLocaleString('ko-KR')}
                             </td>
                           </tr>

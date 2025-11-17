@@ -121,7 +121,7 @@ async function processPendingSchedules() {
 
     // Debug: 첫번째 스케줄의 전체 키 로깅
     if (pendingSchedules.length > 0) {
-      console.log('🔍 [SCHEDULER] First schedule keys:', Object.keys(pendingSchedules[0]));
+      console.log('🔍 [SCHEDULER] First schedule keys:', Object.keys(pendingSchedules[0] as any));
       console.log('🔍 [SCHEDULER] First schedule has product_data?:', !!(pendingSchedules[0] as any).product_data);
     }
 
@@ -313,8 +313,8 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
         addTitleLog(schedule.title_id, 'info', `✅ 상품설명 대본 생성 완료! (ID: ${productInfoData.id})`);
       } catch (error: any) {
         console.error(`❌ [SCHEDULER] 상품설명 대본 생성 실패:`, error);
-        addPipelineLog(scriptPipelineId, 'warning', `⚠️ 상품설명 대본 생성 실패 (계속 진행): ${error.message}`);
-        addTitleLog(schedule.title_id, 'warning', `⚠️ 상품설명 대본 생성 실패 (영상 생성은 계속됨)`);
+        addPipelineLog(scriptPipelineId, 'warn', `⚠️ 상품설명 대본 생성 실패 (계속 진행): ${error.message}`);
+        addTitleLog(schedule.title_id, 'warn', `⚠️ 상품설명 대본 생성 실패 (영상 생성은 계속됨)`);
         // 상품설명 생성 실패해도 영상 생성은 계속 진행
       }
     }
@@ -370,7 +370,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
               addTitleLog(schedule.title_id, 'info', `✅ 프로젝트 폴더 및 story.json 생성 완료`);
             } catch (parseError: any) {
               console.error(`❌ [SCHEDULER] JSON 파싱 실패: ${parseError.message}`);
-              addTitleLog(schedule.title_id, 'warning', `⚠️ story.json 생성 실패 (수동으로 대본 확인 필요)`);
+              addTitleLog(schedule.title_id, 'warn', `⚠️ story.json 생성 실패 (수동으로 대본 확인 필요)`);
             }
           } else {
             console.warn(`⚠️ [SCHEDULER] 대본 content가 비어있거나 JSON이 아님`);
@@ -378,7 +378,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
         }
       } catch (folderError: any) {
         console.error(`❌ [SCHEDULER] 폴더 생성 실패: ${folderError.message}`);
-        addTitleLog(schedule.title_id, 'warning', `⚠️ 프로젝트 폴더 생성 실패 (계속 진행)`);
+        addTitleLog(schedule.title_id, 'warn', `⚠️ 프로젝트 폴더 생성 실패 (계속 진행)`);
       }
 
       updateScheduleStatus(schedule.id, 'waiting_for_upload', { scriptId: scriptResult.scriptId });
@@ -491,7 +491,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
         if (!convertResponse.ok) {
           const errorText = await convertResponse.text();
           console.error(`❌ [SHORTFORM] Conversion failed: ${errorText}`);
-          addTitleLog(schedule.title_id, 'warning', `⚠️ 숏폼 변환 실패: ${errorText}`);
+          addTitleLog(schedule.title_id, 'warn', `⚠️ 숏폼 변환 실패: ${errorText}`);
         } else {
           const convertData = await convertResponse.json();
           const shortformJobId = convertData.jobId;
@@ -537,7 +537,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
         }
       } catch (error: any) {
         console.error(`❌ [SHORTFORM] Error during shortform conversion:`, error);
-        addTitleLog(schedule.title_id, 'warning', `⚠️ 숏폼 변환 중 오류: ${error.message}`);
+        addTitleLog(schedule.title_id, 'warn', `⚠️ 숏폼 변환 중 오류: ${error.message}`);
       }
     }
 
@@ -936,7 +936,7 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
         addTitleLog(schedule.title_id, 'info', `🎬 영상 생성 작업 시작: ${jobId}`);
       } else {
         console.error(`❌ [SCHEDULER] Failed to save video_id! schedule.id: ${schedule.id}, jobId: ${jobId}`);
-        addTitleLog(schedule.title_id, 'warning', `⚠️ video_id 저장 실패 (수동 연결 필요)`);
+        addTitleLog(schedule.title_id, 'warn', `⚠️ video_id 저장 실패 (수동 연결 필요)`);
       }
 
       // 작업 완료 대기 (최대 30분)
@@ -1090,7 +1090,11 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
       `).run(existingUpload.video_url, schedule.id);
       dbStatus.close();
 
-      return; // 중복 업로드 방지
+      return {
+        success: true,
+        uploadId: existingUpload.id,
+        videoUrl: existingUpload.video_url
+      }; // 중복 업로드 방지 - 기존 업로드 정보 반환
     }
 
     // YouTube API 호출
@@ -1247,8 +1251,10 @@ async function checkWaitingForUploadSchedules() {
 
     console.log(`[Scheduler] Checking ${waitingSchedules.length} schedule(s) waiting for upload`);
 
-    for (const schedule of waitingSchedules) {
+    for (const scheduleRaw of waitingSchedules) {
       try {
+        const schedule = scheduleRaw as any; // Type assertion for better type safety
+
         // script_id가 있는지 확인
         if (!schedule.script_id) {
           console.log(`[Scheduler] Schedule ${schedule.id} has no script_id, skipping`);
@@ -1285,7 +1291,7 @@ async function checkWaitingForUploadSchedules() {
         addTitleLog(schedule.title_id, 'info', `✅ 이미지 ${imageFiles.length}개 업로드 확인됨!`);
         addTitleLog(schedule.title_id, 'info', `🎬 영상 생성을 시작합니다... (잠시만 기다려주세요)`);
 
-        updateScheduleStatus(schedule.id, 'processing', { imagesReady: true });
+        updateScheduleStatus(schedule.id, 'processing');
 
         // video 단계 시작 (비동기)
         // 기존에 생성된 video pipeline ID 찾기
@@ -1311,7 +1317,7 @@ async function checkWaitingForUploadSchedules() {
         });
 
       } catch (error: any) {
-        console.error(`[Scheduler] Error checking schedule ${schedule.id}:`, error);
+        console.error(`[Scheduler] Error checking schedule ${(scheduleRaw as any).id}:`, error);
       }
     }
 
@@ -1760,9 +1766,16 @@ async function generateProductTitle(
       userId,
       channelId,
       channelName,
-      category: '상품',
-      step: '쿠팡 베스트 상품 조회 중...'
+      category: '상품'
     });
+
+    // 초기 상태 업데이트
+    if (logId) {
+      updateAutoGenerationLog(logId, {
+        status: 'started',
+        step: '쿠팡 베스트 상품 조회 중...'
+      });
+    }
 
     // 1. 쿠팡 베스트 상품 조회 (내부 함수 직접 사용)
     const { getCoupangBestsellers } = await import('./coupang');
@@ -1976,6 +1989,46 @@ function evaluateTitleWithRules(title: string, category: string): number {
   if (hasComma >= 1 && hasComma <= 2) {
     score += 7; // 적절한 구조
   }
+
+  // 7. 주어 명확성 평가 (가장 중요!)
+  // 문제: "무시당했던 청소부, CEO가 된 비결" - 누가 CEO가 됐는지 불명확
+  // 해결: "청소부를 무시했던 그들, CEO가 된 그녀 앞에서..." - 주어가 명확함
+  let clarityScore = 0;
+
+  // 7-1. 목적격 조사 + 과거형 패턴 (가해자 명시)
+  // "~를 무시했던", "~을 괴롭혔던", "~에게 배신당했던" 등
+  const aggressorPatterns = [
+    /[을를]?\s*(무시|괴롭히|배신|내쫓|외면|무시당|차별).*?[했던|한|하던]/,
+    /에게\s*(배신|무시).*?당했던/
+  ];
+
+  let hasAggressor = false;
+  for (const pattern of aggressorPatterns) {
+    if (pattern.test(title)) {
+      hasAggressor = true;
+      break;
+    }
+  }
+
+  // 7-2. 명확한 주어 대명사 또는 지시어
+  // "그들", "그녀", "그", "그 앞에서", "그녀 앞에"
+  const hasClearSubject = /그들|그녀|그 앞|그가|그를/.test(title);
+
+  // 7-3. 시간 표현 + 변화 패턴 (과거-현재 대비)
+  // "3년 후", "10년 만에" 등 + "CEO가 된", "성공한" 등
+  const hasTimeTransition = /\d+년\s*(후|만에|뒤).*?(가 된|로 나타|한 그|된 그)/.test(title);
+
+  // 7-4. 애매한 패턴 감점
+  // "무시당했던 청소부, CEO로..." - 청소부가 주어인지 불명확
+  const hasAmbiguousPattern = /당했던.*?,.*?로\s*(성공|변신|등극)/.test(title) && !hasClearSubject;
+
+  // 점수 계산
+  if (hasAggressor) clarityScore += 8; // 가해자 명시
+  if (hasClearSubject) clarityScore += 7; // 명확한 주어
+  if (hasTimeTransition) clarityScore += 5; // 시간+변화
+  if (hasAmbiguousPattern) clarityScore -= 10; // 애매한 패턴 감점
+
+  score += Math.max(0, clarityScore); // 최대 20점 (감점 가능)
 
   // 최종 점수를 0-100 범위로 제한
   return Math.min(100, Math.max(0, score));

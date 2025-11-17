@@ -3035,8 +3035,8 @@ export default function CoupangProductsAdminPage() {
                       try {
                         const categoryId = getCategoryId(bestsellerCategory);
                         const url = categoryId
-                          ? `/api/coupang/products?categoryId=${categoryId}`
-                          : `/api/coupang/products`;
+                          ? `/api/coupang/products?categoryId=${categoryId}&limit=100`
+                          : `/api/coupang/products?limit=100`;
 
                         console.log('🔍 [베스트셀러] 카테고리:', bestsellerCategory, '→', categoryId);
                         console.log('🔍 [베스트셀러] URL:', url);
@@ -3048,8 +3048,12 @@ export default function CoupangProductsAdminPage() {
                         });
                         const data = await response.json();
                         if (response.ok && data.success) {
-                          setBestsellerResults(data.products || []);
-                          toast.success(`${data.products?.length || 0}개 베스트셀러 상품 조회 완료`);
+                          // productId 기준으로 중복 제거
+                          const uniqueProducts = Array.from(
+                            new Map((data.products || []).map((p: any) => [p.productId, p])).values()
+                          );
+                          setBestsellerResults(uniqueProducts);
+                          toast.success(`${uniqueProducts.length}개 베스트셀러 상품 조회 완료`);
                         } else {
                           throw new Error(data.error || '베스트셀러 조회 실패');
                         }

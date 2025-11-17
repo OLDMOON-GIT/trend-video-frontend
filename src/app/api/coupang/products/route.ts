@@ -7,14 +7,26 @@ import path from 'path';
 const DATA_DIR = path.join(process.cwd(), 'data');
 const COUPANG_SETTINGS_FILE = path.join(DATA_DIR, 'coupang-settings.json');
 
-// 베스트셀러 캐시 (1시간)
+// 베스트셀러 캐시 (24시간)
 interface CacheEntry {
   data: any;
   timestamp: number;
 }
 
 const bestsellerCache = new Map<string, CacheEntry>();
-const CACHE_DURATION = 60 * 60 * 1000; // 1시간 (밀리초)
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24시간 (밀리초)
+
+// 주요 카테고리 목록 (여러 카테고리 조회용)
+const MAJOR_CATEGORIES = [
+  '1001', // 가전디지털
+  '1002', // 패션의류
+  '1010', // 식품
+  '1011', // 뷰티
+  '1012', // 생활용품
+];
+
+// 딜레이 함수 (API 부담 줄이기)
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // 사용자별 쿠팡 설정 로드
 async function loadUserSettings(userId: string) {
