@@ -95,11 +95,20 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      if (!postingTime || !/^\d{2}:\d{2}$/.test(postingTime)) {
+      if (!postingTimes || !Array.isArray(postingTimes) || postingTimes.length === 0) {
         return NextResponse.json(
-          { error: 'postingTime must be in HH:mm format' },
+          { error: 'postingTimes array is required for weekday_time mode' },
           { status: 400 }
         );
+      }
+      // 모든 시간이 HH:mm 형식인지 검증
+      for (const time of postingTimes) {
+        if (!/^\d{2}:\d{2}$/.test(time)) {
+          return NextResponse.json(
+            { error: 'All posting times must be in HH:mm format' },
+            { status: 400 }
+          );
+        }
       }
     }
 
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest) {
       intervalValue,
       intervalUnit,
       weekdays,
-      postingTime,
+      postingTime: postingTimes,
       isActive,
       categories
     });

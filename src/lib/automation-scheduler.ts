@@ -2078,7 +2078,7 @@ async function generateTitleWithMultiModelEvaluation(
         console.log(`[TitlePool] Title: "${poolTitle.title}"`);
 
         // 카테고리별 비디오 타입 결정
-        let videoType = 'longform';
+        let videoType: 'longform' | 'shortform' | 'product' = 'longform';
         if (category.includes('숏') || category === 'shortform' || category === 'Shorts') {
           videoType = 'shortform';
         }
@@ -2117,7 +2117,7 @@ async function generateTitleWithMultiModelEvaluation(
 
     // 카테고리별 기본 모델 결정
     let defaultModel = 'claude'; // 기본값
-    let videoType = 'longform'; // 기본값
+    let videoType: 'longform' | 'shortform' | 'product' = 'longform'; // 기본값
 
     if (category.includes('숏') || category === 'shortform' || category === 'Shorts') {
       defaultModel = 'chatgpt';

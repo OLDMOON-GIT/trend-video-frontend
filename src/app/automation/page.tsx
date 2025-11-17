@@ -253,6 +253,13 @@ function AutomationPageContent() {
     return () => clearInterval(interval);
   }, [titles]);
 
+  // 제목 풀 탭 열 때 데이터 로드 (처음 한 번만)
+  useEffect(() => {
+    if (mainTab === 'title-pool') {
+      fetchTitlePool();
+    }
+  }, [mainTab]);
+
   // 소재찾기에서 전달받은 제목 자동 추가
   useEffect(() => {
     const from = searchParams.get('from');
@@ -378,22 +385,16 @@ function AutomationPageContent() {
     try {
       setPoolLoading(true);
 
-      // 통계 로드
-      const statsRes = await fetch('/api/admin/title-pool/stats');
-      if (statsRes.ok) {
-        const data = await statsRes.json();
-        setPoolStats(data.stats || []);
-      }
-
-      // 제목 로드
+      // 통계 + 제목 한번에 로드
       const params = new URLSearchParams({
         category: poolCategory,
-        minScore: poolMinScore.toString(),
-        limit: '100'
+        minScore: poolMinScore.toString()
       });
-      const titlesRes = await fetch(`/api/admin/title-pool?${params}`);
-      if (titlesRes.ok) {
-        const data = await titlesRes.json();
+      const res = await fetch(`/api/title-pool?${params}`);
+
+      if (res.ok) {
+        const data = await res.json();
+        setPoolStats(data.stats || []);
         setPoolTitles(data.titles || []);
       }
     } catch (error) {
@@ -2022,7 +2023,7 @@ function AutomationPageContent() {
 
               {/* 필터 */}
               <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-4 items-end">
                   <div className="flex-1">
                     <label className="block text-sm text-white mb-2">카테고리</label>
                     <select
@@ -2050,6 +2051,14 @@ function AutomationPageContent() {
                       className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
                     />
                   </div>
+
+                  <button
+                    onClick={() => fetchTitlePool()}
+                    disabled={poolLoading}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 text-white rounded-lg font-semibold transition"
+                  >
+                    {poolLoading ? '조회 중...' : '🔍 조회'}
+                  </button>
                 </div>
               </div>
 

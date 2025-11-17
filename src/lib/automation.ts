@@ -226,7 +226,7 @@ export function initAutomationTables() {
       interval_value INTEGER,
       interval_unit TEXT CHECK(interval_unit IN ('hours', 'days')),
       weekdays TEXT,
-      posting_time TEXT,
+      posting_times TEXT,
       is_active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -239,6 +239,28 @@ export function initAutomationTables() {
     db.exec(`ALTER TABLE youtube_channel_settings ADD COLUMN categories TEXT;`);
   } catch (e) {
     // 이미 존재하면 무시
+  }
+
+  // posting_time → posting_times 마이그레이션 (기존 데이터 변환)
+  try {
+    // 기존 posting_time 컬럼이 있는지 확인
+    const hasOldColumn = db.prepare(`SELECT name FROM pragma_table_info('youtube_channel_settings') WHERE name='posting_time'`).get();
+
+    if (hasOldColumn) {
+      console.log('🔄 posting_time → posting_times 마이그레이션 시작...');
+
+      // 기존 데이터를 posting_times로 변환 (단일 시간 → 배열)
+      const settings = db.prepare('SELECT id, posting_time FROM youtube_channel_settings WHERE posting_time IS NOT NULL').all();
+
+      for (const setting of settings as any[]) {
+        const postingTimes = JSON.stringify([setting.posting_time]);
+        db.prepare('UPDATE youtube_channel_settings SET posting_times = ? WHERE id = ?').run(postingTimes, setting.id);
+      }
+
+      console.log(`✅ ${settings.length}개 설정 마이그레이션 완료`);
+    }
+  } catch (e) {
+    console.log('⚠️ posting_times 마이그레이션 스킵 (이미 완료되었거나 필요 없음)');
   }
 
   // 7. 카테고리 관리 테이블
@@ -835,15 +857,16 @@ export function upsertChannelSettings(data: {
   intervalValue?: number;
   intervalUnit?: 'hours' | 'days';
   weekdays?: number[]; // [0-6], 0=일요일, 6=토요일
-  postingTime?: string; // HH:mm 형식
+  postingTimes?: string[]; // HH:mm 형식 배열
   isActive?: boolean;
   categories?: string[]; // 자동 제목 생성용 카테고리 리스트
 }) {
   const db = new Database(dbPath);
   const id = `channel_settings_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  // weekdays와 categories를 JSON 문자열로 변환
+  // weekdays, postingTimes, categories를 JSON 문자열로 변환
   const weekdaysJson = data.weekdays ? JSON.stringify(data.weekdays) : null;
+  const postingTimesJson = data.postingTimes ? JSON.stringify(data.postingTimes) : null;
   const categoriesJson = data.categories ? JSON.stringify(data.categories) : null;
 
   // 색상이 지정되지 않은 경우 자동으로 겹치지 않는 색상 할당
@@ -853,7 +876,7 @@ export function upsertChannelSettings(data: {
     db.prepare(`
       INSERT INTO youtube_channel_settings
         (id, user_id, channel_id, channel_name, color, posting_mode,
-         interval_value, interval_unit, weekdays, posting_time, is_active, categories)
+         interval_value, interval_unit, weekdays, posting_times, is_active, categories)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, channel_id) DO UPDATE SET
         channel_name = excluded.channel_name,
@@ -862,7 +885,7 @@ export function upsertChannelSettings(data: {
         interval_value = excluded.interval_value,
         interval_unit = excluded.interval_unit,
         weekdays = excluded.weekdays,
-        posting_time = excluded.posting_time,
+        posting_times = excluded.posting_times,
         is_active = excluded.is_active,
         categories = excluded.categories,
         updated_at = CURRENT_TIMESTAMP
@@ -876,7 +899,7 @@ export function upsertChannelSettings(data: {
       data.intervalValue || null,
       data.intervalUnit || null,
       weekdaysJson,
-      data.postingTime || null,
+      postingTimesJson,
       data.isActive !== undefined ? (data.isActive ? 1 : 0) : 1,
       categoriesJson
     );
