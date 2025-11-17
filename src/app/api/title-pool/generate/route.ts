@@ -96,17 +96,18 @@ function calculateSimilarity(str1: string, str2: string): number {
 
 // Ollama로 제목 생성
 async function generateWithOllama(category: string, count: number): Promise<string[]> {
-  const prompt = `유튜브 ${category} 카테고리의 제목을 ${count}개 생성해주세요.
+  const prompt = `한국 유튜브 ${category} 카테고리 제목을 ${count}개만 생성하세요.
 
-요구사항:
+제목 형식:
 - 40~60자 길이
-- 클릭을 유도하는 자극적 제목
-- 호기심을 자극하는 제목
-- 반전, 갈등, 감동 요소 포함
-- 각 제목은 한 줄에 하나씩
-- 번호나 기호 없이 제목만 출력
+- 자극적이고 호기심 유발
+- 숫자와 감정 키워드 포함
 
-제목:`;
+예시:
+며느리를 내쫓았던 시어머니, 3년 후 양로원에서 무릎 꿇고 빌어야 했던 이유
+청소부를 무시했던 직원들, 5년 후 그녀가 CEO로 나타나자 사색이 된 이유
+
+이제 ${count}개 제목을 생성하세요 (번호 없이):`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
