@@ -413,9 +413,11 @@ function AutomationPageContent() {
     setIsGenerating(true);
 
     try {
+      // API 호출 (jobId 받기)
       const response = await fetch('/api/title-pool/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
       });
 
       if (!response.ok) {
@@ -424,38 +426,40 @@ function AutomationPageContent() {
         return;
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const { jobId } = await response.json();
+      setGenerateLogs(prev => [...prev, `🚀 제목 생성 시작 (Job ID: ${jobId})`]);
 
-      if (!reader) {
-        setGenerateLogs(prev => [...prev, '❌ 스트림을 읽을 수 없습니다']);
-        setIsGenerating(false);
-        return;
-      }
+      // 폴링으로 로그 조회 (내 콘텐츠 방식)
+      const pollInterval = setInterval(async () => {
+        try {
+          const logsRes = await fetch(`/api/automation/logs?jobId=${jobId}`);
+          if (logsRes.ok) {
+            const logsData = await logsRes.json();
+            if (logsData.logs && logsData.logs.length > 0) {
+              setGenerateLogs(logsData.logs.map((log: any) => log.log_message || log.message || log));
+            }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const text = decoder.decode(value);
-        const lines = text.split('\n').filter(line => line.trim());
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.message) {
-                setGenerateLogs(prev => [...prev, data.message]);
-              }
-            } catch (e) {
-              // JSON 파싱 실패는 무시
+            // 완료 체크
+            const lastLog = logsData.logs[logsData.logs.length - 1];
+            if (lastLog && (lastLog.log_message || lastLog.message || '').includes('배치 생성 완료')) {
+              clearInterval(pollInterval);
+              setIsGenerating(false);
             }
           }
+        } catch (error) {
+          console.error('로그 조회 실패:', error);
         }
-      }
+      }, 2000); // 2초마다 조회
 
-      setIsGenerating(false);
-      setGenerateLogs(prev => [...prev, '\n✅ 제목 생성 완료! 조회 버튼을 눌러 새로고침하세요.']);
+      // 최대 10분 후 자동 종료
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (isGenerating) {
+          setGenerateLogs(prev => [...prev, '⏱️ 타임아웃 - 작업이 오래 걸리고 있습니다']);
+          setIsGenerating(false);
+        }
+      }, 600000);
+
     } catch (error: any) {
       console.error('Failed to generate titles:', error);
       setGenerateLogs(prev => [...prev, `❌ 제목 생성 실패: ${error.message}`]);

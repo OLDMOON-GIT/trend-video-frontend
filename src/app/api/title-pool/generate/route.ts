@@ -151,16 +151,28 @@ async function generateWithOllama(category: string, count: number): Promise<stri
 }
 
 export async function POST(request: NextRequest) {
-  const encoder = new TextEncoder();
+  try {
+    const body = await request.json();
+    const jobId = body.jobId || `title_gen_${Date.now()}`;
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      function sendLog(message: string) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
-      }
-
+    // job_logs에 로그 저장 함수
+    function saveLog(message: string) {
       try {
-        sendLog('🚀 Ollama 배치 제목 생성 시작...');
+        const db = new Database(dbPath);
+        db.prepare(`
+          INSERT INTO job_logs (job_id, log_message, created_at)
+          VALUES (?, ?, datetime('now'))
+        `).run(jobId, message);
+        db.close();
+      } catch (error) {
+        console.error('Failed to save log:', error);
+      }
+    }
+
+    // 백그라운드에서 실행
+    (async () => {
+      try {
+        saveLog('🚀 Ollama 배치 제목 생성 시작...');
 
         // Ollama 연결 체크
         try {
@@ -169,8 +181,7 @@ export async function POST(request: NextRequest) {
             throw new Error('Ollama 서버 연결 실패');
           }
         } catch (error) {
-          sendLog('❌ Ollama 서버에 연결할 수 없습니다. Ollama를 실행해주세요.');
-          controller.close();
+          saveLog('❌ Ollama 서버에 연결할 수 없습니다. Ollama를 실행해주세요.');
           return;
         }
 
@@ -200,24 +211,26 @@ export async function POST(request: NextRequest) {
         };
 
         for (const category of CATEGORIES) {
-          sendLog(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-          sendLog(`📂 카테고리: ${category}`);
-          sendLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+          saveLog(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+          saveLog(`📂 카테고리: ${category}`);
+          saveLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
           // 기존 제목 가져오기
           const existingTitles = db.prepare(
             'SELECT title FROM title_pool WHERE category = ?'
           ).all(category).map((row: any) => row.title);
 
-          sendLog(`📊 기존 제목 수: ${existingTitles.length}개`);
+          saveLog(`📊 기존 제목 수: ${existingTitles.length}개`);
 
           for (let batch = 0; batch < 100; batch++) {
-            sendLog(`\n[배치 ${batch + 1}/100] ${BATCH_SIZE}개 생성 중...`);
+            const startTime = Date.now();
+            saveLog(`\n[배치 ${batch + 1}/100] Ollama로 ${BATCH_SIZE}개 제목 생성 요청 중...`);
 
             try {
               const titles = await generateWithOllama(category, BATCH_SIZE);
+              const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
               stats.generated += titles.length;
-              sendLog(`✅ ${titles.length}개 생성 완료`);
+              saveLog(`✅ ${titles.length}개 생성 완료 (${elapsed}초 소요)`);
 
               // 점수 평가
               const scoredTitles = titles.map(title => ({
@@ -227,16 +240,21 @@ export async function POST(request: NextRequest) {
 
               const highScoreTitles = scoredTitles.filter(t => t.score >= MIN_SCORE);
               stats.highScore += highScoreTitles.length;
-              sendLog(`🎯 ${MIN_SCORE}점 이상: ${highScoreTitles.length}개`);
+              saveLog(`🎯 ${MIN_SCORE}점 이상: ${highScoreTitles.length}개`);
 
               // 유사도 체크 및 저장
               let saved = 0;
+              let duplicateCount = 0;
+
+              saveLog(`📝 ${highScoreTitles.length}개 제목 검증 중...`);
+
               for (const item of highScoreTitles) {
                 let isDuplicate = false;
                 for (const existing of existingTitles) {
                   const similarity = calculateSimilarity(item.title, existing);
                   if (similarity > 0.7) {
                     isDuplicate = true;
+                    duplicateCount++;
                     stats.duplicates++;
                     break;
                   }
@@ -254,49 +272,55 @@ export async function POST(request: NextRequest) {
                     existingTitles.push(item.title);
                     saved++;
 
-                    sendLog(`  ✓ [${item.score}점] ${item.title}`);
+                    if (saved <= 3) {
+                      saveLog(`  ✓ [${item.score}점] ${item.title}`);
+                    }
                   } catch (err) {
+                    duplicateCount++;
                     stats.duplicates++;
                   }
                 }
               }
 
-              sendLog(`💾 저장: ${saved}개 (중복 ${highScoreTitles.length - saved}개)`);
+              if (saved > 3) {
+                saveLog(`  ... ${saved - 3}개 더 저장됨`);
+              }
+              saveLog(`💾 저장 완료: ${saved}개 | 중복 제거: ${duplicateCount}개`);
+              saveLog(`📈 현재까지 총 ${stats.total + saved}개 제목 확보`);
               stats.total += saved;
 
               // 딜레이 (Ollama 과부하 방지)
               await new Promise(resolve => setTimeout(resolve, 500));
 
             } catch (error: any) {
-              sendLog(`❌ 배치 생성 실패: ${error.message}`);
+              saveLog(`❌ 배치 생성 실패: ${error.message}`);
             }
           }
         }
 
         db.close();
 
-        sendLog(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        sendLog(`🎉 배치 생성 완료!`);
-        sendLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        sendLog(`📊 생성된 제목: ${stats.generated}개`);
-        sendLog(`🎯 ${MIN_SCORE}점 이상: ${stats.highScore}개`);
-        sendLog(`💾 저장된 제목: ${stats.total}개`);
-        sendLog(`🔄 중복 제거: ${stats.duplicates}개`);
-        sendLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        saveLog(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        saveLog(`🎉 배치 생성 완료!`);
+        saveLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        saveLog(`📊 생성된 제목: ${stats.generated}개`);
+        saveLog(`🎯 ${MIN_SCORE}점 이상: ${stats.highScore}개`);
+        saveLog(`💾 저장된 제목: ${stats.total}개`);
+        saveLog(`🔄 중복 제거: ${stats.duplicates}개`);
+        saveLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
-        controller.close();
       } catch (error: any) {
-        sendLog(`❌ 오류: ${error.message}`);
-        controller.close();
+        saveLog(`❌ 오류: ${error.message}`);
       }
-    }
-  });
+    })();
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
+    // 즉시 jobId 반환
+    return NextResponse.json({ jobId, message: '제목 생성 시작됨 (백그라운드 실행)' });
+  } catch (error: any) {
+    console.error('Failed to start title generation:', error);
+    return NextResponse.json(
+      { error: '제목 생성 시작 실패', details: error.message },
+      { status: 500 }
+    );
+  }
 }
