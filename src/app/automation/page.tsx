@@ -247,22 +247,36 @@ function AutomationPageContent() {
     }
   }, [searchParams]);
 
-  // 카테고리 또는 타입 변경 시 상품 목록 불러오기
+  // 카테고리 또는 타입 변경 시 상품 목록 불러오기 (딥링크 발급된 "내 목록"에서만)
   useEffect(() => {
     async function fetchProductsByCategory() {
       if (newTitle.type === 'product' && newTitle.category) {
         setFetchingProducts(true);
         try {
-          const response = await fetch(`/api/coupang/products?categoryId=${newTitle.category}`);
+          // ⭐ 딥링크가 이미 발급된 "내 목록" 상품만 가져오기
+          const response = await fetch(`/api/admin/coupang-products`);
           if (response.ok) {
             const data = await response.json();
-            setAvailableProducts(data.products || []);
+            // 선택한 카테고리에 해당하는 상품만 필터링
+            const filteredProducts = (data.products || [])
+              .filter((p: any) => p.category_id === newTitle.category)
+              .map((p: any) => ({
+                productId: p.product_id,
+                productName: p.product_name,
+                productPrice: p.discount_price || p.original_price,
+                productImage: p.image_url,
+                productUrl: p.deep_link, // ⭐ 딥링크 사용!
+                categoryName: p.category_name
+              }));
+
+            console.log(`✅ [자동화] 카테고리 ${newTitle.category} 상품 ${filteredProducts.length}개 (딥링크 발급됨)`);
+            setAvailableProducts(filteredProducts);
           } else {
-            console.error('Failed to fetch products by category:', response.statusText);
+            console.error('Failed to fetch products from my list:', response.statusText);
             setAvailableProducts([]);
           }
         } catch (error) {
-          console.error('Error fetching products by category:', error);
+          console.error('Error fetching products from my list:', error);
           setAvailableProducts([]);
         } finally {
           setFetchingProducts(false);
