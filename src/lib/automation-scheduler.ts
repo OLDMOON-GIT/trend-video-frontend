@@ -26,6 +26,33 @@ let isRunning = false;
 let lastAutoScheduleCheck: Date | null = null;
 let lastAutoScheduleResult: { success: number; failed: number; skipped: number } = { success: 0, failed: 0, skipped: 0 };
 
+function isPipelineOrScheduleCancelled(pipelineId: string): boolean {
+  try {
+    const db = new Database(dbPath);
+    const pipeline = db.prepare('SELECT status, schedule_id FROM automation_pipelines WHERE id = ?').get(pipelineId) as { status: string; schedule_id?: string } | undefined;
+    let scheduleStatus: string | undefined;
+
+    if (pipeline?.schedule_id) {
+      const scheduleRow = db.prepare('SELECT status FROM video_schedules WHERE id = ?').get(pipeline.schedule_id) as { status: string } | undefined;
+      scheduleStatus = scheduleRow?.status;
+    }
+
+    db.close();
+
+    if (pipeline && (pipeline.status === 'failed' || pipeline.status === 'cancelled')) {
+      return true;
+    }
+
+    if (scheduleStatus === 'cancelled') {
+      return true;
+    }
+  } catch (error) {
+    console.error(`[Scheduler] Failed to check cancellation for pipeline ${pipelineId}:`, (error as Error).message);
+  }
+
+  return false;
+}
+
 // 제목 상태 업데이트 헬퍼 함수
 function updateTitleStatus(titleId: string, status: 'pending' | 'scheduled' | 'processing' | 'completed' | 'failed' | 'waiting_for_upload' | 'cancelled') {
   try {
@@ -224,6 +251,7 @@ async function processPendingSchedules() {
 export async function executePipeline(schedule: any, pipelineIds: string[]) {
   const [scriptPipelineId, videoPipelineId, uploadPipelineId, publishPipelineId] = pipelineIds;
   const settings = getAutomationSettings();
+  const mediaMode = `${schedule.media_mode || settings.media_generation_mode || 'upload'}`.trim();
   const maxRetry = parseInt(settings.max_retry || '3');
 
   try {
@@ -253,76 +281,15 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
     addTitleLog(schedule.title_id, 'info', `✅ Script generated successfully: ${scriptResult.scriptId}`);
 
     // ============================================================
-    // 상품 타입이면 상품설명 대본 자동 생성
+    // ⚠️ DEPRECATED: 상품설명 대본 별도 생성 제거
+    // 이제 상품 대본 생성 시 youtube_description이 자동 포함됨
     // ============================================================
-    if (schedule.type === 'product' || schedule.type === 'product-info') {
-      addPipelineLog(scriptPipelineId, 'info', `🛍️ 상품 타입 감지 - 상품설명 대본 생성 시작...`);
-      addTitleLog(schedule.title_id, 'info', `🛍️ 상품설명 대본 생성 중...`);
-
-      try {
-        // 원본 스크립트 내용 읽기
-        addTitleLog(schedule.title_id, 'info', `📖 원본 스크립트 읽는 중...`);
-        const dbReadScript = new Database(dbPath);
-        const sourceScript = dbReadScript.prepare(`
-          SELECT content FROM contents WHERE id = ?
-        `).get(scriptResult.scriptId) as { content: string } | undefined;
-        dbReadScript.close();
-
-        if (!sourceScript || !sourceScript.content) {
-          throw new Error('원본 스크립트를 찾을 수 없습니다');
-        }
-        addTitleLog(schedule.title_id, 'info', `✅ 원본 스크립트 로드 완료`);
-
-        // product-info 프롬프트 템플릿 읽기
-        addTitleLog(schedule.title_id, 'info', `📋 상품설명 프롬프트 템플릿 로드 중...`);
-        const promptResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/product-info-prompt`);
-        if (!promptResponse.ok) {
-          throw new Error('상품설명 프롬프트 템플릿을 불러올 수 없습니다');
-        }
-        const promptData = await promptResponse.json();
-        addTitleLog(schedule.title_id, 'info', `✅ 프롬프트 템플릿 로드 완료`);
-
-        // 상품설명 대본 생성 API 호출
-        const modelName = schedule.model === 'claude' ? 'Claude' : schedule.model === 'chatgpt' ? 'ChatGPT' : 'Gemini';
-        addTitleLog(schedule.title_id, 'info', `🤖 ${modelName}로 상품설명 생성 중... (1-2분 소요)`);
-
-        const productInfoResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-script`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Internal-Request': 'automation-system'
-          },
-          body: JSON.stringify({
-            userId: schedule.user_id,
-            prompt: promptData.prompt,
-            topic: schedule.title,
-            format: 'product-info',
-            model: schedule.model || 'claude',
-            productInfo: sourceScript.content // 원본 스크립트 내용 전달
-          })
-        });
-
-        if (!productInfoResponse.ok) {
-          const errorText = await productInfoResponse.text();
-          throw new Error(`상품설명 대본 생성 API 실패: ${productInfoResponse.status} - ${errorText}`);
-        }
-
-        const productInfoData = await productInfoResponse.json();
-        console.log(`✅ [SCHEDULER] 상품설명 대본 생성 완료: ${productInfoData.id}`);
-        addPipelineLog(scriptPipelineId, 'info', `✅ 상품설명 대본 생성 완료: ${productInfoData.id}`);
-        addTitleLog(schedule.title_id, 'info', `✅ 상품설명 대본 생성 완료! (ID: ${productInfoData.id})`);
-      } catch (error: any) {
-        console.error(`❌ [SCHEDULER] 상품설명 대본 생성 실패:`, error);
-        addPipelineLog(scriptPipelineId, 'warn', `⚠️ 상품설명 대본 생성 실패 (계속 진행): ${error.message}`);
-        addTitleLog(schedule.title_id, 'warn', `⚠️ 상품설명 대본 생성 실패 (영상 생성은 계속됨)`);
-        // 상품설명 생성 실패해도 영상 생성은 계속 진행
-      }
-    }
+    console.log('ℹ️ [SCHEDULER] 상품 대본에 youtube_description 포함 완료 (별도 생성 불필요)');
 
     // ============================================================
-    // 직접 업로드 모드 체크: media_mode가 'upload'이면 이미지 업로드 대기
+    // 직접 업로드 모드 체크: 타이틀/기본 설정이 'upload'이면 이미지 업로드 대기
     // ============================================================
-    if (schedule.media_mode === 'upload') {
+    if (mediaMode === 'upload') {
       // 프로젝트 폴더와 story.json 생성
       const BACKEND_PATH = path.join(process.cwd(), '..', 'trend-video-backend');
       const projectFolderPath = path.join(BACKEND_PATH, 'input', `project_${scriptResult.scriptId}`);
@@ -353,6 +320,11 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
           const jsonStart = contentStr.indexOf('{');
           if (jsonStart > 0) {
             contentStr = contentStr.substring(jsonStart);
+          }
+
+          const jsonEnd = contentStr.lastIndexOf('}');
+          if (jsonEnd > 0 && jsonEnd < contentStr.length - 1) {
+            contentStr = contentStr.substring(0, jsonEnd + 1);
           }
 
           // story.json 생성
@@ -592,24 +564,12 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
   try {
     addPipelineLog(pipelineId, 'info', `📝 대본 생성 시작...`);
     addTitleLog(schedule.title_id, 'info', `📝 대본 생성 시작...`);
-
-    // product_data가 있으면 JSON 파싱
-    let productInfo = undefined;
-    if (schedule.product_data) {
-      try {
-        productInfo = JSON.parse(schedule.product_data);
-        console.log('🛍️ [SCHEDULER] Product data found:', productInfo);
-        console.log('  - title:', productInfo?.title);
-        console.log('  - thumbnail:', productInfo?.thumbnail);
-        console.log('  - product_link:', productInfo?.product_link);
-        console.log('  - description:', productInfo?.description);
-      } catch (e) {
-        console.error('❌ [SCHEDULER] Failed to parse product_data:', e);
-        console.error('  - Raw product_data:', schedule.product_data);
-      }
-    } else {
-      console.warn(`⚠️ [SCHEDULER] No product_data for type: ${schedule.type}`);
+    if (isPipelineOrScheduleCancelled(pipelineId)) {
+      throw new Error('Automation stopped by user');
     }
+
+    // 상품 기입 정보는 더 이상 사용하지 않음 (프롬프트 결과만 활용)
+    const productInfo = null;
 
     const requestBody = {
       title: schedule.title,
@@ -623,7 +583,6 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     };
 
     console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
-    console.log(`  - productInfo 전달: ${requestBody.productInfo ? 'YES ✅' : 'NO ❌'}`);
 
     // API 방식으로 대본 생성 (내부 요청 헤더 포함)
     console.log('📤 [SCHEDULER] Calling /api/scripts/generate...');
@@ -664,6 +623,10 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
 
       while (Date.now() - startTime < maxWaitTime) {
         await new Promise(resolve => setTimeout(resolve, 5000)); // 5초마다 체크
+        if (isPipelineOrScheduleCancelled(pipelineId)) {
+          throw new Error('Automation stopped by user');
+        }
+
 
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
         console.log(`🔍 [SCHEDULER] Checking script status for ${data.taskId}... (경과시간: ${elapsed}초)`);
@@ -716,7 +679,7 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
 // Stage 2: 영상 생성 (재시도 로직 제거)
 async function generateVideo(scriptId: string, pipelineId: string, maxRetry: number, titleId: string, schedule: any) {
   const settings = getAutomationSettings();
-  const mediaMode = schedule.media_mode || settings.media_generation_mode || 'upload';
+  const mediaMode = `${schedule.media_mode || settings.media_generation_mode || 'upload'}`.trim();
 
   try {
     addPipelineLog(pipelineId, 'info', `🎬 영상 생성 시작... (mode: ${mediaMode})`);
@@ -752,6 +715,11 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       const jsonStart = contentStr.indexOf('{');
       if (jsonStart > 0) {
         contentStr = contentStr.substring(jsonStart);
+      }
+
+      const jsonEnd = contentStr.lastIndexOf('}');
+      if (jsonEnd > 0 && jsonEnd < contentStr.length - 1) {
+        contentStr = contentStr.substring(0, jsonEnd + 1);
       }
 
       scriptData = JSON.parse(contentStr);

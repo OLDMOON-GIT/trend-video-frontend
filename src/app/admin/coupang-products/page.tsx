@@ -2125,7 +2125,7 @@ export default function CoupangProductsAdminPage() {
                   )}
 
                   {/* 주요 액션 버튼 */}
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => {
                         const productInfo = {
@@ -2138,33 +2138,21 @@ export default function CoupangProductsAdminPage() {
                         router.push('/?promptType=product');
                         toast.success('상품 정보 로드됨!');
                       }}
-                      className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-3 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-lg"
+                      className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-lg"
                     >
                       📝 대본작성
                     </button>
-                    <button
-                      onClick={() => {
-                        // 상품정보 대본 생성 (내 콘텐츠와 동일)
-                        // 상품관리에서는 product.id가 없으므로 임시로 생성
-                        const tempScriptId = `coupang_${product.id}`;
+                    {/* ⚠️ CRITICAL: 자동화 상품 추가 (내 목록 → 자동화)
 
-                        // 상품 정보를 localStorage에 저장
-                        const productInfo = {
-                          title: product.title,
-                          thumbnail: product.image_url,
-                          product_link: product.deep_link,
-                          description: product.description
-                        };
-                        localStorage.setItem('product_video_info', JSON.stringify(productInfo));
+                        📋 프로세스:
+                        - 이미 내 목록에 있는 상품 (딥링크 발급 완료)
+                        - productData 구성 (UI 키 + 백엔드 키)
+                        - localStorage에 저장
+                        - 자동화 페이지로 이동
 
-                        // 메인 페이지로 이동하면서 상품정보 대본 생성 트리거
-                        router.push(`/?promptType=product-info&fromCoupang=true`);
-                        toast.success('상품정보 대본 생성으로 이동합니다!');
-                      }}
-                      className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-3 text-sm font-bold text-white hover:from-emerald-500 hover:to-teal-500 transition shadow-lg"
-                    >
-                      🛍️ 상품정보
-                    </button>
+                        ⚠️ 중요: deep_link 우선 사용 (수익화 필수)
+                        📖 상세 문서: /AUTOMATION_PRODUCT_FLOW.md
+                    */}
                     <button
                       onClick={() => {
                         // 상품 정보를 localStorage에 저장 (자동화 페이지에서 읽음)
@@ -2173,11 +2161,18 @@ export default function CoupangProductsAdminPage() {
                           type: 'product',
                           category: '상품',
                           tags: `상품,쿠팡,${product.category || '기타'}`,
-                          productUrl: product.deep_link || product.product_url,
+                          productUrl: product.deep_link || product.product_url, // ⭐ 딥링크 우선
                           productData: {
+                            // UI 표시용 키
+                            productName: product.title,
+                            productImage: product.image_url,
+                            productUrl: product.deep_link || product.product_url, // ⭐ 딥링크 우선
+                            productPrice: product.discount_price || product.original_price,
+                            productId: product.id,
+                            // 대본 생성용 키 (백엔드 호환)
                             title: product.title,
                             thumbnail: product.image_url,
-                            product_link: product.deep_link || product.product_url,
+                            product_link: product.deep_link || product.product_url, // ⭐ 딥링크 우선
                             description: product.description
                           }
                         };
@@ -2187,7 +2182,7 @@ export default function CoupangProductsAdminPage() {
                         toast.success('자동화 페이지로 이동합니다!');
                         router.push('/automation?fromProduct=true');
                       }}
-                      className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-3 text-sm font-bold text-white hover:from-purple-500 hover:to-pink-500 transition shadow-lg"
+                      className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 text-sm font-bold text-white hover:from-purple-500 hover:to-pink-500 transition shadow-lg"
                     >
                       🤖 자동화
                     </button>
@@ -3271,7 +3266,7 @@ export default function CoupangProductsAdminPage() {
                         </div>
 
                         {/* 주요 버튼들 */}
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-3">
                           <button
                             onClick={async () => {
                               const loadingToast = toast.loading('딥링크 생성 중...');
@@ -3301,80 +3296,106 @@ export default function CoupangProductsAdminPage() {
                                 toast.error(error.message || '딥링크 생성 실패', { id: loadingToast });
                               }
                             }}
-                            className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-3 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-lg"
+                            className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3 text-sm font-bold text-white hover:from-green-500 hover:to-emerald-500 transition shadow-lg"
                           >
                             📝 대본작성
                           </button>
+                          {/* 상품정보 버튼 제거: 이제 상품 대본 생성 시 youtube_description이 자동 포함됨 */}
+                          {/* ⚠️ CRITICAL: 자동화 상품 추가 프로세스 (베스트셀러 → 내 목록 → 자동화)
+
+                              📋 전체 프로세스:
+                              1. 쿠팡 베스트셀러 캐시 (1시간) - 빠른 상품 조회
+                              2. "내 목록에 없는 것만" 필터링 - 중복 방지
+                              3. 🤖 자동화 버튼 클릭:
+                                 ① 내 목록에 추가 (/api/coupang/products/add)
+                                 ② 딥링크 자동 발급 및 DB 저장
+                                 ③ 성공 시 내 목록에서 해당 상품 조회 (딥링크 포함)
+                                 ④ productData 구성 (UI 키 + 백엔드 키)
+                                 ⑤ localStorage에 저장
+                                 ⑥ 자동화 페이지로 이동
+
+                              ⚠️ 중요: 딥링크 없이 자동화에 추가하면 수익화 불가!
+                              ⚠️ 이 순서를 절대 변경하지 마세요!
+
+                              📖 상세 문서: /AUTOMATION_PRODUCT_FLOW.md
+                          */}
                           <button
                             onClick={async () => {
-                              const loadingToast = toast.loading('딥링크 생성 중...');
+                              const loadingToast = toast.loading('내 목록에 추가 중...');
                               try {
-                                // 딥링크 생성
-                                const deepLinkRes = await fetch('/api/coupang/deeplink', {
+                                console.log('🔄 [자동화] 1단계: 내 목록에 추가 시작');
+
+                                // 1단계: 내 목록에 추가 (딥링크 자동 발급)
+                                const addRes = await fetch('/api/coupang/products/add', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ coupangUrls: [product.productUrl] })
+                                  body: JSON.stringify({
+                                    productId: product.productId,
+                                    productName: product.productName,
+                                    productPrice: product.productPrice,
+                                    productImage: product.productImage,
+                                    productUrl: product.productUrl,
+                                    categoryName: product.categoryName
+                                  })
                                 });
-                                const deepLinkData = await deepLinkRes.json();
 
-                                if (!deepLinkData.success || !deepLinkData.data?.[0]?.shortenUrl) {
-                                  throw new Error('딥링크 생성 실패');
+                                const addData = await addRes.json();
+
+                                if (!addRes.ok || !addData.success) {
+                                  throw new Error(addData.message || '내 목록 추가 실패');
                                 }
 
-                                const productInfo = {
-                                  title: product.productName,
-                                  thumbnail: product.productImage,
-                                  product_link: deepLinkData.data[0].shortenUrl,
-                                  description: product.categoryName
-                                };
-                                localStorage.setItem('product_video_info', JSON.stringify(productInfo));
-                                toast.success('상품정보 대본 생성으로 이동합니다!', { id: loadingToast });
-                                router.push(`/?promptType=product-info&fromCoupang=true`);
-                              } catch (error: any) {
-                                toast.error(error.message || '딥링크 생성 실패', { id: loadingToast });
-                              }
-                            }}
-                            className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-3 text-sm font-bold text-white hover:from-emerald-500 hover:to-teal-500 transition shadow-lg"
-                          >
-                            🛍️ 상품정보
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const loadingToast = toast.loading('딥링크 생성 중...');
-                              try {
-                                // 딥링크 생성
-                                const deepLinkRes = await fetch('/api/coupang/deeplink', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ coupangUrls: [product.productUrl] })
-                                });
-                                const deepLinkData = await deepLinkRes.json();
+                                console.log('✅ [자동화] 1단계 완료: 내 목록 추가 성공');
+                                toast.loading('딥링크 조회 중...', { id: loadingToast });
 
-                                if (!deepLinkData.success || !deepLinkData.data?.[0]?.shortenUrl) {
-                                  throw new Error('딥링크 생성 실패');
+                                // 2단계: 내 목록에서 해당 상품 조회 (딥링크 포함)
+                                await loadProducts(); // 목록 새로고침
+
+                                // 방금 추가한 상품을 products에서 찾기
+                                const addedProduct = products.find(
+                                  p => p.product_url === product.productUrl ||
+                                       p.title === product.productName
+                                );
+
+                                if (!addedProduct || !addedProduct.deep_link) {
+                                  throw new Error('딥링크를 찾을 수 없습니다');
                                 }
 
+                                console.log('✅ [자동화] 2단계 완료: 딥링크 조회 성공');
+
+                                // 3단계: 자동화 데이터 구성 및 페이지 이동
                                 const automationData = {
-                                  title: product.productName,
+                                  title: addedProduct.title,
                                   type: 'product',
                                   category: '상품',
-                                  tags: `상품,쿠팡,${product.categoryName || '기타'}`,
-                                  productUrl: deepLinkData.data[0].shortenUrl,
+                                  tags: `상품,쿠팡,${addedProduct.category || '기타'}`,
+                                  productUrl: addedProduct.deep_link, // ⭐ 딥링크 사용
                                   productData: {
-                                    title: product.productName,
-                                    thumbnail: product.productImage,
-                                    product_link: deepLinkData.data[0].shortenUrl,
-                                    description: product.categoryName
+                                    // UI 표시용 키
+                                    productName: addedProduct.title,
+                                    productImage: addedProduct.image_url,
+                                    productUrl: addedProduct.deep_link, // ⭐ 딥링크
+                                    productPrice: addedProduct.discount_price || addedProduct.original_price,
+                                    productId: addedProduct.id,
+                                    // 대본 생성용 키 (백엔드 호환)
+                                    title: addedProduct.title,
+                                    thumbnail: addedProduct.image_url,
+                                    product_link: addedProduct.deep_link, // ⭐ 딥링크
+                                    description: addedProduct.description || addedProduct.category
                                   }
                                 };
+
                                 localStorage.setItem('automation_prefill', JSON.stringify(automationData));
+                                console.log('✅ [자동화] 3단계 완료: localStorage 저장');
+
                                 toast.success('자동화 페이지로 이동합니다!', { id: loadingToast });
                                 router.push('/automation?fromProduct=true');
                               } catch (error: any) {
-                                toast.error(error.message || '딥링크 생성 실패', { id: loadingToast });
+                                console.error('❌ [자동화] 프로세스 실패:', error);
+                                toast.error(error.message || '자동화 추가 실패', { id: loadingToast });
                               }
                             }}
-                            className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-3 text-sm font-bold text-white hover:from-purple-500 hover:to-pink-500 transition shadow-lg"
+                            className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 text-sm font-bold text-white hover:from-purple-500 hover:to-pink-500 transition shadow-lg"
                           >
                             🤖 자동화
                           </button>

@@ -254,7 +254,63 @@ export function updateContent(
     stmt.run(...values);
   }
 
-  return findContentById(contentId);
+  const updatedContent = findContentById(contentId);
+
+  // 대본이 완료되거나 content가 업데이트되면 자동으로 프로젝트 폴더 + story.json 생성/업데이트
+  if (
+    updatedContent &&
+    updatedContent.type === 'script' &&
+    (updates.status === 'completed' || (updates.content && updatedContent.status === 'completed'))
+  ) {
+    try {
+      const path = require('path');
+      const fs = require('fs');
+
+      const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+      const projectDir = path.join(backendPath, 'input', `project_${contentId}`);
+      const storyPath = path.join(projectDir, 'story.json');
+
+      // 폴더 생성
+      if (!fs.existsSync(projectDir)) {
+        fs.mkdirSync(projectDir, { recursive: true });
+        console.log('✅ 프로젝트 폴더 생성:', projectDir);
+      }
+
+      // story.json 파일 생성/업데이트
+      let contentStr = updates.content || updatedContent.content || '';
+
+      // JSON 정리
+      contentStr = contentStr.trim();
+      if (contentStr.startsWith('```json')) {
+        contentStr = contentStr.substring(7).trim();
+      }
+      if (contentStr.endsWith('```')) {
+        contentStr = contentStr.substring(0, contentStr.length - 3).trim();
+      }
+      const jsonStart = contentStr.indexOf('{');
+      if (jsonStart > 0) {
+        contentStr = contentStr.substring(jsonStart);
+      }
+
+      if (contentStr && contentStr.includes('{')) {
+        const storyJson = JSON.parse(contentStr);
+        fs.writeFileSync(storyPath, JSON.stringify(storyJson, null, 2), 'utf-8');
+        console.log('✅ story.json 파일 생성:', storyPath);
+
+        // product-info 타입의 경우 상품설명.json도 저장
+        if (updatedContent.format === 'product-info') {
+          const productInfoPath = path.join(projectDir, '상품설명.json');
+          fs.writeFileSync(productInfoPath, JSON.stringify(storyJson, null, 2), 'utf-8');
+          console.log('✅ 상품설명.json 파일 생성:', productInfoPath);
+        }
+      }
+    } catch (error) {
+      console.error('⚠️ 프로젝트 폴더/story.json 생성 실패:', error);
+      // 에러가 나도 대본 업데이트는 계속 진행
+    }
+  }
+
+  return updatedContent;
 }
 
 // ==================== Content 삭제 ====================

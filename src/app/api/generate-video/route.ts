@@ -10,6 +10,22 @@ import { getCurrentUser } from '@/lib/session';
 
 const execAsync = promisify(exec);
 
+function normalizeImageSource(source?: string | null) {
+  if (!source || source === 'none') {
+    return 'none';
+  }
+
+  if (source === 'dalle3') {
+    return 'dalle';
+  }
+
+  if (source === 'google') {
+    return 'dalle';
+  }
+
+  return source;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { script, title, scenes, type, imageSource, sourceContentId, userId } = await request.json();
@@ -150,21 +166,22 @@ async function generateVideoAsync(
     console.log(`📐 영상 비율 설정: ${aspectRatio} (타입: ${config.type || 'longform'})`);
 
     // 이미지 소스 설정 (none, dalle, imagen3 등)
-    const imageSource = config.imageSource || 'none';
-    console.log(`🖼️  이미지 소스: ${imageSource}`);
+    const requestedImageSource = config.imageSource || 'none';
+    const pythonImageSource = normalizeImageSource(requestedImageSource);
+    console.log(`🖼️  이미지 소스: ${requestedImageSource} (Python: ${pythonImageSource})`);
 
     addJobLog(jobId, '🎬 영상 생성 시작...');
-    addJobLog(jobId, `📐 비율: ${config.type === 'shortform' ? '세로 (9:16)' : '가로 (16:9)'}`);
-    addJobLog(jobId, `🖼️ 이미지 소스: ${imageSource}`);
+    addJobLog(jobId, `🎞️ 비율: ${config.type === 'shortform' ? '세로 (9:16)' : '가로 (16:9)'}`);
+    addJobLog(jobId, `🖼️ 이미지 소스: ${requestedImageSource}`);
 
-    // Python 스크립트를 spawn으로 실행해서 실시간 로그 출력
     const pythonArgs = [
       'create_video_from_folder.py',
       '--folder', `input/${config.projectName}`,
       '--aspect-ratio', aspectRatio,
       '--add-subtitles',
-      '--image-source', imageSource
+      '--image-source', pythonImageSource
     ];
+
 
     console.log(`Executing: python ${pythonArgs.join(' ')}`);
     addJobLog(jobId, `실행: python ${pythonArgs.join(' ')}`);

@@ -29,10 +29,17 @@ async function handleOpenFolder(request: NextRequest) {
     if (directPath) {
       console.log(`📁 직접 경로로 폴더 열기: ${directPath}`);
 
-      // 상대 경로를 절대 경로로 변환
-      let folderPath = path.isAbsolute(directPath)
-        ? directPath
-        : path.resolve(process.cwd(), directPath);
+      // project_ 폴더는 backend/input 밑에 생성
+      let folderPath: string;
+      if (directPath.startsWith('project_')) {
+        const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
+        folderPath = path.resolve(backendPath, 'input', directPath);
+        console.log(`📂 project_ 폴더를 backend/input 밑에 생성: ${folderPath}`);
+      } else if (path.isAbsolute(directPath)) {
+        folderPath = directPath;
+      } else {
+        folderPath = path.resolve(process.cwd(), directPath);
+      }
 
       console.log(`📂 절대 경로로 변환: ${folderPath}`);
 

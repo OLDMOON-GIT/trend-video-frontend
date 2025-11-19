@@ -3311,82 +3311,74 @@ export default function MyContentPage() {
                                       🎨 이미지크롤링
                                     </button>
                                   )}
-                                  <button
-                                    onClick={async () => {
-                                      console.log('🎬 [내 콘텐츠] 영상 제작 버튼 클릭됨');
-                                      console.log('📝 대본 제목:', item.data.title);
-
-                                      // JSON 파싱 후 메인 페이지로 이동하며 파이프라인 시작
-                                      try {
-                                        // 마크다운 코드 블록 제거
-                                        const formattedContent = await formatScriptContent(item.data.id, item.data.content, { showToast: false });
-                                        let content = formattedContent
-                                          .replace(/^```json\s*/i, '')
-                                          .replace(/\s*```\s*$/i, '')
-                                          .trim();
-
-                                        // { 이전의 모든 텍스트 제거 (Claude가 추가한 설명 텍스트 제거)
-                                        const jsonStart = content.indexOf('{');
-                                        if (jsonStart > 0) {
-                                          console.log('⚠️ JSON 시작 전 텍스트 발견, 제거 중...');
-                                          content = content.substring(jsonStart);
-                                        }
-
-                                        console.log('📄 원본 content 길이:', item.data.content.length);
-                                        console.log('📄 정제된 content 길이:', content.length);
-
-                                        // JSON 파싱 (유틸리티 함수 사용)
-                                        const parseResult = parseJsonSafely(content);
-
-                                        if (!parseResult.success) {
-                                          throw new Error(parseResult.error || 'JSON 파싱 실패');
-                                        }
-
-                                        const scriptJson = parseResult.data;
-
-                                        if (parseResult.fixed) {
-                                          console.log('⚠️ JSON 자동 수정이 적용되었습니다');
-                                        }
-
-                                        console.log('📦 파싱된 JSON:', {
-                                          title: scriptJson.title,
-                                          scenesCount: scriptJson.scenes?.length
-                                        });
-
-                                        // 로컬 스토리지에 저장 (포맷 타입 포함)
-                                        const pipelineData = {
-                                          title: item.data.title,
-                                          content: scriptJson,
-                                          type: item.data.type || 'longform' // 기본값은 longform
-                                        };
-                                        localStorage.setItem('pipelineScript', JSON.stringify(pipelineData));
-                                        console.log('💾 localStorage에 저장 완료');
-                                        console.log('📦 저장된 데이터:', pipelineData);
-
-                                        // 메인 페이지로 이동
-                                        console.log('🔄 메인 페이지로 이동 시작...');
-                                        window.location.href = '/';
-                                      } catch (error) {
-                                        console.error('❌ 영상 제작 실패:', error);
-                                        alert('JSON 파싱 오류: ' + error);
-                                      }
-                                    }}
-                                    className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
-                                  >
-                                    🎬 영상제작
-                                  </button>
-                                  {item.data.type === 'product' && (
+                                  {/* 영상 제작 버튼: product-info 타입은 텍스트이므로 제외 */}
+                                  {item.data.type !== 'product-info' && (
                                     <button
-                                      onClick={() => {
-                                        // 메인 페이지로 이동하면서 상품정보 대본 생성 트리거
-                                        window.location.href = `/?promptType=product-info&generateProductInfo=${item.data.id}`;
+                                      onClick={async () => {
+                                        console.log('🎬 [내 콘텐츠] 영상 제작 버튼 클릭됨');
+                                        console.log('📝 대본 제목:', item.data.title);
+
+                                        // JSON 파싱 후 메인 페이지로 이동하며 파이프라인 시작
+                                        try {
+                                          // 마크다운 코드 블록 제거
+                                          const formattedContent = await formatScriptContent(item.data.id, item.data.content, { showToast: false });
+                                          let content = formattedContent
+                                            .replace(/^```json\s*/i, '')
+                                            .replace(/\s*```\s*$/i, '')
+                                            .trim();
+
+                                          // { 이전의 모든 텍스트 제거 (Claude가 추가한 설명 텍스트 제거)
+                                          const jsonStart = content.indexOf('{');
+                                          if (jsonStart > 0) {
+                                            console.log('⚠️ JSON 시작 전 텍스트 발견, 제거 중...');
+                                            content = content.substring(jsonStart);
+                                          }
+
+                                          console.log('📄 원본 content 길이:', item.data.content.length);
+                                          console.log('📄 정제된 content 길이:', content.length);
+
+                                          // JSON 파싱 (유틸리티 함수 사용)
+                                          const parseResult = parseJsonSafely(content);
+
+                                          if (!parseResult.success) {
+                                            throw new Error(parseResult.error || 'JSON 파싱 실패');
+                                          }
+
+                                          const scriptJson = parseResult.data;
+
+                                          if (parseResult.fixed) {
+                                            console.log('⚠️ JSON 자동 수정이 적용되었습니다');
+                                          }
+
+                                          console.log('📦 파싱된 JSON:', {
+                                            title: scriptJson.title,
+                                            scenesCount: scriptJson.scenes?.length
+                                          });
+
+                                          // 로컬 스토리지에 저장 (포맷 타입 포함)
+                                          const pipelineData = {
+                                            title: item.data.title,
+                                            content: scriptJson,
+                                            type: item.data.type || 'longform' // 기본값은 longform
+                                          };
+                                          localStorage.setItem('pipelineScript', JSON.stringify(pipelineData));
+                                          console.log('💾 localStorage에 저장 완료');
+                                          console.log('📦 저장된 데이터:', pipelineData);
+
+                                          // 메인 페이지로 이동
+                                          console.log('🔄 메인 페이지로 이동 시작...');
+                                          window.location.href = '/';
+                                        } catch (error) {
+                                          console.error('❌ 영상 제작 실패:', error);
+                                          alert('JSON 파싱 오류: ' + error);
+                                        }
                                       }}
-                                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-500 cursor-pointer whitespace-nowrap"
-                                      title="상품 기입 정보 생성 (YouTube/릴스용)"
+                                      className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-purple-500 cursor-pointer whitespace-nowrap"
                                     >
-                                      🛍️ 상품설명
+                                      🎬 영상제작
                                     </button>
                                   )}
+                                  {/* 상품설명 버튼 제거: 이제 상품 대본 생성 시 youtube_description이 자동 포함됨 */}
 
                                   {/* 구분선 */}
                                   <div className="w-px h-8 bg-slate-600"></div>
@@ -3417,6 +3409,30 @@ export default function MyContentPage() {
                                     title="대본 다운로드"
                                   >
                                     📥 다운로드
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const folderPath = `project_${item.data.id}`;
+                                        const response = await fetch(`/api/open-folder?path=${encodeURIComponent(folderPath)}`, {
+                                          headers: getAuthHeaders(),
+                                          credentials: 'include'
+                                        });
+                                        const data = await response.json();
+                                        if (!response.ok) {
+                                          toast.error('폴더 열기 실패: ' + (data.error || '알 수 없는 오류'));
+                                        } else {
+                                          toast.success('폴더를 열었습니다.');
+                                        }
+                                      } catch (error) {
+                                        console.error('폴더 열기 오류:', error);
+                                        toast.error('폴더 열기 중 오류가 발생했습니다.');
+                                      }
+                                    }}
+                                    className="flex items-center justify-center gap-1 rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-500 cursor-pointer whitespace-nowrap"
+                                    title="대본 폴더 열기"
+                                  >
+                                    📁 폴더
                                   </button>
                                   {/* 변환 버튼: longform/shortform 타입에만 표시 */}
                                   {(item.data.type === 'longform' || item.data.type === 'shortform') && (
@@ -4156,6 +4172,30 @@ export default function MyContentPage() {
                               title="대본 다운로드"
                             >
                               📥 다운로드
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const folderPath = `project_${script.id}`;
+                                  const response = await fetch(`/api/open-folder?path=${encodeURIComponent(folderPath)}`, {
+                                    headers: getAuthHeaders(),
+                                    credentials: 'include'
+                                  });
+                                  const data = await response.json();
+                                  if (!response.ok) {
+                                    toast.error('폴더 열기 실패: ' + (data.error || '알 수 없는 오류'));
+                                  } else {
+                                    toast.success('폴더를 열었습니다.');
+                                  }
+                                } catch (error) {
+                                  console.error('폴더 열기 오류:', error);
+                                  toast.error('폴더 열기 중 오류가 발생했습니다.');
+                                }
+                              }}
+                              className="flex items-center justify-center gap-1 rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-500 cursor-pointer whitespace-nowrap"
+                              title="대본 폴더 열기"
+                            >
+                              📁 폴더
                             </button>
                             {/* 변환 버튼: longform/shortform 타입에만 표시 */}
                             {(script.type === 'longform' || script.type === 'shortform') && (

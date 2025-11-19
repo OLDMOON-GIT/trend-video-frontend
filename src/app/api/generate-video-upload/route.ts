@@ -11,6 +11,22 @@ import { sendProcessKillFailureEmail, sendProcessKillTimeoutEmail } from '@/util
 
 const execAsync = promisify(exec);
 
+function normalizeImageSource(source?: string | null) {
+  if (!source || source === 'none') {
+    return 'none';
+  }
+
+  if (source === 'dalle3') {
+    return 'dalle';
+  }
+
+  if (source === 'google') {
+    return 'dalle';
+  }
+
+  return source;
+}
+
 // 실행 중인 프로세스 관리
 const runningProcesses = new Map<string, ChildProcess>();
 
@@ -45,7 +61,7 @@ export async function POST(request: NextRequest) {
       // 내부 요청: JSON으로 받음
       const body = await request.json();
       userId = body.userId;
-      imageSource = body.imageSource || 'none';
+      imageSource = normalizeImageSource(body.imageSource || 'none');
       imageModel = body.imageModel || 'dalle3';
       videoFormat = body.videoFormat || 'shortform';
       ttsVoice = body.ttsVoice || 'ko-KR-SoonBokNeural';
@@ -94,7 +110,7 @@ export async function POST(request: NextRequest) {
       // FormData 파싱
       const formDataGeneral = await request.formData();
       jsonFile = formDataGeneral.get('json') as File;
-      imageSource = formDataGeneral.get('imageSource') as string || 'none';
+      imageSource = normalizeImageSource((formDataGeneral.get('imageSource') as string) || 'none');
       imageModel = formDataGeneral.get('imageModel') as string || 'dalle3';
       videoFormat = formDataGeneral.get('videoFormat') as string || 'longform';
       ttsVoice = formDataGeneral.get('ttsVoice') as string || 'ko-KR-SoonBokNeural';

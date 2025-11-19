@@ -389,6 +389,29 @@ export default function MyScriptsPage() {
                     >
                       {expandedScriptId === script.id ? '📄 접기' : '📖 펼치기'}
                     </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const folderPath = `project_${script.id}`;
+                          const response = await fetch(`/api/open-folder?path=${encodeURIComponent(folderPath)}`, {
+                            headers: getAuthHeaders(),
+                            credentials: 'include'
+                          });
+                          const data = await response.json();
+                          if (!response.ok) {
+                            alert('폴더 열기 실패: ' + (data.error || '알 수 없는 오류'));
+                          } else {
+                            alert('폴더를 열었습니다.');
+                          }
+                        } catch (error) {
+                          console.error('폴더 열기 오류:', error);
+                          alert('폴더 열기 중 오류가 발생했습니다.');
+                        }
+                      }}
+                      className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500"
+                    >
+                      📁 폴더 열기
+                    </button>
                     {(script.status === 'completed' || !script.status) && (
                       <button
                         onClick={() => {
@@ -446,17 +469,7 @@ export default function MyScriptsPage() {
                         🎬 영상 제작
                       </button>
                     )}
-                    {(script.status === 'completed' || !script.status) && (
-                      <button
-                        onClick={() => {
-                          // 상품정보 생성을 위해 메인 페이지로 이동
-                          window.location.href = `/?promptType=product-info&generateProductInfo=${script.id}`;
-                        }}
-                        className="rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-amber-500 hover:to-yellow-500"
-                      >
-                        📝 상품설명
-                      </button>
-                    )}
+                    {/* 상품설명 버튼 제거: 이제 상품 대본 생성 시 youtube_description이 자동 포함됨 */}
                     <button
                       onClick={() => handleDownload(script.id)}
                       className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"

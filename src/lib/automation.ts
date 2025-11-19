@@ -738,7 +738,22 @@ export function getAllVideoTitles() {
   `).all();
 
   db.close();
-  return titles;
+
+  // ⚠️ CRITICAL: product_data를 JSON 문자열에서 객체로 파싱
+  // 이 코드는 제거하면 안됩니다! 수정 폼과 읽기 전용 표시에서 상품 정보를 보여주는데 필수적입니다.
+  const parsedTitles = titles.map((title: any) => {
+    if (title.product_data && typeof title.product_data === 'string') {
+      try {
+        title.product_data = JSON.parse(title.product_data);
+      } catch (e) {
+        console.error('Failed to parse product_data:', e);
+        title.product_data = null;
+      }
+    }
+    return title;
+  });
+
+  return parsedTitles;
 }
 
 // 모든 스케줄 가져오기
@@ -774,7 +789,22 @@ export function getAllSchedules() {
     ORDER BY s.scheduled_time ASC
   `).all();
   db.close();
-  return schedules;
+
+  // ⚠️ CRITICAL: product_data를 JSON 문자열에서 객체로 파싱
+  // 이 코드는 제거하면 안됩니다! 수정 폼과 읽기 전용 표시에서 상품 정보를 보여주는데 필수적입니다.
+  const parsedSchedules = schedules.map((schedule: any) => {
+    if (schedule.product_data && typeof schedule.product_data === 'string') {
+      try {
+        schedule.product_data = JSON.parse(schedule.product_data);
+      } catch (e) {
+        console.error('Failed to parse product_data:', e);
+        schedule.product_data = null;
+      }
+    }
+    return schedule;
+  });
+
+  return parsedSchedules;
 }
 
 // 파이프라인 상세 정보 가져오기
@@ -1189,12 +1219,16 @@ export function initDefaultCategories(userId: string) {
 
   // 기본 카테고리 목록
   const defaultCategories = [
-    { name: '상품', description: '상품 관련 영상' },
-    { name: '시니어사연', description: '시니어 사연 영상' },
-    { name: '복수극', description: '복수 이야기' },
+    { name: '일반', description: '일반 영상' },
+    { name: '북한탈북자사연', description: '북한 탈북자 사연' },
     { name: '막장드라마', description: '막장 드라마' },
     { name: '감동실화', description: '감동 실화' },
-    { name: '북한탈북자사연', description: '북한 탈북자 사연' },
+    { name: '복수극', description: '복수 이야기' },
+    { name: '로맨스', description: '로맨스 이야기' },
+    { name: '스릴러', description: '스릴러 이야기' },
+    { name: '코미디', description: '코미디 영상' },
+    { name: '시니어사연', description: '시니어 사연 영상' },
+    { name: '상품', description: '상품 관련 영상' },
   ];
 
   const stmt = db.prepare(`

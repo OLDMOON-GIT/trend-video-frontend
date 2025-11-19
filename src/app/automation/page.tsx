@@ -64,6 +64,8 @@ function AutomationPageContent() {
   const [downloadMenuFor, setDownloadMenuFor] = useState<Record<string, boolean>>({}); // 다운로드 메뉴 열림 여부
   const [isSubmitting, setIsSubmitting] = useState(false); // 제목 추가 중복 방지
   const [currentProductData, setCurrentProductData] = useState<any>(null); // 현재 상품 정보
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]); // 선택된 카테고리에 해당하는 상품 목록
+  const [fetchingProducts, setFetchingProducts] = useState(false); // 상품 목록 로딩 중
   const [testModalOpen, setTestModalOpen] = useState(false); // 테스트 모달 열림 여부
   const [testLogs, setTestLogs] = useState<string[]>([]); // 테스트 로그
   const [testInProgress, setTestInProgress] = useState(false); // 테스트 진행 중
@@ -179,6 +181,26 @@ function AutomationPageContent() {
     fetchCategories();
 
     // 상품관리에서 왔는지 체크
+    // ⚠️ CRITICAL: 쿠팡 상품 관리 페이지에서 전달된 상품 정보 처리
+    //
+    // 📋 프로세스: 쿠팡 상품 페이지 → 자동화 페이지
+    // 1. 쿠팡 상품 페이지에서 "🤖 자동화" 버튼 클릭
+    // 2. 상품 정보 localStorage에 저장 (automation_prefill)
+    //    - 베스트셀러의 경우: 내 목록 추가 → 딥링크 발급 → 자동화 전달
+    //    - 내 목록의 경우: 이미 발급된 딥링크 포함하여 전달
+    // 3. 자동화 페이지로 이동 (?fromProduct=true)
+    // 4. 이 코드에서 localStorage 읽어서 폼 자동 채우기
+    //
+    // productData 구조:
+    // - UI 표시용 키: productName, productImage, productUrl, productPrice, productId
+    // - 백엔드 대본용 키: title, thumbnail, product_link, description
+    //
+    // ⚠️ 중요:
+    // - productUrl/product_link는 딥링크여야 함 (수익화 필수)
+    // - productData는 대본 생성 시 프롬프트에 포함됨
+    // - current_product_data는 영상 생성 시 사용됨
+    //
+    // 📖 상세 문서: /AUTOMATION_PRODUCT_FLOW.md
     const fromProduct = searchParams.get('fromProduct');
     if (fromProduct === 'true') {
       // localStorage에서 상품 정보 읽기
@@ -188,14 +210,17 @@ function AutomationPageContent() {
           const data = JSON.parse(prefillData);
           console.log('🛍️ [상품관리 → 자동화] 정보 자동 입력:', data);
 
-          // productData를 별도로 저장 (대본 생성 시 사용)
+          // productData를 별도로 저장 (대본 생성 시 프롬프트에 포함)
           if (data.productData) {
             const productDataStr = JSON.stringify(data.productData);
             localStorage.setItem('current_product_data', productDataStr);
-            console.log('✅ productData 저장 완료');
+            console.log('✅ productData 저장 완료 (딥링크 포함):', {
+              productUrl: data.productData.productUrl,
+              product_link: data.productData.product_link
+            });
           }
 
-          // 폼 열기 + 정보 채우기 (자동 시작 X)
+          // 폼 열기 + 정보 채우기 (자동 시작 X - 사용자가 확인 후 수동 저장)
           setShowAddForm(true);
           setNewTitle(prev => ({
             ...prev,
@@ -203,15 +228,16 @@ function AutomationPageContent() {
             type: data.type || 'product',
             category: data.category || '상품',
             tags: data.tags || '',
-            productUrl: data.productUrl || '',
+            productUrl: data.productUrl || '', // ⭐ 딥링크
             scriptMode: 'chrome',
             mediaMode: getSelectedMediaMode(),
             model: getSelectedModel(),
             youtubeSchedule: 'immediate'
           }));
+          // 상품 정보 UI 미리보기 표시
           setCurrentProductData(data.productData);
 
-          // 사용 후 삭제
+          // 일회성 데이터이므로 사용 후 삭제
           localStorage.removeItem('automation_prefill');
 
         } catch (error) {
@@ -220,6 +246,33 @@ function AutomationPageContent() {
       }
     }
   }, [searchParams]);
+
+  // 카테고리 또는 타입 변경 시 상품 목록 불러오기
+  useEffect(() => {
+    async function fetchProductsByCategory() {
+      if (newTitle.type === 'product' && newTitle.category) {
+        setFetchingProducts(true);
+        try {
+          const response = await fetch(`/api/coupang/products?categoryId=${newTitle.category}`);
+          if (response.ok) {
+            const data = await response.json();
+            setAvailableProducts(data.products || []);
+          } else {
+            console.error('Failed to fetch products by category:', response.statusText);
+            setAvailableProducts([]);
+          }
+        } catch (error) {
+          console.error('Error fetching products by category:', error);
+          setAvailableProducts([]);
+        } finally {
+          setFetchingProducts(false);
+        }
+      } else {
+        setAvailableProducts([]); // 상품 타입이 아니거나 카테고리가 없으면 목록 초기화
+      }
+    }
+    fetchProductsByCategory();
+  }, [newTitle.type, newTitle.category]);
 
   // 제목 풀 탭 전환 시 데이터 로드
   useEffect(() => {
@@ -551,13 +604,21 @@ function AutomationPageContent() {
       // 상품 정보가 있으면 포함 (product, product-info 모두)
       let productData = null;
       if (newTitle.type === 'product' || newTitle.type === 'product-info') {
-        const savedProductData = localStorage.getItem('current_product_data');
-        if (savedProductData) {
-          productData = savedProductData; // 이미 JSON 문자열
-          localStorage.removeItem('current_product_data'); // 사용 후 삭제
-          console.log('✅ [자동화] productData 전달:', productData.substring(0, 200));
-        } else {
-          console.warn('⚠️ [자동화] productData가 localStorage에 없습니다. 타입:', newTitle.type);
+        // 1. 현재 페이지에서 입력한 상품 정보 우선
+        if (currentProductData) {
+          productData = JSON.stringify(currentProductData);
+          console.log('✅ [자동화] currentProductData 사용:', productData.substring(0, 200));
+        }
+        // 2. localStorage에서 가져온 상품 정보 (상품관리에서 넘어온 경우)
+        else {
+          const savedProductData = localStorage.getItem('current_product_data');
+          if (savedProductData) {
+            productData = savedProductData; // 이미 JSON 문자열
+            localStorage.removeItem('current_product_data'); // 사용 후 삭제
+            console.log('✅ [자동화] localStorage productData 사용:', productData.substring(0, 200));
+          } else {
+            console.warn('⚠️ [자동화] productData가 없습니다. 타입:', newTitle.type);
+          }
         }
       }
 
@@ -1612,42 +1673,158 @@ function AutomationPageContent() {
 
                 {newTitle.type === 'product' && (
                   <>
+                    {/* 상품 선택 드롭다운 - currentProductData가 없을 때만 표시 */}
+                    {!currentProductData && (
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs text-slate-400 block">상품 선택 (카테고리 기반)</label>
+                        <select
+                          value={newTitle.productUrl || ''}
+                          onChange={(e) => {
+                            const selectedProductUrl = e.target.value;
+                            const selectedProduct = availableProducts.find(p => p.productUrl === selectedProductUrl);
+
+                            if (selectedProduct) {
+                              const productInfo = {
+                                productName: selectedProduct.productName,
+                                productPrice: selectedProduct.productPrice,
+                                productImage: selectedProduct.productImage,
+                                productUrl: selectedProduct.productUrl,
+                                productId: selectedProduct.productId
+                              };
+                              setCurrentProductData(productInfo);
+                              setNewTitle(prev => ({
+                                ...prev,
+                                title: `[광고] ${selectedProduct.productName}`,
+                                productUrl: selectedProduct.productUrl
+                              }));
+                            } else {
+                              setCurrentProductData(null);
+                              setNewTitle(prev => ({ ...prev, productUrl: '' }));
+                            }
+                          }}
+                          className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                          disabled={fetchingProducts}
+                        >
+                          <option value="">{fetchingProducts ? '상품 로딩 중...' : '--- 상품을 선택하세요 ---'}</option>
+                          {availableProducts.map((product) => (
+                            <option key={product.productId} value={product.productUrl}>
+                              {product.productName} ({product.productPrice?.toLocaleString()}원)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     {/* 상품정보가 없을 때만 URL 입력 필드 표시 */}
                     {!currentProductData && (
-                      <input
-                        type="url"
-                        placeholder="상품 URL (선택)"
-                        value={newTitle.productUrl}
-                        onChange={(e) => setNewTitle({ ...newTitle, productUrl: e.target.value })}
-                        className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          placeholder="쿠팡 상품 URL 입력"
+                          value={newTitle.productUrl}
+                          onChange={(e) => setNewTitle({ ...newTitle, productUrl: e.target.value })}
+                          className="flex-1 px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                          disabled={!!currentProductData} // Disable if a product is already selected
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!newTitle.productUrl) {
+                              alert('상품 URL을 입력해주세요');
+                              return;
+                            }
+
+                            try {
+                              const response = await fetch('/api/coupang/deeplink', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ url: newTitle.productUrl })
+                              });
+
+                              if (!response.ok) {
+                                throw new Error('상품 정보를 가져올 수 없습니다');
+                              }
+
+                              const data = await response.json();
+
+                              if (data.success && data.data) {
+                                const productInfo = {
+                                  productName: data.data.productName || newTitle.title,
+                                  productPrice: data.data.productPrice,
+                                  productImage: data.data.productImage,
+                                  productUrl: data.data.shortenUrl || newTitle.productUrl,
+                                  productId: data.data.productId
+                                };
+
+                                setCurrentProductData(productInfo);
+                                setNewTitle({
+                                  ...newTitle,
+                                  title: data.data.productName || newTitle.title,
+                                  productUrl: data.data.shortenUrl || newTitle.productUrl
+                                });
+                                alert('✅ 상품 정보를 가져왔습니다');
+                              } else {
+                                throw new Error('상품 정보가 없습니다');
+                              }
+                            } catch (error: any) {
+                              console.error('상품 정보 가져오기 실패:', error);
+                              alert(`❌ 상품 정보 가져오기 실패: ${error.message}`);
+                            }
+                          }}
+                          className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition whitespace-nowrap"
+                          disabled={!!currentProductData} // Disable if a product is already selected
+                        >
+                          🛍️ 상품 정보 가져오기
+                        </button>
+                      </div>
                     )}
 
                     {/* 상품정보 미리보기 */}
                     {currentProductData && (
                       <div className="rounded-lg bg-emerald-900/30 border border-emerald-500/50 p-4">
-                        <p className="text-sm font-semibold text-emerald-400 mb-2">🛍️ 상품 정보 미리보기</p>
-                        <div className="space-y-1.5 text-xs">
-                          {currentProductData.title && (
-                            <p className="text-slate-300">
-                              <span className="font-semibold text-slate-400">제목:</span> {currentProductData.title}
-                            </p>
+                        <div className="flex justify-between items-start mb-3">
+                          <p className="text-sm font-semibold text-emerald-400">🛍️ 상품 정보</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCurrentProductData(null);
+                              setNewTitle({ ...newTitle, productUrl: '' });
+                            }}
+                            className="text-xs px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded"
+                          >
+                            초기화
+                          </button>
+                        </div>
+                        <div className="flex gap-3">
+                          {currentProductData.productImage && (
+                            <img
+                              src={currentProductData.productImage}
+                              alt="상품 이미지"
+                              className="w-20 h-20 object-cover rounded border border-emerald-500"
+                            />
                           )}
-                          {currentProductData.thumbnail && (
-                            <p className="text-slate-400 truncate">
-                              <span className="font-semibold">썸네일:</span> {currentProductData.thumbnail}
-                            </p>
-                          )}
-                          {currentProductData.product_link && (
-                            <p className="text-blue-400 truncate">
-                              <span className="font-semibold text-slate-400">링크:</span> {currentProductData.product_link}
-                            </p>
-                          )}
-                          {currentProductData.description && (
-                            <p className="text-slate-400 line-clamp-2">
-                              <span className="font-semibold">설명:</span> {currentProductData.description}
-                            </p>
-                          )}
+                          <div className="flex-1 min-w-0 space-y-1 text-xs">
+                            {currentProductData.productName && (
+                              <p className="text-slate-200 font-semibold">
+                                {currentProductData.productName}
+                              </p>
+                            )}
+                            {currentProductData.productPrice && (
+                              <p className="text-emerald-300">
+                                {currentProductData.productPrice}
+                              </p>
+                            )}
+                            {currentProductData.productUrl && (
+                              <a
+                                href={currentProductData.productUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:text-blue-300 underline block truncate"
+                              >
+                                {currentProductData.productUrl}
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1725,7 +1902,7 @@ function AutomationPageContent() {
                       <option value="claude">Claude (기본)</option>
                       <option value="chatgpt">ChatGPT</option>
                       <option value="gemini">Gemini</option>
-                      <option value="groq">Groq</option>
+                      <option value="grok">Grok</option>
                     </select>
                   </div>
                 </div>
@@ -2045,7 +2222,7 @@ function AutomationPageContent() {
               {/* 카테고리 관리 */}
               {scheduleManagementTab === 'category-management' && (
                 <div>
-                  <CategoryManagement />
+                  <CategoryManagement onCategoryChange={fetchCategories} />
                 </div>
               )}
 
@@ -2349,21 +2526,58 @@ function AutomationPageContent() {
                           </div>
                         </div>
 
-                        {/* 상품 URL (product 타입일 때만) */}
+                        {/* ⚠️ CRITICAL: 수정 폼 - 상품 정보 표시 (product 타입) - 제거하면 안됩니다! */}
+                        {/* 이 코드는 상품관리에서 자동화로 넘어온 상품 정보를 수정 모드에서 보여주는 핵심 기능입니다 */}
                         {editForm.type === 'product' && (
                           <div>
-                            <label className="text-xs text-slate-400 block mb-1">상품 URL</label>
-                            <input
-                              type="url"
-                              placeholder="상품 URL"
-                              value={editForm.product_url || ''}
-                              onChange={(e) => setEditForm({ ...editForm, product_url: e.target.value })}
-                              className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
-                            />
+                            <label className="text-xs text-slate-400 block mb-1">상품 정보</label>
+                            {editForm.product_data ? (
+                              <div className="w-full px-4 py-3 bg-emerald-900/30 text-emerald-200 rounded-lg border border-emerald-500/50">
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-emerald-400 font-semibold">상품명:</span>
+                                    <p className="text-white mt-1">{editForm.product_data.productName || editForm.product_data.title || editForm.title}</p>
+                                  </div>
+                                  {editForm.product_data.productPrice && (
+                                    <div>
+                                      <span className="text-emerald-400 font-semibold">가격:</span>
+                                      <p className="text-white mt-1">{editForm.product_data.productPrice}</p>
+                                    </div>
+                                  )}
+                                  {(editForm.product_data.productImage || editForm.product_data.thumbnail) && (
+                                    <div className="col-span-2">
+                                      <span className="text-emerald-400 font-semibold">이미지:</span>
+                                      <img
+                                        src={editForm.product_data.productImage || editForm.product_data.thumbnail}
+                                        alt="상품 이미지"
+                                        className="mt-2 w-32 h-32 object-cover rounded border border-emerald-500"
+                                      />
+                                    </div>
+                                  )}
+                                  {(editForm.product_data.productUrl || editForm.product_data.product_link) && (
+                                    <div className="col-span-2">
+                                      <span className="text-emerald-400 font-semibold">URL:</span>
+                                      <a
+                                        href={editForm.product_data.productUrl || editForm.product_data.product_link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-400 hover:text-blue-300 mt-1 text-xs break-all block underline"
+                                      >
+                                        {editForm.product_data.productUrl || editForm.product_data.product_link}
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full px-4 py-2 bg-slate-700 text-slate-400 rounded-lg border border-slate-600 text-sm">
+                                상품 정보가 없습니다
+                              </div>
+                            )}
                           </div>
                         )}
 
-                        {/* 상품정보 (product-info 타입일 때만) */}
+                        {/* ⚠️ CRITICAL: 수정 폼 - 상품 정보 표시 (product-info 타입) - 제거하면 안됩니다! */}
                         {editForm.type === 'product-info' && (
                           <div>
                             <label className="text-xs text-slate-400 block mb-1">상품 정보</label>
@@ -2372,7 +2586,7 @@ function AutomationPageContent() {
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                   <div>
                                     <span className="text-emerald-400 font-semibold">상품명:</span>
-                                    <p className="text-white mt-1">{editForm.product_data.productName || editForm.title}</p>
+                                    <p className="text-white mt-1">{editForm.product_data.productName || editForm.product_data.title || editForm.title}</p>
                                   </div>
                                   {editForm.product_data.productPrice && (
                                     <div>
@@ -2380,10 +2594,20 @@ function AutomationPageContent() {
                                       <p className="text-white mt-1">{editForm.product_data.productPrice}</p>
                                     </div>
                                   )}
-                                  {editForm.product_data.productUrl && (
+                                  {(editForm.product_data.productImage || editForm.product_data.thumbnail) && (
+                                    <div className="col-span-2">
+                                      <span className="text-emerald-400 font-semibold">이미지:</span>
+                                      <img
+                                        src={editForm.product_data.productImage || editForm.product_data.thumbnail}
+                                        alt="상품 이미지"
+                                        className="mt-2 w-32 h-32 object-cover rounded border border-emerald-500"
+                                      />
+                                    </div>
+                                  )}
+                                  {(editForm.product_data.productUrl || editForm.product_data.product_link) && (
                                     <div className="col-span-2">
                                       <span className="text-emerald-400 font-semibold">URL:</span>
-                                      <p className="text-white mt-1 text-xs break-all">{editForm.product_data.productUrl}</p>
+                                      <p className="text-white mt-1 text-xs break-all">{editForm.product_data.productUrl || editForm.product_data.product_link}</p>
                                     </div>
                                   )}
                                 </div>
@@ -2647,6 +2871,41 @@ function AutomationPageContent() {
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1 min-w-0">
                         <h4 className="text-white font-semibold text-lg">{title.title}</h4>
+
+                        {/* ⚠️ CRITICAL: 읽기 전용 - 상품 정보 표시 (상품 타입) - 제거하면 안됩니다! */}
+                        {/* 이 코드는 예약 큐에서 상품 정보를 보여주는 핵심 기능입니다 */}
+                        {title.type === 'product' && title.product_data && (
+                          <div className="mt-2 p-3 bg-emerald-900/20 border border-emerald-500/50 rounded-lg">
+                            <div className="flex gap-3">
+                              {(title.product_data.productImage || title.product_data.thumbnail) && (
+                                <img
+                                  src={title.product_data.productImage || title.product_data.thumbnail}
+                                  alt="상품 이미지"
+                                  className="w-20 h-20 object-cover rounded border border-emerald-500"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-emerald-300 font-semibold">
+                                  {title.product_data.productName || title.product_data.title || title.title}
+                                </p>
+                                {title.product_data.productPrice && (
+                                  <p className="text-sm text-emerald-200 mt-1">{title.product_data.productPrice}</p>
+                                )}
+                                {(title.product_data.productUrl || title.product_data.product_link) && (
+                                  <a
+                                    href={title.product_data.productUrl || title.product_data.product_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-400 hover:text-blue-300 underline mt-1 block truncate"
+                                  >
+                                    {title.product_data.productUrl || title.product_data.product_link}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="flex flex-wrap gap-2 mt-1">
                           <span className={`text-xs px-2 py-0.5 rounded ${
                             title.type === 'longform' ? 'bg-blue-600/30 text-blue-300' :
@@ -2944,33 +3203,40 @@ function AutomationPageContent() {
                         🔗 {title.product_url}
                       </a>
                     )}
-                    {title.product_data && (() => {
-                      try {
-                        const productData = JSON.parse(title.product_data);
-                        return (
-                          <div className="mb-3 p-2 bg-slate-700/50 rounded border border-slate-600">
-                            <p className="text-xs font-semibold text-emerald-400 mb-1">🛍️ 상품 정보</p>
-                            {productData.title && <p className="text-xs text-slate-300">제목: {productData.title}</p>}
-                            {productData.thumbnail && <p className="text-xs text-slate-400 truncate">썸네일: {productData.thumbnail}</p>}
-                            {productData.product_link && (
-                              <p className="text-xs truncate">
-                                링크: <a
-                                  href={productData.product_link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-400 hover:text-blue-300 underline"
-                                >
-                                  {productData.product_link}
-                                </a>
-                              </p>
-                            )}
-                            {productData.description && <p className="text-xs text-slate-400 mt-1 line-clamp-2">설명: {productData.description}</p>}
-                          </div>
-                        );
-                      } catch (e) {
-                        return null;
-                      }
-                    })()}
+                    {/* ⚠️ CRITICAL: 상품 정보 표시 - 제거하면 안됩니다! */}
+                    {title.product_data && (
+                      <div className="mb-3 p-2 bg-slate-700/50 rounded border border-slate-600">
+                        <p className="text-xs font-semibold text-emerald-400 mb-1">🛍️ 상품 정보</p>
+                        {(title.product_data.productName || title.product_data.title) && (
+                          <p className="text-xs text-slate-300">
+                            제목: {title.product_data.productName || title.product_data.title}
+                          </p>
+                        )}
+                        {title.product_data.productPrice && (
+                          <p className="text-xs text-emerald-300">가격: {title.product_data.productPrice}</p>
+                        )}
+                        {(title.product_data.productImage || title.product_data.thumbnail) && (
+                          <p className="text-xs text-slate-400 truncate">
+                            썸네일: {title.product_data.productImage || title.product_data.thumbnail}
+                          </p>
+                        )}
+                        {(title.product_data.productUrl || title.product_data.product_link) && (
+                          <p className="text-xs truncate">
+                            링크: <a
+                              href={title.product_data.productUrl || title.product_data.product_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-300 underline"
+                            >
+                              {title.product_data.productUrl || title.product_data.product_link}
+                            </a>
+                          </p>
+                        )}
+                        {title.product_data.description && (
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">설명: {title.product_data.description}</p>
+                        )}
+                      </div>
+                    )}
                     {title.tags && (
                       <p className="text-xs text-slate-500 mb-3">🏷️ {title.tags}</p>
                     )}

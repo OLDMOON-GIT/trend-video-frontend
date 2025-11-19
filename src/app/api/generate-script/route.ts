@@ -242,6 +242,12 @@ export async function POST(request: NextRequest) {
         // 프롬프트와 주제를 하나로 합쳐서 캐시 효율 향상
         let combinedPrompt = topic ? `${prompt}\n\n주제: ${topic}` : prompt;
 
+        // 카테고리 추가 (longform 및 모든 포맷)
+        if (category) {
+          combinedPrompt += `\n\n카테고리: ${category}`;
+          console.log('📂 카테고리 추가됨:', category);
+        }
+
         // 상품 정보 추가 (product 또는 product-info 포맷인 경우)
         console.log('🔍🔍🔍 백엔드 - 상품 정보 체크');
         console.log('  - format:', format);

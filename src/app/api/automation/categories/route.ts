@@ -12,7 +12,7 @@ import {
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
-    if (!user || !user.isAdmin) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

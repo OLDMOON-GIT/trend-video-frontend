@@ -59,6 +59,12 @@ export async function POST(request: NextRequest) {
         .replace(/^JSON\s*/i, '')       // "JSON" 접두사 제거
         .trim();
 
+      // JSON 정리 (뒷부분) - 마지막 } 이후 텍스트 제거
+      const jsonEnd = contentStr.lastIndexOf('}');
+      if (jsonEnd > 0 && jsonEnd < contentStr.length - 1) {
+        contentStr = contentStr.substring(0, jsonEnd + 1);
+      }
+
       scriptData = JSON.parse(contentStr);
     } catch (e: any) {
       console.error('❌ [VIDEO-GEN] Failed to parse script content:', e);

@@ -75,6 +75,39 @@ export default function YouTubeUploadButton({
     }
   }, []);
 
+  // 상품 타입일 때 youtube_description 자동 로드
+  useEffect(() => {
+    const loadProductDescription = async () => {
+      if (!jobId || !videoPath) return;
+
+      try {
+        // videoPath에서 프로젝트 ID 추출
+        const match = videoPath.match(/project_([^/\\]+)/);
+        if (!match) return;
+
+        const projectId = match[1];
+        console.log('🔍 프로젝트 ID:', projectId);
+
+        // story.json에서 youtube_description 로드
+        const res = await fetch(`/api/automation/get-story?scriptId=${projectId}`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (!data.story || !data.story.youtube_description) return;
+
+        const youtubeDesc = data.story.youtube_description.text;
+        if (youtubeDesc) {
+          console.log('✅ 상품 YouTube 설명 자동 로드:', youtubeDesc.substring(0, 100));
+          setDescription(youtubeDesc);
+        }
+      } catch (error) {
+        console.error('❌ YouTube 설명 로드 실패:', error);
+      }
+    };
+
+    loadProductDescription();
+  }, [jobId, videoPath]);
+
   const loadChannels = async () => {
     try {
       setLoadingChannels(true);

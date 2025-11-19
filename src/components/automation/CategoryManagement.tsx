@@ -10,7 +10,11 @@ interface Category {
   created_at: string;
 }
 
-export default function CategoryManagement() {
+interface CategoryManagementProps {
+  onCategoryChange?: () => void;
+}
+
+export default function CategoryManagement({ onCategoryChange }: CategoryManagementProps = {}) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -67,6 +71,7 @@ export default function CategoryManagement() {
       setNewCategoryName('');
       setNewCategoryDescription('');
       await fetchCategories();
+      onCategoryChange?.(); // 부모 컴포넌트에 변경 알림
       alert('카테고리가 추가되었습니다.');
     } catch (error) {
       console.error('Error adding category:', error);
@@ -99,6 +104,7 @@ export default function CategoryManagement() {
 
       setEditingCategory(null);
       await fetchCategories();
+      onCategoryChange?.(); // 부모 컴포넌트에 변경 알림
       alert('카테고리가 수정되었습니다.');
     } catch (error) {
       console.error('Error updating category:', error);
@@ -125,6 +131,7 @@ export default function CategoryManagement() {
       }
 
       await fetchCategories();
+      onCategoryChange?.(); // 부모 컴포넌트에 변경 알림
       alert('카테고리가 삭제되었습니다.');
     } catch (error) {
       console.error('Error deleting category:', error);

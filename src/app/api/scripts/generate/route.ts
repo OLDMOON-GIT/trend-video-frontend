@@ -453,9 +453,11 @@ export async function POST(request: NextRequest) {
 
       console.log('✅ 상품 프롬프트 사용');
     } else if (scriptType === 'product-info') {
-      // 상품정보: 상품 기입 정보 전용 프롬프트 사용
-      const productInfoPromptTemplate = await getProductInfoPrompt();
-      prompt = productInfoPromptTemplate.replace(/{title}/g, title);
+      // ⚠️ DEPRECATED: product-info는 product로 통합됨
+      console.log('⚠️ product-info 타입 감지 → product 프롬프트 사용');
+      scriptType = 'product'; // product로 변경
+      const productPromptTemplate = await getProductPrompt();
+      prompt = productPromptTemplate.replace(/{title}/g, title);
 
       // productInfo가 없으면 DB에서 찾아오기
       if (!productInfo) {
@@ -559,7 +561,6 @@ export async function POST(request: NextRequest) {
       scriptType === 'shortform' ? '⚡ 숏폼' :
       scriptType === 'sora2' ? '🎥 SORA2' :
       scriptType === 'product' ? '🛍️ 상품' :
-      scriptType === 'product-info' ? '📋 상품정보' :
       '📝 롱폼');
     console.log('  제목:', title);
     console.log('  프롬프트 길이:', prompt.length, '자');
@@ -591,8 +592,6 @@ export async function POST(request: NextRequest) {
           ? '🎥 Claude가 SORA2 프롬프트를 생성하고 있습니다...'
           : scriptType === 'product'
           ? '🛍️ Claude가 상품 소개 대본을 생성하고 있습니다...'
-          : scriptType === 'product-info'
-          ? '📋 Claude가 상품 기입 정보를 생성하고 있습니다...'
           : '📝 Claude가 롱폼 대본을 생성하고 있습니다...';
 
         await addLog(taskId, message);
@@ -607,12 +606,10 @@ export async function POST(request: NextRequest) {
         addLog(taskId, `프롬프트 파일 생성: ${promptFileName}`);
         const typeEmoji = scriptType === 'shortform' ? '⚡' :
                           scriptType === 'sora2' ? '🎥' :
-                          scriptType === 'product' ? '🛍️' :
-                          scriptType === 'product-info' ? '📋' : '📝';
+                          scriptType === 'product' ? '🛍️' : '📝';
         const typeName = scriptType === 'shortform' ? '숏폼' :
                          scriptType === 'sora2' ? 'SORA2' :
-                         scriptType === 'product' ? '상품' :
-                         scriptType === 'product-info' ? '상품정보' : '롱폼';
+                         scriptType === 'product' ? '상품' : '롱폼';
         addLog(taskId, `${typeEmoji} 타입: ${typeName}`);
         addLog(taskId, `📝 제목: "${title}"`);
         addLog(taskId, `📄 프롬프트 길이: ${prompt.length}자`);
@@ -877,8 +874,8 @@ export async function POST(request: NextRequest) {
 
         // productInfo가 있으면 AI 응답에서 플레이스홀더 치환
         console.log(`🔍 [PLACEHOLDER-CHECK] scriptType: ${scriptType}, productInfo: ${productInfo ? 'YES' : 'NO'}`);
-        if (scriptType === 'product' || scriptType === 'product-info') {
-          // product, product-info 타입이면 무조건 플레이스홀더 치환 시도
+        if (scriptType === 'product') {
+          // product 타입이면 무조건 플레이스홀더 치환 시도
           // productInfo가 없으면 빈 문자열로 치환
           const safeProductInfo = productInfo || { thumbnail: '', product_link: '', description: '' };
 
@@ -947,126 +944,25 @@ export async function POST(request: NextRequest) {
 
           if (updatedContent) {
             await addLog(taskId, `✓ 대본 저장 완료! (${scriptContent.length} 글자)`);
-
-            // 상품 대본이면 자동으로 상품정보 대본도 생성
-            if (scriptType === 'product' && productInfo) {
-              await addLog(taskId, '🛍️ 상품정보 대본 자동 생성 시작...');
-              console.log('🛍️ 상품 대본 완료 → 상품정보 대본 자동 생성 시작');
-
-              try {
-                // 상품정보 대본 생성 요청
-                const productInfoTitle = `${title} - 상품 기입 정보`;
-                const productInfoResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'X-Internal-Request': 'automation-system'
-                  },
-                  body: JSON.stringify({
-                    title: productInfoTitle,
-                    type: 'product-info',
-                    videoFormat: 'product-info',
-                    productInfo: productInfo,
-                    userId: currentUserId,
-                    useClaudeLocal: useClaudeLocal,
-                    scriptModel: scriptModel || model
-                  })
-                });
-
-                if (productInfoResponse.ok) {
-                  const productInfoData = await productInfoResponse.json();
-                  await addLog(taskId, `✅ 상품정보 대본 생성 시작됨 (ID: ${productInfoData.taskId})`);
-                  console.log('✅ 상품정보 대본 생성 요청 완료:', productInfoData.taskId);
-                } else {
-                  const errorData = await productInfoResponse.json();
-                  await addLog(taskId, `⚠️ 상품정보 대본 생성 실패: ${errorData.error}`);
-                  console.error('❌ 상품정보 대본 생성 실패:', errorData.error);
-                }
-              } catch (productInfoError: any) {
-                await addLog(taskId, `⚠️ 상품정보 대본 생성 오류: ${productInfoError.message}`);
-                console.error('❌ 상품정보 대본 생성 오류:', productInfoError);
-              }
-            }
-
-            await addLog(taskId, '🎉 모든 작업 완료!');
-            console.log('✅ 대본이 contents 테이블에 저장됨:', {
-              contentId: taskId,
-              userId: currentUserId,
-              title,
-              format: scriptType,
-              contentLength: scriptContent.length
-            });
-          } else {
-            throw new Error('Content update failed');
           }
         } catch (saveError: any) {
-          console.error('❌ contents 저장 실패:', saveError);
-          await addLog(taskId, `❌ 저장 실패: ${saveError.message}`);
-          throw saveError;
+          console.error('❌ 대본 저장 실패:', saveError);
+          await addLog(taskId, `❌ 대본 저장 실패: ${saveError.message}`);
+        }
+
+        // 성공 시 프롬프트 파일 정리
+        try {
+          const fsSync = require('fs');
+          if (promptFilePath && fsSync.existsSync(promptFilePath)) {
+            fsSync.unlinkSync(promptFilePath);
+            console.log('프롬프트 파일 정리 완료');
+          }
+        } catch (e) {
+          console.error('프롬프트 파일 삭제 실패:', e);
         }
       } catch (error: any) {
-        console.error('Error generating script:', error);
-
+        console.error('❌ 스크립트 생성 중 오류:', error);
         const errorMsg = error.message || error.toString() || '';
-        const isLoginError = errorMsg.includes('login') ||
-                            errorMsg.includes('Login') ||
-                            errorMsg.includes('session expired') ||
-                            stdout.includes('Login page detected') ||
-                            stdout.includes('login required');
-
-        // 로그인 에러 감지 시 안내 메시지
-        if (isLoginError) {
-          await addLog(taskId, '🔐 로그인 필요 감지!');
-          await addLog(taskId, '⚠️ 브라우저 창에서 Claude.ai에 로그인해주세요');
-          await addLog(taskId, '💡 로그인 후에는 자동으로 처리됩니다');
-          console.log(`\n${'='.repeat(80)}`);
-          console.log('🔐 로그인 필요 - 사용자가 브라우저에서 로그인해야 함');
-          console.log(`${'='.repeat(80)}\n`);
-
-          try {
-            // headful 모드로 재실행 (브라우저 창 표시)
-            const pythonArgsHeadful = ['-m', 'src.ai_aggregator.main', '-f', promptFileName, '-a', agentName, '--auto-close'];
-            const commandStrHeadful = `python ${pythonArgsHeadful.join(' ')}`;
-
-            await addLog(taskId, '🌐 새 CMD 창이 열립니다 - 브라우저에서 로그인하세요!');
-            await addLog(taskId, `💻 재실행 명령어: ${commandStrHeadful}`);
-            await addLog(taskId, '⏰ 로그인 후 자동으로 대본 생성이 계속됩니다...');
-            await addLog(taskId, '💡 로그인은 한 번만 하면 됩니다. 다음부터는 자동으로 로그인됩니다.');
-
-            // Windows: 새 CMD 창에서 실행 (로그인 UI 표시)
-            const startCmd = `start "Claude 대본 생성 - 로그인 필요" cmd /k "cd /d ${backendPath} && python ${pythonArgsHeadful.join(' ')}"`;
-            const pythonProcessRetry = spawn('cmd', ['/c', startCmd], {
-              detached: true,
-              stdio: 'ignore',
-              env: {
-                ...process.env,
-                PYTHONIOENCODING: 'utf-8',
-                PYTHONUNBUFFERED: '1'
-              },
-              shell: true
-            });
-            pythonProcessRetry.unref();
-
-            await addLog(taskId, '✅ 새 CMD 창이 열렸습니다');
-            await addLog(taskId, '👁️ 브라우저가 표시되며, 로그인이 필요하면 수동으로 진행해주세요');
-            await addLog(taskId, '⏱️ 로그인 완료 후 자동으로 대본이 생성됩니다');
-            await addLog(taskId, '📝 생성된 대본은 자동으로 저장됩니다');
-
-            // contents 테이블 상태 업데이트 - processing (로그인 대기 중)
-            const { updateContent } = await import('@/lib/content');
-            updateContent(taskId, {
-              status: 'processing',
-              error: '로그인 필요 - 새 창에서 로그인 후 자동 진행됨'
-            });
-
-            return;
-          } catch (retryError: any) {
-            console.error('Headful 재시도 실패:', retryError);
-            await addLog(taskId, `❌ 재시도 실패: ${retryError.message}`);
-            // 재시도도 실패하면 아래 에러 처리 계속
-          }
-        }
-
         await addLog(taskId, `❌ 오류 발생: ${errorMsg}`);
 
         // 에러 발생 시 이메일 전송

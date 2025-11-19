@@ -190,7 +190,7 @@ function HomeContent() {
     // localStorage에서 저장된 AI 모델 불러오기 (기본값: claude)
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('scriptModel');
-      if (saved === 'chatgpt' || saved === 'gemini' || saved === 'claude') {
+      if (saved === 'chatgpt' || saved === 'gemini' || saved === 'claude' || saved === 'groq') {
         return saved as ModelOption;
       }
     }
@@ -385,22 +385,19 @@ function HomeContent() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
 
-      // generateProductInfo 파라미터가 있으면 무조건 product-info 모드
-      const generateProductInfo = params.get('generateProductInfo');
-      if (generateProductInfo) {
-        console.log('🛍️ 초기 로드: generateProductInfo 감지 → product-info 모드');
-        initialVideoFormatRef.current = 'product-info-from-url';
-        return 'product-info';
-      }
+      // ⚠️ DEPRECATED: generateProductInfo는 더 이상 사용 안 함
+      // 상품 대본에 youtube_description이 포함됨
 
       const promptType = params.get('promptType');
       if (promptType === 'product') {
         initialVideoFormatRef.current = 'product-from-url';
         return 'product';
       }
+      // ⚠️ DEPRECATED: product-info는 더 이상 사용 안 함
       if (promptType === 'product-info') {
-        initialVideoFormatRef.current = 'product-info-from-url';
-        return 'product-info';
+        console.log('⚠️ product-info는 deprecated. product 사용 권장.');
+        initialVideoFormatRef.current = 'product-from-url';
+        return 'product'; // product-info 대신 product 사용
       }
 
       // localStorage 마이그레이션: videoFormat -> promptFormat
@@ -441,26 +438,28 @@ function HomeContent() {
   const [titleHistory, setTitleHistory] = useState<string[]>([]); // 제목 히스토리
   const [isInitialLoading, setIsInitialLoading] = useState(true); // 초기 로딩 상태
 
-  // 카테고리 관리
-  const [categories, setCategories] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('scriptCategories');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {
-          console.error('카테고리 로드 실패:', e);
-        }
-      }
-    }
-    // 기본 카테고리
-    return ['일반', '시니어사연', '북한탈북자사연', '막장드라마', '감동실화', '복수극', '로맨스', '스릴러', '코미디', '상품'];
-  });
+  // ⚠️ CRITICAL: 카테고리는 자동화 페이지와 동일하게 DB에서 가져옴
+  // /api/automation/categories API 사용 (자동화와 완전히 동일한 시스템)
+  const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('selectedCategory') || '일반';
+      // ⚠️ CRITICAL: 상품 대본 작성 시 카테고리를 "상품"으로 자동 설정
+      const params = new URLSearchParams(window.location.search);
+      const promptType = params.get('promptType');
+
+      if (promptType === 'product' || promptType === 'product-info') {
+        console.log('🛍️ 상품 대본 모드 → 카테고리 "상품" 자동 선택');
+        return '상품';
+      }
+
+      // localStorage에서 저장된 카테고리 복원
+      const saved = localStorage.getItem('selectedCategory');
+      if (saved) {
+        return saved;
+      }
     }
-    return '일반';
+    // 기본값은 빈 문자열 (useEffect에서 첫 번째 카테고리로 설정됨)
+    return '';
   });
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -504,8 +503,9 @@ function HomeContent() {
     if (promptFormat === 'product') {
       return '/api/product-prompt';
     }
+    // ⚠️ DEPRECATED: product-info는 더 이상 사용 안 함 (product로 통합)
     if (promptFormat === 'product-info') {
-      return '/api/product-info-prompt';
+      return '/api/product-prompt'; // product-info도 product-prompt 사용
     }
     return '/api/prompt';
   };
@@ -568,10 +568,11 @@ function HomeContent() {
         setPromptFormat('product');
         // URL 파라미터 제거
         window.history.replaceState({}, '', '/');
-      } else if (promptType === 'product-info' && promptFormat !== 'product-info') {
-        console.log('📝 URL에서 상품정보 모드 감지, 포맷 변경');
-        initialVideoFormatRef.current = 'product-info-from-url'; // URL 파라미터로 설정됨을 표시
-        setPromptFormat('product-info');
+      } else if (promptType === 'product-info' && promptFormat !== 'product') {
+        // ⚠️ DEPRECATED: product-info는 product로 리다이렉트
+        console.log('⚠️ URL에서 product-info 감지 → product로 변경');
+        initialVideoFormatRef.current = 'product-from-url';
+        setPromptFormat('product');
         // URL 파라미터 제거
         window.history.replaceState({}, '', '/');
       } else if (promptType === 'longform' && promptFormat !== 'longform') {
@@ -589,6 +590,39 @@ function HomeContent() {
         window.history.replaceState({}, '', '/');
       }
     }
+  }, []); // 컴포넌트 마운트 시 한 번만 실행
+
+  // ⚠️ CRITICAL: 카테고리 로드 (자동화 페이지와 동일한 API 사용)
+  useEffect(() => {
+    async function loadCategories() {
+      try {
+        const response = await fetch('/api/automation/categories', {
+          headers: getAuthHeaders()
+        });
+        const data = await response.json();
+
+        if (data.categories && data.categories.length > 0) {
+          const categoryNames = data.categories.map((c: any) => c.name);
+          setCategories(categoryNames);
+          console.log('✅ 카테고리 로드 완료:', categoryNames);
+
+          // 선택된 카테고리가 없으면 기본값 설정
+          if (!selectedCategory && categoryNames.length > 0) {
+            setSelectedCategory(categoryNames[0]);
+          }
+        } else {
+          console.warn('⚠️ 카테고리가 없습니다.');
+          setCategories(['일반']); // 기본값
+          setSelectedCategory('일반');
+        }
+      } catch (error) {
+        console.error('❌ 카테고리 로드 실패:', error);
+        setCategories(['일반']); // 폴백
+        setSelectedCategory('일반');
+      }
+    }
+
+    loadCategories();
   }, []); // 컴포넌트 마운트 시 한 번만 실행
 
   // TTS 미리듣기 오디오 미리 로딩 (1.0x 속도만)
@@ -719,12 +753,11 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  // 상품정보 대본 생성 파라미터 감지
+  // ⚠️ DEPRECATED: 상품정보 대본 생성 파라미터 감지 - 완전히 비활성화됨
+  // 이제 상품 대본 생성 시 youtube_description이 자동 포함되므로 별도 생성 불필요
+  // 전체 useEffect 주석 처리
+  /*
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const scriptId = searchParams?.get('generateProductInfo');
-      const fromCoupang = searchParams?.get('fromCoupang');
-
       // 상품관리에서 온 경우 (scriptId 없이 localStorage 사용)
       if (fromCoupang === 'true' && !scriptId) {
         console.log('🛍️ 상품관리에서 상품정보 생성 요청');
@@ -899,6 +932,7 @@ function HomeContent() {
       }
     }
   }, [searchParams]);
+  */
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
@@ -2447,6 +2481,17 @@ function HomeContent() {
                   >
                     <div className="text-sm font-bold">🤖 Claude</div>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setScriptModel('groq')}
+                    className={`flex-1 rounded-lg border-2 p-2 transition ${
+                      scriptModel === 'groq'
+                        ? 'border-purple-500 bg-purple-500/20 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="text-sm font-bold">⚡️ Groq</div>
+                  </button>
                 </div>
               </div>
 
@@ -2477,6 +2522,10 @@ function HomeContent() {
                 </button>
                 <button
                   onClick={async () => {
+                    if (!user) {
+                      alert('로그인이 필요합니다.\n\nAI 대본 생성 기능을 사용하려면 먼저 로그인해주세요.');
+                      return;
+                    }
                     setShowTitleInput(true);
                     setTitleInputMode('generate');
                     setManualTitle('');
@@ -2833,6 +2882,18 @@ function HomeContent() {
               >
                 <div className="text-base font-bold">🤖 Claude</div>
               </button>
+              <button
+                type="button"
+                onClick={() => setScriptModel('groq')}
+                disabled={isGeneratingScript}
+                className={`flex-1 rounded-lg border-2 p-3 transition ${
+                  scriptModel === 'groq'
+                    ? 'border-purple-500 bg-purple-500/20 text-white'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                } disabled:opacity-50`}
+              >
+                <div className="text-base font-bold">⚡️ Groq</div>
+              </button>
             </div>
           </div>
 
@@ -2953,7 +3014,12 @@ function HomeContent() {
                   ? 'Claude.ai를 새 탭으로 열고 프롬프트를 클립보드에 복사합니다 (Ctrl+V로 붙여넣기)'
                   : titleInputMode === 'generate-api'
                   ? 'Claude API를 직접 호출합니다 (테스트용, 비용 발생)'
-                  : `로컬 ${scriptModel === 'chatgpt' ? 'ChatGPT' : scriptModel === 'gemini' ? 'Gemini' : 'Claude'}로 대본을 생성합니다 (실패 시 API 사용)`}
+                  : `로컬 ${
+                      scriptModel === 'chatgpt' ? 'ChatGPT' :
+                      scriptModel === 'gemini' ? 'Gemini' :
+                      scriptModel === 'claude' ? 'Claude' :
+                      scriptModel === 'groq' ? 'Groq' : 'AI'
+                    }로 대본을 생성합니다 (실패 시 API 사용)`}
               </div>
             </div>
           </div>
@@ -5742,42 +5808,30 @@ function HomeContent() {
                       }]);
 
                       try {
-                        // 상품정보 생성 프롬프트 확인 (localStorage에서)
+                        // ⚠️ DEPRECATED: pendingProductInfoPrompt 제거 (product-info는 product로 통합됨)
                         let promptContent = '';
-                        const pendingPrompt = localStorage.getItem('pendingProductInfoPrompt');
 
-                        if (pendingPrompt) {
-                          // 저장된 상품정보 프롬프트 사용
-                          console.log('🛍️ 상품정보 프롬프트 사용 (localStorage)');
-                          promptContent = pendingPrompt;
-                          localStorage.removeItem('pendingProductInfoPrompt'); // 사용 후 삭제
+                        // promptFormat에 따라 프롬프트 URL 결정
+                        let promptUrl = '/api/prompt'; // 기본값: 롱폼
+                        if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
+                        else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
+                        else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
+                        // ⚠️ DEPRECATED: product-info는 product-prompt 사용
+                        else if (promptFormat === 'product-info') promptUrl = '/api/product-prompt';
 
-                          setScriptGenerationLogs(prev => [...prev, {
-                            timestamp: new Date().toISOString(),
-                            message: '🛍️ 상품정보 프롬프트 로드 완료'
-                          }]);
-                        } else {
-                          // promptFormat에 따라 프롬프트 URL 결정
-                          let promptUrl = '/api/prompt'; // 기본값: 롱폼
-                          if (promptFormat === 'shortform') promptUrl = '/api/shortform-prompt';
-                          else if (promptFormat === 'sora2') promptUrl = '/api/sora2-prompt';
-                          else if (promptFormat === 'product') promptUrl = '/api/product-prompt';
-                          else if (promptFormat === 'product-info') promptUrl = '/api/product-info-prompt';
+                        console.log('🔍 현재 promptFormat:', promptFormat);
+                        console.log('📥 프롬프트 fetch 시작:', promptUrl);
 
-                          console.log('🔍 현재 promptFormat:', promptFormat);
-                          console.log('📥 프롬프트 fetch 시작:', promptUrl);
+                        const promptResponse = await fetch(promptUrl);
+                        const promptData = await promptResponse.json();
+                        console.log('📥 프롬프트 로드 완료:', promptData.filename || 'filename 없음');
 
-                          const promptResponse = await fetch(promptUrl);
-                          const promptData = await promptResponse.json();
-                          console.log('📥 프롬프트 로드 완료:', promptData.filename || 'filename 없음');
+                        promptContent = promptData.content;
 
-                          promptContent = promptData.content;
-
-                          setScriptGenerationLogs(prev => [...prev, {
-                            timestamp: new Date().toISOString(),
-                            message: '📝 프롬프트 로드 완료'
-                          }]);
-                        }
+                        setScriptGenerationLogs(prev => [...prev, {
+                          timestamp: new Date().toISOString(),
+                          message: '📝 프롬프트 로드 완료'
+                        }]);
 
                         // ⭐ localStorage에서 productInfo 불러오기 (product와 product-info 모두 동일하게)
                         let productInfoForApi = productInfo; // 먼저 state 사용 시도
