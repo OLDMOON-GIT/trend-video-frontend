@@ -150,4 +150,3 @@ export async function generateAffiliateDeepLink(userId: string, productUrl: stri
     return productUrl;
   }
 }
-
