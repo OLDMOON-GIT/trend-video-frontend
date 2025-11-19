@@ -233,6 +233,14 @@ export function initAutomationTables() {
     );
   `);
 
+  // weekday_times 컬럼 추가 (없는 경우)
+  try {
+    db.exec(`ALTER TABLE youtube_channel_settings ADD COLUMN weekday_times TEXT;`);
+    console.log('✅ weekday_times 컬럼 추가됨');
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
   // categories 컬럼 추가 (자동 제목 생성용 카테고리 리스트, JSON 배열)
   try {
     db.exec(`ALTER TABLE youtube_channel_settings ADD COLUMN categories TEXT;`);

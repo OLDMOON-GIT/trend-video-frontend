@@ -3164,13 +3164,13 @@ function AutomationPageContent() {
                             </>
                           );
                         })()}
-                        {/* YouTube 업로드 버튼 (processing 상태이면서 영상 제작 완료, 아직 업로드 안 됨) */}
+                        {/* YouTube 업로드 버튼 (processing/failed 상태이면서 영상 제작 완료, 아직 업로드 안 됨) */}
                         {(() => {
                           const schedule = titleSchedules.find((s: any) => s.video_id);
                           const hasVideo = !!schedule?.video_id;
                           const hasYouTubeUrl = !!schedule?.youtube_url;
 
-                          return title.status === 'processing' && hasVideo && !hasYouTubeUrl && (
+                          return (title.status === 'processing' || title.status === 'failed') && hasVideo && !hasYouTubeUrl && (
                             <button
                               onClick={() => {
                                 // 영상 페이지로 이동하여 YouTube 업로드
