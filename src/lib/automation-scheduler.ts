@@ -1297,6 +1297,140 @@ async function checkWaitingForUploadSchedules() {
 // 영상 생성 완료되어 업로드 대기 중인 스케줄 체크 및 업로드 시작
 async function checkReadyToUploadSchedules() {
   try {
+    // ============================================================
+    // 🔥 복구 로직: processing 상태인 스케줄의 정확한 파이프라인 단계 파악
+    // Pipeline stages: script → video → upload → publish
+    // ============================================================
+    const dbRecovery = new Database(dbPath);
+    const orphanedSchedules = dbRecovery.prepare(`
+      SELECT s.id, s.script_id, s.title_id
+      FROM video_schedules s
+      WHERE s.status = 'processing'
+        AND s.script_id IS NOT NULL
+        AND s.video_id IS NULL
+        AND s.youtube_url IS NULL
+      ORDER BY s.created_at ASC
+      LIMIT 10
+    `).all() as any[];
+
+    if (orphanedSchedules.length > 0) {
+      console.log(`🔍 [RECOVERY] Checking ${orphanedSchedules.length} processing schedule(s) without video_id`);
+
+      for (const orphan of orphanedSchedules) {
+        try {
+          // 📊 파이프라인 단계별 상태 조회
+          const pipelines = dbRecovery.prepare(`
+            SELECT stage, status
+            FROM automation_pipelines
+            WHERE schedule_id = ?
+            ORDER BY
+              CASE stage
+                WHEN 'script' THEN 1
+                WHEN 'video' THEN 2
+                WHEN 'upload' THEN 3
+                WHEN 'publish' THEN 4
+              END
+          `).all(orphan.id) as any[];
+
+          const pipelineStatus = {
+            script: pipelines.find((p: any) => p.stage === 'script')?.status || 'unknown',
+            video: pipelines.find((p: any) => p.stage === 'video')?.status || 'unknown',
+            upload: pipelines.find((p: any) => p.stage === 'upload')?.status || 'unknown',
+            publish: pipelines.find((p: any) => p.stage === 'publish')?.status || 'unknown'
+          };
+
+          console.log(`📊 [RECOVERY] Schedule ${orphan.id} pipeline:`, pipelineStatus);
+
+          // 🔍 현재 단계 파악
+          if (pipelineStatus.script !== 'completed') {
+            console.log(`⏳ [RECOVERY] Schedule ${orphan.id}: Script stage not completed yet (${pipelineStatus.script})`);
+            continue;
+          }
+
+          if (pipelineStatus.video === 'pending' || pipelineStatus.video === 'unknown') {
+            console.log(`⏳ [RECOVERY] Schedule ${orphan.id}: Video stage pending (waiting for images or processing)`);
+            continue;
+          }
+
+          if (pipelineStatus.video === 'running') {
+            // Video 단계 진행 중 - job 상태 확인
+            const job = dbRecovery.prepare(`
+              SELECT id, status, progress
+              FROM jobs
+              WHERE source_content_id = ?
+              ORDER BY created_at DESC
+              LIMIT 1
+            `).get(orphan.script_id) as any;
+
+            if (job) {
+              if (job.status === 'completed') {
+                // ✅ Job 완료됨 - video pipeline은 running이지만 실제로는 완료
+                console.log(`✅ [RECOVERY] Job ${job.id} completed but video pipeline stuck in 'running'`);
+                console.log(`   └─ Linking video_id: ${job.id} → schedule: ${orphan.id}`);
+
+                dbRecovery.prepare(`
+                  UPDATE video_schedules
+                  SET video_id = ?, updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?
+                `).run(job.id, orphan.id);
+
+                // Video pipeline도 completed로 업데이트
+                dbRecovery.prepare(`
+                  UPDATE automation_pipelines
+                  SET status = 'completed'
+                  WHERE schedule_id = ? AND stage = 'video'
+                `).run(orphan.id);
+
+                addTitleLog(orphan.title_id, 'info', `🔗 영상 작업 자동 연결됨: ${job.id}`);
+                console.log(`🔗 [RECOVERY] Successfully linked video_id and updated pipeline`);
+
+              } else {
+                console.log(`⏳ [RECOVERY] Job ${job.id} still ${job.status} (${job.progress || 0}%)`);
+              }
+            } else {
+              console.log(`⚠️ [RECOVERY] Video pipeline running but no job found`);
+            }
+            continue;
+          }
+
+          if (pipelineStatus.video === 'completed') {
+            // Video pipeline은 completed인데 video_id가 없는 경우 - job 찾아서 연결
+            const job = dbRecovery.prepare(`
+              SELECT id, status
+              FROM jobs
+              WHERE source_content_id = ?
+                AND status = 'completed'
+              ORDER BY created_at DESC
+              LIMIT 1
+            `).get(orphan.script_id) as any;
+
+            if (job) {
+              console.log(`✅ [RECOVERY] Video completed but video_id not linked`);
+              console.log(`   └─ Linking video_id: ${job.id} → schedule: ${orphan.id}`);
+
+              dbRecovery.prepare(`
+                UPDATE video_schedules
+                SET video_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+              `).run(job.id, orphan.id);
+
+              addTitleLog(orphan.title_id, 'info', `🔗 영상 작업 자동 연결됨: ${job.id}`);
+              console.log(`🔗 [RECOVERY] Successfully linked video_id`);
+            } else {
+              console.log(`❌ [RECOVERY] Video pipeline completed but no completed job found`);
+            }
+          }
+
+        } catch (recoveryError: any) {
+          console.error(`❌ [RECOVERY] Failed to recover schedule ${orphan.id}:`, recoveryError.message);
+        }
+      }
+    }
+    dbRecovery.close();
+
+    // ============================================================
+    // 기존 로직: video_id가 있는 스케줄 찾아서 업로드
+    // ============================================================
     const db = new Database(dbPath);
     const readySchedules = db.prepare(`
       SELECT s.*, t.title, t.type, t.user_id

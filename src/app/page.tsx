@@ -520,15 +520,18 @@ function HomeContent() {
   const handleFormatChange = (newFormat: 'longform' | 'shortform' | 'sora2' | 'product' | 'product-info') => {
     // 대본이 로드되어 있고, 원본 포맷과 다른 경우 경고
     if (originalFormat && originalFormat !== newFormat && uploadedJson) {
-      const formatNames = {
+      const formatNames: Record<string, string> = {
         longform: '롱폼 (16:9 가로)',
         shortform: '숏폼 (9:16 세로)',
         sora2: 'Sora2 (AI 시네마틱)',
         product: '상품 (AI 마케팅)',
-        'product-info': '상품설명'
+        'product-info': '상품 (AI 마케팅)' // ⚠️ DEPRECATED: product-info → product로 매핑
       };
 
-      if (confirm(`⚠️ 포맷 변경 경고\n\n현재 불러온 대본은 ${formatNames[originalFormat]} 형식입니다.\n${formatNames[newFormat]}(으)로 변경하시겠습니까?\n\n대본 내용이 형식에 맞지 않을 수 있습니다.`)) {
+      const originalName = formatNames[originalFormat] || originalFormat;
+      const newName = formatNames[newFormat] || newFormat;
+
+      if (confirm(`⚠️ 포맷 변경 경고\n\n현재 불러온 대본은 ${originalName} 형식입니다.\n${newName}(으)로 변경하시겠습니까?\n\n대본 내용이 형식에 맞지 않을 수 있습니다.`)) {
         setPromptFormat(newFormat);
         console.log(`📝 포맷 변경: ${originalFormat} → ${newFormat}`);
       } else {
@@ -2413,16 +2416,7 @@ function HomeContent() {
               >
                 🛍️ 상품
               </button>
-              <button
-                onClick={() => handleFormatChange('product-info')}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  promptFormat === 'product-info'
-                    ? 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-              >
-                📝 상품정보
-              </button>
+              {/* ⚠️ DEPRECATED: 상품정보 버튼 제거 - 상품 프롬프트에 youtube_description 통합됨 */}
             </div>
           </div>
           <div className="mb-4 h-px bg-white/10"></div>
@@ -3064,7 +3058,7 @@ function HomeContent() {
                     }
 
                     // 상품 타입일 때 상품 URL 필수 검증
-                    if ((promptFormat === 'product' || promptFormat === 'product-info') &&
+                    if (promptFormat === 'product' &&
                         (!productInfo || !productInfo.product_link || !productInfo.product_link.trim())) {
                       setToast({
                         message: '상품 대본 생성은 최소 상품 URL이 필요합니다.\n상품관리에서 상품을 선택하거나 직접 입력해주세요.',
@@ -3417,8 +3411,8 @@ function HomeContent() {
               </button>
             </div>
 
-            {/* 상품 정보 표시 (product 또는 product-info 모드일 때) */}
-            {(promptFormat === 'product' || promptFormat === 'product-info') && productInfo && (
+            {/* 상품 정보 표시 (product 모드일 때) */}
+            {promptFormat === 'product' && productInfo && (
               <div data-product-info-section className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
                 <h4 className="text-sm font-semibold text-amber-300 mb-3">📦 상품 추가 정보</h4>
                 <div className="space-y-3">
@@ -5833,10 +5827,10 @@ function HomeContent() {
                           message: '📝 프롬프트 로드 완료'
                         }]);
 
-                        // ⭐ localStorage에서 productInfo 불러오기 (product와 product-info 모두 동일하게)
+                        // ⭐ localStorage에서 productInfo 불러오기
                         let productInfoForApi = productInfo; // 먼저 state 사용 시도
 
-                        if (!productInfoForApi && (promptFormat === 'product' || promptFormat === 'product-info')) {
+                        if (!productInfoForApi && promptFormat === 'product') {
                           // current_product_info 먼저 체크 (product 모드와 동일)
                           const currentProductInfo = localStorage.getItem('current_product_info');
                           if (currentProductInfo) {
