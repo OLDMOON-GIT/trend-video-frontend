@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
+    console.log('📝 [API] 받은 요청 body:', JSON.stringify(body, null, 2));
+
     // 양쪽 형식 모두 지원 (snake_case와 camelCase)
     const channelId = body.channelId || body.channel_id;
     const channelName = body.channelName || body.channel_name;
@@ -64,9 +66,10 @@ export async function POST(request: NextRequest) {
     const isActive = body.isActive !== undefined ? body.isActive : body.is_active;
     const categories = body.categories;
 
-    console.log('📝 채널 설정 저장 요청:', { channelId, channelName, postingMode, intervalValue, intervalUnit });
+    console.log('📝 [API] 파싱된 값:', { channelId, channelName, postingMode, intervalValue, intervalUnit, isActive, weekdayTimes });
 
     if (!channelId || !channelName) {
+      console.error('❌ [API] 필수 필드 누락:', { channelId, channelName });
       return NextResponse.json(
         { error: 'channelId and channelName are required' },
         { status: 400 }
