@@ -80,6 +80,8 @@ function AutomationPageContent() {
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [generateLogs, setGenerateLogs] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [crawlingFor, setCrawlingFor] = useState<string | null>(null); // 크롤링 중인 title ID
+  const [crawlLogs, setCrawlLogs] = useState<Record<string, string[]>>({}); // title별 크롤링 로그
 
   // localStorage에서 선택한 채널 불러오기
   function getSelectedChannel(): string {
@@ -1186,6 +1188,50 @@ function AutomationPageContent() {
     } catch (error) {
       console.error('Download error:', error);
       alert('다운로드 중 오류가 발생했습니다.');
+    }
+  }
+
+  async function handleImageCrawling(scriptId: string, titleId: string, title: string) {
+    try {
+      setCrawlingFor(titleId);
+      setCrawlLogs(prev => ({ ...prev, [titleId]: ['🚀 이미지 크롤링 시작...'] }));
+
+      // story.json 읽기
+      const storyRes = await fetch(`/api/automation/get-story?scriptId=${scriptId}`);
+      if (!storyRes.ok) {
+        throw new Error('story.json을 불러올 수 없습니다');
+      }
+
+      const storyData = await storyRes.json();
+      const scenes = storyData.story?.scenes || [];
+
+      if (!scenes || scenes.length === 0) {
+        throw new Error('크롤링할 씬 데이터가 없습니다');
+      }
+
+      setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), `📋 ${scenes.length}개 씬 발견`] }));
+
+      // 이미지 크롤링 API 호출
+      const response = await fetch('/api/images/crawl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenes, contentId: scriptId })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || '크롤링 실패');
+      }
+
+      setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), `✅ 크롤링 작업 생성: ${result.taskId}`] }));
+      alert(`✅ 이미지 크롤링이 시작되었습니다!\n\n작업 ID: ${result.taskId}\n대기 시간: 5~10분 후 영상 제작을 시작해주세요.`);
+    } catch (error: any) {
+      setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), `❌ ${error.message}`] }));
+      alert(`❌ 크롤링 실패: ${error.message}`);
+      console.error('Image crawling error:', error);
+    } finally {
+      setCrawlingFor(null);
     }
   }
 
@@ -3180,6 +3226,20 @@ function AutomationPageContent() {
                               title="YouTube에 업로드"
                             >
                               📺 YouTube 업로드
+                            </button>
+                          );
+                        })()}
+                        {/* 이미지 크롤링 버튼 (waiting_for_upload 상태이고 script_id가 있을 때만) */}
+                        {(() => {
+                          const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
+                          return title.status === 'waiting_for_upload' && scriptId && (
+                            <button
+                              onClick={() => handleImageCrawling(scriptId, title.id, title.title)}
+                              disabled={crawlingFor === title.id}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-500 text-white rounded text-sm font-semibold transition"
+                              title="이미지 크롤링 시작"
+                            >
+                              {crawlingFor === title.id ? '🔄 크롤링 중...' : '🖼️ 이미지 크롤링'}
                             </button>
                           );
                         })()}
