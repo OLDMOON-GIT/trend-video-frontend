@@ -1203,10 +1203,14 @@ function AutomationPageContent() {
       }
 
       const storyData = await storyRes.json();
-      const scenes = storyData.story?.scenes || [];
+      console.log('📖 Story 데이터:', JSON.stringify(storyData, null, 2));
+
+      // story.json 구조: { story: { scenes: [...] } } 또는 { scenes: [...] }
+      const scenes = storyData.story?.scenes || storyData.scenes || [];
 
       if (!scenes || scenes.length === 0) {
-        throw new Error('크롤링할 씬 데이터가 없습니다');
+        console.error('❌ Scenes 데이터 없음. 받은 데이터:', storyData);
+        throw new Error(`크롤링할 씬 데이터가 없습니다. (${JSON.stringify(Object.keys(storyData))})`);
       }
 
       setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), `📋 ${scenes.length}개 씬 발견`] }));
