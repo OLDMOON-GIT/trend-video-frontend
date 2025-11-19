@@ -1,6 +1,6 @@
 /**
- * 자동화 스케줄러 및 파이프라인 오케스트레이터
- * 제목 → 대본 생성 → 영상 생성 → 유튜브 업로드 → 퍼블리시
+ * ?먮룞???ㅼ?以꾨윭 諛??뚯씠?꾨씪???ㅼ??ㅽ듃?덉씠??
+ * ?쒕ぉ ???蹂??앹꽦 ???곸긽 ?앹꽦 ???좏뒠釉??낅줈?????쇰툝由ъ떆
  */
 
 import {
@@ -20,7 +20,7 @@ import fs from 'fs';
 
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
-// 스케줄러 인터벌
+// ?ㅼ?以꾨윭 ?명꽣踰?
 let schedulerInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
 let lastAutoScheduleCheck: Date | null = null;
@@ -53,7 +53,7 @@ function isPipelineOrScheduleCancelled(pipelineId: string): boolean {
   return false;
 }
 
-// 제목 상태 업데이트 헬퍼 함수
+// ?쒕ぉ ?곹깭 ?낅뜲?댄듃 ?ы띁 ?⑥닔
 function updateTitleStatus(titleId: string, status: 'pending' | 'scheduled' | 'processing' | 'completed' | 'failed' | 'waiting_for_upload' | 'cancelled') {
   try {
     const db = new Database(dbPath);
@@ -63,74 +63,74 @@ function updateTitleStatus(titleId: string, status: 'pending' | 'scheduled' | 'p
       WHERE id = ?
     `).run(status, titleId);
     db.close();
-    console.log(`📝 [Title Status] ${titleId} → ${status}`);
+    console.log(`?뱷 [Title Status] ${titleId} ??${status}`);
   } catch (error) {
     console.error('Failed to update title status:', error);
   }
 }
 
-// 스케줄러 시작
+// ?ㅼ?以꾨윭 ?쒖옉
 export function startAutomationScheduler() {
   if (schedulerInterval) {
-    console.log('⚠️ Scheduler is already running');
+    console.log('?좑툘 Scheduler is already running');
     return;
   }
 
   const settings = getAutomationSettings();
   const enabled = settings.enabled === 'true';
-  // 최소 3초 간격 (중복 실행 방지)
+  // 理쒖냼 3珥?媛꾧꺽 (以묐났 ?ㅽ뻾 諛⑹?)
   const checkInterval = Math.max(3, parseInt(settings.check_interval || '10')) * 1000;
 
   if (!enabled) {
-    console.log('⚠️ Automation is disabled in settings');
+    console.log('?좑툘 Automation is disabled in settings');
     return;
   }
 
-  console.log(`✅ Automation scheduler started (checking every ${checkInterval / 1000}s)`);
+  console.log(`??Automation scheduler started (checking every ${checkInterval / 1000}s)`);
 
-  // 즉시 한 번 실행
+  // 利됱떆 ??踰??ㅽ뻾
   processPendingSchedules();
 
-  // 자동 제목 생성이 활성화된 경우에만 실행
+  // ?먮룞 ?쒕ぉ ?앹꽦???쒖꽦?붾맂 寃쎌슦?먮쭔 ?ㅽ뻾
   const autoTitleGeneration = settings.auto_title_generation === 'true';
   if (autoTitleGeneration) {
-    checkAndCreateAutoSchedules(); // 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성
-    console.log('✅ Auto title generation is enabled');
+    checkAndCreateAutoSchedules(); // ?꾩쟾 ?먮룞?? 梨꾨꼸 二쇨린 泥댄겕 諛??먮룞 ?ㅼ?以??앹꽦
+    console.log('??Auto title generation is enabled');
   } else {
-    console.log('⏸️ Auto title generation is disabled');
+    console.log('?몌툘 Auto title generation is disabled');
   }
 
-  // 주기적으로 실행
+  // 二쇨린?곸쑝濡??ㅽ뻾
   schedulerInterval = setInterval(() => {
     processPendingSchedules();
-    checkWaitingForUploadSchedules(); // 이미지 업로드 대기 중인 스케줄 체크
-    checkReadyToUploadSchedules(); // 영상 생성 완료되어 업로드 대기 중인 스케줄 체크
-    checkCompletedShortformJobs(); // 완료된 숏폼 작업 체크 및 업로드
+    checkWaitingForUploadSchedules(); // ?대?吏 ?낅줈???湲?以묒씤 ?ㅼ?以?泥댄겕
+    checkReadyToUploadSchedules(); // ?곸긽 ?앹꽦 ?꾨즺?섏뼱 ?낅줈???湲?以묒씤 ?ㅼ?以?泥댄겕
+    checkCompletedShortformJobs(); // ?꾨즺???륂뤌 ?묒뾽 泥댄겕 諛??낅줈??
 
-    // 자동 제목 생성이 활성화된 경우에만 실행
+    // ?먮룞 ?쒕ぉ ?앹꽦???쒖꽦?붾맂 寃쎌슦?먮쭔 ?ㅽ뻾
     const settings = getAutomationSettings();
     const autoTitleGeneration = settings.auto_title_generation === 'true';
     if (autoTitleGeneration) {
-      checkAndCreateAutoSchedules(); // 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성
+      checkAndCreateAutoSchedules(); // ?꾩쟾 ?먮룞?? 梨꾨꼸 二쇨린 泥댄겕 諛??먮룞 ?ㅼ?以??앹꽦
     }
   }, checkInterval);
 }
 
-// 스케줄러 중지
+// ?ㅼ?以꾨윭 以묒?
 export function stopAutomationScheduler() {
   if (schedulerInterval) {
     clearInterval(schedulerInterval);
     schedulerInterval = null;
     isRunning = false;
-    console.log('⏸️ Automation scheduler stopped (진행 중인 작업은 계속 실행됨)');
-    console.log('💡 Note: 이미 시작된 파이프라인은 크레딧이 차감되었으므로 완료까지 진행됩니다.');
+    console.log('?몌툘 Automation scheduler stopped (吏꾪뻾 以묒씤 ?묒뾽? 怨꾩냽 ?ㅽ뻾??');
+    console.log('?뮕 Note: ?대? ?쒖옉???뚯씠?꾨씪?몄? ?щ젅?㏃씠 李④컧?섏뿀?쇰?濡??꾨즺源뚯? 吏꾪뻾?⑸땲??');
   }
 }
 
-// 예약된 스케줄 처리
+// ?덉빟???ㅼ?以?泥섎━
 async function processPendingSchedules() {
   if (isRunning) {
-    console.log('⚠️ Previous schedule processing is still running, skipping...');
+    console.log('?좑툘 Previous schedule processing is still running, skipping...');
     return;
   }
 
@@ -146,15 +146,15 @@ async function processPendingSchedules() {
 
     console.log(`[Scheduler] Found ${pendingSchedules.length} pending schedule(s)`);
 
-    // Debug: 첫번째 스케줄의 전체 키 로깅
+    // Debug: 泥ル쾲吏??ㅼ?以꾩쓽 ?꾩껜 ??濡쒓퉭
     if (pendingSchedules.length > 0) {
-      console.log('🔍 [SCHEDULER] First schedule keys:', Object.keys(pendingSchedules[0] as any));
-      console.log('🔍 [SCHEDULER] First schedule has product_data?:', !!(pendingSchedules[0] as any).product_data);
+      console.log('?뵇 [SCHEDULER] First schedule keys:', Object.keys(pendingSchedules[0] as any));
+      console.log('?뵇 [SCHEDULER] First schedule has product_data?:', !!(pendingSchedules[0] as any).product_data);
     }
 
     for (const schedule of pendingSchedules) {
       try {
-        // 파이프라인이 이미 존재하는지 먼저 확인 (DB 잠금으로 race condition 방지)
+        // ?뚯씠?꾨씪?몄씠 ?대? 議댁옱?섎뒗吏 癒쇱? ?뺤씤 (DB ?좉툑?쇰줈 race condition 諛⑹?)
         const db = new Database(dbPath);
 
         const existingPipeline = db.prepare(`
@@ -167,21 +167,21 @@ async function processPendingSchedules() {
           continue;
         }
 
-        // 원자적으로 스케줄 상태를 'processing'으로 변경 (중복 실행 방지)
+        // ?먯옄?곸쑝濡??ㅼ?以??곹깭瑜?'processing'?쇰줈 蹂寃?(以묐났 ?ㅽ뻾 諛⑹?)
         const result = db.prepare(`
           UPDATE video_schedules
           SET status = 'processing', updated_at = CURRENT_TIMESTAMP
           WHERE id = ? AND status = 'pending'
         `).run((schedule as any).id);
 
-        // 업데이트된 row가 없으면 다른 스케줄러가 이미 처리 중
+        // ?낅뜲?댄듃??row媛 ?놁쑝硫??ㅻⅨ ?ㅼ?以꾨윭媛 ?대? 泥섎━ 以?
         if (result.changes === 0) {
           console.log(`[Scheduler] Schedule ${(schedule as any).id} already being processed by another scheduler`);
           db.close();
           continue;
         }
 
-        // 즉시 파이프라인 생성 (같은 DB 연결 사용하여 원자성 보장)
+        // 利됱떆 ?뚯씠?꾨씪???앹꽦 (媛숈? DB ?곌껐 ?ъ슜?섏뿬 ?먯옄??蹂댁옣)
         const stages = ['script', 'video', 'upload', 'publish'];
         const pipelineIds: string[] = [];
 
@@ -195,10 +195,10 @@ async function processPendingSchedules() {
               `).run(id, (schedule as any).id, stage);
               pipelineIds.push(id);
             } catch (insertError: any) {
-              // UNIQUE 제약조건 위반 (이미 다른 스케줄러가 생성함)
+              // UNIQUE ?쒖빟議곌굔 ?꾨컲 (?대? ?ㅻⅨ ?ㅼ?以꾨윭媛 ?앹꽦??
               if (insertError.code === 'SQLITE_CONSTRAINT_UNIQUE' || insertError.message?.includes('UNIQUE')) {
                 console.log(`[Scheduler] Pipeline for stage ${stage} already exists for schedule ${(schedule as any).id}, using existing one`);
-                // 기존 파이프라인 ID 가져오기
+                // 湲곗〈 ?뚯씠?꾨씪??ID 媛?몄삤湲?
                 const existing = db.prepare(`
                   SELECT id FROM automation_pipelines WHERE schedule_id = ? AND stage = ?
                 `).get((schedule as any).id, stage) as any;
@@ -218,10 +218,10 @@ async function processPendingSchedules() {
         db.close();
         console.log(`[Scheduler] Created/Retrieved pipeline for schedule ${(schedule as any).id}`);
 
-        // 제목 상태도 'processing'으로 변경
+        // ?쒕ぉ ?곹깭??'processing'?쇰줈 蹂寃?
         updateTitleStatus((schedule as any).title_id, 'processing');
 
-        // 파이프라인 실행 (비동기로 실행)
+        // ?뚯씠?꾨씪???ㅽ뻾 (鍮꾨룞湲곕줈 ?ㅽ뻾)
         executePipeline(schedule as any, pipelineIds).catch(error => {
           console.error(`[Scheduler] Pipeline execution failed for ${(schedule as any).id}:`, error);
         });
@@ -231,7 +231,7 @@ async function processPendingSchedules() {
         updateScheduleStatus((schedule as any).id, 'failed');
         updateTitleStatus((schedule as any).title_id, 'failed');
 
-        // 에러 이메일 전송
+        // ?먮윭 ?대찓???꾩넚
         await sendAutomationErrorEmail(
           (schedule as any).id,
           'schedule_processing',
@@ -247,7 +247,7 @@ async function processPendingSchedules() {
   }
 }
 
-// 파이프라인 실행
+// ?뚯씠?꾨씪???ㅽ뻾
 export async function executePipeline(schedule: any, pipelineIds: string[]) {
   const [scriptPipelineId, videoPipelineId, uploadPipelineId, publishPipelineId] = pipelineIds;
   const settings = getAutomationSettings();
@@ -256,7 +256,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 
   try {
     // ============================================================
-    // Stage 1: 대본 생성
+    // Stage 1: ?蹂??앹꽦
     // ============================================================
     addPipelineLog(scriptPipelineId, 'info', `Starting script generation for: ${schedule.title}`);
     addTitleLog(schedule.title_id, 'info', `Starting script generation for: ${schedule.title}`);
@@ -270,7 +270,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 
     updatePipelineStatus(scriptPipelineId, 'completed');
 
-    // video_schedules 테이블에 script_id 저장
+    // video_schedules ?뚯씠釉붿뿉 script_id ???
     const dbUpdate = new Database(dbPath);
     dbUpdate.prepare(`UPDATE video_schedules SET script_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run(scriptResult.scriptId, schedule.id);
@@ -278,30 +278,30 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 
     updateScheduleStatus(schedule.id, 'processing', { scriptId: scriptResult.scriptId });
     addPipelineLog(scriptPipelineId, 'info', `Script generated successfully: ${scriptResult.scriptId}`);
-    addTitleLog(schedule.title_id, 'info', `✅ Script generated successfully: ${scriptResult.scriptId}`);
+    addTitleLog(schedule.title_id, 'info', `??Script generated successfully: ${scriptResult.scriptId}`);
 
     // ============================================================
-    // ⚠️ DEPRECATED: 상품설명 대본 별도 생성 제거
-    // 이제 상품 대본 생성 시 youtube_description이 자동 포함됨
+    // ?좑툘 DEPRECATED: ?곹뭹?ㅻ챸 ?蹂?蹂꾨룄 ?앹꽦 ?쒓굅
+    // ?댁젣 ?곹뭹 ?蹂??앹꽦 ??youtube_description???먮룞 ?ы븿??
     // ============================================================
-    console.log('ℹ️ [SCHEDULER] 상품 대본에 youtube_description 포함 완료 (별도 생성 불필요)');
+    console.log('?뱄툘 [SCHEDULER] ?곹뭹 ?蹂몄뿉 youtube_description ?ы븿 ?꾨즺 (蹂꾨룄 ?앹꽦 遺덊븘??');
 
     // ============================================================
-    // 직접 업로드 모드 체크: 타이틀/기본 설정이 'upload'이면 이미지 업로드 대기
+    // 吏곸젒 ?낅줈??紐⑤뱶 泥댄겕: ??댄?/湲곕낯 ?ㅼ젙??'upload'?대㈃ ?대?吏 ?낅줈???湲?
     // ============================================================
     if (mediaMode === 'upload') {
-      // 프로젝트 폴더와 story.json 생성
+      // ?꾨줈?앺듃 ?대뜑? story.json ?앹꽦
       const BACKEND_PATH = path.join(process.cwd(), '..', 'trend-video-backend');
       const projectFolderPath = path.join(BACKEND_PATH, 'input', `project_${scriptResult.scriptId}`);
 
       try {
-        // 폴더가 없으면 생성
+        // ?대뜑媛 ?놁쑝硫??앹꽦
         if (!fs.existsSync(projectFolderPath)) {
           fs.mkdirSync(projectFolderPath, { recursive: true });
-          console.log(`📁 [SCHEDULER] 프로젝트 폴더 생성: ${projectFolderPath}`);
+          console.log(`?뱚 [SCHEDULER] ?꾨줈?앺듃 ?대뜑 ?앹꽦: ${projectFolderPath}`);
         }
 
-        // DB에서 스크립트 내용 가져오기
+        // DB?먯꽌 ?ㅽ겕由쏀듃 ?댁슜 媛?몄삤湲?
         const dbReadScript = new Database(dbPath);
         const scriptContent = dbReadScript.prepare(`
           SELECT content FROM contents WHERE id = ?
@@ -309,10 +309,10 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
         dbReadScript.close();
 
         if (scriptContent && scriptContent.content) {
-          // content 파싱
+          // content ?뚯떛
           let contentStr = typeof scriptContent.content === 'string' ? scriptContent.content : JSON.stringify(scriptContent.content);
 
-          // JSON 정리
+          // JSON ?뺣━
           contentStr = contentStr.trim();
           if (contentStr.startsWith('JSON')) {
             contentStr = contentStr.substring(4).trim();
@@ -327,7 +327,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
             contentStr = contentStr.substring(0, jsonEnd + 1);
           }
 
-          // story.json 생성
+          // story.json ?앹꽦
           if (contentStr && contentStr.length > 0 && contentStr.includes('{')) {
             try {
               const scriptData = JSON.parse(contentStr);
@@ -338,35 +338,35 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 
               const storyJsonPath = path.join(projectFolderPath, 'story.json');
               fs.writeFileSync(storyJsonPath, JSON.stringify(storyJson, null, 2), 'utf-8');
-              console.log(`✅ [SCHEDULER] story.json 생성 완료: ${storyJsonPath}`);
-              addTitleLog(schedule.title_id, 'info', `✅ 프로젝트 폴더 및 story.json 생성 완료`);
+              console.log(`??[SCHEDULER] story.json ?앹꽦 ?꾨즺: ${storyJsonPath}`);
+              addTitleLog(schedule.title_id, 'info', `???꾨줈?앺듃 ?대뜑 諛?story.json ?앹꽦 ?꾨즺`);
             } catch (parseError: any) {
-              console.error(`❌ [SCHEDULER] JSON 파싱 실패: ${parseError.message}`);
-              addTitleLog(schedule.title_id, 'warn', `⚠️ story.json 생성 실패 (수동으로 대본 확인 필요)`);
+              console.error(`??[SCHEDULER] JSON ?뚯떛 ?ㅽ뙣: ${parseError.message}`);
+              addTitleLog(schedule.title_id, 'warn', `?좑툘 story.json ?앹꽦 ?ㅽ뙣 (?섎룞?쇰줈 ?蹂??뺤씤 ?꾩슂)`);
             }
           } else {
-            console.warn(`⚠️ [SCHEDULER] 대본 content가 비어있거나 JSON이 아님`);
+            console.warn(`?좑툘 [SCHEDULER] ?蹂?content媛 鍮꾩뼱?덇굅??JSON???꾨떂`);
           }
         }
       } catch (folderError: any) {
-        console.error(`❌ [SCHEDULER] 폴더 생성 실패: ${folderError.message}`);
-        addTitleLog(schedule.title_id, 'warn', `⚠️ 프로젝트 폴더 생성 실패 (계속 진행)`);
+        console.error(`??[SCHEDULER] ?대뜑 ?앹꽦 ?ㅽ뙣: ${folderError.message}`);
+        addTitleLog(schedule.title_id, 'warn', `?좑툘 ?꾨줈?앺듃 ?대뜑 ?앹꽦 ?ㅽ뙣 (怨꾩냽 吏꾪뻾)`);
       }
 
       updateScheduleStatus(schedule.id, 'waiting_for_upload', { scriptId: scriptResult.scriptId });
-      updateTitleStatus(schedule.title_id, 'waiting_for_upload'); // 타이틀 상태도 업데이트
-      addPipelineLog(videoPipelineId, 'info', `⏸️ Waiting for manual image upload...`);
-      addTitleLog(schedule.title_id, 'info', `⏸️ 이미지를 업로드해주세요. 업로드가 완료되면 자동으로 영상 생성이 시작됩니다.`);
+      updateTitleStatus(schedule.title_id, 'waiting_for_upload'); // ??댄? ?곹깭???낅뜲?댄듃
+      addPipelineLog(videoPipelineId, 'info', `?몌툘 Waiting for manual image upload...`);
+      addTitleLog(schedule.title_id, 'info', `?몌툘 ?대?吏瑜??낅줈?쒗빐二쇱꽭?? ?낅줈?쒓? ?꾨즺?섎㈃ ?먮룞?쇰줈 ?곸긽 ?앹꽦???쒖옉?⑸땲??`);
 
       console.log(`[Scheduler] Schedule ${schedule.id} is waiting for manual image upload`);
-      return; // 이미지 업로드 대기, video 단계로 진행하지 않음
+      return; // ?대?吏 ?낅줈???湲? video ?④퀎濡?吏꾪뻾?섏? ?딆쓬
     }
 
     // ============================================================
-    // Stage 2: 영상 생성
+    // Stage 2: ?곸긽 ?앹꽦
     // ============================================================
     addPipelineLog(videoPipelineId, 'info', `Starting video generation from script: ${scriptResult.scriptId}`);
-    addTitleLog(schedule.title_id, 'info', `🎬 Starting video generation...`);
+    addTitleLog(schedule.title_id, 'info', `?렗 Starting video generation...`);
     updatePipelineStatus(videoPipelineId, 'running');
 
     const videoResult = await generateVideo(scriptResult.scriptId, videoPipelineId, maxRetry, schedule.title_id, schedule);
@@ -377,24 +377,24 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 
     updatePipelineStatus(videoPipelineId, 'completed');
 
-    // video_schedules 테이블에 video_id 저장
+    // video_schedules ?뚯씠釉붿뿉 video_id ???
     const dbUpdateVideo = new Database(dbPath);
     dbUpdateVideo.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run(videoResult.videoId, schedule.id);
     dbUpdateVideo.close();
 
-    updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId }); // completed 아니라 processing (업로드 진행)
+    updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId }); // completed ?꾨땲??processing (?낅줈??吏꾪뻾)
     addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
-    addTitleLog(schedule.title_id, 'info', `✅ Video generated successfully: ${videoResult.videoId}`);
+    addTitleLog(schedule.title_id, 'info', `??Video generated successfully: ${videoResult.videoId}`);
 
     console.log(`[Scheduler] Video generation completed for schedule ${schedule.id}, continuing with upload...`);
-    // return 삭제 - 자동으로 업로드 진행
+    // return ??젣 - ?먮룞?쇰줈 ?낅줈??吏꾪뻾
 
     // ============================================================
-    // Stage 3: 유튜브 업로드
+    // Stage 3: ?좏뒠釉??낅줈??
     // ============================================================
     addPipelineLog(uploadPipelineId, 'info', `Starting YouTube upload for video: ${videoResult.videoId}`);
-    addTitleLog(schedule.title_id, 'info', `📤 Uploading to YouTube...`);
+    addTitleLog(schedule.title_id, 'info', `?뱾 Uploading to YouTube...`);
     updatePipelineStatus(uploadPipelineId, 'running');
 
     const uploadResult = await uploadToYouTube(videoResult.videoId, schedule, uploadPipelineId, maxRetry);
@@ -405,7 +405,7 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 
     updatePipelineStatus(uploadPipelineId, 'completed');
 
-    // video_schedules 테이블에 youtube_upload_id 저장
+    // video_schedules ?뚯씠釉붿뿉 youtube_upload_id ???
     const dbUpdateUpload = new Database(dbPath);
     dbUpdateUpload.prepare(`UPDATE video_schedules SET youtube_upload_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run(uploadResult.uploadId, schedule.id);
@@ -413,13 +413,13 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 
     updateScheduleStatus(schedule.id, 'processing', { youtubeUploadId: uploadResult.uploadId });
     addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
-    addTitleLog(schedule.title_id, 'info', `✅ YouTube upload successful: ${uploadResult.videoUrl}`);
+    addTitleLog(schedule.title_id, 'info', `??YouTube upload successful: ${uploadResult.videoUrl}`);
 
     // ============================================================
-    // Stage 4: 유튜브 퍼블리시 (예약 시간에 공개)
+    // Stage 4: ?좏뒠釉??쇰툝由ъ떆 (?덉빟 ?쒓컙??怨듦컻)
     // ============================================================
     addPipelineLog(publishPipelineId, 'info', `Scheduling YouTube publish`);
-    addTitleLog(schedule.title_id, 'info', `📅 Scheduling publish...`);
+    addTitleLog(schedule.title_id, 'info', `?뱟 Scheduling publish...`);
     updatePipelineStatus(publishPipelineId, 'running');
 
     const publishResult = await scheduleYouTubePublish(uploadResult.uploadId!, schedule, publishPipelineId);
@@ -432,68 +432,68 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
     updateScheduleStatus(schedule.id, 'completed');
     updateTitleStatus(schedule.title_id, 'completed');
     addPipelineLog(publishPipelineId, 'info', `Pipeline completed successfully!`);
-    addTitleLog(schedule.title_id, 'info', `🎉 All done! Pipeline completed successfully!`);
+    addTitleLog(schedule.title_id, 'info', `?럦 All done! Pipeline completed successfully!`);
 
-    console.log(`✅ [Pipeline] Successfully completed for schedule ${schedule.id}`);
+    console.log(`??[Pipeline] Successfully completed for schedule ${schedule.id}`);
 
     // ============================================================
-    // 롱폼 완료 후 숏폼 자동 생성
+    // 濡깊뤌 ?꾨즺 ???륂뤌 ?먮룞 ?앹꽦
     // ============================================================
     if (schedule.type === 'longform' && uploadResult.videoUrl) {
-      console.log(`🎬 [SHORTFORM] Longform completed, triggering shortform conversion...`);
-      addTitleLog(schedule.title_id, 'info', `🎬 롱폼 완료! 숏폼 변환 시작...`);
+      console.log(`?렗 [SHORTFORM] Longform completed, triggering shortform conversion...`);
+      addTitleLog(schedule.title_id, 'info', `?렗 濡깊뤌 ?꾨즺! ?륂뤌 蹂???쒖옉...`);
 
       try {
-        // 롱폼 video_id (job_id) 가져오기
+        // 濡깊뤌 video_id (job_id) 媛?몄삤湲?
         const longformJobId = videoResult.videoId;
         const longformYoutubeUrl = uploadResult.videoUrl;
 
-        console.log(`🔍 [SHORTFORM] Longform job_id: ${longformJobId}, YouTube URL: ${longformYoutubeUrl}`);
+        console.log(`?뵇 [SHORTFORM] Longform job_id: ${longformJobId}, YouTube URL: ${longformYoutubeUrl}`);
 
-        // convert-to-shorts API 호출
+        // convert-to-shorts API ?몄텧
         const convertResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/jobs/${longformJobId}/convert-to-shorts`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Internal-Request': 'automation-system',
-            'X-User-Id': schedule.user_id // 인증 우회용
+            'X-User-Id': schedule.user_id // ?몄쬆 ?고쉶??
           }
         });
 
         if (!convertResponse.ok) {
           const errorText = await convertResponse.text();
-          console.error(`❌ [SHORTFORM] Conversion failed: ${errorText}`);
-          addTitleLog(schedule.title_id, 'warn', `⚠️ 숏폼 변환 실패: ${errorText}`);
+          console.error(`??[SHORTFORM] Conversion failed: ${errorText}`);
+          addTitleLog(schedule.title_id, 'warn', `?좑툘 ?륂뤌 蹂???ㅽ뙣: ${errorText}`);
         } else {
           const convertData = await convertResponse.json();
           const shortformJobId = convertData.jobId;
 
-          console.log(`✅ [SHORTFORM] Conversion started, shortform job_id: ${shortformJobId}`);
-          addTitleLog(schedule.title_id, 'info', `✅ 숏폼 변환 시작됨 (작업 ID: ${shortformJobId})`);
+          console.log(`??[SHORTFORM] Conversion started, shortform job_id: ${shortformJobId}`);
+          addTitleLog(schedule.title_id, 'info', `???륂뤌 蹂???쒖옉??(?묒뾽 ID: ${shortformJobId})`);
 
-          // 숏폼 작업 ID와 롱폼 YouTube URL 저장 (나중에 업로드할 때 사용)
+          // ?륂뤌 ?묒뾽 ID? 濡깊뤌 YouTube URL ???(?섏쨷???낅줈?쒗븷 ???ъ슜)
           const dbShortform = new Database(dbPath);
 
-          // 컬럼이 없으면 추가
+          // 而щ읆???놁쑝硫?異붽?
           try {
             dbShortform.exec(`ALTER TABLE video_schedules ADD COLUMN shortform_job_id TEXT`);
           } catch (e: any) {
             if (!e.message?.includes('duplicate column')) {
-              console.log('shortform_job_id 컬럼 추가 시도:', e.message);
+              console.log('shortform_job_id 而щ읆 異붽? ?쒕룄:', e.message);
             }
           }
           try {
             dbShortform.exec(`ALTER TABLE video_schedules ADD COLUMN longform_youtube_url TEXT`);
           } catch (e: any) {
             if (!e.message?.includes('duplicate column')) {
-              console.log('longform_youtube_url 컬럼 추가 시도:', e.message);
+              console.log('longform_youtube_url 而щ읆 異붽? ?쒕룄:', e.message);
             }
           }
           try {
             dbShortform.exec(`ALTER TABLE video_schedules ADD COLUMN shortform_uploaded INTEGER DEFAULT 0`);
           } catch (e: any) {
             if (!e.message?.includes('duplicate column')) {
-              console.log('shortform_uploaded 컬럼 추가 시도:', e.message);
+              console.log('shortform_uploaded 而щ읆 異붽? ?쒕룄:', e.message);
             }
           }
 
@@ -504,19 +504,19 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
           `).run(shortformJobId, longformYoutubeUrl, schedule.id);
           dbShortform.close();
 
-          console.log(`💾 [SHORTFORM] Saved shortform_job_id to schedule: ${schedule.id}`);
-          addTitleLog(schedule.title_id, 'info', `💾 숏폼 작업 정보 저장됨. 완료 후 자동 업로드 예정`);
+          console.log(`?뮶 [SHORTFORM] Saved shortform_job_id to schedule: ${schedule.id}`);
+          addTitleLog(schedule.title_id, 'info', `?뮶 ?륂뤌 ?묒뾽 ?뺣낫 ??λ맖. ?꾨즺 ???먮룞 ?낅줈???덉젙`);
         }
       } catch (error: any) {
-        console.error(`❌ [SHORTFORM] Error during shortform conversion:`, error);
-        addTitleLog(schedule.title_id, 'warn', `⚠️ 숏폼 변환 중 오류: ${error.message}`);
+        console.error(`??[SHORTFORM] Error during shortform conversion:`, error);
+        addTitleLog(schedule.title_id, 'warn', `?좑툘 ?륂뤌 蹂??以??ㅻ쪟: ${error.message}`);
       }
     }
 
   } catch (error: any) {
-    console.error(`❌ [Pipeline] Failed for schedule ${schedule.id}:`, error);
+    console.error(`??[Pipeline] Failed for schedule ${schedule.id}:`, error);
 
-    // 실패한 단계 찾기
+    // ?ㅽ뙣???④퀎 李얘린
     const db = new Database(dbPath);
     const failedPipeline = db.prepare(`
       SELECT * FROM automation_pipelines
@@ -533,9 +533,9 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 
     updateScheduleStatus(schedule.id, 'failed');
     updateTitleStatus(schedule.title_id, 'failed');
-    addTitleLog(schedule.title_id, 'error', `❌ Pipeline failed: ${error.message}`);
+    addTitleLog(schedule.title_id, 'error', `??Pipeline failed: ${error.message}`);
 
-    // 에러 이메일 전송
+    // ?먮윭 ?대찓???꾩넚
     await sendAutomationErrorEmail(
       schedule.id,
       'pipeline_execution',
@@ -546,46 +546,46 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
 }
 
 // ============================================================
-// 개별 Stage 함수들
+// 媛쒕퀎 Stage ?⑥닔??
 // ============================================================
 
-// Stage 1: 대본 생성 (재시도 로직 제거)
+// Stage 1: ?蹂??앹꽦 (?ъ떆??濡쒖쭅 ?쒓굅)
 async function generateScript(schedule: any, pipelineId: string, maxRetry: number) {
-  console.log('🔍 [SCHEDULER] generateScript called with schedule:', {
+  console.log('?뵇 [SCHEDULER] generateScript called with schedule:', {
     id: schedule.id,
     title: schedule.title,
     user_id: schedule.user_id,
     hasUserId: !!schedule.user_id
   });
-  console.log('🔍 [SCHEDULER] Full schedule keys:', Object.keys(schedule));
-  console.log('🔍 [SCHEDULER] schedule.product_data exists?:', !!schedule.product_data);
-  console.log('🔍 [SCHEDULER] schedule.type:', schedule.type);
+  console.log('?뵇 [SCHEDULER] Full schedule keys:', Object.keys(schedule));
+  console.log('?뵇 [SCHEDULER] schedule.product_data exists?:', !!schedule.product_data);
+  console.log('?뵇 [SCHEDULER] schedule.type:', schedule.type);
 
   try {
-    addPipelineLog(pipelineId, 'info', `📝 대본 생성 시작...`);
-    addTitleLog(schedule.title_id, 'info', `📝 대본 생성 시작...`);
+    addPipelineLog(pipelineId, 'info', `?뱷 ?蹂??앹꽦 ?쒖옉...`);
+    addTitleLog(schedule.title_id, 'info', `?뱷 ?蹂??앹꽦 ?쒖옉...`);
     if (isPipelineOrScheduleCancelled(pipelineId)) {
       throw new Error('Automation stopped by user');
     }
 
-    // 상품 기입 정보는 더 이상 사용하지 않음 (프롬프트 결과만 활용)
+    // ?곹뭹 湲곗엯 ?뺣낫?????댁긽 ?ъ슜?섏? ?딆쓬 (?꾨＼?꾪듃 寃곌낵留??쒖슜)
     const productInfo = null;
 
     const requestBody = {
       title: schedule.title,
       type: schedule.type,
       productUrl: schedule.product_url,
-      productInfo: productInfo || null, // undefined 대신 null 사용 (JSON.stringify에서 제외되지 않도록)
+      productInfo: productInfo || null, // undefined ???null ?ъ슜 (JSON.stringify?먯꽌 ?쒖쇅?섏? ?딅룄濡?
       model: schedule.model || 'claude',
       useClaudeLocal: schedule.script_mode !== 'api',
       userId: schedule.user_id,
       category: schedule.category
     };
 
-    console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
+    console.log('?뵇 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
 
-    // API 방식으로 대본 생성 (내부 요청 헤더 포함)
-    console.log('📤 [SCHEDULER] Calling /api/scripts/generate...');
+    // API 諛⑹떇?쇰줈 ?蹂??앹꽦 (?대? ?붿껌 ?ㅻ뜑 ?ы븿)
+    console.log('?뱾 [SCHEDULER] Calling /api/scripts/generate...');
     const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
       method: 'POST',
       headers: {
@@ -595,11 +595,11 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
       body: JSON.stringify(requestBody)
     });
 
-    console.log(`📥 [SCHEDULER] Script API response status: ${response.status}`);
+    console.log(`?뱿 [SCHEDULER] Script API response status: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ [SCHEDULER] Script API error response: ${errorText}`);
+      console.error(`??[SCHEDULER] Script API error response: ${errorText}`);
       let error;
       try {
         error = JSON.parse(errorText);
@@ -610,82 +610,82 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     }
 
     const data = await response.json();
-    console.log('✅ [SCHEDULER] Script API response data:', JSON.stringify(data, null, 2));
+    console.log('??[SCHEDULER] Script API response data:', JSON.stringify(data, null, 2));
 
-    // taskId가 반환되면 작업 완료 대기
+    // taskId媛 諛섑솚?섎㈃ ?묒뾽 ?꾨즺 ?湲?
     if (data.taskId) {
       addPipelineLog(pipelineId, 'info', `Script generation job started: ${data.taskId}`);
 
-      // 작업 완료 대기 (최대 10분)
+      // ?묒뾽 ?꾨즺 ?湲?(理쒕? 10遺?
       const maxWaitTime = 10 * 60 * 1000;
       const startTime = Date.now();
-      let lastProgress = 0; // 마지막 진행률 추적
+      let lastProgress = 0; // 留덉?留?吏꾪뻾瑜?異붿쟻
 
       while (Date.now() - startTime < maxWaitTime) {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // 5초마다 체크
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5珥덈쭏??泥댄겕
         if (isPipelineOrScheduleCancelled(pipelineId)) {
           throw new Error('Automation stopped by user');
         }
 
 
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        console.log(`🔍 [SCHEDULER] Checking script status for ${data.taskId}... (경과시간: ${elapsed}초)`);
+        console.log(`?뵇 [SCHEDULER] Checking script status for ${data.taskId}... (寃쎄낵?쒓컙: ${elapsed}珥?`);
         const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/status/${data.taskId}`);
 
-        console.log(`📥 [SCHEDULER] Status API response: ${statusRes.status}`);
+        console.log(`?뱿 [SCHEDULER] Status API response: ${statusRes.status}`);
 
         if (!statusRes.ok) {
           const errorText = await statusRes.text();
-          console.error(`❌ [SCHEDULER] Status API failed: ${statusRes.status}, Response: ${errorText}`);
+          console.error(`??[SCHEDULER] Status API failed: ${statusRes.status}, Response: ${errorText}`);
           continue;
         }
 
         const statusData = await statusRes.json();
-        console.log(`📊 [SCHEDULER] Script Status Response:`, JSON.stringify(statusData, null, 2));
+        console.log(`?뱤 [SCHEDULER] Script Status Response:`, JSON.stringify(statusData, null, 2));
 
         if (statusData.status === 'completed') {
           addPipelineLog(pipelineId, 'info', `Script generation completed: ${data.taskId}`);
-          addTitleLog(schedule.title_id, 'info', '✅ 대본 생성 완료!');
-          console.log(`✅ [SCHEDULER] Script generation completed!`);
+          addTitleLog(schedule.title_id, 'info', '???蹂??앹꽦 ?꾨즺!');
+          console.log(`??[SCHEDULER] Script generation completed!`);
           return { success: true, scriptId: data.taskId };
         } else if (statusData.status === 'failed') {
-          console.error(`❌ [SCHEDULER] Script generation failed: ${statusData.error}`);
+          console.error(`??[SCHEDULER] Script generation failed: ${statusData.error}`);
           throw new Error(`Script generation failed: ${statusData.error}`);
         }
 
-        // 진행 상황 로그 (progress가 변경될 때만)
+        // 吏꾪뻾 ?곹솴 濡쒓렇 (progress媛 蹂寃쎈맆 ?뚮쭔)
         if (statusData.progress && statusData.progress !== lastProgress) {
           lastProgress = statusData.progress;
-          const msg = `📝 대본 생성 중... ${statusData.progress}%`;
+          const msg = `?뱷 ?蹂??앹꽦 以?.. ${statusData.progress}%`;
           addPipelineLog(pipelineId, 'info', msg);
           addTitleLog(schedule.title_id, 'info', msg);
         }
       }
 
-      throw new Error('Script generation timeout (10분 초과)');
+      throw new Error('Script generation timeout (10遺?珥덇낵)');
     }
 
     return { success: true, scriptId: data.taskId || data.scriptId };
 
   } catch (error: any) {
     const errorMsg = error.message || 'Unknown error';
-    addPipelineLog(pipelineId, 'error', `❌ 대본 생성 실패: ${errorMsg}`);
-    addTitleLog(schedule.title_id, 'error', `❌ 대본 생성 실패: ${errorMsg}`);
-    console.error(`❌ [SCHEDULER] Script generation failed:`, error.message);
+    addPipelineLog(pipelineId, 'error', `???蹂??앹꽦 ?ㅽ뙣: ${errorMsg}`);
+    addTitleLog(schedule.title_id, 'error', `???蹂??앹꽦 ?ㅽ뙣: ${errorMsg}`);
+    console.error(`??[SCHEDULER] Script generation failed:`, error.message);
     return { success: false, error: errorMsg };
   }
 }
 
-// Stage 2: 영상 생성 (재시도 로직 제거)
+// Stage 2: ?곸긽 ?앹꽦 (?ъ떆??濡쒖쭅 ?쒓굅)
 async function generateVideo(scriptId: string, pipelineId: string, maxRetry: number, titleId: string, schedule: any) {
   const settings = getAutomationSettings();
   const mediaMode = `${schedule.media_mode || settings.media_generation_mode || 'upload'}`.trim();
 
   try {
-    addPipelineLog(pipelineId, 'info', `🎬 영상 생성 시작... (mode: ${mediaMode})`);
-    addTitleLog(titleId, 'info', `🎬 영상 생성 시작...`);
+    addPipelineLog(pipelineId, 'info', `?렗 ?곸긽 ?앹꽦 ?쒖옉... (mode: ${mediaMode})`);
+    addTitleLog(titleId, 'info', `?렗 ?곸긽 ?앹꽦 ?쒖옉...`);
 
-    // DB에서 대본 조회
+    // DB?먯꽌 ?蹂?議고쉶
     const db = new Database(dbPath);
     const content = db.prepare(`
       SELECT id, title, content, type, user_id
@@ -702,12 +702,12 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       throw new Error(`Script ${scriptId} has no user_id`);
     }
 
-    // content 파싱
+    // content ?뚯떛
     let scriptData;
     try {
       let contentStr = typeof content.content === 'string' ? content.content : JSON.stringify(content.content);
 
-      // JSON 정리
+      // JSON ?뺣━
       contentStr = contentStr.trim();
       if (contentStr.startsWith('JSON')) {
         contentStr = contentStr.substring(4).trim();
@@ -727,13 +727,13 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       throw new Error(`Failed to parse script content: ${e.message}`);
     }
 
-    // story.json 생성
+    // story.json ?앹꽦
     const storyJson = {
       ...scriptData,
       scenes: scriptData.scenes || []
     };
 
-    // 업로드된 이미지와 비디오 확인
+    // ?낅줈?쒕맂 ?대?吏? 鍮꾨뵒???뺤씤
     const scriptFolderPath = path.join(process.cwd(), '..', 'trend-video-backend', 'input', `project_${scriptId}`);
     let hasUploadedImages = false;
     let hasUploadedVideos = false;
@@ -750,14 +750,14 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       }
     }
 
-    // 씬 개수 확인
+    // ??媛쒖닔 ?뺤씤
     const sceneCount = storyJson.scenes?.length || 0;
     const totalMediaCount = imageFiles.length + videoFiles.length;
 
-    // 썸네일 분리 로직: 영상+이미지가 함께 있고, 총 미디어가 씬보다 많을 때만 첫 이미지를 썸네일로 사용
+    // ?몃꽕??遺꾨━ 濡쒖쭅: ?곸긽+?대?吏媛 ?④퍡 ?덇퀬, 珥?誘몃뵒?닿? ?щ낫??留롮쓣 ?뚮쭔 泥??대?吏瑜??몃꽕?쇰줈 ?ъ슜
     let useThumbnailFromFirstImage = false;
     if (hasUploadedImages && hasUploadedVideos && totalMediaCount > sceneCount) {
-      // 파일을 scene 번호 순으로 정렬 (scene_0, scene_1, ...)
+      // ?뚯씪??scene 踰덊샇 ?쒖쑝濡??뺣젹 (scene_0, scene_1, ...)
       const sortedImages = imageFiles.sort((a, b) => {
         const aMatch = a.match(/scene_(\d+)/);
         const bMatch = b.match(/scene_(\d+)/);
@@ -766,35 +766,35 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
         return aNum - bNum;
       });
 
-      // 첫 번째 파일이 scene_0이고 이미지인지 확인
+      // 泥?踰덉㎏ ?뚯씪??scene_0?닿퀬 ?대?吏?몄? ?뺤씤
       const firstFile = sortedImages[0];
       if (firstFile && /scene_0.*\.(png|jpg|jpeg|webp)$/i.test(firstFile)) {
         useThumbnailFromFirstImage = true;
-        console.log(`\n📌 [SCHEDULER] 썸네일 분리 조건 만족: 영상+이미지 있고 미디어(${totalMediaCount}) > 씬(${sceneCount})`);
-        console.log(`   🖼️ 썸네일: ${firstFile}`);
-        console.log(`   📹 씬 미디어: ${totalMediaCount - 1}개 (${firstFile} 제외)`);
+        console.log(`\n?뱦 [SCHEDULER] ?몃꽕??遺꾨━ 議곌굔 留뚯”: ?곸긽+?대?吏 ?덇퀬 誘몃뵒??${totalMediaCount}) > ??${sceneCount})`);
+        console.log(`   ?뼹截??몃꽕?? ${firstFile}`);
+        console.log(`   ?벞 ??誘몃뵒?? ${totalMediaCount - 1}媛?(${firstFile} ?쒖쇅)`);
       }
     } else {
-      console.log(`\n📌 [SCHEDULER] 썸네일 분리 안 함:`);
+      console.log(`\n?뱦 [SCHEDULER] ?몃꽕??遺꾨━ ????`);
       if (!hasUploadedImages || !hasUploadedVideos) {
-        console.log(`   - 영상+이미지 미포함 (영상: ${hasUploadedVideos}, 이미지: ${hasUploadedImages})`);
+        console.log(`   - ?곸긽+?대?吏 誘명룷??(?곸긽: ${hasUploadedVideos}, ?대?吏: ${hasUploadedImages})`);
       }
       if (totalMediaCount <= sceneCount) {
-        console.log(`   - 미디어(${totalMediaCount}) ≤ 씬(${sceneCount})`);
+        console.log(`   - 誘몃뵒??${totalMediaCount}) ????${sceneCount})`);
       }
-      console.log(`   → 모든 미디어를 씬에 사용`);
+      console.log(`   ??紐⑤뱺 誘몃뵒?대? ?ъ뿉 ?ъ슜`);
     }
 
-    // 이미지 소스 설정 (업로드된 이미지가 있으면 우선 사용)
+    // ?대?吏 ?뚯뒪 ?ㅼ젙 (?낅줈?쒕맂 ?대?吏媛 ?덉쑝硫??곗꽑 ?ъ슜)
     const imageSource = (mediaMode === 'upload' || hasUploadedImages) ? 'none' : mediaMode;
 
-    // 이미지 모델 설정 (imagen3 -> imagen3, 나머지는 dalle3)
+    // ?대?吏 紐⑤뜽 ?ㅼ젙 (imagen3 -> imagen3, ?섎㉧吏??dalle3)
     const imageModel = mediaMode === 'imagen3' ? 'imagen3' : 'dalle3';
 
-    // 비디오 포맷
+    // 鍮꾨뵒???щ㎎
     const videoType = schedule.type || scriptData.metadata?.genre || 'shortform';
 
-    // JSON으로 전송 (내부 요청)
+    // JSON?쇰줈 ?꾩넚 (?대? ?붿껌)
     const requestBody: any = {
       storyJson,
       userId: content.user_id,
@@ -803,12 +803,12 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       videoFormat: videoType,
       ttsVoice: 'ko-KR-SoonBokNeural',
       title: content.title,
-      scriptId,  // 자동화용: 이미 업로드된 이미지가 있는 폴더 경로
-      useThumbnailFromFirstImage  // 첫 번째 이미지를 썸네일로 사용 여부
+      scriptId,  // ?먮룞?붿슜: ?대? ?낅줈?쒕맂 ?대?吏媛 ?덈뒗 ?대뜑 寃쎈줈
+      useThumbnailFromFirstImage  // 泥?踰덉㎏ ?대?吏瑜??몃꽕?쇰줈 ?ъ슜 ?щ?
     };
 
     // ============================================================
-    // 중복 실행 방지: 같은 source_content_id로 이미 실행 중인 job이 있는지 확인
+    // 以묐났 ?ㅽ뻾 諛⑹?: 媛숈? source_content_id濡??대? ?ㅽ뻾 以묒씤 job???덈뒗吏 ?뺤씤
     // ============================================================
     const dbCheck = new Database(dbPath);
     let jobId: string | undefined;
@@ -826,21 +826,21 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
     dbCheck.close();
 
     if (existingJob) {
-      console.log(`🔍 [DUPLICATE CHECK] Found existing job: ${existingJob.id} (status: ${existingJob.status})`);
-      addPipelineLog(pipelineId, 'info', `⚠️ 이미 실행 중인 작업 발견: ${existingJob.id}`);
-      addTitleLog(titleId, 'info', `⚠️ 기존 작업을 재사용합니다: ${existingJob.id}`);
+      console.log(`?뵇 [DUPLICATE CHECK] Found existing job: ${existingJob.id} (status: ${existingJob.status})`);
+      addPipelineLog(pipelineId, 'info', `?좑툘 ?대? ?ㅽ뻾 以묒씤 ?묒뾽 諛쒓껄: ${existingJob.id}`);
+      addTitleLog(titleId, 'info', `?좑툘 湲곗〈 ?묒뾽???ъ궗?⑺빀?덈떎: ${existingJob.id}`);
 
       jobId = existingJob.id;
       shouldCallApi = false;
     } else {
-      // 새로운 job 생성은 API에서 처리 (fresh created_at 타임스탬프로)
-      console.log(`✅ [DUPLICATE CHECK] No existing job found, will create new job via API`);
-      addPipelineLog(pipelineId, 'info', `📝 API를 통해 새 Job 생성 예정`);
+      // ?덈줈??job ?앹꽦? API?먯꽌 泥섎━ (fresh created_at ??꾩뒪?ы봽濡?
+      console.log(`??[DUPLICATE CHECK] No existing job found, will create new job via API`);
+      addPipelineLog(pipelineId, 'info', `?뱷 API瑜??듯빐 ??Job ?앹꽦 ?덉젙`);
       shouldCallApi = true;
     }
 
-    console.log('📤 [SCHEDULER] Calling /api/generate-video-upload...');
-    console.log('🔍 [SCHEDULER] Request body:', {
+    console.log('?뱾 [SCHEDULER] Calling /api/generate-video-upload...');
+    console.log('?뵇 [SCHEDULER] Request body:', {
       scriptId,
       userId: content.user_id,
       imageSource,
@@ -851,12 +851,12 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
     let response: Response | null = null;
     let data: any = null;
 
-    // 기존 job이 없을 때만 API 호출
+    // 湲곗〈 job???놁쓣 ?뚮쭔 API ?몄텧
     if (shouldCallApi) {
-      // API가 fresh created_at 타임스탬프로 새 job을 생성하도록 jobId를 전달하지 않음
-      // (메인 페이지와 동일한 방식)
+      // API媛 fresh created_at ??꾩뒪?ы봽濡???job???앹꽦?섎룄濡?jobId瑜??꾨떖?섏? ?딆쓬
+      // (硫붿씤 ?섏씠吏? ?숈씪??諛⑹떇)
 
-      // /api/generate-video-upload 호출
+      // /api/generate-video-upload ?몄텧
       response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload`, {
         method: 'POST',
         headers: {
@@ -866,11 +866,11 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
         body: JSON.stringify(requestBody)
       });
 
-      console.log(`📥 [SCHEDULER] Video API response status: ${response.status}`);
+      console.log(`?뱿 [SCHEDULER] Video API response status: ${response.status}`);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`❌ [SCHEDULER] Video API error response: ${errorText}`);
+        console.error(`??[SCHEDULER] Video API error response: ${errorText}`);
         let error;
         try {
           error = JSON.parse(errorText);
@@ -881,41 +881,41 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
       }
 
       data = await response.json();
-      console.log('✅ [SCHEDULER] Video API response data:', JSON.stringify(data, null, 2));
+      console.log('??[SCHEDULER] Video API response data:', JSON.stringify(data, null, 2));
 
       jobId = data.jobId;
     } else {
-      // 기존 job 재사용 - jobId는 이미 설정됨
-      console.log(`♻️ [SCHEDULER] Reusing existing job: ${jobId}`);
+      // 湲곗〈 job ?ъ궗??- jobId???대? ?ㅼ젙??
+      console.log(`?삼툘 [SCHEDULER] Reusing existing job: ${jobId}`);
     }
 
-    // 작업이 비동기로 처리되는 경우 폴링
+    // ?묒뾽??鍮꾨룞湲곕줈 泥섎━?섎뒗 寃쎌슦 ?대쭅
     if (jobId) {
       addPipelineLog(pipelineId, 'info', `Video generation job: ${jobId}`);
 
-      // ✅ FIX: jobId를 즉시 저장하여 진행 중 로그 조회 가능하도록
+      // ??FIX: jobId瑜?利됱떆 ??ν븯??吏꾪뻾 以?濡쒓렇 議고쉶 媛?ν븯?꾨줉
       const dbSaveJob = new Database(dbPath);
       const result = dbSaveJob.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
         .run(jobId, schedule.id);
       dbSaveJob.close();
 
       if (result.changes > 0) {
-        console.log(`✅ [SCHEDULER] Saved video_id to schedule: ${jobId} -> ${schedule.id}`);
-        addTitleLog(schedule.title_id, 'info', `🎬 영상 생성 작업 시작: ${jobId}`);
+        console.log(`??[SCHEDULER] Saved video_id to schedule: ${jobId} -> ${schedule.id}`);
+        addTitleLog(schedule.title_id, 'info', `?렗 ?곸긽 ?앹꽦 ?묒뾽 ?쒖옉: ${jobId}`);
       } else {
-        console.error(`❌ [SCHEDULER] Failed to save video_id! schedule.id: ${schedule.id}, jobId: ${jobId}`);
-        addTitleLog(schedule.title_id, 'warn', `⚠️ video_id 저장 실패 (수동 연결 필요)`);
+        console.error(`??[SCHEDULER] Failed to save video_id! schedule.id: ${schedule.id}, jobId: ${jobId}`);
+        addTitleLog(schedule.title_id, 'warn', `?좑툘 video_id ????ㅽ뙣 (?섎룞 ?곌껐 ?꾩슂)`);
       }
 
-      // 작업 완료 대기 (최대 30분)
-      const maxWaitTime = 30 * 60 * 1000; // 30분
+      // ?묒뾽 ?꾨즺 ?湲?(理쒕? 30遺?
+      const maxWaitTime = 30 * 60 * 1000; // 30遺?
       const startTime = Date.now();
-      let lastProgress = 0; // 마지막 진행률 추적
+      let lastProgress = 0; // 留덉?留?吏꾪뻾瑜?異붿쟻
 
       while (Date.now() - startTime < maxWaitTime) {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // 5초마다 체크
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5珥덈쭏??泥댄겕
 
-        // 중지 요청 확인 (DB에서 schedule 상태 체크)
+        // 以묒? ?붿껌 ?뺤씤 (DB?먯꽌 schedule ?곹깭 泥댄겕)
         const db = new Database(dbPath);
         const pipeline = db.prepare('SELECT status FROM automation_pipelines WHERE id = ?').get(pipelineId) as any;
         const scheduleStatus = db.prepare(`
@@ -927,87 +927,87 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
         db.close();
 
         if (pipeline && pipeline.status === 'failed') {
-          console.log(`🛑 [SCHEDULER] Pipeline ${pipelineId} failed`);
-          throw new Error('작업이 실패했습니다');
+          console.log(`?썞 [SCHEDULER] Pipeline ${pipelineId} failed`);
+          throw new Error('?묒뾽???ㅽ뙣?덉뒿?덈떎');
         }
 
         if (scheduleStatus && scheduleStatus.status === 'cancelled') {
-          console.log(`🛑 [SCHEDULER] Schedule for pipeline ${pipelineId} was cancelled by user`);
-          throw new Error('작업이 사용자에 의해 중지되었습니다');
+          console.log(`?썞 [SCHEDULER] Schedule for pipeline ${pipelineId} was cancelled by user`);
+          throw new Error('?묒뾽???ъ슜?먯뿉 ?섑빐 以묒??섏뿀?듬땲??);
         }
 
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        console.log(`🔍 [SCHEDULER] Checking video status for ${jobId}... (경과시간: ${elapsed}초)`);
+        console.log(`?뵇 [SCHEDULER] Checking video status for ${jobId}... (寃쎄낵?쒓컙: ${elapsed}珥?`);
 
         const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-video-upload?jobId=${jobId}`);
-        console.log(`📥 [SCHEDULER] Video Status API response: ${statusRes.status}`);
+        console.log(`?뱿 [SCHEDULER] Video Status API response: ${statusRes.status}`);
 
         if (!statusRes.ok) {
           const errorText = await statusRes.text();
-          console.error(`❌ [SCHEDULER] Video Status API failed: ${statusRes.status}, Response: ${errorText}`);
+          console.error(`??[SCHEDULER] Video Status API failed: ${statusRes.status}, Response: ${errorText}`);
           continue;
         }
 
         const statusData = await statusRes.json();
-        console.log(`📊 [SCHEDULER] Video Status Response:`, JSON.stringify(statusData, null, 2));
+        console.log(`?뱤 [SCHEDULER] Video Status Response:`, JSON.stringify(statusData, null, 2));
 
         if (statusData.status === 'completed') {
           addPipelineLog(pipelineId, 'info', `Video generation completed: ${statusData.videoId}`);
-          addTitleLog(titleId, 'info', '✅ 영상 생성 완료!');
-          console.log(`✅ [SCHEDULER] Video generation completed!`);
+          addTitleLog(titleId, 'info', '???곸긽 ?앹꽦 ?꾨즺!');
+          console.log(`??[SCHEDULER] Video generation completed!`);
 
-          // 🔥 최종 저장: 리턴 직전에 무조건 저장
+          // ?뵦 理쒖쥌 ??? 由ы꽩 吏곸쟾??臾댁“嫄????
           if (statusData.videoId && schedule && schedule.id) {
             const dbFinalSave = new Database(dbPath);
             dbFinalSave.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
               .run(statusData.videoId, schedule.id);
             dbFinalSave.close();
-            console.log(`🔥 [FINAL SAVE] Video ID saved: ${statusData.videoId} -> ${schedule.id}`);
+            console.log(`?뵦 [FINAL SAVE] Video ID saved: ${statusData.videoId} -> ${schedule.id}`);
           }
 
           return { success: true, videoId: statusData.videoId };
         } else if (statusData.status === 'failed') {
-          console.error(`❌ [SCHEDULER] Video generation failed: ${statusData.error}`);
+          console.error(`??[SCHEDULER] Video generation failed: ${statusData.error}`);
           throw new Error(`Video generation failed: ${statusData.error}`);
         }
 
-        // 진행 상황 로그 (progress가 변경될 때만)
+        // 吏꾪뻾 ?곹솴 濡쒓렇 (progress媛 蹂寃쎈맆 ?뚮쭔)
         if (statusData.progress && statusData.progress !== lastProgress) {
           lastProgress = statusData.progress;
-          const msg = `🎬 영상 생성 중... ${statusData.progress}%`;
-          console.log(`📈 [SCHEDULER] Video Progress: ${statusData.progress}`);
+          const msg = `?렗 ?곸긽 ?앹꽦 以?.. ${statusData.progress}%`;
+          console.log(`?뱢 [SCHEDULER] Video Progress: ${statusData.progress}`);
           addPipelineLog(pipelineId, 'info', msg);
           addTitleLog(titleId, 'info', msg);
         }
       }
 
-      throw new Error('Video generation timeout (30분 초과)');
+      throw new Error('Video generation timeout (30遺?珥덇낵)');
     }
 
-    // 즉시 완료되는 경우 (거의 없지만 방어 코드)
+    // 利됱떆 ?꾨즺?섎뒗 寃쎌슦 (嫄곗쓽 ?놁?留?諛⑹뼱 肄붾뱶)
     return { success: true, videoId: data?.videoId || jobId };
 
   } catch (error: any) {
     const errorMsg = error.message || 'Unknown error';
-    addPipelineLog(pipelineId, 'error', `❌ 영상 생성 실패: ${errorMsg}`);
-    addTitleLog(titleId, 'error', `❌ 영상 생성 실패: ${errorMsg}`);
-    console.error(`❌ [SCHEDULER] Video generation failed:`, error.message);
+    addPipelineLog(pipelineId, 'error', `???곸긽 ?앹꽦 ?ㅽ뙣: ${errorMsg}`);
+    addTitleLog(titleId, 'error', `???곸긽 ?앹꽦 ?ㅽ뙣: ${errorMsg}`);
+    console.error(`??[SCHEDULER] Video generation failed:`, error.message);
     return { success: false, error: errorMsg };
   }
 }
 
-// Stage 3: 유튜브 업로드
+// Stage 3: ?좏뒠釉??낅줈??
 async function uploadToYouTube(videoId: string, schedule: any, pipelineId: string, maxRetry: number) {
   try {
     addPipelineLog(pipelineId, 'info', `Uploading to YouTube`);
-    console.log(`🔍 [YOUTUBE UPLOAD] videoId: ${videoId}`);
+    console.log(`?뵇 [YOUTUBE UPLOAD] videoId: ${videoId}`);
 
-    // jobs 테이블에서 비디오 정보 조회
+    // jobs ?뚯씠釉붿뿉??鍮꾨뵒???뺣낫 議고쉶
     const db = new Database(dbPath);
     const job = db.prepare(`SELECT * FROM jobs WHERE id = ?`).get(videoId) as any;
     db.close();
 
-    console.log(`🔍 [YOUTUBE UPLOAD] job found:`, {
+    console.log(`?뵇 [YOUTUBE UPLOAD] job found:`, {
       hasJob: !!job,
       jobId: job?.id,
       jobVideoPath: job?.video_path,
@@ -1020,21 +1020,21 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
       throw new Error('Video file not found');
     }
 
-    // 비디오 파일 경로 (video_path는 이미 절대 경로)
+    // 鍮꾨뵒???뚯씪 寃쎈줈 (video_path???대? ?덈? 寃쎈줈)
     const videoPath = job.video_path;
-    console.log(`🔍 [YOUTUBE UPLOAD] videoPath: ${videoPath}`);
+    console.log(`?뵇 [YOUTUBE UPLOAD] videoPath: ${videoPath}`);
 
-    // 파일 존재 여부 확인
+    // ?뚯씪 議댁옱 ?щ? ?뺤씤
     const fs = require('fs');
     const fileExists = fs.existsSync(videoPath);
-    console.log(`🔍 [YOUTUBE UPLOAD] file exists: ${fileExists}`);
+    console.log(`?뵇 [YOUTUBE UPLOAD] file exists: ${fileExists}`);
 
     if (!fileExists) {
       addPipelineLog(pipelineId, 'error', `Video file not found at path: ${videoPath}`);
       throw new Error(`Video file not found at path: ${videoPath}`);
     }
 
-    // 🔒 중복 체크: 이미 업로드된 영상인지 확인
+    // ?뵏 以묐났 泥댄겕: ?대? ?낅줈?쒕맂 ?곸긽?몄? ?뺤씤
     const dbUploadCheck = new Database(dbPath);
     const existingUpload = dbUploadCheck.prepare(`
       SELECT id, video_url FROM youtube_uploads
@@ -1046,10 +1046,10 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
     dbUploadCheck.close();
 
     if (existingUpload) {
-      console.warn(`⚠️ [YOUTUBE] 중복 업로드 방지: videoId=${videoId}는 이미 업로드됨 (${existingUpload.video_url})`);
-      addPipelineLog(pipelineId, 'info', `⚠️ 이미 업로드된 영상입니다: ${existingUpload.video_url}`);
+      console.warn(`?좑툘 [YOUTUBE] 以묐났 ?낅줈??諛⑹?: videoId=${videoId}???대? ?낅줈?쒕맖 (${existingUpload.video_url})`);
+      addPipelineLog(pipelineId, 'info', `?좑툘 ?대? ?낅줈?쒕맂 ?곸긽?낅땲?? ${existingUpload.video_url}`);
 
-      // 스케줄 상태 업데이트
+      // ?ㅼ?以??곹깭 ?낅뜲?댄듃
       const dbStatus = new Database(dbPath);
       dbStatus.prepare(`
         UPDATE video_schedules
@@ -1062,13 +1062,13 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
         success: true,
         uploadId: existingUpload.id,
         videoUrl: existingUpload.video_url
-      }; // 중복 업로드 방지 - 기존 업로드 정보 반환
+      }; // 以묐났 ?낅줈??諛⑹? - 湲곗〈 ?낅줈???뺣낫 諛섑솚
     }
 
-    // YouTube API 호출
+    // YouTube API ?몄텧
     const privacyValue = schedule.youtube_privacy || 'public';
     addPipelineLog(pipelineId, 'info', `Calling YouTube upload API for video: ${job.title}`);
-    addPipelineLog(pipelineId, 'info', `YouTube 공개 설정: ${privacyValue} (DB값: ${schedule.youtube_privacy})`);
+    addPipelineLog(pipelineId, 'info', `YouTube 怨듦컻 ?ㅼ젙: ${privacyValue} (DB媛? ${schedule.youtube_privacy})`);
 
     const uploadResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/youtube/upload`, {
       method: 'POST',
@@ -1079,14 +1079,14 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
       body: JSON.stringify({
         videoPath,
         title: job.title || schedule.title,
-        description: '', // 빈 문자열 (상품정보 대본이 있으면 자동으로 추가될 예정)
+        description: '', // 鍮?臾몄옄??(?곹뭹?뺣낫 ?蹂몄씠 ?덉쑝硫??먮룞?쇰줈 異붽????덉젙)
         tags: schedule.tags ? schedule.tags.split(',').map((t: string) => t.trim()) : [],
-        privacy: privacyValue, // 사용자 설정 우선, 없으면 public
+        privacy: privacyValue, // ?ъ슜???ㅼ젙 ?곗꽑, ?놁쑝硫?public
         channelId: schedule.channel,
         jobId: videoId,
         publishAt: schedule.youtube_publish_time,
-        userId: schedule.user_id, // 내부 요청용 userId 전달
-        type: job.type // 상품 타입 전달 (상품정보 대본 검색용)
+        userId: schedule.user_id, // ?대? ?붿껌??userId ?꾨떖
+        type: job.type // ?곹뭹 ????꾨떖 (?곹뭹?뺣낫 ?蹂?寃?됱슜)
       })
     });
 
@@ -1104,10 +1104,10 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
       throw new Error(uploadData.error || 'YouTube upload failed');
     }
 
-    addPipelineLog(pipelineId, 'info', `✅ YouTube upload successful: ${uploadData.videoUrl}`);
+    addPipelineLog(pipelineId, 'info', `??YouTube upload successful: ${uploadData.videoUrl}`);
 
-    // video_schedules 테이블에 youtube_upload_id와 youtube_url 업데이트
-    // YouTube API에서 이미 youtube_uploads 테이블에 저장했으므로 중복 저장하지 않음
+    // video_schedules ?뚯씠釉붿뿉 youtube_upload_id? youtube_url ?낅뜲?댄듃
+    // YouTube API?먯꽌 ?대? youtube_uploads ?뚯씠釉붿뿉 ??ν뻽?쇰?濡?以묐났 ??ν븯吏 ?딆쓬
     if (uploadData.uploadId || uploadData.videoUrl) {
       const uploadDb = new Database(dbPath);
       uploadDb.prepare(`
@@ -1116,7 +1116,7 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
         WHERE id = ?
       `).run(uploadData.uploadId || null, uploadData.videoUrl || null, schedule.id);
       uploadDb.close();
-      console.log(`✅ video_schedules 업데이트: youtube_upload_id = ${uploadData.uploadId}, youtube_url = ${uploadData.videoUrl}`);
+      console.log(`??video_schedules ?낅뜲?댄듃: youtube_upload_id = ${uploadData.uploadId}, youtube_url = ${uploadData.videoUrl}`);
     }
 
     return {
@@ -1127,23 +1127,23 @@ async function uploadToYouTube(videoId: string, schedule: any, pipelineId: strin
 
   } catch (error: any) {
     addPipelineLog(pipelineId, 'error', `YouTube upload failed: ${error.message}`);
-    addTitleLog(schedule.title_id, 'error', `❌ YouTube upload failed: ${error.message}`);
+    addTitleLog(schedule.title_id, 'error', `??YouTube upload failed: ${error.message}`);
     return { success: false, error: error.message };
   }
 }
 
-// Stage 4: 유튜브 퍼블리시 예약
+// Stage 4: ?좏뒠釉??쇰툝由ъ떆 ?덉빟
 async function scheduleYouTubePublish(uploadId: string, schedule: any, pipelineId: string) {
   try {
     addPipelineLog(pipelineId, 'info', `Scheduling YouTube publish for: ${schedule.youtube_publish_time || 'immediate'}`);
 
-    // youtube_publish_time이 설정되어 있으면 예약, 없으면 즉시 공개
+    // youtube_publish_time???ㅼ젙?섏뼱 ?덉쑝硫??덉빟, ?놁쑝硫?利됱떆 怨듦컻
     if (schedule.youtube_publish_time) {
       addPipelineLog(pipelineId, 'info', `Video will be published at: ${schedule.youtube_publish_time}`);
-      addTitleLog(schedule.title_id, 'info', `📅 예약됨: ${new Date(schedule.youtube_publish_time).toLocaleString('ko-KR')}`);
+      addTitleLog(schedule.title_id, 'info', `?뱟 ?덉빟?? ${new Date(schedule.youtube_publish_time).toLocaleString('ko-KR')}`);
     } else {
       addPipelineLog(pipelineId, 'info', `Video set to immediate publish`);
-      addTitleLog(schedule.title_id, 'info', `✅ 즉시 공개 설정됨`);
+      addTitleLog(schedule.title_id, 'info', `??利됱떆 怨듦컻 ?ㅼ젙??);
     }
 
     return { success: true };
@@ -1155,7 +1155,7 @@ async function scheduleYouTubePublish(uploadId: string, schedule: any, pipelineI
 }
 
 // ============================================================
-// 에러 알림 함수
+// ?먮윭 ?뚮┝ ?⑥닔
 // ============================================================
 
 async function sendAutomationErrorEmail(
@@ -1168,24 +1168,24 @@ async function sendAutomationErrorEmail(
     const settings = getAutomationSettings();
     const alertEmail = settings.alert_email || 'moony75@gmail.com';
 
-    const subject = `[자동화 실패] ${stage} - ${scheduleId}`;
+    const subject = `[?먮룞???ㅽ뙣] ${stage} - ${scheduleId}`;
     const html = `
-      <h2>자동화 파이프라인 실패 알림</h2>
-      <p><strong>스케줄 ID:</strong> ${scheduleId}</p>
-      <p><strong>실패 단계:</strong> ${stage}</p>
-      <p><strong>에러 메시지:</strong> ${errorMessage}</p>
-      <p><strong>제목:</strong> ${context.schedule?.title || 'N/A'}</p>
-      <p><strong>타입:</strong> ${context.schedule?.type || 'N/A'}</p>
-      <p><strong>예약 시간:</strong> ${context.schedule?.scheduled_time || 'N/A'}</p>
+      <h2>?먮룞???뚯씠?꾨씪???ㅽ뙣 ?뚮┝</h2>
+      <p><strong>?ㅼ?以?ID:</strong> ${scheduleId}</p>
+      <p><strong>?ㅽ뙣 ?④퀎:</strong> ${stage}</p>
+      <p><strong>?먮윭 硫붿떆吏:</strong> ${errorMessage}</p>
+      <p><strong>?쒕ぉ:</strong> ${context.schedule?.title || 'N/A'}</p>
+      <p><strong>???</strong> ${context.schedule?.type || 'N/A'}</p>
+      <p><strong>?덉빟 ?쒓컙:</strong> ${context.schedule?.scheduled_time || 'N/A'}</p>
       <hr>
       <h3>Context:</h3>
       <pre>${JSON.stringify(context, null, 2)}</pre>
       <hr>
-      <p><em>이 이메일은 자동화 시스템에서 발송되었습니다.</em></p>
+      <p><em>???대찓?쇱? ?먮룞???쒖뒪?쒖뿉??諛쒖넚?섏뿀?듬땲??</em></p>
     `;
 
     await sendErrorEmail(alertEmail, subject, html);
-    console.log(`✅ Error email sent to ${alertEmail}`);
+    console.log(`??Error email sent to ${alertEmail}`);
 
   } catch (error) {
     console.error('Failed to send error email:', error);
@@ -1193,7 +1193,7 @@ async function sendAutomationErrorEmail(
 }
 
 // ============================================================
-// 스케줄러 상태 확인
+// ?ㅼ?以꾨윭 ?곹깭 ?뺤씤
 // ============================================================
 
 export function getSchedulerStatus() {
@@ -1206,7 +1206,7 @@ export function getSchedulerStatus() {
 }
 
 // ============================================================
-// 이미지 업로드 대기 중인 스케줄 확인
+// ?대?吏 ?낅줈???湲?以묒씤 ?ㅼ?以??뺤씤
 // ============================================================
 
 async function checkWaitingForUploadSchedules() {
@@ -1223,23 +1223,23 @@ async function checkWaitingForUploadSchedules() {
       try {
         const schedule = scheduleRaw as any; // Type assertion for better type safety
 
-        // script_id가 있는지 확인
+        // script_id媛 ?덈뒗吏 ?뺤씤
         if (!schedule.script_id) {
           console.log(`[Scheduler] Schedule ${schedule.id} has no script_id, skipping`);
           continue;
         }
 
-        // 스크립트 폴더에서 이미지 확인
+        // ?ㅽ겕由쏀듃 ?대뜑?먯꽌 ?대?吏 ?뺤씤
         const fs = require('fs');
         const scriptFolderPath = path.join(process.cwd(), '..', 'trend-video-backend', 'input', `project_${schedule.script_id}`);
 
-        // 폴더가 존재하는지 확인
+        // ?대뜑媛 議댁옱?섎뒗吏 ?뺤씤
         if (!fs.existsSync(scriptFolderPath)) {
           console.log(`[Scheduler] Script folder not found: ${scriptFolderPath}`);
           continue;
         }
 
-        // 이미지 파일 확인 (scene_*.png, scene_*.jpg, scene_*.webp 등)
+        // ?대?吏 ?뚯씪 ?뺤씤 (scene_*.png, scene_*.jpg, scene_*.webp ??
         const files = fs.readdirSync(scriptFolderPath);
         const imageFiles = files.filter((file: string) =>
           /scene_\d+.*\.(png|jpg|jpeg|webp|gif)$/i.test(file)
@@ -1253,16 +1253,16 @@ async function checkWaitingForUploadSchedules() {
         console.log(`[Scheduler] Found ${imageFiles.length} image(s) in ${scriptFolderPath}`);
         console.log(`[Scheduler] Images: ${imageFiles.join(', ')}`);
 
-        // 이미지가 업로드되었으므로 processing 상태로 변경하고 video 단계 시작
-        console.log(`[Scheduler] ✅ ${imageFiles.length} images found for ${schedule.id}`);
-        addPipelineLog(schedule.id, 'info', `✅ ${imageFiles.length}개 이미지 업로드 확인됨, 영상 생성을 시작합니다`);
-        addTitleLog(schedule.title_id, 'info', `✅ 이미지 ${imageFiles.length}개 업로드 확인됨!`);
-        addTitleLog(schedule.title_id, 'info', `🎬 영상 생성을 시작합니다... (잠시만 기다려주세요)`);
+        // ?대?吏媛 ?낅줈?쒕릺?덉쑝誘濡?processing ?곹깭濡?蹂寃쏀븯怨?video ?④퀎 ?쒖옉
+        console.log(`[Scheduler] ??${imageFiles.length} images found for ${schedule.id}`);
+        addPipelineLog(schedule.id, 'info', `??${imageFiles.length}媛??대?吏 ?낅줈???뺤씤?? ?곸긽 ?앹꽦???쒖옉?⑸땲??);
+        addTitleLog(schedule.title_id, 'info', `???대?吏 ${imageFiles.length}媛??낅줈???뺤씤??`);
+        addTitleLog(schedule.title_id, 'info', `?렗 ?곸긽 ?앹꽦???쒖옉?⑸땲??.. (?좎떆留?湲곕떎?ㅼ＜?몄슂)`);
 
         updateScheduleStatus(schedule.id, 'processing');
 
-        // video 단계 시작 (비동기)
-        // 기존에 생성된 video pipeline ID 찾기
+        // video ?④퀎 ?쒖옉 (鍮꾨룞湲?
+        // 湲곗〈???앹꽦??video pipeline ID 李얘린
         const db = new Database(dbPath);
         const videoPipeline = db.prepare(`
           SELECT id FROM automation_pipelines
@@ -1279,7 +1279,7 @@ async function checkWaitingForUploadSchedules() {
           console.error(`[Scheduler] Failed to resume video generation for ${schedule.id}:`, error);
           console.error(`[Scheduler] Error stack:`, error.stack);
           addPipelineLog(videoPipelineId, 'error', `Video generation failed: ${error.message}`);
-          addTitleLog(schedule.title_id, 'error', `❌ 영상 생성 실패: ${error.message}`);
+          addTitleLog(schedule.title_id, 'error', `???곸긽 ?앹꽦 ?ㅽ뙣: ${error.message}`);
           updatePipelineStatus(videoPipelineId, 'failed');
           updateScheduleStatus(schedule.id, 'failed');
         });
@@ -1294,12 +1294,12 @@ async function checkWaitingForUploadSchedules() {
   }
 }
 
-// 영상 생성 완료되어 업로드 대기 중인 스케줄 체크 및 업로드 시작
+// ?곸긽 ?앹꽦 ?꾨즺?섏뼱 ?낅줈???湲?以묒씤 ?ㅼ?以?泥댄겕 諛??낅줈???쒖옉
 async function checkReadyToUploadSchedules() {
   try {
     // ============================================================
-    // 🔥 복구 로직: processing 상태인 스케줄의 정확한 파이프라인 단계 파악
-    // Pipeline stages: script → video → upload → publish
+    // ?뵦 蹂듦뎄 濡쒖쭅: processing ?곹깭???ㅼ?以꾩쓽 ?뺥솗???뚯씠?꾨씪???④퀎 ?뚯븙
+    // Pipeline stages: script ??video ??upload ??publish
     // ============================================================
     const dbRecovery = new Database(dbPath);
     const orphanedSchedules = dbRecovery.prepare(`
@@ -1314,11 +1314,11 @@ async function checkReadyToUploadSchedules() {
     `).all() as any[];
 
     if (orphanedSchedules.length > 0) {
-      console.log(`🔍 [RECOVERY] Checking ${orphanedSchedules.length} processing schedule(s) without video_id`);
+      console.log(`?뵇 [RECOVERY] Checking ${orphanedSchedules.length} processing schedule(s) without video_id`);
 
       for (const orphan of orphanedSchedules) {
         try {
-          // 📊 파이프라인 단계별 상태 조회
+          // ?뱤 ?뚯씠?꾨씪???④퀎蹂??곹깭 議고쉶
           const pipelines = dbRecovery.prepare(`
             SELECT stage, status
             FROM automation_pipelines
@@ -1339,21 +1339,21 @@ async function checkReadyToUploadSchedules() {
             publish: pipelines.find((p: any) => p.stage === 'publish')?.status || 'unknown'
           };
 
-          console.log(`📊 [RECOVERY] Schedule ${orphan.id} pipeline:`, pipelineStatus);
+          console.log(`?뱤 [RECOVERY] Schedule ${orphan.id} pipeline:`, pipelineStatus);
 
-          // 🔍 현재 단계 파악
+          // ?뵇 ?꾩옱 ?④퀎 ?뚯븙
           if (pipelineStatus.script !== 'completed') {
-            console.log(`⏳ [RECOVERY] Schedule ${orphan.id}: Script stage not completed yet (${pipelineStatus.script})`);
+            console.log(`??[RECOVERY] Schedule ${orphan.id}: Script stage not completed yet (${pipelineStatus.script})`);
             continue;
           }
 
           if (pipelineStatus.video === 'pending' || pipelineStatus.video === 'unknown') {
-            console.log(`⏳ [RECOVERY] Schedule ${orphan.id}: Video stage pending (waiting for images or processing)`);
+            console.log(`??[RECOVERY] Schedule ${orphan.id}: Video stage pending (waiting for images or processing)`);
             continue;
           }
 
           if (pipelineStatus.video === 'running') {
-            // Video 단계 진행 중 - job 상태 확인
+            // Video ?④퀎 吏꾪뻾 以?- job ?곹깭 ?뺤씤
             const job = dbRecovery.prepare(`
               SELECT id, status, progress
               FROM jobs
@@ -1364,9 +1364,9 @@ async function checkReadyToUploadSchedules() {
 
             if (job) {
               if (job.status === 'completed') {
-                // ✅ Job 완료됨 - video pipeline은 running이지만 실제로는 완료
-                console.log(`✅ [RECOVERY] Job ${job.id} completed but video pipeline stuck in 'running'`);
-                console.log(`   └─ Linking video_id: ${job.id} → schedule: ${orphan.id}`);
+                // ??Job ?꾨즺??- video pipeline? running?댁?留??ㅼ젣濡쒕뒗 ?꾨즺
+                console.log(`??[RECOVERY] Job ${job.id} completed but video pipeline stuck in 'running'`);
+                console.log(`   ?붴? Linking video_id: ${job.id} ??schedule: ${orphan.id}`);
 
                 dbRecovery.prepare(`
                   UPDATE video_schedules
@@ -1374,27 +1374,27 @@ async function checkReadyToUploadSchedules() {
                   WHERE id = ?
                 `).run(job.id, orphan.id);
 
-                // Video pipeline도 completed로 업데이트
+                // Video pipeline??completed濡??낅뜲?댄듃
                 dbRecovery.prepare(`
                   UPDATE automation_pipelines
                   SET status = 'completed'
                   WHERE schedule_id = ? AND stage = 'video'
                 `).run(orphan.id);
 
-                addTitleLog(orphan.title_id, 'info', `🔗 영상 작업 자동 연결됨: ${job.id}`);
-                console.log(`🔗 [RECOVERY] Successfully linked video_id and updated pipeline`);
+                addTitleLog(orphan.title_id, 'info', `?뵕 ?곸긽 ?묒뾽 ?먮룞 ?곌껐?? ${job.id}`);
+                console.log(`?뵕 [RECOVERY] Successfully linked video_id and updated pipeline`);
 
               } else {
-                console.log(`⏳ [RECOVERY] Job ${job.id} still ${job.status} (${job.progress || 0}%)`);
+                console.log(`??[RECOVERY] Job ${job.id} still ${job.status} (${job.progress || 0}%)`);
               }
             } else {
-              console.log(`⚠️ [RECOVERY] Video pipeline running but no job found`);
+              console.log(`?좑툘 [RECOVERY] Video pipeline running but no job found`);
             }
             continue;
           }
 
           if (pipelineStatus.video === 'completed') {
-            // Video pipeline은 completed인데 video_id가 없는 경우 - job 찾아서 연결
+            // Video pipeline? completed?몃뜲 video_id媛 ?녿뒗 寃쎌슦 - job 李얠븘???곌껐
             const job = dbRecovery.prepare(`
               SELECT id, status
               FROM jobs
@@ -1405,8 +1405,8 @@ async function checkReadyToUploadSchedules() {
             `).get(orphan.script_id) as any;
 
             if (job) {
-              console.log(`✅ [RECOVERY] Video completed but video_id not linked`);
-              console.log(`   └─ Linking video_id: ${job.id} → schedule: ${orphan.id}`);
+              console.log(`??[RECOVERY] Video completed but video_id not linked`);
+              console.log(`   ?붴? Linking video_id: ${job.id} ??schedule: ${orphan.id}`);
 
               dbRecovery.prepare(`
                 UPDATE video_schedules
@@ -1414,22 +1414,22 @@ async function checkReadyToUploadSchedules() {
                 WHERE id = ?
               `).run(job.id, orphan.id);
 
-              addTitleLog(orphan.title_id, 'info', `🔗 영상 작업 자동 연결됨: ${job.id}`);
-              console.log(`🔗 [RECOVERY] Successfully linked video_id`);
+              addTitleLog(orphan.title_id, 'info', `?뵕 ?곸긽 ?묒뾽 ?먮룞 ?곌껐?? ${job.id}`);
+              console.log(`?뵕 [RECOVERY] Successfully linked video_id`);
             } else {
-              console.log(`❌ [RECOVERY] Video pipeline completed but no completed job found`);
+              console.log(`??[RECOVERY] Video pipeline completed but no completed job found`);
             }
           }
 
         } catch (recoveryError: any) {
-          console.error(`❌ [RECOVERY] Failed to recover schedule ${orphan.id}:`, recoveryError.message);
+          console.error(`??[RECOVERY] Failed to recover schedule ${orphan.id}:`, recoveryError.message);
         }
       }
     }
     dbRecovery.close();
 
     // ============================================================
-    // 기존 로직: video_id가 있는 스케줄 찾아서 업로드
+    // 湲곗〈 濡쒖쭅: video_id媛 ?덈뒗 ?ㅼ?以?李얠븘???낅줈??
     // ============================================================
     const db = new Database(dbPath);
     const readySchedules = db.prepare(`
@@ -1454,7 +1454,7 @@ async function checkReadyToUploadSchedules() {
       try {
         console.log(`[Scheduler] Starting upload for schedule ${schedule.id}, video: ${schedule.video_id}`);
 
-        // Upload pipeline 찾기
+        // Upload pipeline 李얘린
         const dbUpload = new Database(dbPath);
         const uploadPipeline = dbUpload.prepare(`
           SELECT id, status FROM automation_pipelines
@@ -1468,7 +1468,7 @@ async function checkReadyToUploadSchedules() {
           continue;
         }
 
-        // 이미 running이거나 completed면 스킵
+        // ?대? running?닿굅??completed硫??ㅽ궢
         if (uploadPipeline.status === 'running' || uploadPipeline.status === 'completed') {
           console.log(`[Scheduler] Upload pipeline already ${uploadPipeline.status} for ${schedule.id}, skipping`);
           continue;
@@ -1477,11 +1477,11 @@ async function checkReadyToUploadSchedules() {
         const uploadPipelineId = uploadPipeline.id;
         const maxRetry = 3;
 
-        // 비동기로 업로드 시작
+        // 鍮꾨룞湲곕줈 ?낅줈???쒖옉
         resumeUploadPipeline(schedule, uploadPipelineId, maxRetry).catch((error: any) => {
           console.error(`[Scheduler] Failed to upload for ${schedule.id}:`, error);
           addPipelineLog(uploadPipelineId, 'error', `Upload failed: ${error.message}`);
-          addTitleLog(schedule.title_id, 'error', `❌ 업로드 실패: ${error.message}`);
+          addTitleLog(schedule.title_id, 'error', `???낅줈???ㅽ뙣: ${error.message}`);
           updatePipelineStatus(uploadPipelineId, 'failed');
           updateScheduleStatus(schedule.id, 'failed');
         });
@@ -1496,10 +1496,10 @@ async function checkReadyToUploadSchedules() {
   }
 }
 
-// 영상 생성 완료 후 업로드 재개
+// ?곸긽 ?앹꽦 ?꾨즺 ???낅줈???ш컻
 async function resumeUploadPipeline(schedule: any, uploadPipelineId: string, maxRetry: number) {
   addPipelineLog(uploadPipelineId, 'info', `Starting YouTube upload for video: ${schedule.video_id}`);
-  addTitleLog(schedule.title_id, 'info', `📤 YouTube 업로드 중...`);
+  addTitleLog(schedule.title_id, 'info', `?뱾 YouTube ?낅줈??以?..`);
   updatePipelineStatus(uploadPipelineId, 'running');
 
   const uploadResult = await uploadToYouTube(schedule.video_id, schedule, uploadPipelineId, maxRetry);
@@ -1510,7 +1510,7 @@ async function resumeUploadPipeline(schedule: any, uploadPipelineId: string, max
 
   updatePipelineStatus(uploadPipelineId, 'completed');
 
-  // video_schedules 테이블에 youtube_url 저장
+  // video_schedules ?뚯씠釉붿뿉 youtube_url ???
   const db = new Database(dbPath);
   db.prepare(`
     UPDATE video_schedules
@@ -1520,9 +1520,9 @@ async function resumeUploadPipeline(schedule: any, uploadPipelineId: string, max
   db.close();
 
   addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
-  addTitleLog(schedule.title_id, 'info', `✅ YouTube 업로드 완료: ${uploadResult.videoUrl}`);
+  addTitleLog(schedule.title_id, 'info', `??YouTube ?낅줈???꾨즺: ${uploadResult.videoUrl}`);
 
-  // Publish 단계
+  // Publish ?④퀎
   const dbPublish = new Database(dbPath);
   const publishPipeline = dbPublish.prepare(`
     SELECT id FROM automation_pipelines
@@ -1534,7 +1534,7 @@ async function resumeUploadPipeline(schedule: any, uploadPipelineId: string, max
   const publishPipelineId = publishPipeline?.id || (schedule.id + '_publish');
 
   addPipelineLog(publishPipelineId, 'info', `Scheduling YouTube publish`);
-  addTitleLog(schedule.title_id, 'info', `📅 퍼블리시 예약 중...`);
+  addTitleLog(schedule.title_id, 'info', `?뱟 ?쇰툝由ъ떆 ?덉빟 以?..`);
   updatePipelineStatus(publishPipelineId, 'running');
 
   const publishResult = await scheduleYouTubePublish(uploadResult.uploadId || '', schedule, publishPipelineId);
@@ -1548,17 +1548,17 @@ async function resumeUploadPipeline(schedule: any, uploadPipelineId: string, max
   updateTitleStatus(schedule.title_id, 'completed');
 
   addPipelineLog(publishPipelineId, 'info', `Pipeline completed successfully`);
-  addTitleLog(schedule.title_id, 'info', `🎉 모든 작업이 완료되었습니다!`);
+  addTitleLog(schedule.title_id, 'info', `?럦 紐⑤뱺 ?묒뾽???꾨즺?섏뿀?듬땲??`);
 
   console.log(`[Scheduler] Upload pipeline completed for schedule ${schedule.id}`);
 }
 
-// 이미지 업로드 후 video 생성 재개
+// ?대?吏 ?낅줈????video ?앹꽦 ?ш컻
 async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   const maxRetry = 3;
 
   addPipelineLog(videoPipelineId, 'info', `Starting video generation from script: ${schedule.script_id}`);
-  addTitleLog(schedule.title_id, 'info', `🎬 영상 생성 중...`);
+  addTitleLog(schedule.title_id, 'info', `?렗 ?곸긽 ?앹꽦 以?..`);
   updatePipelineStatus(videoPipelineId, 'running');
 
   const videoResult = await generateVideo(schedule.script_id, videoPipelineId, maxRetry, schedule.title_id, schedule);
@@ -1571,26 +1571,26 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
     throw new Error('Video generation succeeded but videoId is missing');
   }
 
-  console.log(`✅ [SCHEDULER] Video generation completed, videoId: ${videoResult.videoId}, schedule: ${schedule.id}`);
+  console.log(`??[SCHEDULER] Video generation completed, videoId: ${videoResult.videoId}, schedule: ${schedule.id}`);
 
   updatePipelineStatus(videoPipelineId, 'completed');
 
-  // video_schedules 테이블에 video_id 저장 (이미 저장되어 있지만 최종 확인)
+  // video_schedules ?뚯씠釉붿뿉 video_id ???(?대? ??λ릺???덉?留?理쒖쥌 ?뺤씤)
   const dbUpdateVideo = new Database(dbPath);
   dbUpdateVideo.prepare(`UPDATE video_schedules SET video_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
     .run(videoResult.videoId, schedule.id);
   dbUpdateVideo.close();
-  console.log(`✅ [SCHEDULER] Video ID saved to schedule: ${videoResult.videoId} -> ${schedule.id}`);
+  console.log(`??[SCHEDULER] Video ID saved to schedule: ${videoResult.videoId} -> ${schedule.id}`);
 
   updateScheduleStatus(schedule.id, 'processing', { videoId: videoResult.videoId });
   addPipelineLog(videoPipelineId, 'info', `Video generated successfully: ${videoResult.videoId}`);
-  addTitleLog(schedule.title_id, 'info', `✅ 영상 생성 완료: ${videoResult.videoId}`);
+  addTitleLog(schedule.title_id, 'info', `???곸긽 ?앹꽦 ?꾨즺: ${videoResult.videoId}`);
 
-  // 이후 upload, publish 단계는 기존 로직 활용
-  // TODO: upload와 publish 단계를 별도 함수로 분리하여 재사용
+  // ?댄썑 upload, publish ?④퀎??湲곗〈 濡쒖쭅 ?쒖슜
+  // TODO: upload? publish ?④퀎瑜?蹂꾨룄 ?⑥닔濡?遺꾨━?섏뿬 ?ъ궗??
   console.log(`[Scheduler] Video generation completed for ${schedule.id}, continuing with upload...`);
 
-  // Upload 단계 시작 - 기존 pipeline 찾기
+  // Upload ?④퀎 ?쒖옉 - 湲곗〈 pipeline 李얘린
   const dbUpload = new Database(dbPath);
   const uploadPipeline = dbUpload.prepare(`
     SELECT id FROM automation_pipelines
@@ -1603,7 +1603,7 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   console.log(`[Scheduler] Using upload pipeline ID: ${uploadPipelineId}`);
 
   addPipelineLog(uploadPipelineId, 'info', `Starting YouTube upload for video: ${videoResult.videoId}`);
-  addTitleLog(schedule.title_id, 'info', `📤 YouTube 업로드 중...`);
+  addTitleLog(schedule.title_id, 'info', `?뱾 YouTube ?낅줈??以?..`);
   updatePipelineStatus(uploadPipelineId, 'running');
 
   const uploadResult = await uploadToYouTube(videoResult.videoId, schedule, uploadPipelineId, maxRetry);
@@ -1614,7 +1614,7 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
 
   updatePipelineStatus(uploadPipelineId, 'completed');
 
-  // video_schedules 테이블에 youtube_url 저장
+  // video_schedules ?뚯씠釉붿뿉 youtube_url ???
   const db = new Database(dbPath);
   db.prepare(`
     UPDATE video_schedules
@@ -1624,9 +1624,9 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   db.close();
 
   addPipelineLog(uploadPipelineId, 'info', `YouTube upload successful: ${uploadResult.videoUrl}`);
-  addTitleLog(schedule.title_id, 'info', `✅ YouTube 업로드 완료: ${uploadResult.videoUrl}`);
+  addTitleLog(schedule.title_id, 'info', `??YouTube ?낅줈???꾨즺: ${uploadResult.videoUrl}`);
 
-  // Publish 단계 - 기존 pipeline 찾기
+  // Publish ?④퀎 - 湲곗〈 pipeline 李얘린
   const dbPublish = new Database(dbPath);
   const publishPipeline = dbPublish.prepare(`
     SELECT id FROM automation_pipelines
@@ -1639,7 +1639,7 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   console.log(`[Scheduler] Using publish pipeline ID: ${publishPipelineId}`);
 
   addPipelineLog(publishPipelineId, 'info', `Scheduling YouTube publish`);
-  addTitleLog(schedule.title_id, 'info', `📅 퍼블리시 예약 중...`);
+  addTitleLog(schedule.title_id, 'info', `?뱟 ?쇰툝由ъ떆 ?덉빟 以?..`);
   updatePipelineStatus(publishPipelineId, 'running');
 
   const publishResult = await scheduleYouTubePublish(uploadResult.uploadId || '', schedule, publishPipelineId);
@@ -1653,26 +1653,26 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   updateTitleStatus(schedule.title_id, 'completed');
 
   addPipelineLog(publishPipelineId, 'info', `Pipeline completed successfully`);
-  addTitleLog(schedule.title_id, 'info', `🎉 모든 작업이 완료되었습니다!`);
+  addTitleLog(schedule.title_id, 'info', `?럦 紐⑤뱺 ?묒뾽???꾨즺?섏뿀?듬땲??`);
 
   console.log(`[Scheduler] Pipeline completed for schedule ${schedule.id}`);
 }
 
-// ========== 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성 ==========
+// ========== ?꾩쟾 ?먮룞?? 梨꾨꼸 二쇨린 泥댄겕 諛??먮룞 ?ㅼ?以??앹꽦 ==========
 
 /**
- * 채널별 주기를 확인하고, 주기가 도래했으면 자동으로 제목 생성 → 스케줄 추가
- * 1. 모든 활성화된 채널 설정 조회
- * 2. 각 채널의 다음 스케줄 시간 계산
- * 3. 다음 스케줄이 없으면 (또는 주기가 도래했으면):
- *    - 카테고리에서 랜덤하게 선택
- *    - AI로 제목 생성
- *    - 제목 DB에 추가
- *    - 스케줄 자동 추가
+ * 梨꾨꼸蹂?二쇨린瑜??뺤씤?섍퀬, 二쇨린媛 ?꾨옒?덉쑝硫??먮룞?쇰줈 ?쒕ぉ ?앹꽦 ???ㅼ?以?異붽?
+ * 1. 紐⑤뱺 ?쒖꽦?붾맂 梨꾨꼸 ?ㅼ젙 議고쉶
+ * 2. 媛?梨꾨꼸???ㅼ쓬 ?ㅼ?以??쒓컙 怨꾩궛
+ * 3. ?ㅼ쓬 ?ㅼ?以꾩씠 ?놁쑝硫?(?먮뒗 二쇨린媛 ?꾨옒?덉쑝硫?:
+ *    - 移댄뀒怨좊━?먯꽌 ?쒕뜡?섍쾶 ?좏깮
+ *    - AI濡??쒕ぉ ?앹꽦
+ *    - ?쒕ぉ DB??異붽?
+ *    - ?ㅼ?以??먮룞 異붽?
  */
 export async function checkAndCreateAutoSchedules() {
   try {
-    // ⚠️ 먼저 자동 제목 생성이 활성화되어 있는지 확인
+    // ?좑툘 癒쇱? ?먮룞 ?쒕ぉ ?앹꽦???쒖꽦?붾릺???덈뒗吏 ?뺤씤
     const settings = getAutomationSettings();
     const autoTitleGeneration = settings.auto_title_generation === 'true';
 
@@ -1689,7 +1689,7 @@ export async function checkAndCreateAutoSchedules() {
 
     const db = new Database(dbPath);
 
-    // 1. 모든 활성화된 채널 설정 조회
+    // 1. 紐⑤뱺 ?쒖꽦?붾맂 梨꾨꼸 ?ㅼ젙 議고쉶
     const channelSettings = db.prepare(`
       SELECT * FROM youtube_channel_settings
       WHERE is_active = 1
@@ -1707,9 +1707,9 @@ export async function checkAndCreateAutoSchedules() {
 
     for (const setting of channelSettings) {
       try {
-        // categories가 없거나 빈 문자열이면 자동 생성 불가
+        // categories媛 ?녾굅??鍮?臾몄옄?댁씠硫??먮룞 ?앹꽦 遺덇?
         if (!setting.categories || setting.categories.trim() === '') {
-          console.log(`[AutoScheduler] ⏸️ Channel ${setting.channel_name}: No categories configured, skipping auto-generation`);
+          console.log(`[AutoScheduler] ?몌툘 Channel ${setting.channel_name}: No categories configured, skipping auto-generation`);
           skippedCount++;
           continue;
         }
@@ -1718,18 +1718,18 @@ export async function checkAndCreateAutoSchedules() {
         try {
           categories = JSON.parse(setting.categories);
         } catch (parseError) {
-          console.log(`[AutoScheduler] ⏸️ Channel ${setting.channel_name}: Invalid categories JSON, skipping auto-generation`);
+          console.log(`[AutoScheduler] ?몌툘 Channel ${setting.channel_name}: Invalid categories JSON, skipping auto-generation`);
           skippedCount++;
           continue;
         }
 
         if (!categories || !Array.isArray(categories) || categories.length === 0) {
-          console.log(`[AutoScheduler] ⏸️ Channel ${setting.channel_name}: Empty categories array, skipping auto-generation`);
+          console.log(`[AutoScheduler] ?몌툘 Channel ${setting.channel_name}: Empty categories array, skipping auto-generation`);
           skippedCount++;
           continue;
         }
 
-        // 2. 이 채널의 최근 스케줄 확인
+        // 2. ??梨꾨꼸??理쒓렐 ?ㅼ?以??뺤씤
         const db2 = new Database(dbPath);
         const lastSchedule = db2.prepare(`
           SELECT s.*, t.channel
@@ -1741,7 +1741,7 @@ export async function checkAndCreateAutoSchedules() {
         `).get(setting.channel_id, setting.user_id) as any;
         db2.close();
 
-        // 3. 다음 스케줄 시간 계산
+        // 3. ?ㅼ쓬 ?ㅼ?以??쒓컙 怨꾩궛
         const { calculateNextScheduleTime } = await import('./automation');
         const nextScheduleTime = calculateNextScheduleTime(
           setting.user_id,
@@ -1755,7 +1755,7 @@ export async function checkAndCreateAutoSchedules() {
           continue;
         }
 
-        // 4. 다음 스케줄이 이미 존재하는지 확인
+        // 4. ?ㅼ쓬 ?ㅼ?以꾩씠 ?대? 議댁옱?섎뒗吏 ?뺤씤
         const db3 = new Database(dbPath);
         const existingSchedule = db3.prepare(`
           SELECT s.id
@@ -1778,7 +1778,7 @@ export async function checkAndCreateAutoSchedules() {
           continue;
         }
 
-        // 5. 카테고리에서 랜덤 선택
+        // 5. 移댄뀒怨좊━?먯꽌 ?쒕뜡 ?좏깮
         const randomCategory = categories[Math.floor(Math.random() * categories.length)];
 
         console.log(`[AutoScheduler] Channel ${setting.channel_name}: Generating content for category "${randomCategory}"`);
@@ -1787,9 +1787,9 @@ export async function checkAndCreateAutoSchedules() {
         let generatedTitle: string;
         let productData: any = null;
 
-        // 6. 카테고리별 분기 처리
-        if (randomCategory === '상품') {
-          // === 상품 카테고리: 쿠팡 베스트 상품 조회 ===
+        // 6. 移댄뀒怨좊━蹂?遺꾧린 泥섎━
+        if (randomCategory === '?곹뭹') {
+          // === ?곹뭹 移댄뀒怨좊━: 荑좏뙜 踰좎뒪???곹뭹 議고쉶 ===
           console.log(`[AutoScheduler] Channel ${setting.channel_name}: Fetching Coupang bestseller...`);
 
           const result = await generateProductTitle(setting.user_id, setting.channel_id, setting.channel_name);
@@ -1802,7 +1802,7 @@ export async function checkAndCreateAutoSchedules() {
           productData = result.productData;
 
         } else {
-          // === 다른 카테고리: 멀티 모델 AI 평가 시스템 ===
+          // === ?ㅻⅨ 移댄뀒怨좊━: 硫??紐⑤뜽 AI ?됯? ?쒖뒪??===
           console.log(`[AutoScheduler] Channel ${setting.channel_name}: Using multi-model AI evaluation...`);
 
           const result = await generateTitleWithMultiModelEvaluation(randomCategory, setting.user_id, setting.channel_id, setting.channel_name);
@@ -1816,31 +1816,31 @@ export async function checkAndCreateAutoSchedules() {
 
         console.log(`[AutoScheduler] Channel ${setting.channel_name}: Created title ${titleId}`);
 
-        // 8. 스케줄 자동 추가
+        // 8. ?ㅼ?以??먮룞 異붽?
         const { addSchedule } = await import('./automation');
         const scheduleId = addSchedule({
           titleId,
           scheduledTime: nextScheduleTime.toISOString(),
-          youtubePrivacy: 'public' // 기본값, 필요 시 채널 설정에 추가 가능
+          youtubePrivacy: 'public' // 湲곕낯媛? ?꾩슂 ??梨꾨꼸 ?ㅼ젙??異붽? 媛??
         });
 
-        console.log(`[AutoScheduler] ✅ Channel ${setting.channel_name}: Auto-scheduled "${generatedTitle}" for ${nextScheduleTime.toISOString()}`);
+        console.log(`[AutoScheduler] ??Channel ${setting.channel_name}: Auto-scheduled "${generatedTitle}" for ${nextScheduleTime.toISOString()}`);
 
-        // 9. 로그 추가
+        // 9. 濡쒓렇 異붽?
         const { addTitleLog } = await import('./automation');
-        addTitleLog(titleId, 'info', `🤖 완전 자동화: 주기 도래로 제목 자동 생성 및 스케줄 추가 (채널: ${setting.channel_name}, 카테고리: ${randomCategory})`);
+        addTitleLog(titleId, 'info', `?쨼 ?꾩쟾 ?먮룞?? 二쇨린 ?꾨옒濡??쒕ぉ ?먮룞 ?앹꽦 諛??ㅼ?以?異붽? (梨꾨꼸: ${setting.channel_name}, 移댄뀒怨좊━: ${randomCategory})`);
 
         successCount++;
 
       } catch (channelError: any) {
         console.error(`[AutoScheduler] Error processing channel ${setting.channel_name}:`, channelError);
         failedCount++;
-        // 개별 채널 실패는 전체 프로세스를 중단하지 않음
+        // 媛쒕퀎 梨꾨꼸 ?ㅽ뙣???꾩껜 ?꾨줈?몄뒪瑜?以묐떒?섏? ?딆쓬
       }
     }
 
     lastAutoScheduleResult = { success: successCount, failed: failedCount, skipped: skippedCount };
-    console.log(`[AutoScheduler] ✅ Completed: ${successCount} success, ${failedCount} failed, ${skippedCount} skipped`);
+    console.log(`[AutoScheduler] ??Completed: ${successCount} success, ${failedCount} failed, ${skippedCount} skipped`);
     return lastAutoScheduleResult;
 
   } catch (error: any) {
@@ -1851,7 +1851,7 @@ export async function checkAndCreateAutoSchedules() {
 }
 
 // ============================================================
-// 상품 카테고리: 쿠팡 베스트 상품 조회 및 제목 생성
+// ?곹뭹 移댄뀒怨좊━: 荑좏뙜 踰좎뒪???곹뭹 議고쉶 諛??쒕ぉ ?앹꽦
 // ============================================================
 
 async function generateProductTitle(
@@ -1863,24 +1863,24 @@ async function generateProductTitle(
   let logId: string | null = null;
 
   try {
-    // 로그 시작
+    // 濡쒓렇 ?쒖옉
     logId = startAutoGenerationLog({
       userId,
       channelId,
       channelName,
-      category: '상품'
+      category: '?곹뭹'
     });
 
-    // 초기 상태 업데이트
+    // 珥덇린 ?곹깭 ?낅뜲?댄듃
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'started',
-        step: '쿠팡 베스트 상품 조회 중...'
+        step: '荑좏뙜 踰좎뒪???곹뭹 議고쉶 以?..'
       });
     }
 
-    // 1. 쿠팡 베스트 상품 조회 (내부 함수 직접 사용)
-    const { getCoupangBestsellers } = await import('./coupang');
+    // 1. 荑좏뙜 踰좎뒪???곹뭹 議고쉶 (?대? ?⑥닔 吏곸젒 ?ъ슜)
+    const { getCoupangBestsellers, generateAffiliateDeepLink } = await import('./coupang');
     const result = await getCoupangBestsellers(userId, '1001');
 
     if (!result.success || !result.products || result.products.length === 0) {
@@ -1888,7 +1888,7 @@ async function generateProductTitle(
       if (logId) {
         updateAutoGenerationLog(logId, {
           status: 'failed',
-          step: '상품 없음',
+          step: '?곹뭹 ?놁쓬',
           errorMessage: 'No products found'
         });
       }
@@ -1897,22 +1897,22 @@ async function generateProductTitle(
 
     const products = result.products;
 
-    // 로그 업데이트: 중복 확인
+    // 濡쒓렇 ?낅뜲?댄듃: 以묐났 ?뺤씤
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'fetching',
-        step: '기존 상품과 중복 확인 중...'
+        step: '湲곗〈 ?곹뭹怨?以묐났 ?뺤씤 以?..'
       });
     }
 
-    // 2. DB에서 기존 상품 조회
+    // 2. DB?먯꽌 湲곗〈 ?곹뭹 議고쉶
     const db = new Database(dbPath);
     const existingUrls = db.prepare(`
       SELECT product_url FROM coupang_products WHERE user_id = ?
     `).all(userId).map((row: any) => row.product_url);
     db.close();
 
-    // 3. DB에 없는 상품 찾기
+    // 3. DB???녿뒗 ?곹뭹 李얘린
     const newProduct = products.find((p: any) => !existingUrls.includes(p.productUrl));
 
     if (!newProduct) {
@@ -1920,20 +1920,23 @@ async function generateProductTitle(
       if (logId) {
         updateAutoGenerationLog(logId, {
           status: 'failed',
-          step: '중복 상품',
+          step: '以묐났 ?곹뭹',
           errorMessage: 'All products already exist in database'
         });
       }
       return null;
     }
 
+    
+    const affiliateLink = await generateAffiliateDeepLink(userId, newProduct.productUrl);
+
     console.log(`[ProductTitle] Found new product: ${newProduct.productName}`);
 
-    // 로그 업데이트: 새 상품 발견
+    // 濡쒓렇 ?낅뜲?댄듃: ???곹뭹 諛쒓껄
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'generating',
-        step: `새 상품 발견: ${newProduct.productName.substring(0, 30)}...`,
+        step: `???곹뭹 諛쒓껄: ${newProduct.productName.substring(0, 30)}...`,
         productInfo: {
           productName: newProduct.productName,
           productPrice: newProduct.productPrice,
@@ -1942,7 +1945,7 @@ async function generateProductTitle(
       });
     }
 
-    // 4. 상품 DB에 추가
+    // 4. ?곹뭹 DB??異붽?
     const productId = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const db2 = new Database(dbPath);
     db2.prepare(`
@@ -1953,10 +1956,10 @@ async function generateProductTitle(
       productId,
       userId,
       newProduct.productUrl,
-      newProduct.link || '',
+      affiliateLink,
       newProduct.productName,
-      newProduct.productName, // description도 제목 사용
-      '가전디지털', // 기본 카테고리
+      newProduct.productName, // description???쒕ぉ ?ъ슜
+      '媛?꾨뵒吏??, // 湲곕낯 移댄뀒怨좊━
       newProduct.productPrice || 0,
       newProduct.productPrice || 0,
       newProduct.productImage || ''
@@ -1965,30 +1968,30 @@ async function generateProductTitle(
 
     console.log(`[ProductTitle] Added product to DB: ${productId}`);
 
-    // 5. 제목 생성 (상품 이름 기반)
-    const title = `${newProduct.productName.substring(0, 50)}... 리뷰`;
+    // 5. ?쒕ぉ ?앹꽦 (?곹뭹 ?대쫫 湲곕컲)
+    const title = `${newProduct.productName.substring(0, 50)}... 由щ럭`;
 
-    // 6. video_titles에 추가
+    // 6. video_titles??異붽?
     const { addVideoTitle } = await import('./automation');
     const titleId = addVideoTitle({
       title,
       type: 'product',
-      category: '상품',
-      channel: '', // 나중에 스케줄 추가 시 설정
+      category: '?곹뭹',
+      channel: '', // ?섏쨷???ㅼ?以?異붽? ???ㅼ젙
       scriptMode: 'chrome',
       mediaMode: 'dalle3',
-      model: 'gemini', // 상품은 Gemini 기본
+      model: 'gemini', // ?곹뭹? Gemini 湲곕낯
       userId,
-      productUrl: newProduct.productUrl
+      productUrl: affiliateLink
     });
 
-    // 로그 완료
+    // 濡쒓렇 ?꾨즺
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'completed',
-        step: '제목 생성 완료',
+        step: '?쒕ぉ ?앹꽦 ?꾨즺',
         bestTitle: title,
-        bestScore: 100, // 상품 제목은 점수 평가 없음
+        bestScore: 100, // ?곹뭹 ?쒕ぉ? ?먯닔 ?됯? ?놁쓬
         resultTitleId: titleId
       });
     }
@@ -1996,7 +1999,7 @@ async function generateProductTitle(
     return {
       titleId,
       title,
-      productData: newProduct
+      productData: { ...newProduct, deepLink: affiliateLink }
     };
 
   } catch (error: any) {
@@ -2004,7 +2007,7 @@ async function generateProductTitle(
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'failed',
-        step: '에러 발생',
+        step: '?먮윭 諛쒖깮',
         errorMessage: error.message || 'Unknown error'
       });
     }
@@ -2013,31 +2016,31 @@ async function generateProductTitle(
 }
 
 // ============================================================
-// 규칙 기반 제목 점수 평가 (AI 비용 절감)
+// 洹쒖튃 湲곕컲 ?쒕ぉ ?먯닔 ?됯? (AI 鍮꾩슜 ?덇컧)
 // ============================================================
 
 /**
- * 간단한 규칙 기반으로 제목 점수를 평가합니다.
- * AI API 호출 없이 로컬에서 빠르게 평가할 수 있습니다.
+ * 媛꾨떒??洹쒖튃 湲곕컲?쇰줈 ?쒕ぉ ?먯닔瑜??됯??⑸땲??
+ * AI API ?몄텧 ?놁씠 濡쒖뺄?먯꽌 鍮좊Ⅴ寃??됯??????덉뒿?덈떎.
  */
 function evaluateTitleWithRules(title: string, category: string): number {
   let score = 0;
 
-  // 1. 제목 길이 평가 (20-60자가 최적)
+  // 1. ?쒕ぉ 湲몄씠 ?됯? (20-60?먭? 理쒖쟻)
   const length = title.length;
   if (length >= 20 && length <= 60) {
-    score += 30; // 최적 길이
+    score += 30; // 理쒖쟻 湲몄씠
   } else if (length >= 15 && length < 20) {
-    score += 20; // 약간 짧음
+    score += 20; // ?쎄컙 吏㏃쓬
   } else if (length > 60 && length <= 80) {
-    score += 20; // 약간 김
+    score += 20; // ?쎄컙 源
   } else if (length < 15) {
-    score += 5; // 너무 짧음
+    score += 5; // ?덈Т 吏㏃쓬
   } else {
-    score += 10; // 너무 김
+    score += 10; // ?덈Т 源
   }
 
-  // 2. 특수문자 평가 (호기심 유발)
+  // 2. ?뱀닔臾몄옄 ?됯? (?멸린???좊컻)
   const hasQuestion = title.includes('?');
   const hasExclamation = title.includes('!');
   const hasEllipsis = title.includes('...');
@@ -2048,12 +2051,12 @@ function evaluateTitleWithRules(title: string, category: string): number {
   if (hasEllipsis) score += 5;
   if (hasQuotes) score += 5;
 
-  // 3. 감정 키워드 평가
+  // 3. 媛먯젙 ?ㅼ썙???됯?
   const emotionalKeywords = [
-    '후회', '복수', '반전', '충격', '눈물', '감동',
-    '배신', '비밀', '진실', '최후', '귀환', '성공',
-    '통쾌', '화려', '무릎', '외면', '당당', '전설',
-    '알고보니', '결국', '드디어', '끝판왕', '최고'
+    '?꾪쉶', '蹂듭닔', '諛섏쟾', '異⑷꺽', '?덈Ъ', '媛먮룞',
+    '諛곗떊', '鍮꾨?', '吏꾩떎', '理쒗썑', '洹??, '?깃났',
+    '?듭풄', '?붾젮', '臾대쫷', '?몃㈃', '?밸떦', '?꾩꽕',
+    '?뚭퀬蹂대땲', '寃곌뎅', '?쒕뵒??, '?앺뙋??, '理쒓퀬'
   ];
 
   let emotionalCount = 0;
@@ -2062,19 +2065,19 @@ function evaluateTitleWithRules(title: string, category: string): number {
       emotionalCount++;
     }
   }
-  score += Math.min(emotionalCount * 5, 20); // 최대 20점
+  score += Math.min(emotionalCount * 5, 20); // 理쒕? 20??
 
-  // 4. 숫자 포함 여부 (구체성)
+  // 4. ?レ옄 ?ы븿 ?щ? (援ъ껜??
   if (/\d+/.test(title)) {
     score += 8;
   }
 
-  // 5. 카테고리 관련 키워드 평가
+  // 5. 移댄뀒怨좊━ 愿???ㅼ썙???됯?
   const categoryKeywords: Record<string, string[]> = {
-    '시니어사연': ['시어머니', '며느리', '고부갈등', '시댁', '양로원'],
-    '복수극': ['복수', '무시', 'CEO', '귀환', '배신자', '신입'],
-    '탈북자사연': ['탈북', '북한', '남한', '자유', '대한민국'],
-    '막장드라마': ['출생', '비밀', '재벌', '배다른', '친자확인'],
+    '?쒕땲?댁궗??: ['?쒖뼱癒몃땲', '硫곕뒓由?, '怨좊?媛덈벑', '?쒕똻', '?묐줈??],
+    '蹂듭닔洹?: ['蹂듭닔', '臾댁떆', 'CEO', '洹??, '諛곗떊??, '?좎엯'],
+    '?덈턿?먯궗??: ['?덈턿', '遺곹븳', '?⑦븳', '?먯쑀', '??쒕?援?],
+    '留됱옣?쒕씪留?: ['異쒖깮', '鍮꾨?', '?щ쾶', '諛곕떎瑜?, '移쒖옄?뺤씤'],
   };
 
   const keywords = categoryKeywords[category] || [];
@@ -2084,24 +2087,24 @@ function evaluateTitleWithRules(title: string, category: string): number {
       categoryCount++;
     }
   }
-  score += Math.min(categoryCount * 7, 15); // 최대 15점
+  score += Math.min(categoryCount * 7, 15); // 理쒕? 15??
 
-  // 6. 문장 구조 평가
+  // 6. 臾몄옣 援ъ“ ?됯?
   const hasComma = (title.match(/,/g) || []).length;
   if (hasComma >= 1 && hasComma <= 2) {
-    score += 7; // 적절한 구조
+    score += 7; // ?곸젅??援ъ“
   }
 
-  // 7. 주어 명확성 평가 (가장 중요!)
-  // 문제: "무시당했던 청소부, CEO가 된 비결" - 누가 CEO가 됐는지 불명확
-  // 해결: "청소부를 무시했던 그들, CEO가 된 그녀 앞에서..." - 주어가 명확함
+  // 7. 二쇱뼱 紐낇솗???됯? (媛??以묒슂!)
+  // 臾몄젣: "臾댁떆?뱁뻽??泥?냼遺, CEO媛 ??鍮꾧껐" - ?꾧? CEO媛 ?먮뒗吏 遺덈챸??
+  // ?닿껐: "泥?냼遺瑜?臾댁떆?덈뜕 洹몃뱾, CEO媛 ??洹몃? ?욎뿉??.." - 二쇱뼱媛 紐낇솗??
   let clarityScore = 0;
 
-  // 7-1. 목적격 조사 + 과거형 패턴 (가해자 명시)
-  // "~를 무시했던", "~을 괴롭혔던", "~에게 배신당했던" 등
+  // 7-1. 紐⑹쟻寃?議곗궗 + 怨쇨굅???⑦꽩 (媛?댁옄 紐낆떆)
+  // "~瑜?臾댁떆?덈뜕", "~??愿대∼?붾뜕", "~?먭쾶 諛곗떊?뱁뻽?? ??
   const aggressorPatterns = [
-    /[을를]?\s*(무시|괴롭히|배신|내쫓|외면|무시당|차별).*?[했던|한|하던]/,
-    /에게\s*(배신|무시).*?당했던/
+    /[?꾨?]?\s*(臾댁떆|愿대∼??諛곗떊|?댁쳯|?몃㈃|臾댁떆??李⑤퀎).*?[?덈뜕|???섎뜕]/,
+    /?먭쾶\s*(諛곗떊|臾댁떆).*??뱁뻽??
   ];
 
   let hasAggressor = false;
@@ -2112,32 +2115,32 @@ function evaluateTitleWithRules(title: string, category: string): number {
     }
   }
 
-  // 7-2. 명확한 주어 대명사 또는 지시어
-  // "그들", "그녀", "그", "그 앞에서", "그녀 앞에"
-  const hasClearSubject = /그들|그녀|그 앞|그가|그를/.test(title);
+  // 7-2. 紐낇솗??二쇱뼱 ?紐낆궗 ?먮뒗 吏?쒖뼱
+  // "洹몃뱾", "洹몃?", "洹?, "洹??욎뿉??, "洹몃? ?욎뿉"
+  const hasClearSubject = /洹몃뱾|洹몃?|洹???洹멸?|洹몃?/.test(title);
 
-  // 7-3. 시간 표현 + 변화 패턴 (과거-현재 대비)
-  // "3년 후", "10년 만에" 등 + "CEO가 된", "성공한" 등
-  const hasTimeTransition = /\d+년\s*(후|만에|뒤).*?(가 된|로 나타|한 그|된 그)/.test(title);
+  // 7-3. ?쒓컙 ?쒗쁽 + 蹂???⑦꽩 (怨쇨굅-?꾩옱 ?鍮?
+  // "3????, "10??留뚯뿉" ??+ "CEO媛 ??, "?깃났?? ??
+  const hasTimeTransition = /\d+??s*(??留뚯뿉|??.*?(媛 ??濡??섑?|??洹???洹?/.test(title);
 
-  // 7-4. 애매한 패턴 감점
-  // "무시당했던 청소부, CEO로..." - 청소부가 주어인지 불명확
-  const hasAmbiguousPattern = /당했던.*?,.*?로\s*(성공|변신|등극)/.test(title) && !hasClearSubject;
+  // 7-4. ?좊ℓ???⑦꽩 媛먯젏
+  // "臾댁떆?뱁뻽??泥?냼遺, CEO濡?.." - 泥?냼遺媛 二쇱뼱?몄? 遺덈챸??
+  const hasAmbiguousPattern = /?뱁뻽??*?,.*?濡?s*(?깃났|蹂???깃레)/.test(title) && !hasClearSubject;
 
-  // 점수 계산
-  if (hasAggressor) clarityScore += 8; // 가해자 명시
-  if (hasClearSubject) clarityScore += 7; // 명확한 주어
-  if (hasTimeTransition) clarityScore += 5; // 시간+변화
-  if (hasAmbiguousPattern) clarityScore -= 10; // 애매한 패턴 감점
+  // ?먯닔 怨꾩궛
+  if (hasAggressor) clarityScore += 8; // 媛?댁옄 紐낆떆
+  if (hasClearSubject) clarityScore += 7; // 紐낇솗??二쇱뼱
+  if (hasTimeTransition) clarityScore += 5; // ?쒓컙+蹂??
+  if (hasAmbiguousPattern) clarityScore -= 10; // ?좊ℓ???⑦꽩 媛먯젏
 
-  score += Math.max(0, clarityScore); // 최대 20점 (감점 가능)
+  score += Math.max(0, clarityScore); // 理쒕? 20??(媛먯젏 媛??
 
-  // 최종 점수를 0-100 범위로 제한
+  // 理쒖쥌 ?먯닔瑜?0-100 踰붿쐞濡??쒗븳
   return Math.min(100, Math.max(0, score));
 }
 
 // ============================================================
-// 다른 카테고리: 멀티 모델 AI 평가 및 최고 점수 제목 선택
+// ?ㅻⅨ 移댄뀒怨좊━: 硫??紐⑤뜽 AI ?됯? 諛?理쒓퀬 ?먯닔 ?쒕ぉ ?좏깮
 // ============================================================
 
 async function generateTitleWithMultiModelEvaluation(
@@ -2150,11 +2153,11 @@ async function generateTitleWithMultiModelEvaluation(
   let logId: string | null = null;
 
   try {
-    // 제목 풀 사용 설정 확인
+    // ?쒕ぉ ? ?ъ슜 ?ㅼ젙 ?뺤씤
     const settings = getAutomationSettings();
     const useTitlePool = settings.use_title_pool === 'true';
 
-    // 로그 시작
+    // 濡쒓렇 ?쒖옉
     logId = startAutoGenerationLog({
       userId,
       channelId,
@@ -2162,30 +2165,30 @@ async function generateTitleWithMultiModelEvaluation(
       category
     });
 
-    // 초기 상태 업데이트
+    // 珥덇린 ?곹깭 ?낅뜲?댄듃
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'started',
-        step: useTitlePool ? '고품질 제목 풀 확인 중...' : 'AI로 제목 생성 준비 중...'
+        step: useTitlePool ? '怨좏뭹吏??쒕ぉ ? ?뺤씤 以?..' : 'AI濡??쒕ぉ ?앹꽦 以鍮?以?..'
       });
     }
 
-    // 🎯 선택사항: 제목 풀 사용 (설정에 따라)
+    // ?렞 ?좏깮?ы빆: ?쒕ぉ ? ?ъ슜 (?ㅼ젙???곕씪)
     if (useTitlePool) {
       console.log(`[TitlePool] Checking title pool for category "${category}"...`);
       const poolTitle = getTitleFromPool(category, 90) as any;
 
       if (poolTitle) {
-        console.log(`[TitlePool] ✅ Found high-quality title from pool (score: ${poolTitle.score})`);
+        console.log(`[TitlePool] ??Found high-quality title from pool (score: ${poolTitle.score})`);
         console.log(`[TitlePool] Title: "${poolTitle.title}"`);
 
-        // 카테고리별 비디오 타입 결정
+        // 移댄뀒怨좊━蹂?鍮꾨뵒?????寃곗젙
         let videoType: 'longform' | 'shortform' | 'product' = 'longform';
-        if (category.includes('숏') || category === 'shortform' || category === 'Shorts') {
+        if (category.includes('??) || category === 'shortform' || category === 'Shorts') {
           videoType = 'shortform';
         }
 
-        // video_titles에 추가
+        // video_titles??異붽?
         const titleId = addVideoTitle({
           title: poolTitle.title,
           type: videoType,
@@ -2193,15 +2196,15 @@ async function generateTitleWithMultiModelEvaluation(
           channel: channelId,
           scriptMode: 'chrome',
           mediaMode: 'dalle3',
-          model: 'ollama-pool', // 풀에서 가져왔음을 표시
+          model: 'ollama-pool', // ??먯꽌 媛?몄솕?뚯쓣 ?쒖떆
           userId
         });
 
-        // 로그 완료
+        // 濡쒓렇 ?꾨즺
         if (logId) {
           updateAutoGenerationLog(logId, {
             status: 'completed',
-            step: '제목 풀에서 선택 완료 (비용 $0)',
+            step: '?쒕ぉ ??먯꽌 ?좏깮 ?꾨즺 (鍮꾩슜 $0)',
             bestTitle: poolTitle.title,
             bestScore: poolTitle.score,
             resultTitleId: titleId
@@ -2214,36 +2217,36 @@ async function generateTitleWithMultiModelEvaluation(
         };
       }
 
-      console.log(`[TitlePool] ⚠️ No high-quality titles in pool, falling back to AI generation...`);
+      console.log(`[TitlePool] ?좑툘 No high-quality titles in pool, falling back to AI generation...`);
     }
 
-    // 카테고리별 기본 모델 결정
-    let defaultModel = 'claude'; // 기본값
-    let videoType: 'longform' | 'shortform' | 'product' = 'longform'; // 기본값
+    // 移댄뀒怨좊━蹂?湲곕낯 紐⑤뜽 寃곗젙
+    let defaultModel = 'claude'; // 湲곕낯媛?
+    let videoType: 'longform' | 'shortform' | 'product' = 'longform'; // 湲곕낯媛?
 
-    if (category.includes('숏') || category === 'shortform' || category === 'Shorts') {
+    if (category.includes('??) || category === 'shortform' || category === 'Shorts') {
       defaultModel = 'chatgpt';
       videoType = 'shortform';
-    } else if (category.includes('롱') || category === 'longform') {
+    } else if (category.includes('濡?) || category === 'longform') {
       defaultModel = 'claude';
       videoType = 'longform';
     }
 
     console.log(`[TitleGen] Generating titles for category "${category}" using ${defaultModel} (type: ${videoType})...`);
 
-    // 로그 업데이트: 모델 호출
+    // 濡쒓렇 ?낅뜲?댄듃: 紐⑤뜽 ?몄텧
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'generating',
-        step: `${defaultModel.toUpperCase()}로 제목 생성 중...`,
+        step: `${defaultModel.toUpperCase()}濡??쒕ぉ ?앹꽦 以?..`,
         modelsUsed: [defaultModel]
       });
     }
 
-    // 2. 선택된 모델로 제목 생성
+    // 2. ?좏깮??紐⑤뜽濡??쒕ぉ ?앹꽦
     const titles = await generateTitlesWithModel(category, defaultModel);
 
-    // 2. 제목 수집
+    // 2. ?쒕ぉ ?섏쭛
     const allTitles = titles.map((t: string) => ({ title: t, model: defaultModel, score: 0 }));
 
     if (allTitles.length === 0) {
@@ -2251,7 +2254,7 @@ async function generateTitleWithMultiModelEvaluation(
       if (logId) {
         updateAutoGenerationLog(logId, {
           status: 'failed',
-          step: '제목 생성 실패',
+          step: '?쒕ぉ ?앹꽦 ?ㅽ뙣',
           errorMessage: 'No titles generated from any model'
         });
       }
@@ -2260,36 +2263,36 @@ async function generateTitleWithMultiModelEvaluation(
 
     console.log(`[TitleGen] Generated ${allTitles.length} titles`);
 
-    // 로그 업데이트: 규칙 기반 평가
+    // 濡쒓렇 ?낅뜲?댄듃: 洹쒖튃 湲곕컲 ?됯?
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'evaluating',
-        step: `규칙 기반으로 제목 평가 중... (AI 비용 절감)`
+        step: `洹쒖튃 湲곕컲?쇰줈 ?쒕ぉ ?됯? 以?.. (AI 鍮꾩슜 ?덇컧)`
       });
     }
 
-    // 3. 규칙 기반으로 각 제목 평가
+    // 3. 洹쒖튃 湲곕컲?쇰줈 媛??쒕ぉ ?됯?
     const scoredTitles = allTitles.map((item: any) => ({
       ...item,
       score: evaluateTitleWithRules(item.title, category)
     }));
 
-    // 4. 최고 점수의 제목 선택
+    // 4. 理쒓퀬 ?먯닔???쒕ぉ ?좏깮
     scoredTitles.sort((a, b) => b.score - a.score);
     const bestTitle = scoredTitles[0];
 
     console.log(`[TitleGen] Evaluated ${scoredTitles.length} titles with rule-based scoring`);
     console.log(`[TitleGen] Best title (score: ${bestTitle.score}): "${bestTitle.title}" (model: ${bestTitle.model})`);
 
-    // 상위 3개 제목 로그 출력
+    // ?곸쐞 3媛??쒕ぉ 濡쒓렇 異쒕젰
     scoredTitles.slice(0, 3).forEach((item: any, index: number) => {
-      console.log(`  ${index + 1}. [${item.score}점] ${item.title}`);
+      console.log(`  ${index + 1}. [${item.score}?? ${item.title}`);
     });
 
-    // 5. video_titles에 추가
+    // 5. video_titles??異붽?
     const titleId = addVideoTitle({
       title: bestTitle.title,
-      type: videoType, // 카테고리에 따라 longform 또는 shortform
+      type: videoType, // 移댄뀒怨좊━???곕씪 longform ?먮뒗 shortform
       category,
       channel: channelId,
       scriptMode: 'chrome',
@@ -2298,11 +2301,11 @@ async function generateTitleWithMultiModelEvaluation(
       userId
     });
 
-    // 로그 완료
+    // 濡쒓렇 ?꾨즺
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'completed',
-        step: '제목 선정 완료 (규칙 기반 평가)',
+        step: '?쒕ぉ ?좎젙 ?꾨즺 (洹쒖튃 湲곕컲 ?됯?)',
         titlesGenerated: scoredTitles,
         bestTitle: bestTitle.title,
         bestScore: bestTitle.score,
@@ -2320,7 +2323,7 @@ async function generateTitleWithMultiModelEvaluation(
     if (logId) {
       updateAutoGenerationLog(logId, {
         status: 'failed',
-        step: '에러 발생',
+        step: '?먮윭 諛쒖깮',
         errorMessage: error.message || 'Unknown error'
       });
     }
@@ -2328,7 +2331,7 @@ async function generateTitleWithMultiModelEvaluation(
   }
 }
 
-// 특정 모델로 제목 생성 (내부 함수 직접 사용)
+// ?뱀젙 紐⑤뜽濡??쒕ぉ ?앹꽦 (?대? ?⑥닔 吏곸젒 ?ъ슜)
 async function generateTitlesWithModel(category: string, model: string): Promise<string[]> {
   try {
     const {
@@ -2354,29 +2357,29 @@ async function generateTitlesWithModel(category: string, model: string): Promise
   }
 }
 
-// 제목 점수 평가 (내부 함수 직접 사용)
+// ?쒕ぉ ?먯닔 ?됯? (?대? ?⑥닔 吏곸젒 ?ъ슜)
 async function evaluateTitleScore(title: string, category: string): Promise<number> {
   try {
     const { evaluateTitleScore: evaluate } = await import('./ai-title-generation');
     return await evaluate(title, category);
   } catch (error: any) {
     console.error('[ScoreEvaluation] Error:', error);
-    return 50; // 에러 시 중간 점수
+    return 50; // ?먮윭 ??以묎컙 ?먯닔
   }
 }
 
 // ============================================================
-// 숏폼 자동 업로드 체커
+// ?륂뤌 ?먮룞 ?낅줈??泥댁빱
 // ============================================================
 /**
- * 완료된 숏폼 작업을 찾아서 YouTube에 업로드합니다.
- * 업로드 시 설명란에 롱폼 링크를 추가합니다.
+ * ?꾨즺???륂뤌 ?묒뾽??李얠븘??YouTube???낅줈?쒗빀?덈떎.
+ * ?낅줈?????ㅻ챸???濡깊뤌 留곹겕瑜?異붽??⑸땲??
  */
 export async function checkCompletedShortformJobs() {
   try {
     const db = new Database(dbPath);
 
-    // shortform_job_id가 있고 아직 업로드되지 않은 스케줄 찾기
+    // shortform_job_id媛 ?덇퀬 ?꾩쭅 ?낅줈?쒕릺吏 ?딆? ?ㅼ?以?李얘린
     const schedulesWithShortform = db.prepare(`
       SELECT vs.*, vt.user_id, vt.channel, vt.tags
       FROM video_schedules vs
@@ -2389,50 +2392,50 @@ export async function checkCompletedShortformJobs() {
       return;
     }
 
-    console.log(`🔍 [SHORTFORM CHECKER] Found ${schedulesWithShortform.length} schedules with shortform jobs`);
+    console.log(`?뵇 [SHORTFORM CHECKER] Found ${schedulesWithShortform.length} schedules with shortform jobs`);
 
     for (const schedule of schedulesWithShortform) {
       try {
         const shortformJobId = schedule.shortform_job_id;
         const longformYoutubeUrl = schedule.longform_youtube_url;
 
-        console.log(`🔍 [SHORTFORM] Checking shortform job: ${shortformJobId}`);
+        console.log(`?뵇 [SHORTFORM] Checking shortform job: ${shortformJobId}`);
 
-        // 숏폼 작업 상태 확인
+        // ?륂뤌 ?묒뾽 ?곹깭 ?뺤씤
         const shortformJob = db.prepare(`SELECT * FROM jobs WHERE id = ?`).get(shortformJobId) as any;
 
         if (!shortformJob) {
-          console.log(`⚠️ [SHORTFORM] Job not found: ${shortformJobId}`);
+          console.log(`?좑툘 [SHORTFORM] Job not found: ${shortformJobId}`);
           continue;
         }
 
-        console.log(`🔍 [SHORTFORM] Job status: ${shortformJob.status}`);
+        console.log(`?뵇 [SHORTFORM] Job status: ${shortformJob.status}`);
 
         if (shortformJob.status !== 'completed') {
-          console.log(`⏳ [SHORTFORM] Job not yet completed: ${shortformJob.status}`);
+          console.log(`??[SHORTFORM] Job not yet completed: ${shortformJob.status}`);
           continue;
         }
 
-        // 숏폼 완료됨 - YouTube 업로드 시작
-        console.log(`✅ [SHORTFORM] Shortform completed! Starting YouTube upload...`);
-        addTitleLog(schedule.title_id, 'info', `✅ 숏폼 생성 완료! YouTube 업로드 시작...`);
+        // ?륂뤌 ?꾨즺??- YouTube ?낅줈???쒖옉
+        console.log(`??[SHORTFORM] Shortform completed! Starting YouTube upload...`);
+        addTitleLog(schedule.title_id, 'info', `???륂뤌 ?앹꽦 ?꾨즺! YouTube ?낅줈???쒖옉...`);
 
-        // 파이프라인 ID 생성
+        // ?뚯씠?꾨씪??ID ?앹꽦
         const uploadPipelineId = schedule.id + '_shortform_upload';
         updatePipelineStatus(uploadPipelineId, 'running');
 
-        // YouTube 업로드 (롱폼 링크를 설명란에 추가)
+        // YouTube ?낅줈??(濡깊뤌 留곹겕瑜??ㅻ챸???異붽?)
         const videoPath = shortformJob.video_path;
         const title = shortformJob.title || schedule.title;
 
-        // 설명란에 롱폼 링크 추가
+        // ?ㅻ챸???濡깊뤌 留곹겕 異붽?
         let description = '';
         if (longformYoutubeUrl) {
-          description = `롱폼 : ${longformYoutubeUrl}`;
+          description = `濡깊뤌 : ${longformYoutubeUrl}`;
         }
 
-        console.log(`📤 [SHORTFORM] Uploading to YouTube with description: ${description}`);
-        addTitleLog(schedule.title_id, 'info', `📤 숏폼 YouTube 업로드 중... (설명: ${description})`);
+        console.log(`?뱾 [SHORTFORM] Uploading to YouTube with description: ${description}`);
+        addTitleLog(schedule.title_id, 'info', `?뱾 ?륂뤌 YouTube ?낅줈??以?.. (?ㅻ챸: ${description})`);
 
         const uploadResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/youtube/upload`, {
           method: 'POST',
@@ -2442,13 +2445,13 @@ export async function checkCompletedShortformJobs() {
           },
           body: JSON.stringify({
             videoPath,
-            title: `${title} (쇼츠)`,
+            title: `${title} (?쇱툩)`,
             description,
             tags: schedule.tags ? schedule.tags.split(',').map((t: string) => t.trim()) : [],
             privacy: schedule.youtube_privacy || 'public',
             channelId: schedule.channel,
             jobId: shortformJobId,
-            publishAt: null, // 숏폼은 즉시 공개
+            publishAt: null, // ?륂뤌? 利됱떆 怨듦컻
             userId: schedule.user_id,
             type: 'shortform'
           })
@@ -2456,8 +2459,8 @@ export async function checkCompletedShortformJobs() {
 
         if (!uploadResponse.ok) {
           const errorText = await uploadResponse.text();
-          console.error(`❌ [SHORTFORM] Upload failed: ${errorText}`);
-          addTitleLog(schedule.title_id, 'error', `❌ 숏폼 업로드 실패: ${errorText}`);
+          console.error(`??[SHORTFORM] Upload failed: ${errorText}`);
+          addTitleLog(schedule.title_id, 'error', `???륂뤌 ?낅줈???ㅽ뙣: ${errorText}`);
           updatePipelineStatus(uploadPipelineId, 'failed', errorText);
           continue;
         }
@@ -2465,32 +2468,33 @@ export async function checkCompletedShortformJobs() {
         const uploadData = await uploadResponse.json();
 
         if (!uploadData.success) {
-          console.error(`❌ [SHORTFORM] Upload failed: ${uploadData.error}`);
-          addTitleLog(schedule.title_id, 'error', `❌ 숏폼 업로드 실패: ${uploadData.error}`);
+          console.error(`??[SHORTFORM] Upload failed: ${uploadData.error}`);
+          addTitleLog(schedule.title_id, 'error', `???륂뤌 ?낅줈???ㅽ뙣: ${uploadData.error}`);
           updatePipelineStatus(uploadPipelineId, 'failed', uploadData.error);
           continue;
         }
 
-        // 업로드 성공 - shortform_uploaded 플래그 업데이트
+        // ?낅줈???깃났 - shortform_uploaded ?뚮옒洹??낅뜲?댄듃
         db.prepare(`
           UPDATE video_schedules
           SET shortform_uploaded = 1, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `).run(schedule.id);
 
-        console.log(`✅ [SHORTFORM] Upload successful: ${uploadData.videoUrl}`);
-        addTitleLog(schedule.title_id, 'info', `✅ 숏폼 YouTube 업로드 완료!`);
-        addTitleLog(schedule.title_id, 'info', `🎉 숏폼: ${uploadData.videoUrl}`);
+        console.log(`??[SHORTFORM] Upload successful: ${uploadData.videoUrl}`);
+        addTitleLog(schedule.title_id, 'info', `???륂뤌 YouTube ?낅줈???꾨즺!`);
+        addTitleLog(schedule.title_id, 'info', `?럦 ?륂뤌: ${uploadData.videoUrl}`);
         updatePipelineStatus(uploadPipelineId, 'completed');
 
       } catch (error: any) {
-        console.error(`❌ [SHORTFORM] Error processing shortform for schedule ${schedule.id}:`, error);
-        addTitleLog(schedule.title_id, 'error', `❌ 숏폼 처리 중 오류: ${error.message}`);
+        console.error(`??[SHORTFORM] Error processing shortform for schedule ${schedule.id}:`, error);
+        addTitleLog(schedule.title_id, 'error', `???륂뤌 泥섎━ 以??ㅻ쪟: ${error.message}`);
       }
     }
 
     db.close();
   } catch (error: any) {
-    console.error('❌ [SHORTFORM CHECKER] Error:', error);
+    console.error('??[SHORTFORM CHECKER] Error:', error);
   }
 }
+

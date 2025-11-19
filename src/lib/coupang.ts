@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
+import { CoupangClient } from './coupang-client';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const COUPANG_SETTINGS_FILE = path.join(DATA_DIR, 'coupang-settings.json');
@@ -127,3 +128,26 @@ export async function getCoupangBestsellers(userId: string, categoryId: string =
     throw error;
   }
 }
+
+export async function generateAffiliateDeepLink(userId: string, productUrl: string): Promise<string> {
+  try {
+    const settings = await loadUserCoupangSettings(userId);
+    if (!settings?.accessKey || !settings?.secretKey) {
+      console.warn('[Coupang] API 설정이 없어 딥링크를 생성하지 못했습니다. 원본 URL 사용');
+      return productUrl;
+    }
+
+    const client = new CoupangClient({
+      accessKey: settings.accessKey,
+      secretKey: settings.secretKey
+    });
+
+    const deepLink = await client.generateDeepLink(productUrl);
+    console.log('[Coupang] 생성된 딥링크:', deepLink);
+    return deepLink;
+  } catch (error: any) {
+    console.warn('[Coupang] 딥링크 생성 실패, 원본 URL 사용:', error?.message || error);
+    return productUrl;
+  }
+}
+

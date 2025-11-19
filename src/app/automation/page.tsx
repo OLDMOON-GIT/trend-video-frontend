@@ -7,6 +7,7 @@ import ChannelSettings from '@/components/automation/ChannelSettings';
 import CategoryManagement from '@/components/automation/CategoryManagement';
 import GenerationDashboard from '@/components/automation/GenerationDashboard';
 import MediaUploadBox from '@/components/MediaUploadBox';
+import YouTubeUploadButton from '@/components/YouTubeUploadButton';
 
 function AutomationPageContent() {
   const router = useRouter();
@@ -3161,6 +3162,25 @@ function AutomationPageContent() {
                                 </div>
                               )}
                             </>
+                          );
+                        })()}
+                        {/* YouTube 업로드 버튼 (processing 상태이면서 영상 제작 완료, 아직 업로드 안 됨) */}
+                        {(() => {
+                          const schedule = titleSchedules.find((s: any) => s.video_id);
+                          const hasVideo = !!schedule?.video_id;
+                          const hasYouTubeUrl = !!schedule?.youtube_url;
+
+                          return title.status === 'processing' && hasVideo && !hasYouTubeUrl && (
+                            <button
+                              onClick={() => {
+                                // 영상 페이지로 이동하여 YouTube 업로드
+                                window.location.href = `/my-content?tab=videos&id=${schedule.video_id}`;
+                              }}
+                              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-sm font-semibold transition"
+                              title="YouTube에 업로드"
+                            >
+                              📺 YouTube 업로드
+                            </button>
                           );
                         })()}
                         {/* 업로드 버튼 (waiting_for_upload 또는 failed 상태이고 script_id가 있을 때만) */}

@@ -2578,5 +2578,50 @@
     "balance": 200113880,
     "description": "영상 생성",
     "createdAt": "2025-11-16T09:30:56.282Z"
+  },
+  {
+    "id": "81fa11cd-48a9-4bf8-9a6d-2e1b0c08e0af",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114030,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-17T03:30:16.478Z"
+  },
+  {
+    "id": "ac45f8b5-071a-4645-be0f-a486e7437900",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114180,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-17T14:20:36.098Z"
+  },
+  {
+    "id": "e15a627f-6ec5-4772-955b-df571780b5c7",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114030,
+    "description": "영상 생성",
+    "createdAt": "2025-11-17T14:23:03.939Z"
+  },
+  {
+    "id": "6ce13a5e-1e1a-4fae-a059-cabdea005429",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114180,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-17T22:10:54.501Z"
+  },
+  {
+    "id": "9918d08e-1d66-4269-a6b9-75c5ad56e979",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "use",
+    "amount": -150,
+    "balance": 200114030,
+    "description": "영상 생성",
+    "createdAt": "2025-11-17T22:50:12.369Z"
   }
 ]

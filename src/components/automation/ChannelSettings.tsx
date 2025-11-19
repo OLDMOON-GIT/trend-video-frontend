@@ -435,6 +435,16 @@ export default function ChannelSettings() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            // 재인증 페이지로 이동
+                            window.open(`/api/youtube/auth/initiate?channelId=${channel.channelId}`, '_blank');
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          🔗 재인증
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             handleDeleteSetting(channel.channelId);
                           }}
                           className="text-xs text-red-600 hover:text-red-700"
