@@ -260,19 +260,27 @@ function AutomationPageContent() {
           const response = await fetch(`/api/admin/coupang-products`);
           if (response.ok) {
             const data = await response.json();
-            // 선택한 카테고리에 해당하는 상품만 필터링
+            // 선택한 카테고리에 해당하는 상품만 필터링 (딥링크 검증)
             const filteredProducts = (data.products || [])
               .filter((p: any) => p.category_id === newTitle.category)
+              .filter((p: any) => {
+                // ⭐ 딥링크 검증: 'partner=' 포함 필수 (쿠팡 제휴 URL)
+                if (!p.deep_link || !p.deep_link.includes('partner=')) {
+                  console.warn(`⚠️ [자동화] 딥링크 없음 또는 잘못됨: ${p.product_name} (${p.deep_link})`);
+                  return false;
+                }
+                return true;
+              })
               .map((p: any) => ({
                 productId: p.product_id,
                 productName: p.product_name,
                 productPrice: p.discount_price || p.original_price,
                 productImage: p.image_url,
-                productUrl: p.deep_link, // ⭐ 딥링크 사용!
+                productUrl: p.deep_link, // ⭐ 딥링크만 사용!
                 categoryName: p.category_name
               }));
 
-            console.log(`✅ [자동화] 카테고리 ${newTitle.category} 상품 ${filteredProducts.length}개 (딥링크 발급됨)`);
+            console.log(`✅ [자동화] 카테고리 ${newTitle.category} 상품 ${filteredProducts.length}개 (모두 딥링크 검증됨)`);
             setAvailableProducts(filteredProducts);
           } else {
             console.error('Failed to fetch products from my list:', response.statusText);
@@ -623,18 +631,33 @@ function AutomationPageContent() {
       if (newTitle.type === 'product' || newTitle.type === 'product-info') {
         // 1. 현재 페이지에서 입력한 상품 정보 우선
         if (currentProductData) {
+          // ⭐ productUrl 검증 (딥링크여야 함!)
+          if (!currentProductData.productUrl || !currentProductData.productUrl.includes('partner=')) {
+            alert('❌ 상품 URL이 딥링크가 아닙니다.\n\n제휴 마크(partner=)가 포함된 URL이어야 합니다.\n\n내 목록에서 상품을 다시 선택해주세요.');
+            setIsSubmitting(false);
+            return;
+          }
           productData = JSON.stringify(currentProductData);
-          console.log('✅ [자동화] currentProductData 사용:', productData.substring(0, 200));
+          console.log('✅ [자동화] currentProductData 사용 (딥링크 검증됨):', currentProductData.productUrl);
         }
         // 2. localStorage에서 가져온 상품 정보 (상품관리에서 넘어온 경우)
         else {
           const savedProductData = localStorage.getItem('current_product_data');
           if (savedProductData) {
+            const parsedData = JSON.parse(savedProductData);
+            // ⭐ productUrl 검증 (딥링크여야 함!)
+            if (!parsedData.productUrl || !parsedData.productUrl.includes('partner=')) {
+              alert('❌ 상품 URL이 딥링크가 아닙니다.\n\n제휴 마크(partner=)가 포함된 URL이어야 합니다.\n\n내 목록에서 상품을 다시 선택해주세요.');
+              setIsSubmitting(false);
+              return;
+            }
             productData = savedProductData; // 이미 JSON 문자열
             localStorage.removeItem('current_product_data'); // 사용 후 삭제
-            console.log('✅ [자동화] localStorage productData 사용:', productData.substring(0, 200));
+            console.log('✅ [자동화] localStorage productData 사용 (딥링크 검증됨):', parsedData.productUrl);
           } else {
-            console.warn('⚠️ [자동화] productData가 없습니다. 타입:', newTitle.type);
+            alert('⚠️ 상품 정보가 없습니다.\n\n내 목록에서 상품을 선택해주세요.');
+            setIsSubmitting(false);
+            return;
           }
         }
       }
@@ -1205,8 +1228,8 @@ function AutomationPageContent() {
       const storyData = await storyRes.json();
       console.log('📖 Story 데이터:', JSON.stringify(storyData, null, 2));
 
-      // story.json 구조: { story: { scenes: [...] } } 또는 { scenes: [...] }
-      const scenes = storyData.story?.scenes || storyData.scenes || [];
+      // story.json 구조: { storyJson: { scenes: [...] } } 또는 { story: { scenes: [...] } } 또는 { scenes: [...] }
+      const scenes = storyData.storyJson?.scenes || storyData.story?.scenes || storyData.scenes || [];
 
       if (!scenes || scenes.length === 0) {
         console.error('❌ Scenes 데이터 없음. 받은 데이터:', storyData);

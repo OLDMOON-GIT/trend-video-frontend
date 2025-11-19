@@ -56,7 +56,14 @@ export async function POST(request: NextRequest) {
     await fs.writeFile(scenesFilePath, JSON.stringify(scenes, null, 2), 'utf-8');
 
     // Python 스크립트 실행
-    const pythonScript = path.join(backendPath, 'src', 'image_crawler', 'image_crawler.py');
+    const pythonScript = path.join(backendPath, 'image_crawler_working.py');
+
+    // contentId가 있으면 프로젝트 폴더 경로 계산
+    let outputDir = null;
+    if (contentId) {
+      outputDir = path.join(backendPath, 'input', contentId);
+      console.log('📁 출력 폴더:', outputDir);
+    }
 
     console.log('Python 스크립트 실행:', pythonScript);
     console.log('씬 파일:', scenesFilePath);
@@ -75,6 +82,9 @@ export async function POST(request: NextRequest) {
     const pythonArgs = [pythonScript, scenesFilePath];
     if (useImageFX) {
       pythonArgs.push('--use-imagefx');
+    }
+    if (outputDir) {
+      pythonArgs.push('--output-dir', outputDir);
     }
 
     const pythonProcess = spawn('python', pythonArgs, {
