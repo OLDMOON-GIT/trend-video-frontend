@@ -1149,7 +1149,8 @@ async function scheduleYouTubePublish(uploadId: string, schedule: any, pipelineI
     return { success: true };
 
   } catch (error: any) {
-    addPipelineLog(pipelineId, 'error', `Failed to schedule publish: ${error.message}`);
+    const errorMsg = `Failed to schedule publish: ${error.message}`;
+    addPipelineLog(pipelineId, 'error', errorMsg);
     return { success: false, error: error.message };
   }
 }
@@ -1880,7 +1881,7 @@ async function generateProductTitle(
     }
 
     // 1. 쿠팡 베스트 상품 조회 (내부 함수 직접 사용)
-    const { getCoupangBestsellers } = await import('./coupang');
+    const { getCoupangBestsellers, generateAffiliateDeepLink } = await import('./coupang');
     const result = await getCoupangBestsellers(userId, '1001');
 
     if (!result.success || !result.products || result.products.length === 0) {
@@ -1927,6 +1928,8 @@ async function generateProductTitle(
       return null;
     }
 
+    const affiliateLink = await generateAffiliateDeepLink(userId, newProduct.productUrl);
+
     console.log(`[ProductTitle] Found new product: ${newProduct.productName}`);
 
     // 로그 업데이트: 새 상품 발견
@@ -1952,8 +1955,8 @@ async function generateProductTitle(
     `).run(
       productId,
       userId,
-      newProduct.productUrl,
-      newProduct.link || '',
+      affiliateLink,
+      affiliateLink,
       newProduct.productName,
       newProduct.productName, // description도 제목 사용
       '가전디지털', // 기본 카테고리
@@ -1979,7 +1982,7 @@ async function generateProductTitle(
       mediaMode: 'dalle3',
       model: 'gemini', // 상품은 Gemini 기본
       userId,
-      productUrl: newProduct.productUrl
+      productUrl: affiliateLink
     });
 
     // 로그 완료
@@ -1996,7 +1999,7 @@ async function generateProductTitle(
     return {
       titleId,
       title,
-      productData: newProduct
+      productData: { ...newProduct, deepLink: affiliateLink }
     };
 
   } catch (error: any) {
