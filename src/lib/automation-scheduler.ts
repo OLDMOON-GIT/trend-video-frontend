@@ -927,13 +927,13 @@ async function generateVideo(scriptId: string, pipelineId: string, maxRetry: num
         db.close();
 
         if (pipeline && pipeline.status === 'failed') {
-          console.log(`?썞 [SCHEDULER] Pipeline ${pipelineId} failed`);
-          throw new Error('?묒뾽???ㅽ뙣?덉뒿?덈떎');
+          console.log(`⚠️ [SCHEDULER] Pipeline ${pipelineId} failed`);
+          throw new Error('작업이 실패했습니다');
         }
 
         if (scheduleStatus && scheduleStatus.status === 'cancelled') {
-          console.log(`?썞 [SCHEDULER] Schedule for pipeline ${pipelineId} was cancelled by user`);
-          throw new Error('?묒뾽???ъ슜?먯뿉 ?섑빐 以묒??섏뿀?듬땲??);
+          console.log(`⚠️ [SCHEDULER] Schedule for pipeline ${pipelineId} was cancelled by user`);
+          throw new Error('작업이 사용자에 의해 중지되었습니다');
         }
 
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
