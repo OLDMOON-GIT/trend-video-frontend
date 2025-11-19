@@ -3276,9 +3276,33 @@ function AutomationPageContent() {
 
                           return title.status === 'failed' && hasVideo && !hasYouTubeUrl && (
                             <button
-                              onClick={() => {
-                                // 영상 페이지로 이동하여 YouTube 업로드
-                                window.location.href = `/my-content?tab=videos&id=${schedule.video_id}`;
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch('/api/youtube/upload', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    credentials: 'include',
+                                    body: JSON.stringify({
+                                      videoPath: schedule.video_path || '',
+                                      title: title.title,
+                                      channelId: schedule.channel,
+                                      jobId: schedule.video_id,
+                                      privacy: schedule.youtube_privacy || 'public',
+                                      type: title.type
+                                    })
+                                  });
+
+                                  const data = await res.json();
+
+                                  if (data.success) {
+                                    alert(`✅ YouTube 업로드 시작!\n\nVideo ID: ${data.videoId}`);
+                                    await fetchData();
+                                  } else {
+                                    alert(`❌ 업로드 실패: ${data.error || '알 수 없는 오류'}`);
+                                  }
+                                } catch (error: any) {
+                                  alert(`❌ 업로드 중 오류: ${error.message}`);
+                                }
                               }}
                               className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-sm font-semibold transition"
                               title="YouTube에 업로드"
