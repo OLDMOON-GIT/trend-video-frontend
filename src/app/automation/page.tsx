@@ -1251,13 +1251,60 @@ function AutomationPageContent() {
         throw new Error(result.error || '크롤링 실패');
       }
 
-      setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), `✅ 크롤링 작업 생성: ${result.taskId}`] }));
-      alert(`✅ 이미지 크롤링이 시작되었습니다!\n\n작업 ID: ${result.taskId}\n대기 시간: 5~10분 후 영상 제작을 시작해주세요.`);
+      const taskId = result.taskId;
+      setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), `✅ 크롤링 작업 생성: ${taskId}`, '⏳ 실시간 로그 수신 중...'] }));
+
+      // 실시간 로그 폴링
+      let lastLogCount = 0;
+      let pollCount = 0;
+      const maxPolls = 120; // 최대 10분 (5초 간격)
+
+      const pollInterval = setInterval(async () => {
+        try {
+          pollCount++;
+          const statusRes = await fetch(`/api/images/crawl?taskId=${taskId}`);
+
+          if (!statusRes.ok) {
+            clearInterval(pollInterval);
+            setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), '❌ 상태 확인 실패'] }));
+            setCrawlingFor(null);
+            return;
+          }
+
+          const status = await statusRes.json();
+
+          // 새로운 로그만 추가
+          if (status.logs && status.logs.length > lastLogCount) {
+            const newLogs = status.logs.slice(lastLogCount);
+            setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), ...newLogs] }));
+            lastLogCount = status.logs.length;
+          }
+
+          // 완료 또는 실패 시 폴링 중단
+          if (status.status === 'completed') {
+            clearInterval(pollInterval);
+            setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), '✅ 이미지 크롤링 완료! 이제 영상 제작을 시작할 수 있습니다.'] }));
+            setCrawlingFor(null);
+            alert('✅ 이미지 크롤링이 완료되었습니다!\n\n이제 영상 제작을 진행할 수 있습니다.');
+          } else if (status.status === 'failed') {
+            clearInterval(pollInterval);
+            setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), `❌ 크롤링 실패: ${status.error || '알 수 없는 오류'}`] }));
+            setCrawlingFor(null);
+            alert(`❌ 이미지 크롤링이 실패했습니다.\n\n${status.error || '알 수 없는 오류'}`);
+          } else if (pollCount >= maxPolls) {
+            clearInterval(pollInterval);
+            setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), '⏱️ 타임아웃: 작업이 너무 오래 걸립니다. 수동으로 확인해주세요.'] }));
+            setCrawlingFor(null);
+          }
+        } catch (pollError: any) {
+          console.error('폴링 에러:', pollError);
+        }
+      }, 5000); // 5초마다 폴링
+
     } catch (error: any) {
       setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), `❌ ${error.message}`] }));
       alert(`❌ 크롤링 실패: ${error.message}`);
       console.error('Image crawling error:', error);
-    } finally {
       setCrawlingFor(null);
     }
   }

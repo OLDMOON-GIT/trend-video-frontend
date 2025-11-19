@@ -55,13 +55,16 @@ export async function POST(request: NextRequest) {
     const scenesFilePath = path.join(tempDir, `scenes_${taskId}.json`);
     await fs.writeFile(scenesFilePath, JSON.stringify(scenes, null, 2), 'utf-8');
 
-    // Python 스크립트 실행
-    const pythonScript = path.join(backendPath, 'image_crawler_working.py');
+    // Python 스크립트 실행 (workspace 루트에 있음)
+    const workspacePath = path.join(process.cwd(), '..');
+    const pythonScript = path.join(workspacePath, 'image_crawler_working.py');
 
     // contentId가 있으면 프로젝트 폴더 경로 계산
     let outputDir = null;
     if (contentId) {
-      outputDir = path.join(backendPath, 'input', contentId);
+      // contentId가 "project_"로 시작하지 않으면 추가
+      const projectId = contentId.startsWith('project_') ? contentId : `project_${contentId}`;
+      outputDir = path.join(backendPath, 'input', projectId);
       console.log('📁 출력 폴더:', outputDir);
     }
 
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     const pythonProcess = spawn('python', pythonArgs, {
-      cwd: backendPath,
+      cwd: workspacePath,
       detached: false,
       shell: true
     });
