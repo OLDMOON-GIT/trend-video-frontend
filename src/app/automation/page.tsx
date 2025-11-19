@@ -3268,6 +3268,25 @@ function AutomationPageContent() {
                             </button>
                           );
                         })()}
+                        {/* YouTube 업로드 버튼 (failed 상태이면서 영상 완료, 아직 업로드 안 됨) */}
+                        {(() => {
+                          const schedule = titleSchedules.find((s: any) => s.video_id);
+                          const hasVideo = !!schedule?.video_id;
+                          const hasYouTubeUrl = !!schedule?.youtube_url;
+
+                          return title.status === 'failed' && hasVideo && !hasYouTubeUrl && (
+                            <button
+                              onClick={() => {
+                                // 영상 페이지로 이동하여 YouTube 업로드
+                                window.location.href = `/my-content?tab=videos&id=${schedule.video_id}`;
+                              }}
+                              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-sm font-semibold transition"
+                              title="YouTube에 업로드"
+                            >
+                              📺 YouTube 업로드
+                            </button>
+                          );
+                        })()}
                         {/* 영상 재생성 버튼 (failed 상태이고 video_id가 있을 때만) */}
                         {(() => {
                           const schedule = titleSchedules.find((s: any) => s.script_id || s.video_id);
