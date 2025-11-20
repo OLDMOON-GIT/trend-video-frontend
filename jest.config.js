@@ -21,8 +21,11 @@ const customJestConfig = {
     '!src/**/*.d.ts',
     '!src/**/*.stories.{js,jsx,ts,tsx}',
     '!src/**/_*.{js,jsx,ts,tsx}',
+    '!src/tests/**',
+    '!src/__tests__/**',
   ],
   coverageReporters: ['text', 'lcov', 'json-summary'],
+  testPathIgnorePatterns: ['/node_modules/', '/.next/', '/src/tests/'],
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

@@ -76,8 +76,8 @@ async function generateDeepLink(productUrl: string, userId: string): Promise<str
     // 상품 ID 추출
     const productId = extractProductId(productUrl);
     if (!productId) {
-      console.warn('⚠️ 상품 ID를 추출할 수 없어 원본 URL 사용');
-      return productUrl;
+      console.error('❌ 상품 ID를 추출할 수 없습니다:', productUrl);
+      throw new Error(`상품 ID를 추출할 수 없습니다: ${productUrl}`);
     }
 
     // 일반 쿠팡 상품 URL 생성 (파트너스 태그 없는 순수 URL)
@@ -115,17 +115,17 @@ async function generateDeepLink(productUrl: string, userId: string): Promise<str
         console.log(`✅ 딥링크 생성 완료: ${shortUrl}`);
         return shortUrl;
       } else {
-        console.warn(`⚠️ 딥링크 생성 실패 (API 응답): ${JSON.stringify(data)}, 원본 URL 사용`);
-        return productUrl;
+        console.error(`❌ 딥링크 API 응답 오류:`, data);
+        throw new Error(`딥링크 생성 실패: ${data.rMessage || '알 수 없음'}`);
       }
     } else {
       const errorText = await response.text();
-      console.warn(`⚠️ 딥링크 생성 실패 (HTTP ${response.status}): ${errorText}, 원본 URL 사용`);
-      return productUrl;
+      console.error(`❌ 딥링크 API HTTP 오류 (${response.status}):`, errorText);
+      throw new Error(`딥링크 API 호출 실패 (${response.status}): ${errorText}`);
     }
   } catch (error: any) {
-    console.error('❌ 딥링크 생성 오류:', error.message, '원본 URL 사용');
-    return productUrl;
+    console.error('❌ 딥링크 생성 오류:', error.message);
+    throw new Error(`딥링크 생성 실패: ${error.message}`);
   }
 }
 

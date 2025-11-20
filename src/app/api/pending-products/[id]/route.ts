@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import db from '@/lib/sqlite';
+import { generateDeeplink, loadUserSettings } from '@/lib/coupang-deeplink';
 
 /**
  * 대기 목록 개별 상품 삭제
@@ -70,6 +71,21 @@ export async function POST(
         );
       }
 
+      // 딥링크 생성
+      const settings = await loadUserSettings(user.userId);
+      let deepLink = pending.product_url; // 기본값: 원본 URL
+
+      if (settings && settings.accessKey && settings.secretKey) {
+        try {
+          deepLink = await generateDeeplink(pending.product_url, settings.accessKey, settings.secretKey);
+          console.log('✅ 딥링크 생성 성공:', deepLink);
+        } catch (error: any) {
+          console.warn('⚠️ 딥링크 생성 실패, 원본 URL 사용:', error.message);
+        }
+      } else {
+        console.warn('⚠️ 쿠팡 API 설정 없음, 원본 URL 사용');
+      }
+
       // coupang_products에 추가
       const { v4: uuidv4 } = await import('uuid');
       const productId = uuidv4();
@@ -83,7 +99,7 @@ export async function POST(
         productId,
         user.userId,
         pending.product_url,
-        pending.product_url, // 일단 원본 URL 사용
+        deepLink, // 생성된 딥링크 또는 원본 URL
         pending.title || '상품명',
         pending.description || '',
         pending.category || '기타',

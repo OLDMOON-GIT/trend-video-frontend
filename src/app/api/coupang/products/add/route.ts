@@ -155,8 +155,8 @@ async function generateDeeplink(affiliateUrl: string, accessKey: string, secretK
   // affiliate URL에서 상품 ID 추출
   const productId = extractProductId(affiliateUrl);
   if (!productId) {
-    console.error('상품 ID 추출 실패:', affiliateUrl);
-    return affiliateUrl;
+    console.error('❌ 상품 ID 추출 실패:', affiliateUrl);
+    throw new Error(`상품 ID를 추출할 수 없습니다: ${affiliateUrl}`);
   }
 
   // 일반 상품 URL 생성

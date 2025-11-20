@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import db from '@/lib/sqlite';
 import { v4 as uuidv4 } from 'uuid';
+import { generateDeeplink, loadUserSettings } from '@/lib/coupang-deeplink';
 
 /**
  * DELETE - 작업 중지
@@ -240,6 +241,25 @@ async function processProductBatch(jobId: string, userId: string, ids: string[])
           }
         }
 
+        // 딥링크 생성
+        const settings = await loadUserSettings(userId);
+        let deepLink = pending.product_url; // 기본값: 원본 URL
+
+        if (settings && settings.accessKey && settings.secretKey) {
+          try {
+            deepLink = await generateDeeplink(pending.product_url, settings.accessKey, settings.secretKey);
+            console.log(`✅ [${currentIndex}/${totalCount}] 딥링크 생성 성공`);
+          } catch (error: any) {
+            console.warn(`⚠️ [${currentIndex}/${totalCount}] 딥링크 생성 실패, 원본 URL 사용:`, error.message);
+            db.prepare(`
+              INSERT INTO job_logs (job_id, log_message)
+              VALUES (?, ?)
+            `).run(jobId, `⚠️ [${currentIndex}/${totalCount}] 딥링크 생성 실패: ${error.message}`);
+          }
+        } else {
+          console.warn(`⚠️ [${currentIndex}/${totalCount}] 쿠팡 API 설정 없음, 원본 URL 사용`);
+        }
+
         // 내 목록에 추가
         const productId = uuidv4();
         db.prepare(`
@@ -251,7 +271,7 @@ async function processProductBatch(jobId: string, userId: string, ids: string[])
           productId,
           userId,
           pending.product_url,
-          pending.product_url, // 딥링크는 나중에 생성
+          deepLink, // 생성된 딥링크 또는 원본 URL
           productInfo.title,
           productInfo.description,
           pending.category || '기타',
