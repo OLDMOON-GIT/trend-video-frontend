@@ -153,7 +153,7 @@ export async function PATCH(request: NextRequest) {
       values.push(productUrl);
     }
     if (channelId !== undefined) {
-      updates.push('channel_id = ?');
+      updates.push('channel = ?');
       values.push(channelId);
     }
     if (scriptMode !== undefined) {
