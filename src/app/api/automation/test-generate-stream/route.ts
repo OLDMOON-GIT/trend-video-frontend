@@ -237,32 +237,63 @@ export async function POST(request: NextRequest) {
                   sendLog(`⚠️ 내 목록에 상품이 없습니다. 쿠팡 베스트셀러에서 조회합니다...`);
 
                   try {
-                    const bestsellerRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/coupang/products?limit=10`, {
+                    // 쿠팡 API 설정 로드
+                    const DATA_DIR = path.join(process.cwd(), 'data');
+                    const COUPANG_SETTINGS_FILE = path.join(DATA_DIR, 'coupang-settings.json');
+                    const settingsData = await fs.readFile(COUPANG_SETTINGS_FILE, 'utf-8');
+                    const allSettings = JSON.parse(settingsData);
+                    const coupangSettings = allSettings[user.userId];
+
+                    if (!coupangSettings || !coupangSettings.accessKey || !coupangSettings.secretKey) {
+                      throw new Error('쿠팡 API 설정이 없습니다');
+                    }
+
+                    // 쿠팡 베스트셀러 API 직접 호출
+                    const REQUEST_METHOD = 'GET';
+                    const API_PATH = '/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/1001';
+
+                    // HMAC 서명 생성
+                    const now = new Date();
+                    const year = String(now.getUTCFullYear()).slice(-2);
+                    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+                    const day = String(now.getUTCDate()).padStart(2, '0');
+                    const hours = String(now.getUTCHours()).padStart(2, '0');
+                    const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+                    const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+                    const datetime = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+                    const message = datetime + REQUEST_METHOD + API_PATH;
+                    const signature = crypto.createHmac('sha256', coupangSettings.secretKey).update(message).digest('hex');
+                    const authorization = `CEA algorithm=HmacSHA256, access-key=${coupangSettings.accessKey}, signed-date=${datetime}, signature=${signature}`;
+
+                    const response = await fetch(`https://api-gateway.coupang.com${API_PATH}?limit=10`, {
+                      method: REQUEST_METHOD,
                       headers: {
-                        'Cookie': request.headers.get('cookie') || ''
+                        'Authorization': authorization,
+                        'Content-Type': 'application/json'
                       }
                     });
 
-                    const bestsellerData = await bestsellerRes.json();
+                    if (response.ok) {
+                      const data = await response.json();
+                      if (data.rCode === '0' && data.data && data.data.length > 0) {
+                        const bestProduct = data.data[0];
+                        sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견: ${bestProduct.productName}`);
 
-                    if (bestsellerRes.ok && bestsellerData.success && bestsellerData.products && bestsellerData.products.length > 0) {
-                      // 첫 번째 베스트셀러 상품 사용
-                      const bestProduct = bestsellerData.products[0];
-                      sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견: ${bestProduct.productName}`);
-
-                      // coupang_products 형식으로 변환
-                      product = {
-                        id: `temp_${Date.now()}`,
-                        title: bestProduct.productName,
-                        deep_link: bestProduct.productUrl,
-                        product_url: bestProduct.productUrl,
-                        discount_price: bestProduct.productPrice,
-                        original_price: bestProduct.productPrice,
-                        image_url: bestProduct.productImage,
-                        category: bestProduct.categoryName || '기타'
-                      };
+                        product = {
+                          id: `temp_${Date.now()}`,
+                          title: bestProduct.productName,
+                          deep_link: bestProduct.productUrl,
+                          product_url: bestProduct.productUrl,
+                          discount_price: bestProduct.productPrice,
+                          original_price: bestProduct.productPrice,
+                          image_url: bestProduct.productImage,
+                          category: bestProduct.categoryName || '기타'
+                        };
+                      } else {
+                        throw new Error('베스트셀러 데이터가 비어있습니다');
+                      }
                     } else {
-                      throw new Error('쿠팡 베스트셀러 조회 실패');
+                      throw new Error(`쿠팡 API 오류: ${response.status}`);
                     }
                   } catch (apiError: any) {
                     throw new Error(`상품을 찾을 수 없습니다. 내 목록에 상품을 추가하거나 쿠팡 API 설정을 확인해주세요. (${apiError.message})`);
