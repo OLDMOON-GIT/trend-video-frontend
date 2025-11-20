@@ -1,0 +1,18 @@
+{
+  "metadata": {
+    "format": "shortform",
+    "aspect_ratio": "9:16"
+  },
+  "scenes": [
+    {
+      "scene_number": "scene_00",
+      "scene_id": "scene_00",
+      "image_prompt": "A professional portrait of a young Korean woman in her 20s, wearing modern casual business attire, friendly smile, natural lighting, high quality photography"
+    },
+    {
+      "scene_number": "scene_01",
+      "scene_id": "scene_01",
+      "image_prompt": "Same person working on a laptop in a modern cafe, soft afternoon light"
+    }
+  ]
+}

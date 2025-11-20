@@ -1,0 +1,22 @@
+[
+  {
+    "scene_number": "scene_00",
+    "scene_id": "scene_00",
+    "image_prompt": "A professional portrait of a young Korean woman in her 20s, wearing modern casual business attire, friendly smile, natural lighting, high quality photography"
+  },
+  {
+    "scene_number": "scene_01",
+    "scene_id": "scene_01",
+    "image_prompt": "Same person working on a laptop in a modern cafe, soft afternoon light"
+  },
+  {
+    "scene_number": "scene_02",
+    "scene_id": "scene_02",
+    "image_prompt": "Same person presenting in front of a whiteboard, confident pose"
+  },
+  {
+    "scene_number": "scene_03",
+    "scene_id": "scene_03",
+    "image_prompt": "Same person in a creative workspace, surrounded by design materials"
+  }
+]

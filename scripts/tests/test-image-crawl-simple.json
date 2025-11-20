@@ -1,0 +1,18 @@
+[
+  {
+    "scene_id": "test_scene_01",
+    "scene_name": "테스트 씬 1",
+    "duration_seconds": 5,
+    "sora_prompt": "A beautiful sunset over mountains, vertical 9:16 format, cinematic photography",
+    "image_prompt": "A beautiful sunset over mountains, vertical 9:16 format, cinematic photography",
+    "narration": "테스트 첫 번째 씬입니다."
+  },
+  {
+    "scene_id": "test_scene_02",
+    "scene_name": "테스트 씬 2",
+    "duration_seconds": 5,
+    "sora_prompt": "A peaceful ocean wave, vertical 9:16 format, cinematic photography",
+    "image_prompt": "A peaceful ocean wave, vertical 9:16 format, cinematic photography",
+    "narration": "테스트 두 번째 씬입니다."
+  }
+]
