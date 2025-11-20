@@ -1,543 +1,299 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
-
-interface CoverageMetrics {
-  total: number;
-  covered: number;
-  skipped: number;
-  pct: number;
-}
-
-interface FileCoverage {
-  lines: CoverageMetrics;
-  statements: CoverageMetrics;
-  functions: CoverageMetrics;
-  branches: CoverageMetrics;
-}
-
-interface ModuleCoverage {
-  name: string;
-  files: Array<{
-    path: string;
-    coverage: FileCoverage;
-  }>;
-  summary: FileCoverage;
-}
-
-interface IntegrationTestResult {
-  testName: string;
-  category: string;
-  timestamp: string;
-  passed: boolean;
-  summary: {
-    total: number;
-    passed: number;
-    failed: number;
-    percentage: number;
-  };
-  tests: Array<{
-    name: string;
-    passed: boolean;
-    message: string;
-  }>;
-}
 
 interface CoverageData {
-  available: boolean;
-  lastUpdated?: string;
-  total?: FileCoverage;
-  modules?: ModuleCoverage[];
-  fileCount?: number;
-  integrationTests?: IntegrationTestResult[];
-  error?: string;
+  file: string;
+  statements: number;
+  branches: number;
+  functions: number;
+  lines: number;
 }
 
-export default function TestCoveragePage() {
-  const [coverageData, setCoverageData] = useState<CoverageData | null>(null);
+interface CoverageSummary {
+  totalFiles: number;
+  averageStatements: number;
+  averageBranches: number;
+  averageFunctions: number;
+  averageLines: number;
+  passedTests: number;
+  failedTests: number;
+  skippedTests: number;
+  totalTests: number;
+}
+
+const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+export default function CoveragePage() {
+  const [coverage, setCoverage] = useState<CoverageData[]>([]);
+  const [summary, setSummary] = useState<CoverageSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [regenerating, setRegenerating] = useState(false);
-  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
-
-  const fetchCoverage = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/test-coverage');
-      const data = await res.json();
-      setCoverageData(data);
-    } catch (error) {
-      console.error('커버리지 로드 실패:', error);
-      toast.error('커버리지 데이터를 불러오지 못했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const regenerateCoverage = async () => {
-    if (regenerating) return;
-
-    setRegenerating(true);
-    const toastId = toast.loading('커버리지를 재생성하는 중...');
-
-    try {
-      const res = await fetch('/api/test-coverage', { method: 'POST' });
-      const data = await res.json();
-
-      if (res.ok) {
-        toast.success('커버리지가 재생성되었습니다.', { id: toastId });
-        await fetchCoverage();
-      } else {
-        toast.error(data.error || '재생성 실패', { id: toastId });
-      }
-    } catch (error) {
-      toast.error('재생성 중 오류가 발생했습니다.', { id: toastId });
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
-  const toggleModule = (moduleName: string) => {
-    setExpandedModules(prev => {
-      const next = new Set(prev);
-      if (next.has(moduleName)) {
-        next.delete(moduleName);
-      } else {
-        next.add(moduleName);
-      }
-      return next;
-    });
-  };
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const fetchCoverage = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/admin/coverage');
+        if (!response.ok) {
+          throw new Error('Failed to fetch coverage data');
+        }
+        const data = await response.json();
+        setCoverage(data.coverage || []);
+        setSummary(data.summary || null);
+      } catch (err: any) {
+        setError(err.message || 'Error loading coverage');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchCoverage();
   }, []);
 
-  const getCoverageColor = (pct: number): string => {
-    if (pct >= 80) return 'text-green-400';
-    if (pct >= 60) return 'text-yellow-400';
-    if (pct >= 40) return 'text-orange-400';
-    return 'text-red-400';
-  };
-
-  const getCoverageBgColor = (pct: number): string => {
-    if (pct >= 80) return 'bg-green-600';
-    if (pct >= 60) return 'bg-yellow-600';
-    if (pct >= 40) return 'bg-orange-600';
-    return 'bg-red-600';
-  };
-
-  const getCoverageBorderColor = (pct: number): string => {
-    if (pct >= 80) return 'border-green-500';
-    if (pct >= 60) return 'border-yellow-500';
-    if (pct >= 40) return 'border-orange-500';
-    return 'border-red-500';
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-white">📊 테스트 커버리지</h1>
-            <p className="text-slate-400">코드 테스트 커버리지를 모듈별로 확인합니다</p>
-          </div>
-
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-purple-400" />
-              <p className="text-slate-300">커버리지 데이터를 불러오는 중...</p>
-            </div>
-          </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-400">Coverage 데이터 로딩 중...</p>
         </div>
       </div>
     );
   }
 
-  if (!coverageData?.available) {
+  if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-white">📊 테스트 커버리지</h1>
-            <p className="text-slate-400">코드 테스트 커버리지를 모듈별로 확인합니다</p>
-          </div>
-
-          <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-8 text-center">
-            <div className="mb-4 text-6xl">⚠️</div>
-            <h2 className="mb-2 text-xl font-bold text-red-200">커버리지 데이터 없음</h2>
-            <p className="mb-6 text-slate-300">
-              {coverageData?.error || '커버리지 데이터를 생성하려면 아래 버튼을 클릭하세요.'}
+      <div className="min-h-screen bg-gray-900 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6">
+            <h2 className="text-red-400 font-semibold mb-2">Error</h2>
+            <p className="text-red-300">{error}</p>
+            <p className="text-red-300 text-sm mt-4">
+              Coverage 데이터를 가져올 수 없습니다. 테스트를 실행한 후 다시 시도하세요.
             </p>
-            <button
-              onClick={regenerateCoverage}
-              disabled={regenerating}
-              className="rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 font-semibold text-white transition hover:from-purple-500 hover:to-pink-500 disabled:opacity-50"
-            >
-              {regenerating ? '생성 중...' : '🔄 커버리지 생성'}
-            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  const { total, modules, fileCount, lastUpdated, integrationTests } = coverageData;
+  const testData = summary
+    ? [
+        { name: 'Passed', value: summary.passedTests, color: '#10b981' },
+        { name: 'Failed', value: summary.failedTests, color: '#ef4444' },
+        { name: 'Skipped', value: summary.skippedTests, color: '#8b5cf6' },
+      ]
+    : [];
+
+  const coverageMetrics = summary
+    ? [
+        { name: 'Statements', value: summary.averageStatements },
+        { name: 'Branches', value: summary.averageBranches },
+        { name: 'Functions', value: summary.averageFunctions },
+        { name: 'Lines', value: summary.averageLines },
+      ]
+    : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-      <div className="mx-auto max-w-7xl">
-        {/* 헤더 */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white">📊 테스트 커버리지</h1>
-            <p className="text-slate-400">
-              {lastUpdated && `Jest 커버리지 업데이트: ${new Date(lastUpdated).toLocaleString('ko-KR')}`}
-            </p>
-            <div className="mt-2 flex gap-3 text-sm">
-              <span className="rounded-full bg-blue-600/20 px-3 py-1 text-blue-300">
-                Jest 단위 테스트 (*.test.tsx)
-              </span>
-              <span className="rounded-full bg-green-600/20 px-3 py-1 text-green-300">
-                통합 테스트 (test-*.js)
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={regenerateCoverage}
-            disabled={regenerating}
-            className="rounded-lg border border-purple-600/60 bg-purple-600/20 px-4 py-2 font-semibold text-purple-200 transition hover:bg-purple-600/40 disabled:opacity-50"
-          >
-            {regenerating ? '재생성 중...' : '🔄 Jest 재생성'}
-          </button>
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-950 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">📊 Test Coverage Dashboard</h1>
+          <p className="text-gray-400">전체 프로젝트의 테스트 커버리지 및 통계</p>
         </div>
 
-        {/* Jest 단위 테스트 커버리지 */}
-        {total && (
-          <div className="mb-6">
-            <div className="mb-4 flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-white">🧪 Jest 단위 테스트 커버리지</h2>
-              <span className="rounded-full bg-yellow-600/20 px-3 py-1 text-xs text-yellow-300">
-                낮은 커버리지: 통합테스트는 별도 (아래 참조)
-              </span>
+        {/* Summary Cards */}
+        {summary && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            {/* Total Tests */}
+            <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/30 rounded-lg p-6">
+              <p className="text-blue-300 text-sm font-semibold mb-2">Total Tests</p>
+              <p className="text-4xl font-bold text-blue-400">{summary.totalTests}</p>
+              <p className="text-blue-300/70 text-xs mt-2">전체 테스트</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <CoverageCard
-                title="Statements"
-                metrics={total.statements}
-                icon="📝"
-              />
-              <CoverageCard
-                title="Branches"
-                metrics={total.branches}
-                icon="🌿"
-              />
-              <CoverageCard
-                title="Functions"
-                metrics={total.functions}
-                icon="⚡"
-              />
-              <CoverageCard
-                title="Lines"
-                metrics={total.lines}
-                icon="📄"
-              />
+
+            {/* Passed Tests */}
+            <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 border border-green-500/30 rounded-lg p-6">
+              <p className="text-green-300 text-sm font-semibold mb-2">Passed</p>
+              <p className="text-4xl font-bold text-green-400">{summary.passedTests}</p>
+              <p className="text-green-300/70 text-xs mt-2">
+                {summary.totalTests > 0 ? ((summary.passedTests / summary.totalTests) * 100).toFixed(1) : 0}%
+              </p>
+            </div>
+
+            {/* Failed Tests */}
+            <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 border border-red-500/30 rounded-lg p-6">
+              <p className="text-red-300 text-sm font-semibold mb-2">Failed</p>
+              <p className="text-4xl font-bold text-red-400">{summary.failedTests}</p>
+              <p className="text-red-300/70 text-xs mt-2">
+                {summary.totalTests > 0 ? ((summary.failedTests / summary.totalTests) * 100).toFixed(1) : 0}%
+              </p>
+            </div>
+
+            {/* Skipped Tests */}
+            <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/30 rounded-lg p-6">
+              <p className="text-purple-300 text-sm font-semibold mb-2">Skipped</p>
+              <p className="text-4xl font-bold text-purple-400">{summary.skippedTests}</p>
+              <p className="text-purple-300/70 text-xs mt-2">
+                {summary.totalTests > 0 ? ((summary.skippedTests / summary.totalTests) * 100).toFixed(1) : 0}%
+              </p>
+            </div>
+
+            {/* Total Files */}
+            <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/30 rounded-lg p-6">
+              <p className="text-amber-300 text-sm font-semibold mb-2">Files</p>
+              <p className="text-4xl font-bold text-amber-400">{summary.totalFiles}</p>
+              <p className="text-amber-300/70 text-xs mt-2">테스트된 파일</p>
             </div>
           </div>
         )}
 
-        {/* 파일 카운트 */}
-        <div className="mb-6 rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4">
-          <div className="flex items-center gap-2 text-blue-200">
-            <span className="text-2xl">📁</span>
-            <span className="text-lg font-semibold">
-              총 {fileCount}개 파일 분석됨
-            </span>
-          </div>
-        </div>
-
-        {/* 통합테스트 결과 */}
-        {integrationTests && integrationTests.length > 0 ? (
-          <div className="mb-6">
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold text-white">🚀 통합테스트 결과 (E2E)</h2>
-              <p className="text-sm text-slate-400">
-                실제 API 호출 및 시스템 동작 검증 (test-*.js 스크립트)
-              </p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {integrationTests.map((test, idx) => (
-                <div
-                  key={idx}
-                  className={`rounded-2xl border p-4 ${
-                    test.passed
-                      ? 'border-green-500/50 bg-green-500/10'
-                      : 'border-red-500/50 bg-red-500/10'
-                  }`}
-                >
-                  <div className="mb-2 flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="text-sm text-slate-400">{test.category}</div>
-                      <div className="font-semibold text-white">{test.testName}</div>
-                    </div>
-                    <div className="text-2xl">{test.passed ? '✅' : '❌'}</div>
-                  </div>
-                  <div className="mb-2 text-3xl font-bold">
-                    <span className={test.passed ? 'text-green-400' : 'text-red-400'}>
-                      {test.summary.percentage}%
-                    </span>
-                  </div>
-                  <div className="text-sm text-slate-300">
-                    통과: {test.summary.passed}/{test.summary.total}
-                  </div>
-                  <div className="mt-2 text-xs text-slate-400">
-                    {new Date(test.timestamp).toLocaleString('ko-KR')}
+        {/* Coverage Metrics Chart */}
+        {coverageMetrics.length > 0 && (
+          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold text-white mb-6">📈 Coverage Metrics</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {coverageMetrics.map((metric) => (
+                <div key={metric.name} className="bg-gray-700/30 rounded-lg p-4">
+                  <p className="text-gray-300 text-sm font-semibold mb-3">{metric.name}</p>
+                  <div className="relative h-32 bg-gray-900/50 rounded flex items-end justify-center">
+                    <div
+                      className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all duration-500"
+                      style={{ height: `${metric.value}%` }}
+                    ></div>
+                    <div className="absolute text-white font-bold text-2xl">{metric.value.toFixed(1)}%</div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        ) : (
-          <div className="mb-6 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-6">
-            <div className="flex items-start gap-3">
-              <span className="text-3xl">⚠️</span>
-              <div className="flex-1">
-                <h3 className="mb-2 text-lg font-bold text-yellow-200">통합테스트 결과 없음</h3>
-                <p className="mb-3 text-sm text-slate-300">
-                  통합테스트를 실행하면 여기에 결과가 표시됩니다.
-                </p>
-                <div className="rounded-lg bg-slate-900/50 p-3">
-                  <code className="text-xs text-green-400">
-                    node test-image-upload-ordering.js
-                  </code>
-                </div>
-              </div>
-            </div>
+            <p className="text-gray-400 text-xs mt-4">
+              평균 커버리지 메트릭 (Statements, Branches, Functions, Lines)
+            </p>
           </div>
         )}
 
-        {/* 모듈별 커버리지 */}
-        <div className="space-y-4">
-          {modules && modules.map((module) => (
-            <div
-              key={module.name}
-              className={`overflow-hidden rounded-2xl border ${getCoverageBorderColor(module.summary.statements.pct)} bg-slate-800/50 transition-all`}
-            >
-              {/* 모듈 헤더 */}
-              <button
-                onClick={() => toggleModule(module.name)}
-                className="w-full p-4 text-left transition hover:bg-slate-700/30"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">
-                      {expandedModules.has(module.name) ? '📂' : '📁'}
-                    </span>
-                    <div>
-                      <h3 className="text-xl font-bold text-white">{module.name}</h3>
-                      <p className="text-sm text-slate-400">{module.files.length}개 파일</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className={`text-2xl font-bold ${getCoverageColor(module.summary.statements.pct)}`}>
-                        {module.summary.statements.pct.toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        {module.summary.statements.covered}/{module.summary.statements.total}
-                      </div>
-                    </div>
-                    <span className="text-slate-400">
-                      {expandedModules.has(module.name) ? '▼' : '▶'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 진행바 */}
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-700">
+        {/* Test Results Distribution */}
+        {testData.length > 0 && (
+          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold text-white mb-6">🎯 Test Results</h2>
+            <div className="grid grid-cols-3 gap-4">
+              {testData.map((test) => (
+                <div key={test.name} className="text-center">
                   <div
-                    className={`h-full transition-all ${getCoverageBgColor(module.summary.statements.pct)}`}
-                    style={{ width: `${module.summary.statements.pct}%` }}
-                  />
-                </div>
-              </button>
-
-              {/* 모듈 상세 (확장 시) */}
-              {expandedModules.has(module.name) && (
-                <div className="border-t border-slate-700 p-4">
-                  {/* 모듈 요약 */}
-                  <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-slate-900/50 p-3 sm:grid-cols-4">
-                    <MetricBadge
-                      label="Statements"
-                      metrics={module.summary.statements}
-                    />
-                    <MetricBadge
-                      label="Branches"
-                      metrics={module.summary.branches}
-                    />
-                    <MetricBadge
-                      label="Functions"
-                      metrics={module.summary.functions}
-                    />
-                    <MetricBadge
-                      label="Lines"
-                      metrics={module.summary.lines}
-                    />
+                    className="h-24 w-24 rounded-full flex items-center justify-center mx-auto mb-3 border-4"
+                    style={{
+                      backgroundColor: test.color + '20',
+                      borderColor: test.color,
+                    }}
+                  >
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-white">{test.value}</p>
+                      <p className="text-xs text-gray-300">
+                        {summary && summary.totalTests > 0
+                          ? ((test.value / summary.totalTests) * 100).toFixed(0)
+                          : 0}%
+                      </p>
+                    </div>
                   </div>
+                  <p className="text-gray-300 font-semibold">{test.name}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-gray-400 text-xs mt-4">전체 테스트 결과 분포</p>
+          </div>
+        )}
 
-                  {/* 파일 목록 */}
-                  <div className="space-y-2">
-                    <h4 className="mb-2 font-semibold text-slate-300">파일 목록</h4>
-                    {module.files.map((file, idx) => (
-                      <div
-                        key={idx}
-                        className="rounded-lg border border-slate-700 bg-slate-900/30 p-3"
+        {/* Detailed Coverage Table */}
+        {coverage.length > 0 && (
+          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 overflow-x-auto">
+            <h2 className="text-xl font-semibold text-white mb-4">📋 File Coverage Details</h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="px-4 py-3 text-left text-gray-300 font-semibold">File</th>
+                  <th className="px-4 py-3 text-center text-gray-300 font-semibold">Statements</th>
+                  <th className="px-4 py-3 text-center text-gray-300 font-semibold">Branches</th>
+                  <th className="px-4 py-3 text-center text-gray-300 font-semibold">Functions</th>
+                  <th className="px-4 py-3 text-center text-gray-300 font-semibold">Lines</th>
+                </tr>
+              </thead>
+              <tbody>
+                {coverage.map((file, idx) => (
+                  <tr key={idx} className="border-b border-gray-700/30 hover:bg-gray-700/20 transition">
+                    <td className="px-4 py-3 text-gray-300">{file.file}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`inline-flex items-center justify-center w-12 h-6 rounded text-xs font-semibold ${
+                          file.statements >= 80
+                            ? 'bg-green-500/20 text-green-300'
+                            : file.statements >= 60
+                              ? 'bg-yellow-500/20 text-yellow-300'
+                              : 'bg-red-500/20 text-red-300'
+                        }`}
                       >
-                        <div className="mb-2 flex items-start justify-between gap-2">
-                          <code className="flex-1 break-all text-xs text-slate-300">
-                            {file.path.split('/').pop() || file.path}
-                          </code>
-                          <span className={`text-sm font-bold ${getCoverageColor(file.coverage.statements.pct)}`}>
-                            {file.coverage.statements.pct.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                          <div>
-                            <span className="text-slate-500">S: </span>
-                            <span className="text-slate-300">
-                              {file.coverage.statements.covered}/{file.coverage.statements.total}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">B: </span>
-                            <span className="text-slate-300">
-                              {file.coverage.branches.covered}/{file.coverage.branches.total}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">F: </span>
-                            <span className="text-slate-300">
-                              {file.coverage.functions.covered}/{file.coverage.functions.total}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">L: </span>
-                            <span className="text-slate-300">
-                              {file.coverage.lines.covered}/{file.coverage.lines.total}
-                            </span>
-                          </div>
-                        </div>
-                        <code className="mt-2 block text-xs text-slate-500">
-                          {file.path}
-                        </code>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+                        {file.statements}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`inline-flex items-center justify-center w-12 h-6 rounded text-xs font-semibold ${
+                          file.branches >= 80
+                            ? 'bg-green-500/20 text-green-300'
+                            : file.branches >= 60
+                              ? 'bg-yellow-500/20 text-yellow-300'
+                              : 'bg-red-500/20 text-red-300'
+                        }`}
+                      >
+                        {file.branches}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`inline-flex items-center justify-center w-12 h-6 rounded text-xs font-semibold ${
+                          file.functions >= 80
+                            ? 'bg-green-500/20 text-green-300'
+                            : file.functions >= 60
+                              ? 'bg-yellow-500/20 text-yellow-300'
+                              : 'bg-red-500/20 text-red-300'
+                        }`}
+                      >
+                        {file.functions}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`inline-flex items-center justify-center w-12 h-6 rounded text-xs font-semibold ${
+                          file.lines >= 80
+                            ? 'bg-green-500/20 text-green-300'
+                            : file.lines >= 60
+                              ? 'bg-yellow-500/20 text-yellow-300'
+                              : 'bg-red-500/20 text-red-300'
+                        }`}
+                      >
+                        {file.lines}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        {/* 범례 */}
-        <div className="mt-6 rounded-2xl border border-slate-700 bg-slate-800/50 p-4">
-          <h3 className="mb-3 font-semibold text-white">📖 범례</h3>
-          <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-green-600" />
-              <span className="text-slate-300">80% 이상 (우수)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-yellow-600" />
-              <span className="text-slate-300">60-80% (양호)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-orange-600" />
-              <span className="text-slate-300">40-60% (보통)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-red-600" />
-              <span className="text-slate-300">40% 미만 (미흡)</span>
+        {/* Empty State */}
+        {coverage.length === 0 && !error && (
+          <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-12 text-center">
+            <p className="text-gray-400 mb-2">Coverage 데이터가 없습니다.</p>
+            <p className="text-gray-500 text-sm">
+              다음 명령어를 실행하여 coverage 데이터를 생성하세요:
+            </p>
+            <div className="mt-4 bg-gray-900 rounded p-3 text-left">
+              <code className="text-gray-300 text-sm">npm test -- --coverage</code>
             </div>
           </div>
-          <div className="mt-3 text-xs text-slate-400">
-            S: Statements | B: Branches | F: Functions | L: Lines
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 커버리지 카드 컴포넌트
-function CoverageCard({
-  title,
-  metrics,
-  icon,
-}: {
-  title: string;
-  metrics: CoverageMetrics;
-  icon: string;
-}) {
-  const getCoverageColor = (pct: number): string => {
-    if (pct >= 80) return 'text-green-400';
-    if (pct >= 60) return 'text-yellow-400';
-    if (pct >= 40) return 'text-orange-400';
-    return 'text-red-400';
-  };
-
-  const getCoverageBgColor = (pct: number): string => {
-    if (pct >= 80) return 'bg-green-600';
-    if (pct >= 60) return 'bg-yellow-600';
-    if (pct >= 40) return 'bg-orange-600';
-    return 'bg-red-600';
-  };
-
-  return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-2xl">{icon}</span>
-        <span className="text-sm font-semibold text-slate-400">{title}</span>
-      </div>
-      <div className={`mb-2 text-3xl font-bold ${getCoverageColor(metrics.pct)}`}>
-        {metrics.pct.toFixed(1)}%
-      </div>
-      <div className="mb-2 text-sm text-slate-400">
-        {metrics.covered} / {metrics.total}
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-700">
-        <div
-          className={`h-full transition-all ${getCoverageBgColor(metrics.pct)}`}
-          style={{ width: `${metrics.pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// 메트릭 뱃지 컴포넌트
-function MetricBadge({
-  label,
-  metrics,
-}: {
-  label: string;
-  metrics: CoverageMetrics;
-}) {
-  const getCoverageColor = (pct: number): string => {
-    if (pct >= 80) return 'text-green-400';
-    if (pct >= 60) return 'text-yellow-400';
-    if (pct >= 40) return 'text-orange-400';
-    return 'text-red-400';
-  };
-
-  return (
-    <div className="text-center">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`text-lg font-bold ${getCoverageColor(metrics.pct)}`}>
-        {metrics.pct.toFixed(1)}%
-      </div>
-      <div className="text-xs text-slate-400">
-        {metrics.covered}/{metrics.total}
+        )}
       </div>
     </div>
   );
