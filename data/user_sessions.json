@@ -228,5 +228,15 @@
     "ipAddress": "::ffff:118.235.65.16",
     "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36",
     "isActive": true
+  },
+  {
+    "id": "6f0081f2-6e93-4581-9827-e77ad6a60e49",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "loginAt": "2025-11-20T02:26:19.524Z",
+    "lastActivityAt": "2025-11-20T02:26:19.524Z",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    "isActive": true
   }
 ]

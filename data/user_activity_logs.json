@@ -228,5 +228,15 @@
     "ipAddress": "::ffff:118.235.65.16",
     "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36",
     "createdAt": "2025-11-17T04:46:32.563Z"
+  },
+  {
+    "id": "a1baded6-5867-4bf3-9b32-a887a0057c75",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "userEmail": "moony75@gmail.com",
+    "action": "login",
+    "details": "로그인 성공 (RememberMe: Yes)",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    "createdAt": "2025-11-20T02:26:19.535Z"
   }
 ]

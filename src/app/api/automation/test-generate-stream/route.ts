@@ -3,6 +3,8 @@ import { getCurrentUser } from '@/lib/session';
 import { getAutomationSettings } from '@/lib/automation';
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs/promises';
+import crypto from 'crypto';
 import { generateTitlesWithClaude, generateTitlesWithChatGPT, generateTitlesWithGemini } from '@/lib/ai-title-generation';
 
 interface ChannelSetting {
