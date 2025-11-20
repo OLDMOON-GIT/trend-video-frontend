@@ -341,6 +341,7 @@ export async function POST(request: NextRequest) {
                 };
 
                 sendLog(`✅ 상품 발견: ${product.title}`);
+                sendLog(`   📁 카테고리: ${bestProduct.categoryName || '기타'}`);
                 sendLog(`   🔗 딥링크: ${product.deep_link}`);
                 sendLog(`   💰 가격: ${product.discount_price ? product.discount_price.toLocaleString() : 'N/A'}원`);
 
@@ -366,7 +367,7 @@ export async function POST(request: NextRequest) {
                   titleId,
                   user.userId,
                   product.title,
-                  category,
+                  bestProduct.categoryName || '기타',
                   'product',
                   'pending',
                   setting.channel_id,
@@ -374,28 +375,40 @@ export async function POST(request: NextRequest) {
                   productData
                 );
 
-                // Step 3: 내 목록(coupang_products)에 상품 추가
+                // Step 3: 내 목록(coupang_products)에 상품 추가 (중복 체크)
                 sendLog(`📝 Step 3: 내 목록에 상품 추가 중...`);
                 try {
-                  const coupangProductId = `coupang_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-                  dbForInsert.prepare(`
-                    INSERT INTO coupang_products (
-                      id, user_id, product_url, deep_link, title, category,
-                      image_url, original_price, discount_price, status, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                  `).run(
-                    coupangProductId,
-                    user.userId,
-                    bestProduct.productUrl,
-                    product.deep_link,
-                    product.title,
-                    category,
-                    product.image_url,
-                    product.original_price,
-                    product.discount_price,
-                    'active'
-                  );
-                  sendLog(`✅ 내 목록 등록 완료! (coupang_products에 저장)`);
+                  // 1. 이미 등록된 상품인지 확인 (product_url로 중복 체크)
+                  const existingProduct = dbForInsert.prepare(`
+                    SELECT id FROM coupang_products
+                    WHERE user_id = ? AND product_url = ?
+                  `).get(user.userId, bestProduct.productUrl) as any;
+
+                  if (existingProduct) {
+                    sendLog(`⏸️ 이미 내 목록에 등록된 상품입니다 (스킵)`);
+                  } else {
+                    // 2. 새 상품인 경우에만 추가
+                    const coupangProductId = `coupang_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+                    dbForInsert.prepare(`
+                      INSERT INTO coupang_products (
+                        id, user_id, product_url, deep_link, title, category,
+                        image_url, original_price, discount_price, status, created_at
+                      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                    `).run(
+                      coupangProductId,
+                      user.userId,
+                      bestProduct.productUrl,
+                      product.deep_link,
+                      product.title,
+                      bestProduct.categoryName || '기타',
+                      product.image_url,
+                      product.original_price,
+                      product.discount_price,
+                      'active'
+                    );
+                    sendLog(`✅ 내 목록 등록 완료! (coupang_products에 저장)`);
+                    sendLog(`   📁 카테고리: ${bestProduct.categoryName || '기타'}`);
+                  }
                 } catch (error: any) {
                   console.error('❌ 내 목록 저장 실패:', error);
                   sendLog(`⚠️ 내 목록 저장 실패: ${error.message} (계속 진행)`);
