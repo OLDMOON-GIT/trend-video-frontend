@@ -611,22 +611,22 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
       console.log(`✅ [SCHEDULER] 상품 딥링크 검증 통과: ${schedule.product_url.substring(0, 50)}...`);
     }
 
-    // 상품 정보 추출 (product_data에서 파싱)
-    let productInfo = null;
-    if (schedule.type === 'product' && schedule.product_data) {
+    // 상품 정보 추출 (product_data에서 파싱) - 936883e 이전 버전 복원
+    let productInfo = undefined;
+    if (schedule.product_data) {
       try {
-        const productData = JSON.parse(schedule.product_data);
-        productInfo = {
-          title: schedule.title || '',  // 제목은 schedule에서 가져옴
-          thumbnail: productData.thumbnail || '',
-          product_link: productData.product_link || schedule.product_url || '',
-          description: productData.product_description || productData.description || ''  // 'description' 필드명으로 통일
-        };
-        console.log('✅ [SCHEDULER] 상품 정보 추출 완료:', productInfo);
+        productInfo = JSON.parse(schedule.product_data);
+        console.log('🛍️ [SCHEDULER] Product data found:', productInfo);
+        console.log('  - title:', productInfo?.title);
+        console.log('  - thumbnail:', productInfo?.thumbnail);
+        console.log('  - product_link:', productInfo?.product_link);
+        console.log('  - description:', productInfo?.description);
       } catch (e) {
-        console.error('❌ [SCHEDULER] product_data 파싱 실패:', e);
-        productInfo = null;
+        console.error('❌ [SCHEDULER] Failed to parse product_data:', e);
+        console.error('  - Raw product_data:', schedule.product_data);
       }
+    } else {
+      console.warn(`⚠️ [SCHEDULER] No product_data for type: ${schedule.type}`);
     }
 
     const requestBody = {
@@ -1727,14 +1727,16 @@ export async function checkAndRegisterCoupangProducts() {
   try {
     const db = new Database(dbPath);
 
-    // 1. coupang_products에서 아직 스케줄이 생성되지 않은 활성 상품 조회
+    // 1. coupang_products에서 아직 스케줄이 생성되지 않은 활성 상품 조회 (중복 체크)
     const newProducts = db.prepare(`
       SELECT cp.*
       FROM coupang_products cp
       WHERE cp.status = 'active'
         AND NOT EXISTS (
-          SELECT 1 FROM video_schedules vs
-          WHERE vs.product_url LIKE '%' || SUBSTR(cp.deep_link, -6) || '%'
+          SELECT 1 FROM video_titles vt
+          WHERE vt.user_id = cp.user_id
+            AND vt.type = 'product'
+            AND vt.product_url = cp.product_url
         )
       ORDER BY cp.created_at DESC
       LIMIT 10
