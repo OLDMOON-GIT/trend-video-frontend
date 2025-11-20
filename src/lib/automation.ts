@@ -8,6 +8,22 @@ import path from 'path';
 
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
+// 콘텐츠 타입별 기본 AI 모델 설정
+export function getDefaultModelByType(type?: string): string {
+  switch (type) {
+    case 'product':
+    case 'product-info':
+      return 'gemini'; // 상품: Gemini
+    case 'longform':
+    case 'sora2':
+      return 'claude'; // 롱폼: Claude
+    case 'shortform':
+      return 'chatgpt'; // 숏폼: ChatGPT
+    default:
+      return 'claude'; // 기본값: Claude
+  }
+}
+
 // DB 초기화 및 테이블 생성
 export function initAutomationTables() {
   const db = new Database(dbPath);
@@ -379,7 +395,7 @@ export function addVideoTitle(data: {
     data.scriptMode || 'chrome',
     data.mediaMode || 'imagen3',
     data.youtubeSchedule || 'immediate',
-    data.model || 'claude',
+    data.model || getDefaultModelByType(data.type), // 타입별 기본 모델 설정
     data.userId
   );
 
