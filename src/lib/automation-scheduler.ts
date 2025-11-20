@@ -330,6 +330,31 @@ export async function executePipeline(schedule: any, pipelineIds: string[]) {
           // story.json 생성
           if (contentStr && contentStr.length > 0 && contentStr.includes('{')) {
             try {
+              // ⭐ {home_url}과 {별명} 플레이스홀더 치환 (절대 빼면 안됨!)
+              const hasHomeUrl = contentStr.includes('{home_url}');
+              const hasNickname = contentStr.includes('{별명}');
+
+              if (hasHomeUrl || hasNickname) {
+                console.log(`🔧 [SCHEDULER] 플레이스홀더 치환 시작...`);
+                const Database = require('better-sqlite3');
+                const dbPath = path.join(process.cwd(), 'data', 'contents.db');
+                const db = new Database(dbPath);
+
+                const userSettings = db.prepare('SELECT google_sites_home_url, nickname FROM users WHERE id = ?').get(schedule.user_id);
+                const homeUrl = userSettings?.google_sites_home_url || '';
+                const nickname = userSettings?.nickname || '';
+                db.close();
+
+                console.log(`  - {home_url}: ${hasHomeUrl} (값: ${homeUrl})`);
+                console.log(`  - {별명}: ${hasNickname} (값: ${nickname})`);
+
+                contentStr = contentStr
+                  .replace(/{home_url}/g, homeUrl)
+                  .replace(/{별명}/g, nickname);
+
+                console.log(`✅ [SCHEDULER] 플레이스홀더 치환 완료`);
+              }
+
               const scriptData = JSON.parse(contentStr);
               const storyJson = {
                 ...scriptData,
@@ -580,8 +605,23 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
       console.log(`✅ [SCHEDULER] 상품 딥링크 검증 통과: ${schedule.product_url.substring(0, 50)}...`);
     }
 
-    // 상품 기입 정보는 더 이상 사용하지 않음 (프롬프트 결과만 활용)
-    const productInfo = null;
+    // 상품 정보 추출 (product_data에서 파싱)
+    let productInfo = null;
+    if (schedule.type === 'product' && schedule.product_data) {
+      try {
+        const productData = JSON.parse(schedule.product_data);
+        productInfo = {
+          title: schedule.title || '',  // 제목은 schedule에서 가져옴
+          thumbnail: productData.thumbnail || '',
+          product_link: productData.product_link || schedule.product_url || '',
+          description: productData.product_description || productData.description || ''  // 'description' 필드명으로 통일
+        };
+        console.log('✅ [SCHEDULER] 상품 정보 추출 완료:', productInfo);
+      } catch (e) {
+        console.error('❌ [SCHEDULER] product_data 파싱 실패:', e);
+        productInfo = null;
+      }
+    }
 
     const requestBody = {
       title: schedule.title,

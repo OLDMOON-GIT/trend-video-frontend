@@ -577,28 +577,42 @@ START YOUR RESPONSE WITH { NOW.`
               const hasThumbnail = jsonString.includes('{thumbnail}');
               const hasProductLink = jsonString.includes('{product_link}');
               const hasProductDescription = jsonString.includes('{product_description}');
+              const hasHomeUrl = jsonString.includes('{home_url}');
+              const hasNickname = jsonString.includes('{별명}');
 
-              if (hasThumbnail || hasProductLink || hasProductDescription) {
+              if (hasThumbnail || hasProductLink || hasProductDescription || hasHomeUrl || hasNickname) {
                 console.log('⚠️ AI 응답에 플레이스홀더 발견:');
                 console.log('  - {thumbnail}:', hasThumbnail);
                 console.log('  - {product_link}:', hasProductLink);
                 console.log('  - {product_description}:', hasProductDescription);
+                console.log('  - {home_url}:', hasHomeUrl);
+                console.log('  - {별명}:', hasNickname);
 
-                // 치환할 값 준비
+                // 치환할 값 준비 (productInfo)
                 const thumbnail = productInfo.thumbnail || '';
                 const productLink = productInfo.product_link || '';
                 const productDescription = productInfo.description || '';
+
+                // 치환할 값 준비 (DB에서 user settings)
+                const dbForSettings = getDb();
+                const userSettings = dbForSettings.prepare('SELECT google_sites_home_url, nickname FROM users WHERE id = ?').get(user.userId) as { google_sites_home_url?: string; nickname?: string } | undefined;
+                const homeUrl = userSettings?.google_sites_home_url || '';
+                const nickname = userSettings?.nickname || '';
 
                 console.log('🔧 치환할 값:');
                 console.log('  - thumbnail:', thumbnail.substring(0, 100));
                 console.log('  - product_link:', productLink.substring(0, 100));
                 console.log('  - description:', productDescription.substring(0, 100));
+                console.log('  - home_url:', homeUrl);
+                console.log('  - nickname:', nickname);
 
                 // JSON 문자열에서 플레이스홀더 치환
                 let replacedJson = jsonString
                   .replace(/{thumbnail}/g, thumbnail)
                   .replace(/{product_link}/g, productLink)
-                  .replace(/{product_description}/g, productDescription);
+                  .replace(/{product_description}/g, productDescription)
+                  .replace(/{home_url}/g, homeUrl)
+                  .replace(/{별명}/g, nickname);
 
                 // 다시 JSON으로 파싱
                 try {

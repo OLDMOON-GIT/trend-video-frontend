@@ -2623,5 +2623,32 @@
     "balance": 200114030,
     "description": "영상 생성",
     "createdAt": "2025-11-17T22:50:12.369Z"
+  },
+  {
+    "id": "4be790c0-d033-41cb-9c3e-499016110742",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114180,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-20T05:15:10.580Z"
+  },
+  {
+    "id": "536d7613-c08b-472d-84c0-04ed2baa0893",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114330,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-20T05:47:12.715Z"
+  },
+  {
+    "id": "230d75da-2526-44ee-ac20-578fb4afcc98",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114480,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-20T06:22:27.974Z"
   }
 ]

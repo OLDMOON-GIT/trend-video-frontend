@@ -136,6 +136,27 @@ export function initAutomationTables() {
     // 이미 존재하면 무시
   }
 
+  // shortform_job_id 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE video_schedules ADD COLUMN shortform_job_id TEXT;`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
+  // shortform_uploaded 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE video_schedules ADD COLUMN shortform_uploaded INTEGER DEFAULT 0;`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
+  // longform_youtube_url 컬럼 추가 (기존 테이블에 없을 경우)
+  try {
+    db.exec(`ALTER TABLE video_schedules ADD COLUMN longform_youtube_url TEXT;`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
   // 3. 파이프라인 실행 기록 테이블
   db.exec(`
     CREATE TABLE IF NOT EXISTS automation_pipelines (

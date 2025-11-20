@@ -6,7 +6,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
 import { generateTitlesWithClaude, generateTitlesWithChatGPT, generateTitlesWithGemini } from '@/lib/ai-title-generation';
-import { generateDeeplink } from '@/lib/coupang-deeplink';
 
 interface ChannelSetting {
   channel_id: string;
@@ -225,78 +224,121 @@ export async function POST(request: NextRequest) {
               try {
                 sendLog(`🛍️ 쿠팡 베스트셀러에서 테스트 상품 조회 중...`);
 
-                  try {
-                    // 쿠팡 API 설정 로드
-                    const DATA_DIR = path.join(process.cwd(), 'data');
-                    const COUPANG_SETTINGS_FILE = path.join(DATA_DIR, 'coupang-settings.json');
-                    const settingsData = await fs.readFile(COUPANG_SETTINGS_FILE, 'utf-8');
-                    const allSettings = JSON.parse(settingsData);
-                    const coupangSettings = allSettings[user.userId];
+                // 쿠팡 API 설정 로드
+                const DATA_DIR = path.join(process.cwd(), 'data');
+                const COUPANG_SETTINGS_FILE = path.join(DATA_DIR, 'coupang-settings.json');
+                const settingsData = await fs.readFile(COUPANG_SETTINGS_FILE, 'utf-8');
+                const coupangApiSettings = JSON.parse(settingsData);
+                const coupangSettings = coupangApiSettings[user.userId];
 
-                    if (!coupangSettings || !coupangSettings.accessKey || !coupangSettings.secretKey) {
-                      throw new Error('쿠팡 API 설정이 없습니다');
-                    }
-
-                    // 쿠팡 베스트셀러 API 직접 호출
-                    const REQUEST_METHOD = 'GET';
-                    const API_PATH = '/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/1001';
-
-                    // HMAC 서명 생성
-                    const now = new Date();
-                    const year = String(now.getUTCFullYear()).slice(-2);
-                    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-                    const day = String(now.getUTCDate()).padStart(2, '0');
-                    const hours = String(now.getUTCHours()).padStart(2, '0');
-                    const minutes = String(now.getUTCMinutes()).padStart(2, '0');
-                    const seconds = String(now.getUTCSeconds()).padStart(2, '0');
-                    const datetime = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
-                    const message = datetime + REQUEST_METHOD + API_PATH;
-                    const signature = crypto.createHmac('sha256', coupangSettings.secretKey).update(message).digest('hex');
-                    const authorization = `CEA algorithm=HmacSHA256, access-key=${coupangSettings.accessKey}, signed-date=${datetime}, signature=${signature}`;
-
-                    const response = await fetch(`https://api-gateway.coupang.com${API_PATH}`, {
-                      method: REQUEST_METHOD,
-                      headers: {
-                        'Authorization': authorization,
-                        'Content-Type': 'application/json'
-                      }
-                    });
-
-                    if (response.ok) {
-                      const data = await response.json();
-                      if (data.rCode === '0' && data.data && data.data.length > 0) {
-                        const bestProduct = data.data[0];
-                        sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견: ${bestProduct.productName}`);
-
-                        // 짧은 딥링크 생성
-                        sendLog(`🔗 딥링크 생성 중...`);
-                        const shortDeepLink = await generateDeeplink(
-                          bestProduct.productUrl,
-                          coupangSettings.accessKey,
-                          coupangSettings.secretKey
-                        );
-                        sendLog(`✅ 딥링크 생성 완료: ${shortDeepLink}`);
-
-                        product = {
-                          id: `temp_${Date.now()}`,
-                          title: bestProduct.productName,
-                          deep_link: shortDeepLink,
-                          product_url: bestProduct.productUrl,
-                          discount_price: bestProduct.productPrice,
-                          original_price: bestProduct.productPrice,
-                          image_url: bestProduct.productImage,
-                          category: bestProduct.categoryName || '기타'
-                        };
-                      } else {
-                        throw new Error('베스트셀러 데이터가 비어있습니다');
-                      }
-                    } else {
-                      throw new Error(`쿠팡 API 오류: ${response.status}`);
-                    }
-                  } catch (apiError: any) {
-                    throw new Error(`상품을 찾을 수 없습니다. 내 목록에 상품을 추가하거나 쿠팡 API 설정을 확인해주세요. (${apiError.message})`);
-                  }
+                if (!coupangSettings || !coupangSettings.accessKey || !coupangSettings.secretKey) {
+                  throw new Error('쿠팡 API 설정이 없습니다');
                 }
+
+                // 쿠팡 베스트셀러 API 직접 호출
+                const REQUEST_METHOD = 'GET';
+                const API_PATH = '/v2/providers/affiliate_open_api/apis/openapi/v1/products/bestcategories/1001';
+
+                // HMAC 서명 생성
+                const now = new Date();
+                const year = String(now.getUTCFullYear()).slice(-2);
+                const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(now.getUTCDate()).padStart(2, '0');
+                const hours = String(now.getUTCHours()).padStart(2, '0');
+                const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+                const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+                const datetime = `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+                const message = datetime + REQUEST_METHOD + API_PATH;
+                const signature = crypto.createHmac('sha256', coupangSettings.secretKey).update(message).digest('hex');
+                const authorization = `CEA algorithm=HmacSHA256, access-key=${coupangSettings.accessKey}, signed-date=${datetime}, signature=${signature}`;
+
+                const response = await fetch(`https://api-gateway.coupang.com${API_PATH}`, {
+                  method: REQUEST_METHOD,
+                  headers: {
+                    'Authorization': authorization,
+                    'Content-Type': 'application/json'
+                  }
+                });
+
+                if (!response.ok) {
+                  throw new Error(`쿠팡 API 오류: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.rCode !== '0' || !data.data || data.data.length === 0) {
+                  throw new Error('베스트셀러 데이터가 비어있습니다');
+                }
+
+                const bestProduct = data.data[0];
+                sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견: ${bestProduct.productName}`);
+
+                // 베스트셀러 API에서 반환한 상품 URL에서 상품 ID 추출
+                sendLog(`🔗 딥링크 생성 중...`);
+                let productIdFromUrl = '';
+                const productUrlMatch = bestProduct.productUrl?.match(/\/vp\/products\/(\d+)/);
+                if (productUrlMatch) {
+                  productIdFromUrl = productUrlMatch[1];
+                }
+
+                // 상품 ID가 없으면 API 응답에서 직접 가져오기
+                const productIdToUse = productIdFromUrl || bestProduct.productId;
+
+                // 표준 쿠팡 상품 URL 생성 (딥링크 API용)
+                const standardProductUrl = `https://www.coupang.com/vp/products/${productIdToUse}`;
+
+                // 딥링크 생성
+                const deeplinkPath = '/v2/providers/affiliate_open_api/apis/openapi/v1/deeplink';
+                const deeplinkNow = new Date();
+                const deeplinkYear = String(deeplinkNow.getUTCFullYear()).slice(-2);
+                const deeplinkMonth = String(deeplinkNow.getUTCMonth() + 1).padStart(2, '0');
+                const deeplinkDay = String(deeplinkNow.getUTCDate()).padStart(2, '0');
+                const deeplinkHours = String(deeplinkNow.getUTCHours()).padStart(2, '0');
+                const deeplinkMinutes = String(deeplinkNow.getUTCMinutes()).padStart(2, '0');
+                const deeplinkSeconds = String(deeplinkNow.getUTCSeconds()).padStart(2, '0');
+                const deeplinkDatetime = `${deeplinkYear}${deeplinkMonth}${deeplinkDay}T${deeplinkHours}${deeplinkMinutes}${deeplinkSeconds}Z`;
+                const deeplinkMessage = deeplinkDatetime + 'POST' + deeplinkPath;
+                const deeplinkSignature = crypto.createHmac('sha256', coupangSettings.secretKey).update(deeplinkMessage).digest('hex');
+                const deeplinkAuthorization = `CEA algorithm=HmacSHA256, access-key=${coupangSettings.accessKey}, signed-date=${deeplinkDatetime}, signature=${deeplinkSignature}`;
+
+                const deeplinkResponse = await fetch('https://api-gateway.coupang.com' + deeplinkPath, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': deeplinkAuthorization,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    coupangUrls: [standardProductUrl]
+                  })
+                });
+
+                let deepLink = bestProduct.productUrl; // 실패 시 원본 URL 사용
+                if (deeplinkResponse.ok) {
+                  const deeplinkData = await deeplinkResponse.json();
+                  if (deeplinkData.rCode === '0' && deeplinkData.data && deeplinkData.data[0]?.shortenUrl) {
+                    deepLink = deeplinkData.data[0].shortenUrl;
+                    sendLog(`✅ 딥링크 생성 완료: ${deepLink}`);
+                  } else {
+                    console.error('❌ 딥링크 API 응답 오류:', deeplinkData);
+                    sendLog(`❌ 딥링크 생성 실패: ${deeplinkData.rMessage || deeplinkData.message || '알 수 없음'}`);
+                    throw new Error(`딥링크 생성 실패: ${deeplinkData.rMessage || '알 수 없음'}`);
+                  }
+                } else {
+                  const errorText = await deeplinkResponse.text();
+                  console.error('❌ 딥링크 API HTTP 오류:', deeplinkResponse.status, errorText);
+                  sendLog(`❌ 딥링크 API 오류: ${deeplinkResponse.status} - ${errorText}`);
+                  throw new Error(`딥링크 API 호출 실패 (${deeplinkResponse.status}): ${errorText}`);
+                }
+
+                const product = {
+                  id: `temp_${Date.now()}`,
+                  title: bestProduct.productName,
+                  deep_link: deepLink,
+                  product_url: bestProduct.productUrl,
+                  discount_price: bestProduct.productPrice,
+                  original_price: bestProduct.productPrice,
+                  image_url: bestProduct.productImage,
+                  category: bestProduct.categoryName || '기타'
+                };
 
                 sendLog(`✅ 상품 발견: ${product.title}`);
                 sendLog(`   🔗 딥링크: ${product.deep_link}`);
@@ -334,7 +376,7 @@ export async function POST(request: NextRequest) {
                 dbForInsert.close();
 
                 sendLog(`💾 상품 등록 완료! (video_titles에 저장)`);
-                sendLog(`   💰 비용: $0.000000 (≈₩0.00) - 상품관리 DB 사용`);
+                sendLog(`   💰 비용: $0.000000 (≈₩0.00) - 쿠팡 베스트셀러 API 사용`);
                 sendLog('');
                 sendLog(`✨ 최종 선택된 제목:`);
                 sendLog(`   💡 "${product.title}"`);
@@ -349,13 +391,8 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
-            // 카테고리별 AI 모델 선택 (상품은 Gemini 기본)
-            let aiModel = settings.ai_model || 'claude';
-            if (category === '상품') {
-              aiModel = getDefaultModelByType('product'); // 상품: Gemini
-            } else {
-              aiModel = getDefaultModelByType(undefined); // 기본: Claude
-            }
+            // 일반 카테고리는 AI 모델 사용 (실제 생성 함수 호출)
+            const aiModel = settings.ai_model || 'claude';
             sendLog(`🤖 AI 모델: ${aiModel}`);
 
             try {

@@ -781,8 +781,27 @@ function AutomationPageContent() {
   function startEdit(title: any) {
     const titleSchedules = schedules.filter(s => s.title_id === title.id);
     setEditingId(title.id);
+
+    // product_data에서 deepLink 추출 (딥링크 우선 사용)
+    let productUrl = title.product_url;
+    if (title.product_data) {
+      try {
+        const productData = typeof title.product_data === 'string'
+          ? JSON.parse(title.product_data)
+          : title.product_data;
+        if (productData.deepLink) {
+          productUrl = productData.deepLink;
+        } else if (productData.productUrl) {
+          productUrl = productData.productUrl;
+        }
+      } catch (e) {
+        console.error('❌ product_data 파싱 실패:', e);
+      }
+    }
+
     setEditForm({
       ...title,
+      product_url: productUrl, // 딥링크로 업데이트
       channel_id: title.channel, // channel을 channel_id로 매핑
       schedules: titleSchedules
     });
