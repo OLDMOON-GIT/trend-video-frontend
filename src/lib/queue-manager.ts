@@ -426,12 +426,18 @@ export class QueueManager {
     const tenMinutesAgo = new Date();
     tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
 
-    const stuckTasks = this.db.prepare(`
+    const stuckTasksRaw = this.db.prepare(`
       SELECT id, type, started_at
       FROM queue_tasks
       WHERE status = 'processing'
         AND started_at < ?
     `).all(tenMinutesAgo.toISOString()) as Array<{ id: string; type: TaskType; started_at: string }>;
+
+    const stuckTasks = stuckTasksRaw.map(task => ({
+      id: task.id,
+      type: task.type,
+      startedAt: task.started_at
+    }));
 
     return {
       healthy: stuckTasks.length === 0,

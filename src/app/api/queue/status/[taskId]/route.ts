@@ -8,7 +8,7 @@ import { QueueManager } from '@/lib/queue-manager';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
     const user = await getCurrentUser(request);
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { taskId } = params;
+    const { taskId } = await params;
 
     const manager = new QueueManager();
 

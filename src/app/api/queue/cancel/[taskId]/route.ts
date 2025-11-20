@@ -8,7 +8,7 @@ import { QueueManager } from '@/lib/queue-manager';
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
     const user = await getCurrentUser(request);
@@ -16,7 +16,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { taskId } = params;
+    const { taskId } = await params;
 
     const manager = new QueueManager();
 
@@ -31,7 +31,7 @@ export async function DELETE(
       }
 
       // 권한 확인 (관리자 또는 작업 생성자)
-      if (!user.isAdmin && task.userId !== user.email && task.userId !== user.id) {
+      if (!user.isAdmin && task.userId !== user.email && task.userId !== user.userId) {
         return NextResponse.json(
           { error: '권한이 없습니다.' },
           { status: 403 }

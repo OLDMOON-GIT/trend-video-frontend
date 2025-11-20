@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     try {
       const task = await manager.enqueue({
         type,
-        userId: user.email || user.id,
+        userId: user.email || user.userId,
         projectId,
         metadata: metadata || {},
         priority,
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       };
 
       const estimatedWaitTime = position !== null
-        ? position * estimatedTimePerTask[type]
+        ? position * estimatedTimePerTask[type as keyof typeof estimatedTimePerTask]
         : 0;
 
       return NextResponse.json({
