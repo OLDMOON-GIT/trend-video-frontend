@@ -1480,9 +1480,16 @@ function AutomationPageContent() {
 
           await fetchData(); // 상태 업데이트 후 데이터 새로고침
 
+          // ⭐ 최신 데이터 재조회 (DB에서 최신 media_mode 읽기)
+          const latestTitlesRes = await fetch('/api/automation/titles', {
+            credentials: 'include'
+          });
+          const latestTitles = latestTitlesRes.ok ? (await latestTitlesRes.json()).titles : [];
+          const latestTitleInfo = latestTitles.find((t: any) => t.id === titleId) || titleInfo;
+
           // 3. 영상 생성 API 호출 (내부 요청 형식)
-          const imageSource = titleInfo.media_mode === 'upload' ? 'none' : titleInfo.media_mode;
-          console.log(`📹 [영상 생성] 설정: mediaMode=${titleInfo.media_mode}, imageSource=${imageSource}`);
+          const imageSource = latestTitleInfo.media_mode === 'upload' ? 'none' : latestTitleInfo.media_mode;
+          console.log(`📹 [영상 생성] 설정: mediaMode=${latestTitleInfo.media_mode}, imageSource=${imageSource}`);
 
           const videoRes = await fetch('/api/generate-video-upload', {
             method: 'POST',
@@ -1492,12 +1499,12 @@ function AutomationPageContent() {
             },
             body: JSON.stringify({
               storyJson,
-              userId: titleInfo.user_id,
+              userId: latestTitleInfo.user_id,
               imageSource,
-              imageModel: titleInfo.model || 'dalle3',
-              videoFormat: titleInfo.type || 'shortform',
+              imageModel: latestTitleInfo.model || 'dalle3',
+              videoFormat: latestTitleInfo.type || 'shortform',
               ttsVoice: 'ko-KR-SoonBokNeural',
-              title: titleInfo.title,
+              title: latestTitleInfo.title,
               scriptId
             })
           });
