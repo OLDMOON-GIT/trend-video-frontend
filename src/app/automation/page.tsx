@@ -636,8 +636,10 @@ function AutomationPageContent() {
         // 1. 현재 페이지에서 입력한 상품 정보 우선
         if (currentProductData) {
           // ⭐ productUrl 검증 (딥링크여야 함!)
-          if (!currentProductData.productUrl || !currentProductData.productUrl.includes('partner=')) {
-            alert('❌ 상품 URL이 딥링크가 아닙니다.\n\n제휴 마크(partner=)가 포함된 URL이어야 합니다.\n\n내 목록에서 상품을 다시 선택해주세요.');
+          const isDeeplink = currentProductData.productUrl &&
+            (currentProductData.productUrl.includes('partner=') || currentProductData.productUrl.includes('link.coupang.com/a/'));
+          if (!isDeeplink) {
+            alert('❌ 상품 URL이 딥링크가 아닙니다.\n\n제휴 마크(partner=) 또는 link.coupang.com/a/ 형식이어야 합니다.\n\n내 목록에서 상품을 다시 선택해주세요.');
             setIsSubmitting(false);
             return;
           }
@@ -650,8 +652,10 @@ function AutomationPageContent() {
           if (savedProductData) {
             const parsedData = JSON.parse(savedProductData);
             // ⭐ productUrl 검증 (딥링크여야 함!)
-            if (!parsedData.productUrl || !parsedData.productUrl.includes('partner=')) {
-              alert('❌ 상품 URL이 딥링크가 아닙니다.\n\n제휴 마크(partner=)가 포함된 URL이어야 합니다.\n\n내 목록에서 상품을 다시 선택해주세요.');
+            const isDeeplink = parsedData.productUrl &&
+              (parsedData.productUrl.includes('partner=') || parsedData.productUrl.includes('link.coupang.com/a/'));
+            if (!isDeeplink) {
+              alert('❌ 상품 URL이 딥링크가 아닙니다.\n\n제휴 마크(partner=) 또는 link.coupang.com/a/ 형식이어야 합니다.\n\n내 목록에서 상품을 다시 선택해주세요.');
               setIsSubmitting(false);
               return;
             }
@@ -3239,13 +3243,13 @@ function AutomationPageContent() {
                             </>
                           );
                         })()}
-                        {/* YouTube 업로드 버튼 (processing/failed 상태이면서 영상 제작 완료, 아직 업로드 안 됨) */}
+                        {/* YouTube 업로드 버튼 (processing 상태이면서 영상 제작 완료, 아직 업로드 안 됨) */}
                         {(() => {
                           const schedule = titleSchedules.find((s: any) => s.video_id);
                           const hasVideo = !!schedule?.video_id;
                           const hasYouTubeUrl = !!schedule?.youtube_url;
 
-                          return (title.status === 'processing' || title.status === 'failed') && hasVideo && !hasYouTubeUrl && (
+                          return title.status === 'processing' && hasVideo && !hasYouTubeUrl && (
                             <button
                               onClick={() => {
                                 // 영상 페이지로 이동하여 YouTube 업로드
