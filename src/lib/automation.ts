@@ -377,6 +377,31 @@ export function initAutomationTables() {
     // 이미 존재하면 무시
   }
 
+  // 10. 쿠팡 상품 테이블 (내 목록)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS coupang_products (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      product_id TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      deep_link TEXT NOT NULL,
+      category_id TEXT,
+      image_url TEXT,
+      original_price INTEGER,
+      discount_price INTEGER,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'removed')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, product_id)
+    );
+  `);
+
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_coupang_products_user_status ON coupang_products(user_id, status);`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
   db.close();
   console.log('✅ Automation tables initialized');
 }

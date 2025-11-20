@@ -373,6 +373,34 @@ export async function POST(request: NextRequest) {
                   product.deep_link,
                   productData
                 );
+
+                // Step 3: 내 목록(coupang_products)에 상품 추가
+                sendLog(`📝 Step 3: 내 목록에 상품 추가 중...`);
+                try {
+                  const coupangProductId = `coupang_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+                  dbForInsert.prepare(`
+                    INSERT INTO coupang_products (
+                      id, user_id, product_id, product_name, deep_link, category_id,
+                      image_url, original_price, discount_price, status, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                  `).run(
+                    coupangProductId,
+                    user.userId,
+                    productIdToUse,
+                    product.title,
+                    product.deep_link,
+                    category,
+                    product.image_url,
+                    product.original_price,
+                    product.discount_price,
+                    'active'
+                  );
+                  sendLog(`✅ 내 목록 등록 완료! (coupang_products에 저장)`);
+                } catch (error: any) {
+                  console.error('❌ 내 목록 저장 실패:', error);
+                  sendLog(`⚠️ 내 목록 저장 실패: ${error.message} (계속 진행)`);
+                }
+
                 dbForInsert.close();
 
                 sendLog(`💾 상품 등록 완료! (video_titles에 저장)`);

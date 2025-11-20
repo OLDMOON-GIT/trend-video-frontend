@@ -91,6 +91,9 @@ export function startAutomationScheduler() {
   // 즉시 한 번 실행
   processPendingSchedules();
 
+  // Step 4: 상품 자동화 - coupang_products 감시 (항상 활성화)
+  checkAndRegisterCoupangProducts();
+
   // 자동 제목 생성이 활성화된 경우에만 실행
   const autoTitleGeneration = settings.auto_title_generation === 'true';
   if (autoTitleGeneration) {
@@ -106,6 +109,9 @@ export function startAutomationScheduler() {
     checkWaitingForUploadSchedules(); // 이미지 업로드 대기 중인 스케줄 체크
     checkReadyToUploadSchedules(); // 영상 생성 완료되어 업로드 대기 중인 스케줄 체크
     checkCompletedShortformJobs(); // 완료된 숏폼 작업 체크 및 업로드
+
+    // Step 4: 상품 자동화 - coupang_products 감시 (항상 활성화)
+    checkAndRegisterCoupangProducts();
 
     // 자동 제목 생성이 활성화된 경우에만 실행
     const settings = getAutomationSettings();
@@ -1709,6 +1715,118 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
   addTitleLog(schedule.title_id, 'info', `🎉 모든 작업이 완료되었습니다!`);
 
   console.log(`[Scheduler] Pipeline completed for schedule ${schedule.id}`);
+}
+
+// ========== Step 4: 상품 자동화 - coupang_products 감시 및 자동 스케줄 등록 ==========
+
+/**
+ * coupang_products 테이블에서 새로운 상품을 감지하고 자동으로 스케줄 등록
+ * Step 3에서 저장된 상품을 감시하여 자동으로 예약큐에 등록
+ */
+export async function checkAndRegisterCoupangProducts() {
+  try {
+    const db = new Database(dbPath);
+
+    // 1. coupang_products에서 아직 스케줄이 생성되지 않은 활성 상품 조회
+    const newProducts = db.prepare(`
+      SELECT cp.*
+      FROM coupang_products cp
+      WHERE cp.status = 'active'
+        AND NOT EXISTS (
+          SELECT 1 FROM video_schedules vs
+          WHERE vs.product_url LIKE '%' || SUBSTR(cp.deep_link, -6) || '%'
+        )
+      ORDER BY cp.created_at DESC
+      LIMIT 10
+    `).all() as any[];
+
+    if (newProducts.length === 0) {
+      console.log('[Step 4] No new products detected for scheduling');
+      db.close();
+      return { success: 0, failed: 0, skipped: 0 };
+    }
+
+    console.log(`[Step 4] Detected ${newProducts.length} new products waiting for scheduling`);
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const product of newProducts) {
+      try {
+        // 2. 상품용 제목 생성 (video_titles 테이블에 insert)
+        const titleId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        const productData = JSON.stringify({
+          productId: product.product_id,
+          productName: product.product_name,
+          productPrice: product.discount_price || product.original_price,
+          productImage: product.image_url,
+          deepLink: product.deep_link
+        });
+
+        // 상품과 매칭되는 채널 찾기 (사용자의 활성 채널 중 첫 번째)
+        const channelSetting = db.prepare(`
+          SELECT channel_id, channel_name FROM youtube_channel_settings
+          WHERE user_id = ? AND is_active = 1
+          LIMIT 1
+        `).get(product.user_id) as any;
+
+        if (!channelSetting) {
+          console.log(`[Step 4] ⏸️ Product ${product.product_name}: No active channel found for user, skipping`);
+          continue;
+        }
+
+        // 제목 저장 (상품 카테고리)
+        db.prepare(`
+          INSERT INTO video_titles (
+            id, user_id, title, category, type, status,
+            channel, product_url, product_data, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `).run(
+          titleId,
+          product.user_id,
+          product.product_name,
+          product.category_id || '상품',
+          'product',
+          'pending',
+          channelSetting.channel_id,
+          product.deep_link,
+          productData
+        );
+
+        // 3. 스케줄 자동 추가
+        const scheduleId = `schedule_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        const { calculateNextScheduleTime } = await import('./automation');
+        const scheduledTime = calculateNextScheduleTime(product.user_id, channelSetting.channel_id) || new Date();
+
+        db.prepare(`
+          INSERT INTO video_schedules (
+            id, title_id, scheduled_time, status, channel_setting_id, created_at
+          ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+        `).run(
+          scheduleId,
+          titleId,
+          scheduledTime.toISOString(),
+          'pending',
+          channelSetting.channel_id
+        );
+
+        console.log(`[Step 4] ✅ Product registered to schedule: ${product.product_name} (${scheduleId})`);
+        successCount++;
+
+      } catch (error: any) {
+        console.error(`[Step 4] ❌ Failed to register product ${product.product_name}:`, error.message);
+        failedCount++;
+      }
+    }
+
+    db.close();
+    console.log(`[Step 4] Result: ${successCount} products scheduled, ${failedCount} failed`);
+    return { success: successCount, failed: failedCount, skipped: 0 };
+
+  } catch (error: any) {
+    console.error('[Step 4] Error checking and registering Coupang products:', error.message);
+    return { success: 0, failed: 0, skipped: 0 };
+  }
 }
 
 // ========== 완전 자동화: 채널 주기 체크 및 자동 스케줄 생성 ==========
