@@ -377,6 +377,7 @@ export async function POST(request: NextRequest) {
 
                 // Step 3: 내 목록(coupang_products)에 상품 추가 (중복 체크)
                 sendLog(`📝 Step 3: 내 목록에 상품 추가 중...`);
+                sendLog(`   검색 조건: user_id=${user.userId}, product_url=${bestProduct.productUrl}`);
                 try {
                   // 1. 이미 등록된 상품인지 확인 (product_url로 중복 체크)
                   const existingProduct = dbForInsert.prepare(`
@@ -385,7 +386,7 @@ export async function POST(request: NextRequest) {
                   `).get(user.userId, bestProduct.productUrl) as any;
 
                   if (existingProduct) {
-                    sendLog(`⏸️ 이미 내 목록에 등록된 상품입니다 (스킵)`);
+                    sendLog(`⏸️ 이미 내 목록에 등록된 상품입니다 (ID: ${existingProduct.id})`);
                   } else {
                     // 2. 새 상품인 경우에만 추가
                     const coupangProductId = `coupang_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
@@ -406,12 +407,13 @@ export async function POST(request: NextRequest) {
                       product.discount_price,
                       'active'
                     );
-                    sendLog(`✅ 내 목록 등록 완료! (coupang_products에 저장)`);
+                    sendLog(`✅ 내 목록 등록 완료! (ID: ${coupangProductId})`);
                     sendLog(`   📁 카테고리: ${bestProduct.categoryName || '기타'}`);
                   }
                 } catch (error: any) {
                   console.error('❌ 내 목록 저장 실패:', error);
-                  sendLog(`⚠️ 내 목록 저장 실패: ${error.message} (계속 진행)`);
+                  sendLog(`❌ 내 목록 저장 실패: ${error.message}`);
+                  throw error;
                 }
 
                 dbForInsert.close();
