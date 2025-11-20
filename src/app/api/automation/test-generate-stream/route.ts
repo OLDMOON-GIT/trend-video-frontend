@@ -222,12 +222,12 @@ export async function POST(request: NextRequest) {
               try {
                 sendLog(`🛍️ 상품관리에서 등록된 상품 조회 중...`);
 
-                // DB에서 사용자가 등록한 상품 중 랜덤으로 1개 가져오기
+                // DB에서 사용자가 등록한 상품 중 가장 최근에 추가된 것 가져오기
                 const dbForProduct = new Database(dbPath);
                 const product = dbForProduct.prepare(`
                   SELECT * FROM coupang_products
                   WHERE user_id = ? AND status = 'active'
-                  ORDER BY RANDOM()
+                  ORDER BY created_at DESC
                   LIMIT 1
                 `).get(user.userId) as any;
                 dbForProduct.close();
