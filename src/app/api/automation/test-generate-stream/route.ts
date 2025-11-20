@@ -380,15 +380,15 @@ export async function POST(request: NextRequest) {
                   const coupangProductId = `coupang_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
                   dbForInsert.prepare(`
                     INSERT INTO coupang_products (
-                      id, user_id, product_id, product_name, deep_link, category_id,
+                      id, user_id, product_url, deep_link, title, category,
                       image_url, original_price, discount_price, status, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
                   `).run(
                     coupangProductId,
                     user.userId,
-                    productIdToUse,
-                    product.title,
+                    bestProduct.productUrl,
                     product.deep_link,
+                    product.title,
                     category,
                     product.image_url,
                     product.original_price,

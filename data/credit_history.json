@@ -2650,5 +2650,14 @@
     "balance": 200114480,
     "description": "영상 생성 실패 환불",
     "createdAt": "2025-11-20T06:22:27.974Z"
+  },
+  {
+    "id": "bd4551c5-3a97-4c5e-8e0f-061eb90ca825",
+    "userId": "b5d1f064-60b9-45ab-9bcd-d36948196459",
+    "type": "refund",
+    "amount": 150,
+    "balance": 200114630,
+    "description": "영상 생성 실패 환불",
+    "createdAt": "2025-11-20T07:03:00.356Z"
   }
 ]

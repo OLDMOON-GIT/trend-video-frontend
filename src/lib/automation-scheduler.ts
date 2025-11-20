@@ -1756,10 +1756,11 @@ export async function checkAndRegisterCoupangProducts() {
         // 2. 상품용 제목 생성 (video_titles 테이블에 insert)
         const titleId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
         const productData = JSON.stringify({
-          productId: product.product_id,
-          productName: product.product_name,
+          productId: product.id,
+          productName: product.title,
           productPrice: product.discount_price || product.original_price,
           productImage: product.image_url,
+          productUrl: product.product_url,
           deepLink: product.deep_link
         });
 

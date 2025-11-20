@@ -16,30 +16,33 @@ function AutomationPageContent() {
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
   const [titles, setTitles] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [newTitle, setNewTitle] = useState(() => ({
-    title: '',
-    type: getSelectedType(),
-    category: getSelectedCategory(),
-    tags: '',
-    productUrl: '',
-    scheduleTime: (() => {
-      // 현재 시간 + 3분을 기본값으로 설정
-      const now = new Date(Date.now() + 3 * 60 * 1000);
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
-    })(),
-    channel: '',
-    scriptMode: 'chrome',
-    mediaMode: getSelectedMediaMode(),
-    model: getSelectedModel(),
-    youtubeSchedule: 'immediate',
-    youtubePublishAt: '',
-    youtubePrivacy: getSelectedPrivacy()
-  }));
+  const [newTitle, setNewTitle] = useState(() => {
+    const selectedType = getSelectedType();
+    return {
+      title: '',
+      type: selectedType,
+      category: getSelectedCategory(),
+      tags: '',
+      productUrl: '',
+      scheduleTime: (() => {
+        // 현재 시간 + 3분을 기본값으로 설정
+        const now = new Date(Date.now() + 3 * 60 * 1000);
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      })(),
+      channel: '',
+      scriptMode: 'chrome',
+      mediaMode: getSelectedMediaMode(),
+      model: getDefaultModelByType(selectedType), // ✅ 타입에 따른 모델 자동 설정
+      youtubeSchedule: 'immediate',
+      youtubePublishAt: '',
+      youtubePrivacy: getSelectedPrivacy()
+    };
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [recentTitles, setRecentTitles] = useState<string[]>([]);
@@ -110,6 +113,22 @@ function AutomationPageContent() {
     return 'longform';
   }
 
+  // 타입별 기본 모델 설정
+  function getDefaultModelByType(type?: string): string {
+    switch (type) {
+      case 'product':
+      case 'product-info':
+        return 'gemini'; // 상품: Gemini
+      case 'longform':
+      case 'sora2':
+        return 'claude'; // 롱폼: Claude
+      case 'shortform':
+        return 'chatgpt'; // 숏폼: ChatGPT
+      default:
+        return 'claude'; // 기본값: Claude
+    }
+  }
+
   // localStorage에서 선택한 LLM 모델 불러오기
   function getSelectedModel(): string {
     if (typeof window !== 'undefined') {
@@ -117,6 +136,12 @@ function AutomationPageContent() {
       return saved || 'claude';
     }
     return 'claude';
+  }
+
+  // 현재 선택된 타입에 따른 모델 가져오기
+  function getModelForCurrentType(): string {
+    const currentType = getSelectedType();
+    return getDefaultModelByType(currentType);
   }
 
   // localStorage에서 선택한 미디어 모드 불러오기
@@ -225,18 +250,22 @@ function AutomationPageContent() {
 
           // 폼 열기 + 정보 채우기 (자동 시작 X - 사용자가 확인 후 수동 저장)
           setShowAddForm(true);
+          const productType = data.type || 'product';
           setNewTitle(prev => ({
             ...prev,
             title: data.title ? `[광고] ${data.title}` : '[광고] ',
-            type: data.type || 'product',
+            type: productType,
             category: data.category || '상품',
             tags: data.tags || '',
             productUrl: data.productUrl || '', // ⭐ 딥링크
             scriptMode: 'chrome',
             mediaMode: getSelectedMediaMode(),
-            model: getSelectedModel(),
+            model: getDefaultModelByType(productType), // ✅ 상품은 항상 gemini
             youtubeSchedule: 'immediate'
           }));
+          // 사용자가 선택한 타입과 모델을 localStorage에 저장 (다음 생성 시 기본값으로 사용)
+          localStorage.setItem('automation_selected_type', productType);
+          localStorage.setItem('automation_selected_model', getDefaultModelByType(productType));
           // 상품 정보 UI 미리보기 표시
           setCurrentProductData(data.productData);
 
@@ -249,6 +278,21 @@ function AutomationPageContent() {
       }
     }
   }, [searchParams]);
+
+  // 예약큐 → 진행큐 자동 전환
+  useEffect(() => {
+    // 현재 scheduled 탭을 보고 있을 때만 체크
+    if (queueTab === 'scheduled' && schedules.length > 0) {
+      const scheduledItems = schedules.filter((s: any) => s.status === 'pending');
+      const processingItems = schedules.filter((s: any) => s.status === 'processing');
+
+      // scheduled 큐가 비어있고 processing 큐에 항목이 있으면 자동 전환
+      if (scheduledItems.length === 0 && processingItems.length > 0) {
+        console.log('🔄 예약큐 → 진행큐 자동 전환');
+        setQueueTab('processing');
+      }
+    }
+  }, [schedules, queueTab]);
 
   // 카테고리 또는 타입 변경 시 상품 목록 불러오기 (딥링크 발급된 "내 목록"에서만)
   useEffect(() => {
@@ -1810,15 +1854,7 @@ function AutomationPageContent() {
                     value={newTitle.type}
                     onChange={(e) => {
                       const type = e.target.value;
-                      // 타입에 따라 AI 모델 자동 설정
-                      let model = 'claude'; // 기본값
-                      if (type === 'longform') {
-                        model = 'claude';
-                      } else if (type === 'product' || type === 'product-info') {
-                        model = 'gemini';
-                      } else if (type === 'shortform') {
-                        model = 'chatgpt';
-                      }
+                      const model = getDefaultModelByType(type); // ✅ 통일된 함수 사용
                       setNewTitle(prev => ({ ...prev, type, model }));
                       localStorage.setItem('automation_selected_type', type);
                       localStorage.setItem('automation_selected_model', model);
@@ -2664,15 +2700,7 @@ function AutomationPageContent() {
                               value={editForm.type || 'longform'}
                               onChange={(e) => {
                                 const type = e.target.value;
-                                // 타입에 따라 AI 모델 자동 설정
-                                let model = 'claude';
-                                if (type === 'longform') {
-                                  model = 'claude';
-                                } else if (type === 'product' || type === 'product-info') {
-                                  model = 'gemini';
-                                } else if (type === 'shortform') {
-                                  model = 'chatgpt';
-                                }
+                                const model = getDefaultModelByType(type); // ✅ 통일된 함수 사용
                                 setEditForm({ ...editForm, type, model });
                               }}
                               className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"

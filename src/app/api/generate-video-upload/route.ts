@@ -519,10 +519,10 @@ async function generateVideoFromUpload(
       // trend-video-backend 사용 (기존 로직)
       workingDir = config.backendPath;
 
-      // 이미지 소스 옵션 추가
-      const imageSourceArg = config.imageSource && config.imageSource !== 'none'
+      // 이미지 소스 옵션 추가 (항상 전달 - 백엔드에서 'none'은 자동 생성 금지)
+      const imageSourceArg = config.imageSource
         ? ['--image-source', config.imageSource]
-        : [];
+        : ['--image-source', 'none'];  // 기본값: none (직접 업로드)
 
       // 관리자 플래그 추가
       const isAdminArg = config.isAdmin ? ['--is-admin'] : [];
