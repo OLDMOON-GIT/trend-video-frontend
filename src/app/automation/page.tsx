@@ -564,8 +564,12 @@ function AutomationPageContent() {
         completed: titlesData.titles?.filter((t: any) => t.status === 'completed').length || 0
       });
 
-      setSchedulerStatus(status.status);
-      setSettings(status.status.settings);
+      if (status?.status) {
+        setSchedulerStatus(status.status);
+        setSettings(status.status.settings || {});
+      } else {
+        console.error('⚠️ 스케줄러 상태 응답이 잘못되었습니다:', status);
+      }
       setTitles(titlesData.titles || []);
       setSchedules(schedulesData.schedules || []);
     } catch (error) {
