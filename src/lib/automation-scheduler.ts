@@ -570,9 +570,11 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
 
     // ⭐ productUrl 검증 (딥링크여야 함!)
     if (schedule.type === 'product' && schedule.product_url) {
-      if (!schedule.product_url.includes('partner=')) {
+      // 쿠팡 딥링크 형태: partner= 파라미터 또는 link.coupang.com/a/ 단축 URL
+      const isDeeplink = schedule.product_url.includes('partner=') || schedule.product_url.includes('link.coupang.com/a/');
+      if (!isDeeplink) {
         console.error(`❌ [SCHEDULER] 상품 URL이 딥링크가 아닙니다: ${schedule.product_url}`);
-        addTitleLog(schedule.title_id, 'error', `❌ 상품 URL이 딥링크가 아닙니다.\n\n제휴 마크(partner=)가 포함되어야 합니다.\n\n URL: ${schedule.product_url}`);
+        addTitleLog(schedule.title_id, 'error', `❌ 상품 URL이 딥링크가 아닙니다.\n\n제휴 마크(partner=) 또는 link.coupang.com/a/ 형식이어야 합니다.\n\n URL: ${schedule.product_url}`);
         throw new Error(`상품 URL이 딥링크가 아닙니다: ${schedule.product_url}`);
       }
       console.log(`✅ [SCHEDULER] 상품 딥링크 검증 통과: ${schedule.product_url.substring(0, 50)}...`);
