@@ -2737,16 +2737,16 @@ function AutomationPageContent() {
                                       />
                                     </div>
                                   )}
-                                  {(editForm.product_data.productUrl || editForm.product_data.product_link) && (
+                                  {(editForm.product_data.deepLink || editForm.product_data.productUrl || editForm.product_data.product_link) && (
                                     <div className="col-span-2">
-                                      <span className="text-emerald-400 font-semibold">URL:</span>
+                                      <span className="text-emerald-400 font-semibold">URL (딥링크):</span>
                                       <a
-                                        href={editForm.product_data.productUrl || editForm.product_data.product_link}
+                                        href={editForm.product_data.deepLink || editForm.product_data.productUrl || editForm.product_data.product_link}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-blue-400 hover:text-blue-300 mt-1 text-xs break-all block underline"
                                       >
-                                        {editForm.product_data.productUrl || editForm.product_data.product_link}
+                                        {editForm.product_data.deepLink || editForm.product_data.productUrl || editForm.product_data.product_link}
                                       </a>
                                     </div>
                                   )}
@@ -2787,10 +2787,10 @@ function AutomationPageContent() {
                                       />
                                     </div>
                                   )}
-                                  {(editForm.product_data.productUrl || editForm.product_data.product_link) && (
+                                  {(editForm.product_data.deepLink || editForm.product_data.productUrl || editForm.product_data.product_link) && (
                                     <div className="col-span-2">
-                                      <span className="text-emerald-400 font-semibold">URL:</span>
-                                      <p className="text-white mt-1 text-xs break-all">{editForm.product_data.productUrl || editForm.product_data.product_link}</p>
+                                      <span className="text-emerald-400 font-semibold">URL (딥링크):</span>
+                                      <p className="text-white mt-1 text-xs break-all">{editForm.product_data.deepLink || editForm.product_data.productUrl || editForm.product_data.product_link}</p>
                                     </div>
                                   )}
                                 </div>
@@ -3429,15 +3429,15 @@ function AutomationPageContent() {
                             썸네일: {title.product_data.productImage || title.product_data.thumbnail}
                           </p>
                         )}
-                        {(title.product_data.productUrl || title.product_data.product_link) && (
+                        {(title.product_data.deepLink || title.product_data.productUrl || title.product_data.product_link) && (
                           <p className="text-xs truncate">
-                            링크: <a
-                              href={title.product_data.productUrl || title.product_data.product_link}
+                            딥링크: <a
+                              href={title.product_data.deepLink || title.product_data.productUrl || title.product_data.product_link}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-400 hover:text-blue-300 underline"
                             >
-                              {title.product_data.productUrl || title.product_data.product_link}
+                              {title.product_data.deepLink || title.product_data.productUrl || title.product_data.product_link}
                             </a>
                           </p>
                         )}
