@@ -269,8 +269,10 @@ export async function POST(request: NextRequest) {
                   throw new Error('베스트셀러 데이터가 비어있습니다');
                 }
 
-                const bestProduct = data.data[0];
-                sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견: ${bestProduct.productName}`);
+                // 베스트셀러 상품 중 랜덤하게 선택 (1~10위 중)
+                const randomIndex = Math.floor(Math.random() * Math.min(10, data.data.length));
+                const bestProduct = data.data[randomIndex];
+                sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견 (${randomIndex + 1}위): ${bestProduct.productName}`);
 
                 // 베스트셀러 API에서 반환한 상품 URL에서 상품 ID 추출
                 sendLog(`🔗 딥링크 생성 중...`);
