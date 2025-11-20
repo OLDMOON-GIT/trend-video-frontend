@@ -795,8 +795,10 @@ function AutomationPageContent() {
 
   async function saveEdit() {
     try {
+      console.log('📝 [수정 저장] 시작:', editForm);
+
       // 제목 업데이트 (모든 필드 포함)
-      await fetch('/api/automation/titles', {
+      const response = await fetch('/api/automation/titles', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -813,10 +815,19 @@ function AutomationPageContent() {
         })
       });
 
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ [수정 저장] API 실패:', error);
+        alert(`저장 실패: ${error.error || '알 수 없는 오류'}`);
+        return;
+      }
+
+      console.log('✅ [수정 저장] 성공');
       cancelEdit();
       await fetchData();
     } catch (error) {
-      console.error('Failed to save edit:', error);
+      console.error('❌ [수정 저장] 실패:', error);
+      alert(`저장 중 오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     }
   }
 
