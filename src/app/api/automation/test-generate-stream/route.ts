@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
                     const signature = crypto.createHmac('sha256', coupangSettings.secretKey).update(message).digest('hex');
                     const authorization = `CEA algorithm=HmacSHA256, access-key=${coupangSettings.accessKey}, signed-date=${datetime}, signature=${signature}`;
 
-                    const response = await fetch(`https://api-gateway.coupang.com${API_PATH}?limit=10`, {
+                    const response = await fetch(`https://api-gateway.coupang.com${API_PATH}`, {
                       method: REQUEST_METHOD,
                       headers: {
                         'Authorization': authorization,
