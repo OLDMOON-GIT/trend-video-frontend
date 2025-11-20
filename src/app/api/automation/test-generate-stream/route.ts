@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
 import { generateTitlesWithClaude, generateTitlesWithChatGPT, generateTitlesWithGemini } from '@/lib/ai-title-generation';
+import { generateDeeplink } from '@/lib/coupang-deeplink';
 
 interface ChannelSetting {
   channel_id: string;
@@ -281,10 +282,19 @@ export async function POST(request: NextRequest) {
                         const bestProduct = data.data[0];
                         sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견: ${bestProduct.productName}`);
 
+                        // 짧은 딥링크 생성
+                        sendLog(`🔗 딥링크 생성 중...`);
+                        const shortDeepLink = await generateDeeplink(
+                          bestProduct.productUrl,
+                          coupangSettings.accessKey,
+                          coupangSettings.secretKey
+                        );
+                        sendLog(`✅ 딥링크 생성 완료: ${shortDeepLink}`);
+
                         product = {
                           id: `temp_${Date.now()}`,
                           title: bestProduct.productName,
-                          deep_link: bestProduct.productUrl,
+                          deep_link: shortDeepLink,
                           product_url: bestProduct.productUrl,
                           discount_price: bestProduct.productPrice,
                           original_price: bestProduct.productPrice,
