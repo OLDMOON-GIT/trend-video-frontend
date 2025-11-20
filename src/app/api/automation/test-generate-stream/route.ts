@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
 
                 // DB에서 사용자가 등록한 상품 중 가장 최근에 추가된 것 가져오기
                 const dbForProduct = new Database(dbPath);
-                const product = dbForProduct.prepare(`
+                let product = dbForProduct.prepare(`
                   SELECT * FROM coupang_products
                   WHERE user_id = ? AND status = 'active'
                   ORDER BY created_at DESC
@@ -232,8 +232,41 @@ export async function POST(request: NextRequest) {
                 `).get(user.userId) as any;
                 dbForProduct.close();
 
+                // 내 목록에 상품이 없으면 쿠팡 베스트셀러에서 가져오기
                 if (!product) {
-                  throw new Error('상품관리에 등록된 상품이 없습니다. 먼저 상품을 등록해주세요.');
+                  sendLog(`⚠️ 내 목록에 상품이 없습니다. 쿠팡 베스트셀러에서 조회합니다...`);
+
+                  try {
+                    const bestsellerRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/coupang/products?limit=10`, {
+                      headers: {
+                        'Cookie': request.headers.get('cookie') || ''
+                      }
+                    });
+
+                    const bestsellerData = await bestsellerRes.json();
+
+                    if (bestsellerRes.ok && bestsellerData.success && bestsellerData.products && bestsellerData.products.length > 0) {
+                      // 첫 번째 베스트셀러 상품 사용
+                      const bestProduct = bestsellerData.products[0];
+                      sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견: ${bestProduct.productName}`);
+
+                      // coupang_products 형식으로 변환
+                      product = {
+                        id: `temp_${Date.now()}`,
+                        title: bestProduct.productName,
+                        deep_link: bestProduct.productUrl,
+                        product_url: bestProduct.productUrl,
+                        discount_price: bestProduct.productPrice,
+                        original_price: bestProduct.productPrice,
+                        image_url: bestProduct.productImage,
+                        category: bestProduct.categoryName || '기타'
+                      };
+                    } else {
+                      throw new Error('쿠팡 베스트셀러 조회 실패');
+                    }
+                  } catch (apiError: any) {
+                    throw new Error(`상품을 찾을 수 없습니다. 내 목록에 상품을 추가하거나 쿠팡 API 설정을 확인해주세요. (${apiError.message})`);
+                  }
                 }
 
                 sendLog(`✅ 상품 발견: ${product.title}`);
