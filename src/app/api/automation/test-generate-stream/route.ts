@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
-import { getAutomationSettings } from '@/lib/automation';
+import { getAutomationSettings, getDefaultModelByType } from '@/lib/automation';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs/promises';
@@ -220,24 +220,10 @@ export async function POST(request: NextRequest) {
             sendLog(`🎯 테스트 카테고리: ${category}`);
             sendLog('');
 
-            // 상품 카테고리는 상품관리(coupang_products)에서 가져오기
+            // 상품 카테고리는 쿠팡 베스트셀러에서만 가져오기 (상품관리 목록 사용 안 함)
             if (category === '상품') {
               try {
-                sendLog(`🛍️ 상품관리에서 등록된 상품 조회 중...`);
-
-                // DB에서 사용자가 등록한 상품 중 가장 최근에 추가된 것 가져오기
-                const dbForProduct = new Database(dbPath);
-                let product = dbForProduct.prepare(`
-                  SELECT * FROM coupang_products
-                  WHERE user_id = ? AND status = 'active'
-                  ORDER BY created_at DESC
-                  LIMIT 1
-                `).get(user.userId) as any;
-                dbForProduct.close();
-
-                // 내 목록에 상품이 없으면 쿠팡 베스트셀러에서 가져오기
-                if (!product) {
-                  sendLog(`⚠️ 내 목록에 상품이 없습니다. 쿠팡 베스트셀러에서 조회합니다...`);
+                sendLog(`🛍️ 쿠팡 베스트셀러에서 테스트 상품 조회 중...`);
 
                   try {
                     // 쿠팡 API 설정 로드
@@ -363,8 +349,13 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
-            // 일반 카테고리는 AI 모델 사용 (실제 생성 함수 호출)
-            const aiModel = settings.ai_model || 'claude';
+            // 카테고리별 AI 모델 선택 (상품은 Gemini 기본)
+            let aiModel = settings.ai_model || 'claude';
+            if (category === '상품') {
+              aiModel = getDefaultModelByType('product'); // 상품: Gemini
+            } else {
+              aiModel = getDefaultModelByType(undefined); // 기본: Claude
+            }
             sendLog(`🤖 AI 모델: ${aiModel}`);
 
             try {
