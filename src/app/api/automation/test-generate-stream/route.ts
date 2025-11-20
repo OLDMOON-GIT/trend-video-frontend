@@ -272,7 +272,15 @@ export async function POST(request: NextRequest) {
                 // 베스트셀러 상품 중 랜덤하게 선택 (1~10위 중)
                 const randomIndex = Math.floor(Math.random() * Math.min(10, data.data.length));
                 const bestProduct = data.data[randomIndex];
-                sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견 (${randomIndex + 1}위): ${bestProduct.productName}`);
+                sendLog(`✅ 쿠팡 베스트셀러에서 상품 발견 (${randomIndex + 1}위 / 총 ${data.data.length}개): ${bestProduct.productName}`);
+                sendLog(`   🔗 상품 URL: ${bestProduct.productUrl}`);
+
+                // DEBUG: 필드 확인
+                if (!bestProduct.productUrl) {
+                  sendLog(`❌ 경고: productUrl이 없습니다!`);
+                  sendLog(`   받은 필드: ${Object.keys(bestProduct).join(', ')}`);
+                  throw new Error('productUrl이 없습니다');
+                }
 
                 // 베스트셀러 API에서 반환한 상품 URL에서 상품 ID 추출
                 sendLog(`🔗 딥링크 생성 중...`);
@@ -379,18 +387,33 @@ export async function POST(request: NextRequest) {
 
                 // Step 3: 내 목록(coupang_products)에 상품 추가 (중복 체크)
                 sendLog(`📝 Step 3: 내 목록에 상품 추가 중...`);
-                sendLog(`   검색 조건: user_id=${user.userId}, product_url=${bestProduct.productUrl}`);
                 try {
                   // 1. 이미 등록된 상품인지 확인 (product_url로 중복 체크)
+                  sendLog(`   🔍 중복 검사 중...`);
+
+                  // DEBUG: 저장할 값들 확인
+                  sendLog(`   📋 저장할 값:`);
+                  sendLog(`      - user_id: ${user.userId}`);
+                  sendLog(`      - product_url: ${bestProduct.productUrl}`);
+                  sendLog(`      - deep_link: ${product.deep_link}`);
+                  sendLog(`      - title: ${product.title}`);
+                  sendLog(`      - category: ${bestProduct.categoryName || '기타'}`);
+                  sendLog(`      - image_url: ${product.image_url}`);
+                  sendLog(`      - original_price: ${product.original_price}`);
+                  sendLog(`      - discount_price: ${product.discount_price}`);
+
                   const existingProduct = dbForInsert.prepare(`
-                    SELECT id FROM coupang_products
+                    SELECT id, created_at FROM coupang_products
                     WHERE user_id = ? AND product_url = ?
                   `).get(user.userId, bestProduct.productUrl) as any;
 
                   if (existingProduct) {
-                    sendLog(`⏸️ 이미 내 목록에 등록된 상품입니다 (ID: ${existingProduct.id})`);
+                    sendLog(`⏸️ 이미 내 목록에 등록된 상품입니다`);
+                    sendLog(`   📌 ID: ${existingProduct.id}`);
+                    sendLog(`   📅 등록일: ${existingProduct.created_at}`);
                   } else {
                     // 2. 새 상품인 경우에만 추가
+                    sendLog(`   ✨ 새로운 상품입니다. 추가 중...`);
                     const coupangProductId = `coupang_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
                     dbForInsert.prepare(`
                       INSERT INTO coupang_products (
@@ -409,7 +432,8 @@ export async function POST(request: NextRequest) {
                       product.discount_price,
                       'active'
                     );
-                    sendLog(`✅ 내 목록 등록 완료! (ID: ${coupangProductId})`);
+                    sendLog(`✅ 내 목록 등록 완료!`);
+                    sendLog(`   📌 ID: ${coupangProductId}`);
                     sendLog(`   📁 카테고리: ${bestProduct.categoryName || '기타'}`);
                   }
                 } catch (error: any) {

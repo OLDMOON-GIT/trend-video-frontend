@@ -630,21 +630,20 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     }
 
     const requestBody = {
-      title: schedule.title,
-      type: schedule.type,
-      productUrl: schedule.product_url,
-      productInfo: productInfo || null, // undefined 대신 null 사용 (JSON.stringify에서 제외되지 않도록)
+      prompt: '', // 프롬프트는 API에서 자동 생성
+      topic: schedule.title,
+      format: schedule.type,
       model: schedule.model || 'claude',
-      useClaudeLocal: schedule.script_mode !== 'api',
-      userId: schedule.user_id,
-      category: schedule.category
+      productInfo: productInfo, // ⭐ 메인 페이지와 동일하게 전달
+      category: schedule.category || '일반'
     };
 
     console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
+    console.log('🔍 [SCHEDULER] productInfo 전달:', productInfo ? 'YES ✅' : 'NO ❌');
 
-    // API 방식으로 대본 생성 (내부 요청 헤더 포함)
-    console.log('📤 [SCHEDULER] Calling /api/scripts/generate...');
-    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
+    // ⭐ 메인 페이지와 동일한 API 호출 (/api/generate-script)
+    console.log('📤 [SCHEDULER] Calling /api/generate-script...');
+    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-script`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -670,9 +669,9 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     const data = await response.json();
     console.log('✅ [SCHEDULER] Script API response data:', JSON.stringify(data, null, 2));
 
-    // taskId가 반환되면 작업 완료 대기
-    if (data.taskId) {
-      addPipelineLog(pipelineId, 'info', `Script generation job started: ${data.taskId}`);
+    // scriptId가 반환되면 작업 완료 대기
+    if (data.scriptId) {
+      addPipelineLog(pipelineId, 'info', `Script generation job started: ${data.scriptId}`);
 
       // 작업 완료 대기 (최대 10분)
       const maxWaitTime = 10 * 60 * 1000;
@@ -687,8 +686,8 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
 
 
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        console.log(`🔍 [SCHEDULER] Checking script status for ${data.taskId}... (경과시간: ${elapsed}초)`);
-        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/status/${data.taskId}`);
+        console.log(`🔍 [SCHEDULER] Checking script status for ${data.scriptId}... (경과시간: ${elapsed}초)`);
+        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/status/${data.scriptId}`);
 
         console.log(`📥 [SCHEDULER] Status API response: ${statusRes.status}`);
 
@@ -702,10 +701,10 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
         console.log(`📊 [SCHEDULER] Script Status Response:`, JSON.stringify(statusData, null, 2));
 
         if (statusData.status === 'completed') {
-          addPipelineLog(pipelineId, 'info', `Script generation completed: ${data.taskId}`);
+          addPipelineLog(pipelineId, 'info', `Script generation completed: ${data.scriptId}`);
           addTitleLog(schedule.title_id, 'info', '✅ 대본 생성 완료!');
           console.log(`✅ [SCHEDULER] Script generation completed!`);
-          return { success: true, scriptId: data.taskId };
+          return { success: true, scriptId: data.scriptId };
         } else if (statusData.status === 'failed') {
           console.error(`❌ [SCHEDULER] Script generation failed: ${statusData.error}`);
           throw new Error(`Script generation failed: ${statusData.error}`);
@@ -723,7 +722,7 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
       throw new Error('Script generation timeout (10분 초과)');
     }
 
-    return { success: true, scriptId: data.taskId || data.scriptId };
+    return { success: true, scriptId: data.scriptId };
 
   } catch (error: any) {
     const errorMsg = error.message || 'Unknown error';

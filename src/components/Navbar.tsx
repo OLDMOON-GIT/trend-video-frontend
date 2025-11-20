@@ -130,7 +130,7 @@ export default function Navbar() {
                 </a>
 
                 <a
-                  href="/admin/coupang-products"
+                  href="/product"
                   className="rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:from-orange-500 hover:to-red-500"
                 >
                   ⚙️ 상품 관리
@@ -222,7 +222,7 @@ export default function Navbar() {
                 </a>
 
                 <a
-                  href="/admin/coupang-products"
+                  href="/product"
                   className="rounded-lg bg-gradient-to-r from-orange-600 to-red-600 px-4 py-2 mx-2 text-sm font-semibold text-white transition hover:from-orange-500 hover:to-red-500"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >

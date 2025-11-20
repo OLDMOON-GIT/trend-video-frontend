@@ -315,6 +315,17 @@ export async function POST(request: NextRequest) {
                 combinedPrompt.includes('{home_url}') || combinedPrompt.includes('{별명}')) {
               console.warn('⚠️⚠️⚠️ 치환 후에도 플레이스홀더가 남아있습니다!');
             }
+
+            // ⭐ 프롬프트에 상품 정보 추가 (AI가 product_info를 채울 수 있도록)
+            combinedPrompt += `\n\n📦 **상품 정보:**
+- 제목: ${productInfo.title || ''}
+- 썸네일: ${productInfo.thumbnail || ''}
+- 상품링크: ${productInfo.product_link || ''}
+- 상품상세: ${productInfo.description || ''}
+- 홈 사이트: ${homeUrl}
+
+⚠️ **중요**: 위 상품 정보를 JSON의 product_info 섹션에 **반드시** 포함해주세요.`;
+            console.log('✅ 프롬프트에 상품 정보 추가 완료');
           }
         }
 
@@ -623,6 +634,17 @@ START YOUR RESPONSE WITH { NOW.`
                 }
               } else {
                 console.log('✅ AI 응답에 플레이스홀더 없음 (정상)');
+              }
+
+              // ⭐ product_info 섹션을 실제 값으로 직접 교체 (AI가 빈 문자열로 생성한 경우 대비)
+              if (parseResult.data.product_info) {
+                console.log('🔧 product_info 섹션을 실제 값으로 교체 중...');
+                parseResult.data.product_info = {
+                  thumbnail: productInfo.thumbnail || '',
+                  product_link: productInfo.product_link || '',
+                  description: productInfo.description || ''
+                };
+                console.log('✅ product_info 직접 교체 완료:', parseResult.data.product_info);
               }
             }
 

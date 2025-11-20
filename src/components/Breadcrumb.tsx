@@ -42,8 +42,10 @@ export default function Breadcrumb() {
     } else if (pathname.startsWith('/admin/prompts')) {
       crumbs.push({ label: '관리자', href: '/admin' });
       crumbs.push({ label: '프롬프트 관리', href: '/admin/prompts' });
+    } else if (pathname.startsWith('/product')) {
+      crumbs.push({ label: '상품 관리', href: '/product' });
     } else if (pathname.startsWith('/admin/coupang-products')) {
-      crumbs.push({ label: '상품 관리', href: '/admin/coupang-products' });
+      crumbs.push({ label: '상품 관리', href: '/product' });
     } else if (pathname.startsWith('/admin')) {
       crumbs.push({ label: '관리자', href: '/admin' });
     } else if (pathname.startsWith('/automation')) {

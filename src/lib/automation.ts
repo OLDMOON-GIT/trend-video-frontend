@@ -157,6 +157,13 @@ export function initAutomationTables() {
     // 이미 존재하면 무시
   }
 
+  // media_mode 컬럼 추가 (이미지 생성 방식: upload, dalle, imagen3, sora2)
+  try {
+    db.exec(`ALTER TABLE video_schedules ADD COLUMN media_mode TEXT DEFAULT 'upload';`);
+  } catch (e) {
+    // 이미 존재하면 무시
+  }
+
   // 3. 파이프라인 실행 기록 테이블
   db.exec(`
     CREATE TABLE IF NOT EXISTS automation_pipelines (
@@ -465,14 +472,18 @@ export function addSchedule(data: {
   const privacyValue = data.youtubePrivacy || 'public';
   console.log(`[addSchedule] 공개 설정 저장: ${privacyValue} (원본: ${data.youtubePrivacy})`);
 
+  // 제목에서 media_mode 가져오기
+  const titleData = db.prepare(`SELECT media_mode FROM video_titles WHERE id = ?`).get(data.titleId) as { media_mode: string } | undefined;
+  const mediaMode = titleData?.media_mode || 'upload'; // 기본값: upload
+
   db.prepare(`
-    INSERT INTO video_schedules (id, title_id, scheduled_time, youtube_publish_time, youtube_privacy)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, data.titleId, data.scheduledTime, data.youtubePublishTime || null, privacyValue);
+    INSERT INTO video_schedules (id, title_id, scheduled_time, youtube_publish_time, youtube_privacy, media_mode)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, data.titleId, data.scheduledTime, data.youtubePublishTime || null, privacyValue, mediaMode);
 
   // 저장된 값 확인
-  const saved = db.prepare('SELECT youtube_privacy FROM video_schedules WHERE id = ?').get(id) as any;
-  console.log(`[addSchedule] DB에 저장된 공개 설정: ${saved?.youtube_privacy}`);
+  const saved = db.prepare('SELECT youtube_privacy, media_mode FROM video_schedules WHERE id = ?').get(id) as any;
+  console.log(`[addSchedule] DB에 저장된 설정: privacy=${saved?.youtube_privacy}, mediaMode=${saved?.media_mode}`);
 
   // 제목 상태를 'scheduled'로 변경
   db.prepare(`
