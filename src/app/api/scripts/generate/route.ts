@@ -7,6 +7,7 @@ import { getCurrentUser } from '@/lib/session';
 import { promises as fs } from 'fs';
 import { createBackup } from '@/lib/backup';
 import { sendErrorEmail } from '@/lib/email';
+import { getDefaultModelByType } from '@/lib/automation';
 
 const execAsync = promisify(exec);
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
@@ -320,9 +321,9 @@ export async function POST(request: NextRequest) {
     };
 
     const modelInput = scriptModel || model;  // scriptModel 또는 model 둘 다 지원
-    const agentName = modelInput && MODEL_TO_AGENT[modelInput]
+    let agentName = modelInput && MODEL_TO_AGENT[modelInput]
       ? MODEL_TO_AGENT[modelInput]
-      : 'claude';
+      : getDefaultModelByType(type || videoFormat);  // 타입별 기본 모델 선택
 
     console.log('  🔍 modelInput:', modelInput);
     console.log('  ✅ Agent 이름:', agentName);
