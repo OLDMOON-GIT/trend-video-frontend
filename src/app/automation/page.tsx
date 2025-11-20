@@ -3429,17 +3429,6 @@ function AutomationPageContent() {
                         })()}
                     </div>
 
-                    {/* 상품 정보 및 YouTube 정보 */}
-                    {title.product_url && (
-                      <a
-                        href={title.product_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-400 hover:text-blue-300 underline mb-2 inline-block"
-                      >
-                        🔗 {title.product_url}
-                      </a>
-                    )}
                     {/* ⚠️ CRITICAL: 상품 정보 표시 - 제거하면 안됩니다! */}
                     {title.product_data && (
                       <div className="mb-3 p-2 bg-slate-700/50 rounded border border-slate-600">
@@ -3453,9 +3442,13 @@ function AutomationPageContent() {
                           <p className="text-xs text-emerald-300">가격: {title.product_data.productPrice}</p>
                         )}
                         {(title.product_data.productImage || title.product_data.thumbnail) && (
-                          <p className="text-xs text-slate-400 truncate">
-                            썸네일: {title.product_data.productImage || title.product_data.thumbnail}
-                          </p>
+                          <div className="mt-1">
+                            <img
+                              src={title.product_data.productImage || title.product_data.thumbnail}
+                              alt="상품 썸네일"
+                              className="w-24 h-24 object-cover rounded border border-slate-500"
+                            />
+                          </div>
                         )}
                         {(title.product_data.deepLink || title.product_data.productUrl || title.product_data.product_link) && (
                           <p className="text-xs truncate">
