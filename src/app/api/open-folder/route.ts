@@ -251,11 +251,31 @@ async function handleOpenFolder(request: NextRequest) {
 
     // 폴더 존재 여부 확인
     if (!fs.existsSync(absoluteFolderPath)) {
-      console.error(`❌ 폴더가 존재하지 않습니다: ${absoluteFolderPath}`);
-      return NextResponse.json(
-        { error: `폴더가 존재하지 않습니다: ${path.basename(absoluteFolderPath)}` },
-        { status: 404 }
-      );
+      // ⭐ jobId로 폴더를 찾지 못한 경우, sourceContentId (script_id)로 재시도
+      console.warn(`⚠️ 폴더를 찾을 수 없음: ${absoluteFolderPath}`);
+
+      if (job.sourceContentId) {
+        console.log(`🔄 script_id로 재시도: ${job.sourceContentId}`);
+        const scriptIdFolder = path.join(backendPath, 'input', `project_${job.sourceContentId}`);
+        const resolvedScriptPath = path.resolve(scriptIdFolder);
+
+        if (fs.existsSync(resolvedScriptPath)) {
+          console.log(`✅ script_id로 폴더 찾음: ${resolvedScriptPath}`);
+          absoluteFolderPath = resolvedScriptPath;
+        } else {
+          console.error(`❌ script_id 폴더도 없음: ${resolvedScriptPath}`);
+          return NextResponse.json(
+            { error: `폴더를 찾을 수 없습니다. jobId: ${path.basename(absoluteFolderPath)}, scriptId: ${job.sourceContentId}` },
+            { status: 404 }
+          );
+        }
+      } else {
+        console.error(`❌ 폴더가 존재하지 않습니다: ${absoluteFolderPath}`);
+        return NextResponse.json(
+          { error: `폴더가 존재하지 않습니다: ${path.basename(absoluteFolderPath)}` },
+          { status: 404 }
+        );
+      }
     }
 
     // Windows에서 explorer로 폴더 열기

@@ -3006,114 +3006,65 @@ function AutomationPageContent() {
                     key={title.id}
                     className="p-4 bg-slate-700 rounded-lg"
                   >
-                    {/* 제목 정보 */}
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-white font-semibold text-lg">{title.title}</h4>
+                    {/* 카드 헤더: 제목 + 타입/상태 뱃지 */}
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                      <h4 className="text-white font-semibold text-lg line-clamp-2 break-words flex-1 min-w-0">{title.title}</h4>
 
-                        {/* ⚠️ CRITICAL: 읽기 전용 - 상품 정보 표시 (상품 타입) - 제거하면 안됩니다! */}
-                        {/* 이 코드는 예약 큐에서 상품 정보를 보여주는 핵심 기능입니다 */}
-                        {title.type === 'product' && title.product_data && (
-                          <div className="mt-2 p-3 bg-emerald-900/20 border border-emerald-500/50 rounded-lg">
-                            <div className="flex gap-3">
-                              {(title.product_data.productImage || title.product_data.thumbnail) && (
-                                <img
-                                  src={title.product_data.productImage || title.product_data.thumbnail}
-                                  alt="상품 이미지"
-                                  className="w-20 h-20 object-cover rounded border border-emerald-500"
-                                />
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-emerald-300 font-semibold">
-                                  {title.product_data.productName || title.product_data.title || title.title}
-                                </p>
-                                {title.product_data.productPrice && (
-                                  <p className="text-sm text-emerald-200 mt-1">{title.product_data.productPrice}</p>
-                                )}
-                                {(title.product_data.productUrl || title.product_data.product_link) && (
-                                  <a
-                                    href={title.product_data.productUrl || title.product_data.product_link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-blue-400 hover:text-blue-300 underline mt-1 block truncate"
-                                  >
-                                    {title.product_data.productUrl || title.product_data.product_link}
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          <span className={`text-xs px-2 py-0.5 rounded ${
-                            title.type === 'longform' ? 'bg-blue-600/30 text-blue-300' :
-                            title.type === 'shortform' ? 'bg-purple-600/30 text-purple-300' :
-                            'bg-orange-600/30 text-orange-300'
-                          }`}>
-                            {title.type === 'longform' ? '롱폼' : title.type === 'shortform' ? '숏폼' : '상품'}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${
-                            title.status === 'processing' ? 'bg-yellow-600/30 text-yellow-300 animate-pulse' :
-                            title.status === 'completed' ? 'bg-green-600/30 text-green-300' :
-                            title.status === 'failed' ? 'bg-red-600/30 text-red-300' :
-                            title.status === 'scheduled' ? 'bg-blue-600/30 text-blue-300' :
-                            title.status === 'waiting_for_upload' ? 'bg-purple-600/30 text-purple-300 animate-pulse' :
-                            'bg-slate-600 text-slate-300'
-                          }`}>
-                            {title.status === 'processing' && '⏳ '}
-                            {title.status === 'failed' && '❌ '}
-                            {title.status === 'scheduled' && '📅 '}
-                            {title.status === 'waiting_for_upload' && '📤 '}
-                            {title.status === 'processing' ? '진행 중' :
-                             title.status === 'completed' ? '' :
-                             title.status === 'failed' ? '실패' :
-                             title.status === 'scheduled' ? '예약됨' :
-                             title.status === 'waiting_for_upload' ? '업로드 대기' :
-                             title.status}
-                          </span>
-                          {/* 진행률 표시 */}
-                          {progressMap[title.id]?.scriptProgress !== undefined && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-cyan-600/30 text-cyan-300">
-                              📝 대본: {progressMap[title.id].scriptProgress}%
-                            </span>
-                          )}
-                          {progressMap[title.id]?.videoProgress !== undefined && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300">
-                              🎬 영상: {progressMap[title.id].videoProgress}%
-                            </span>
-                          )}
-                          {title.category && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-green-600/30 text-green-300">
-                              {title.category}
-                            </span>
-                          )}
-                          {title.channel && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300">
-                              📺 {(() => {
-                                const channel = channels.find(c => c.channelId === title.channel || c.id === title.channel);
-                                return channel ? channel.channelTitle : '채널 정보 없음';
-                              })()}
-                            </span>
-                          )}
-                          {title.model && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-purple-600/30 text-purple-300">
-                              🤖 {title.model === 'chatgpt' ? 'ChatGPT' : title.model === 'gemini' ? 'Gemini' : title.model === 'claude' ? 'Claude' : title.model === 'groq' ? 'Groq' : title.model}
-                            </span>
-                          )}
-                          {title.script_mode && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-pink-600/30 text-pink-300">
-                              대본: {title.script_mode === 'chrome' ? '크롬창' : 'API'}
-                            </span>
-                          )}
-                          {title.media_mode && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-yellow-600/30 text-yellow-300">
-                              미디어: {title.media_mode === 'dalle' ? 'DALL-E' : title.media_mode === 'imagen3' ? 'Imagen3' : title.media_mode === 'sora2' ? 'SORA2' : '업로드'}
-                            </span>
-                          )}
-                        </div>
+                      {/* 상태 뱃지 (최소한의 정보만) */}
+                      <div className="flex gap-2 flex-shrink-0">
+                        <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${
+                          title.type === 'longform' ? 'bg-blue-600/30 text-blue-300' :
+                          title.type === 'shortform' ? 'bg-purple-600/30 text-purple-300' :
+                          'bg-orange-600/30 text-orange-300'
+                        }`}>
+                          {title.type === 'longform' ? '롱폼' : title.type === 'shortform' ? '숏폼' : '상품'}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${
+                          title.status === 'processing' ? 'bg-yellow-600/30 text-yellow-300 animate-pulse' :
+                          title.status === 'completed' ? 'bg-green-600/30 text-green-300' :
+                          title.status === 'failed' ? 'bg-red-600/30 text-red-300' :
+                          title.status === 'scheduled' ? 'bg-blue-600/30 text-blue-300' :
+                          title.status === 'waiting_for_upload' ? 'bg-purple-600/30 text-purple-300 animate-pulse' :
+                          'bg-slate-600 text-slate-300'
+                        }`}>
+                          {title.status === 'processing' && '⏳'}
+                          {title.status === 'failed' && '❌'}
+                          {title.status === 'scheduled' && '📅'}
+                          {title.status === 'waiting_for_upload' && '📤'}
+                          {!['processing', 'completed'].includes(title.status) && (title.status === 'failed' ? '실패' : title.status === 'scheduled' ? '예약' : title.status === 'waiting_for_upload' ? '대기' : '')}
+                        </span>
                       </div>
-                      <div className="flex gap-2 flex-shrink-0 ml-4">
+                    </div>
+
+                    {/* 부가 정보: 카테고리, 채널, 진행률 */}
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {title.category && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-green-600/30 text-green-300">
+                          {title.category}
+                        </span>
+                      )}
+                      {title.channel && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300">
+                          📺 {(() => {
+                            const channel = channels.find(c => c.channelId === title.channel || c.id === title.channel);
+                            return channel ? channel.channelTitle : '';
+                          })()}
+                        </span>
+                      )}
+                      {progressMap[title.id]?.scriptProgress !== undefined && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-cyan-600/30 text-cyan-300">
+                          📝 {progressMap[title.id].scriptProgress}%
+                        </span>
+                      )}
+                      {progressMap[title.id]?.videoProgress !== undefined && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300">
+                          🎬 {progressMap[title.id].videoProgress}%
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 액션 버튼 영역 */}
+                    <div className="flex gap-2 flex-shrink-0 mb-3">
                         {/* 강제실행/재시도/중지 버튼 */}
                         {title.status === 'processing' && (
                           <button
@@ -3404,7 +3355,6 @@ function AutomationPageContent() {
                             </button>
                           );
                         })()}
-                      </div>
                     </div>
 
                     {/* 상품 정보 및 YouTube 정보 */}
