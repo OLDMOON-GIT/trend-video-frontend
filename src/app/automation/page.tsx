@@ -1470,6 +1470,9 @@ function AutomationPageContent() {
           await fetchData(); // 상태 업데이트 후 데이터 새로고침
 
           // 3. 영상 생성 API 호출 (내부 요청 형식)
+          const imageSource = titleInfo.media_mode === 'upload' ? 'none' : titleInfo.media_mode;
+          console.log(`📹 [영상 생성] 설정: mediaMode=${titleInfo.media_mode}, imageSource=${imageSource}`);
+
           const videoRes = await fetch('/api/generate-video-upload', {
             method: 'POST',
             headers: {
@@ -1479,7 +1482,7 @@ function AutomationPageContent() {
             body: JSON.stringify({
               storyJson,
               userId: titleInfo.user_id,
-              imageSource: (titleInfo.media_mode === 'auto' || titleInfo.media_mode === 'upload') ? 'none' : titleInfo.media_mode,
+              imageSource,
               imageModel: titleInfo.model || 'dalle3',
               videoFormat: titleInfo.type || 'shortform',
               ttsVoice: 'ko-KR-SoonBokNeural',
