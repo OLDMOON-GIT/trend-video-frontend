@@ -1043,7 +1043,21 @@ function AutomationPageContent() {
 
   // 실시간 로그 업데이트 (3초마다)
   useEffect(() => {
-    if (!expandedLogsFor) return;
+    if (!expandedLogsFor || !titles) return;
+
+    // 현재 열린 로그의 제목 찾기
+    const expandedTitle = titles.find((t: any) => t.id === expandedLogsFor);
+
+    // 제목이 없거나 이미 완료/실패된 경우 폴링하지 않음
+    if (!expandedTitle || expandedTitle.status === 'completed' || expandedTitle.status === 'failed') {
+      // 한 번만 로드하고 폴링은 중단
+      fetchLogs(expandedLogsFor);
+      console.log('📋 로그 폴링 중단 (작업 완료/실패):', expandedLogsFor, expandedTitle?.status);
+      return;
+    }
+
+    // 진행 중인 작업만 폴링
+    console.log('🔄 로그 폴링 시작:', expandedLogsFor, expandedTitle.status);
 
     // 즉시 로드
     fetchLogs(expandedLogsFor);
@@ -1053,7 +1067,7 @@ function AutomationPageContent() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [expandedLogsFor]);
+  }, [expandedLogsFor, titles]);
 
   // 진행 중인 제목들의 로그 및 진행 상황 자동 업데이트
   useEffect(() => {
@@ -1064,8 +1078,16 @@ function AutomationPageContent() {
       t.status === 'processing' || t.status === 'scheduled'
     );
 
-    // 진행 중인 작업이 없으면 자동 업데이트만 중단 (로그는 닫지 않음)
+    // 진행 중인 작업이 없으면 로그 창을 닫고 폴링 중단
     if (activeTitles.length === 0) {
+      if (expandedLogsFor) {
+        // 현재 열린 로그가 완료/실패된 작업인지 확인
+        const expandedTitle = titles.find((t: any) => t.id === expandedLogsFor);
+        if (expandedTitle && (expandedTitle.status === 'completed' || expandedTitle.status === 'failed')) {
+          console.log('✅ 작업 완료/실패 - 로그 폴링 중단:', expandedLogsFor);
+          // 로그 창은 열어두되 폴링만 중단 (사용자가 직접 닫을 수 있음)
+        }
+      }
       return;
     }
 
@@ -1371,6 +1393,27 @@ function AutomationPageContent() {
           if (status.status === 'completed') {
             clearInterval(pollInterval);
             setCrawlLogs(prev => ({ ...prev, [titleId]: [...(prev[titleId] || []), '✅ 이미지 크롤링 완료! 이제 영상 제작을 시작할 수 있습니다.'] }));
+
+            // 로그 파일에서 전체 로그 읽어오기
+            try {
+              const logsRes = await fetch(`/api/images/logs?scriptId=${scriptId}`);
+              if (logsRes.ok) {
+                const logsData = await logsRes.json();
+                if (logsData.logs && logsData.logs.length > 0) {
+                  setCrawlLogs(prev => ({
+                    ...prev,
+                    [titleId]: [
+                      '📋 ===== 전체 이미지 크롤링 로그 =====',
+                      ...logsData.logs,
+                      '📋 ===== 로그 끝 ====='
+                    ]
+                  }));
+                }
+              }
+            } catch (logError) {
+              console.error('로그 파일 읽기 실패:', logError);
+            }
+
             setCrawlingFor(null);
             alert('✅ 이미지 크롤링이 완료되었습니다!\n\n이제 영상 제작을 진행할 수 있습니다.');
           } else if (status.status === 'failed') {
