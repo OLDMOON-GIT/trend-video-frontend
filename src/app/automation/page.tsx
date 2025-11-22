@@ -3470,7 +3470,7 @@ function AutomationPageContent() {
                           </div>
                         )}
                         {(title.product_data.deepLink || title.product_data.productUrl || title.product_data.product_link) && (
-                          <p className="text-xs truncate">
+                          <p className="text-xs text-white truncate">
                             딥링크: <a
                               href={title.product_data.deepLink || title.product_data.productUrl || title.product_data.product_link}
                               target="_blank"
