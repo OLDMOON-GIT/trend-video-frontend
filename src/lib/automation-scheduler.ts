@@ -629,17 +629,38 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
       console.warn(`⚠️ [SCHEDULER] No product_data for type: ${schedule.type}`);
     }
 
+    // ⭐ Format에 따른 프롬프트 가져오기
+    let prompt = '';
+    try {
+      // 포맷별 프롬프트 파일 읽기
+      const promptFileName = `prompt_${schedule.type}.txt`;
+      const promptFilePath = path.join(process.cwd(), 'prompts', promptFileName);
+
+      if (fs.existsSync(promptFilePath)) {
+        prompt = fs.readFileSync(promptFilePath, 'utf-8');
+        console.log(`✅ [SCHEDULER] Loaded prompt for format: ${schedule.type} (${prompt.length} chars)`);
+      } else {
+        console.warn(`⚠️ [SCHEDULER] Prompt file not found: ${promptFilePath}`);
+        prompt = '';
+      }
+    } catch (e) {
+      console.warn(`⚠️ [SCHEDULER] Failed to load prompt for ${schedule.type}:`, e);
+      prompt = '';
+    }
+
     const requestBody = {
-      prompt: '', // 프롬프트는 API에서 자동 생성
+      prompt: prompt,
       topic: schedule.title,
       format: schedule.type,
       model: schedule.model || 'claude',
       productInfo: productInfo, // ⭐ 메인 페이지와 동일하게 전달
-      category: schedule.category || '일반'
+      category: schedule.category || '일반',
+      userId: schedule.user_id // ⭐ 내부 요청시 userId 전달 (필수!)
     };
 
     console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
     console.log('🔍 [SCHEDULER] productInfo 전달:', productInfo ? 'YES ✅' : 'NO ❌');
+    console.log('🔍 [SCHEDULER] userId 전달:', schedule.user_id);
 
     // ⭐ 메인 페이지와 동일한 API 호출 (/api/generate-script)
     console.log('📤 [SCHEDULER] Calling /api/generate-script...');
@@ -1724,6 +1745,15 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
  */
 export async function checkAndRegisterCoupangProducts() {
   try {
+    // ⚠️ 자동 제목 생성이 활성화되어 있는지 확인
+    const settings = getAutomationSettings();
+    const autoTitleGeneration = settings.auto_title_generation === 'true';
+
+    if (!autoTitleGeneration) {
+      console.log('[Step 4] Auto title generation is disabled, skipping Coupang product scheduling');
+      return { success: 0, failed: 0, skipped: 0 };
+    }
+
     const db = new Database(dbPath);
 
     // 1. coupang_products에서 아직 스케줄이 생성되지 않은 활성 상품 조회 (중복 체크)
@@ -1773,26 +1803,29 @@ export async function checkAndRegisterCoupangProducts() {
         `).get(product.user_id) as any;
 
         if (!channelSetting) {
-          console.log(`[Step 4] ⏸️ Product ${product.product_name}: No active channel found for user, skipping`);
+          const productName = product.product_name || product.title || product.id;
+          console.log(`[Step 4] ⏸️ Product ${productName}: No active channel found for user, skipping`);
           continue;
         }
 
         // 제목 저장 (상품 카테고리)
+        const productTitle = product.product_name || product.title || `상품 - ${product.id}`;
         db.prepare(`
           INSERT INTO video_titles (
             id, user_id, title, category, type, status,
-            channel, product_url, product_data, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            channel, product_url, product_data, model, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         `).run(
           titleId,
           product.user_id,
-          product.product_name,
+          productTitle,
           product.category_id || '상품',
           'product',
           'pending',
           channelSetting.channel_id,
           product.deep_link,
-          productData
+          productData,
+          'gemini'
         );
 
         // 3. 스케줄 자동 추가
@@ -1812,11 +1845,13 @@ export async function checkAndRegisterCoupangProducts() {
           channelSetting.channel_id
         );
 
-        console.log(`[Step 4] ✅ Product registered to schedule: ${product.product_name} (${scheduleId})`);
+        const successProductName = product.product_name || product.title || product.id;
+        console.log(`[Step 4] ✅ Product registered to schedule: ${successProductName} (${scheduleId})`);
         successCount++;
 
       } catch (error: any) {
-        console.error(`[Step 4] ❌ Failed to register product ${product.product_name}:`, error.message);
+        const errorProductName = product.product_name || product.title || product.id;
+        console.error(`[Step 4] ❌ Failed to register product ${errorProductName}:`, error.message);
         failedCount++;
       }
     }
