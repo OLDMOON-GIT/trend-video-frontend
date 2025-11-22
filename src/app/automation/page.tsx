@@ -1307,10 +1307,11 @@ function AutomationPageContent() {
     }
   }
 
-  async function handleImageCrawling(scriptId: string, titleId: string, title: string, format: string = 'longform') {
+  async function handleImageCrawling(scriptId: string, titleId: string, title: string, format: string) {
     try {
+      console.log(`🎬 [ImageCrawl] Starting crawl for format: ${format}`);
       setCrawlingFor(titleId);
-      setCrawlLogs(prev => ({ ...prev, [titleId]: ['🚀 이미지 크롤링 시작...'] }));
+      setCrawlLogs(prev => ({ ...prev, [titleId]: [`🚀 이미지 크롤링 시작... (포맷: ${format})`] }));
 
       // story.json 읽기
       const storyRes = await fetch(`/api/automation/get-story?scriptId=${scriptId}`);

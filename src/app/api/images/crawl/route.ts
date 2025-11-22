@@ -5,6 +5,14 @@ import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
 
+// 포맷에 따른 비율 결정 함수
+function getAspectRatioByFormat(format: string): string {
+  if (format === 'longform' || format === '16:9') {
+    return '16:9';
+  }
+  return '9:16'; // shortform, product, sora2 등 나머지
+}
+
 // 크롤링 작업 저장소 (메모리)
 const crawlingTasks = new Map<string, {
   taskId: string;
@@ -22,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { scenes, contentId, useImageFX } = body;
+    const { scenes, contentId, useImageFX, format } = body;
 
     if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
       return NextResponse.json({ error: '씬 데이터가 필요합니다.' }, { status: 400 });
@@ -39,7 +47,8 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString()
     });
 
-    console.log(`✅ 이미지 크롤링 작업 생성: ${taskId} (${scenes.length}개 씬)`);
+    const aspectRatio = getAspectRatioByFormat(format || 'longform');
+    console.log(`✅ 이미지 크롤링 작업 생성: ${taskId} (${scenes.length}개 씬, format: ${format}, aspect_ratio: ${aspectRatio})`);
 
     // 임시 JSON 파일 생성
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
@@ -53,19 +62,30 @@ export async function POST(request: NextRequest) {
     }
 
     const scenesFilePath = path.join(tempDir, `scenes_${taskId}.json`);
-    await fs.writeFile(scenesFilePath, JSON.stringify(scenes, null, 2), 'utf-8');
+    // ✅ metadata에 format 정보 포함
+    const scenesWithMetadata = {
+      scenes: scenes,
+      metadata: {
+        format: format || 'longform',
+        aspect_ratio: aspectRatio
+      }
+    };
+    console.log(`📐 [ImageCrawl API] Metadata: format=${format}, aspect_ratio=${aspectRatio}`);
+    await fs.writeFile(scenesFilePath, JSON.stringify(scenesWithMetadata, null, 2), 'utf-8');
 
-    // Python 스크립트 실행 (workspace 루트에 있음)
-    const workspacePath = path.join(process.cwd(), '..');
-    const pythonScript = path.join(workspacePath, 'image_crawler_working.py');
+    // Python 스크립트 실행 (백엔드 image_crawler 폴더에 있음)
+    const pythonScript = path.join(backendPath, 'src', 'image_crawler', 'image_crawler_working.py');
 
     // contentId가 있으면 프로젝트 폴더 경로 계산
     let outputDir = null;
+    console.log(`[ImageCrawl API] contentId received: ${contentId}`);
     if (contentId) {
       // contentId가 "project_"로 시작하지 않으면 추가
       const projectId = contentId.startsWith('project_') ? contentId : `project_${contentId}`;
       outputDir = path.join(backendPath, 'input', projectId);
-      console.log('📁 출력 폴더:', outputDir);
+      console.log(`[ImageCrawl API] 📁 출력 폴더 설정: ${outputDir}`);
+    } else {
+      console.log(`[ImageCrawl API] ⚠️ contentId가 전달되지 않음! outputDir이 null로 유지됨`);
     }
 
     console.log('Python 스크립트 실행:', pythonScript);
@@ -91,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     const pythonProcess = spawn('python', pythonArgs, {
-      cwd: workspacePath,
+      cwd: backendPath,
       detached: false,
       shell: true
     });
