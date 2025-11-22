@@ -327,7 +327,12 @@ function AutomationPageContent() {
             console.log(`✅ [자동화] 카테고리 ${newTitle.category} 상품 ${filteredProducts.length}개 (모두 딥링크 검증됨)`);
             setAvailableProducts(filteredProducts);
           } else {
-            console.error('Failed to fetch products from my list:', response.statusText);
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Failed to fetch products from my list:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData.error
+            });
             setAvailableProducts([]);
           }
         } catch (error) {
@@ -739,13 +744,19 @@ function AutomationPageContent() {
       const titleId = data.titleId;
 
       // 스케줄 시간이 입력되었으면 스케줄 추가 (이미 검증 완료)
+      // ⚠️ 자동 제목 생성이 활성화되어 있을 때만 스케줄 추가
       if (newTitle.scheduleTime) {
-        await addScheduleToTitle(
-          titleId,
-          newTitle.scheduleTime,
-          newTitle.youtubePublishAt || undefined,
-          newTitle.youtubePrivacy
-        );
+        if (settings?.auto_title_generation === 'true') {
+          await addScheduleToTitle(
+            titleId,
+            newTitle.scheduleTime,
+            newTitle.youtubePublishAt || undefined,
+            newTitle.youtubePrivacy
+          );
+        } else {
+          console.log('[AutoTitle] Auto title generation is disabled, skipping schedule creation');
+          alert('자동 제목 생성이 꺼져있어 스케줄이 추가되지 않았습니다.');
+        }
       }
 
       saveRecentTitle(titleToAdd);
@@ -1296,7 +1307,7 @@ function AutomationPageContent() {
     }
   }
 
-  async function handleImageCrawling(scriptId: string, titleId: string, title: string) {
+  async function handleImageCrawling(scriptId: string, titleId: string, title: string, format: string = 'longform') {
     try {
       setCrawlingFor(titleId);
       setCrawlLogs(prev => ({ ...prev, [titleId]: ['🚀 이미지 크롤링 시작...'] }));
@@ -1324,7 +1335,7 @@ function AutomationPageContent() {
       const response = await fetch('/api/images/crawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scenes, contentId: scriptId })
+        body: JSON.stringify({ scenes, contentId: scriptId, format })
       });
 
       const result = await response.json();
@@ -3335,7 +3346,7 @@ function AutomationPageContent() {
                           const scriptId = titleSchedules.find((s: any) => s.script_id)?.script_id;
                           return title.status === 'waiting_for_upload' && scriptId && (
                             <button
-                              onClick={() => handleImageCrawling(scriptId, title.id, title.title)}
+                              onClick={() => handleImageCrawling(scriptId, title.id, title.title, title.type)}
                               disabled={crawlingFor === title.id}
                               className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-500 text-white rounded text-sm font-semibold transition"
                               title="이미지 크롤링 시작"
