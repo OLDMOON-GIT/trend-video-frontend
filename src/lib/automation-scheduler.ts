@@ -648,30 +648,64 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
       prompt = '';
     }
 
-    const requestBody = {
-      prompt: prompt,
-      topic: schedule.title,
-      format: schedule.type,
-      model: schedule.model || 'claude',
-      productInfo: productInfo, // ⭐ 메인 페이지와 동일하게 전달
-      category: schedule.category || '일반',
-      userId: schedule.user_id // ⭐ 내부 요청시 userId 전달 (필수!)
-    };
+    // ⭐ script_mode에 따라 API 분기
+    const scriptMode = schedule.script_mode || 'chrome'; // 기본값: chrome
+    console.log(`🔍 [SCHEDULER] script_mode: ${scriptMode}`);
 
-    console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
-    console.log('🔍 [SCHEDULER] productInfo 전달:', productInfo ? 'YES ✅' : 'NO ❌');
-    console.log('🔍 [SCHEDULER] userId 전달:', schedule.user_id);
+    let response: Response;
+    let requestBody: any;
 
-    // ⭐ 메인 페이지와 동일한 API 호출 (/api/generate-script)
-    console.log('📤 [SCHEDULER] Calling /api/generate-script...');
-    const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-script`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Request': 'automation-system'
-      },
-      body: JSON.stringify(requestBody)
-    });
+    if (scriptMode === 'api') {
+      // API 모드: /api/generate-script 호출 (ANTHROPIC_API_KEY 필요)
+      requestBody = {
+        prompt: prompt,
+        topic: schedule.title,
+        format: schedule.type,
+        model: schedule.model || 'claude',
+        productInfo: productInfo,
+        category: schedule.category || '일반',
+        userId: schedule.user_id
+      };
+
+      console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
+      console.log('🔍 [SCHEDULER] productInfo 전달:', productInfo ? 'YES ✅' : 'NO ❌');
+      console.log('🔍 [SCHEDULER] userId 전달:', schedule.user_id);
+
+      console.log('📤 [SCHEDULER] Calling /api/generate-script (API mode)...');
+      response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-script`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Request': 'automation-system'
+        },
+        body: JSON.stringify(requestBody)
+      });
+    } else {
+      // Chrome 모드: /api/scripts/generate 호출 (Python ai_aggregator 사용)
+      requestBody = {
+        title: schedule.title,
+        type: schedule.type,
+        scriptModel: schedule.model || 'claude',
+        useClaudeLocal: true,
+        productInfo: productInfo,
+        category: schedule.category || '일반',
+        userId: schedule.user_id // ⭐ 내부 요청시 userId 전달 (필수!)
+      };
+
+      console.log('🔍 [SCHEDULER] Request body:', JSON.stringify(requestBody, null, 2));
+      console.log('🔍 [SCHEDULER] productInfo 전달:', productInfo ? 'YES ✅' : 'NO ❌');
+      console.log('🔍 [SCHEDULER] userId 전달:', schedule.user_id);
+
+      console.log('📤 [SCHEDULER] Calling /api/scripts/generate (Chrome mode)...');
+      response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Request': 'automation-system' // ⭐ 내부 요청 헤더
+        },
+        body: JSON.stringify(requestBody)
+      });
+    }
 
     console.log(`📥 [SCHEDULER] Script API response status: ${response.status}`);
 
@@ -690,9 +724,10 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
     const data = await response.json();
     console.log('✅ [SCHEDULER] Script API response data:', JSON.stringify(data, null, 2));
 
-    // scriptId가 반환되면 작업 완료 대기
-    if (data.scriptId) {
-      addPipelineLog(pipelineId, 'info', `Script generation job started: ${data.scriptId}`);
+    // scriptId 또는 taskId 추출 (API 모드는 scriptId, Chrome 모드는 taskId 반환)
+    const jobId = data.scriptId || data.taskId;
+    if (jobId) {
+      addPipelineLog(pipelineId, 'info', `Script generation job started: ${jobId}`);
 
       // 작업 완료 대기 (최대 10분)
       const maxWaitTime = 10 * 60 * 1000;
@@ -707,8 +742,8 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
 
 
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        console.log(`🔍 [SCHEDULER] Checking script status for ${data.scriptId}... (경과시간: ${elapsed}초)`);
-        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/status/${data.scriptId}`);
+        console.log(`🔍 [SCHEDULER] Checking script status for ${jobId}... (경과시간: ${elapsed}초)`);
+        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3000}/api/scripts/status/${jobId}`);
 
         console.log(`📥 [SCHEDULER] Status API response: ${statusRes.status}`);
 
@@ -722,10 +757,10 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
         console.log(`📊 [SCHEDULER] Script Status Response:`, JSON.stringify(statusData, null, 2));
 
         if (statusData.status === 'completed') {
-          addPipelineLog(pipelineId, 'info', `Script generation completed: ${data.scriptId}`);
+          addPipelineLog(pipelineId, 'info', `Script generation completed: ${jobId}`);
           addTitleLog(schedule.title_id, 'info', '✅ 대본 생성 완료!');
           console.log(`✅ [SCHEDULER] Script generation completed!`);
-          return { success: true, scriptId: data.scriptId };
+          return { success: true, scriptId: jobId };
         } else if (statusData.status === 'failed') {
           console.error(`❌ [SCHEDULER] Script generation failed: ${statusData.error}`);
           throw new Error(`Script generation failed: ${statusData.error}`);
@@ -743,7 +778,7 @@ async function generateScript(schedule: any, pipelineId: string, maxRetry: numbe
       throw new Error('Script generation timeout (10분 초과)');
     }
 
-    return { success: true, scriptId: data.scriptId };
+    return { success: true, scriptId: jobId };
 
   } catch (error: any) {
     const errorMsg = error.message || 'Unknown error';
@@ -1745,14 +1780,23 @@ async function resumeVideoGeneration(schedule: any, videoPipelineId: string) {
  */
 export async function checkAndRegisterCoupangProducts() {
   try {
+    // ⚠️⚠️⚠️ 쿠팡 상품 자동 등록 완전 비활성화 ⚠️⚠️⚠️
+    console.log('[Step 4] Coupang product auto-registration is DISABLED');
+    return { success: 0, failed: 0, skipped: 0 };
+
     // ⚠️ 자동 제목 생성이 활성화되어 있는지 확인
     const settings = getAutomationSettings();
+    console.log('[Step 4 DEBUG] Settings:', settings);
+    console.log('[Step 4 DEBUG] auto_title_generation value:', settings.auto_title_generation);
     const autoTitleGeneration = settings.auto_title_generation === 'true';
+    console.log('[Step 4 DEBUG] autoTitleGeneration boolean:', autoTitleGeneration);
 
     if (!autoTitleGeneration) {
       console.log('[Step 4] Auto title generation is disabled, skipping Coupang product scheduling');
       return { success: 0, failed: 0, skipped: 0 };
     }
+
+    console.log('[Step 4] Auto title generation is ENABLED, proceeding with product scheduling');
 
     const db = new Database(dbPath);
 
@@ -1784,6 +1828,15 @@ export async function checkAndRegisterCoupangProducts() {
 
     for (const product of newProducts) {
       try {
+        const productName = product.product_name || product.title || product.id;
+
+        // 딥링크가 없으면 건너뛰기
+        if (!product.deep_link || product.deep_link.trim() === '') {
+          console.error(`[Step 4] ❌ Failed to register product ${productName}: No deeplink available`);
+          failedCount++;
+          continue;
+        }
+
         // 2. 상품용 제목 생성 (video_titles 테이블에 insert)
         const titleId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
         const productData = JSON.stringify({
@@ -1803,7 +1856,6 @@ export async function checkAndRegisterCoupangProducts() {
         `).get(product.user_id) as any;
 
         if (!channelSetting) {
-          const productName = product.product_name || product.title || product.id;
           console.log(`[Step 4] ⏸️ Product ${productName}: No active channel found for user, skipping`);
           continue;
         }
