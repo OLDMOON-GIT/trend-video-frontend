@@ -2208,15 +2208,29 @@ function AutomationPageContent() {
 
                 {/* 스케줄 시간 입력 */}
                 <div>
-                  <label className="text-sm text-slate-300 block mb-2">📅 스케줄 (선택)</label>
+                  <label className="text-sm text-slate-300 block mb-2">
+                    📅 스케줄 (선택)
+                    {settings?.auto_title_generation !== 'true' && (
+                      <span className="text-yellow-400 text-xs ml-2">[자동 제목 생성 OFF]</span>
+                    )}
+                  </label>
                   <input
                     type="datetime-local"
                     value={newTitle.scheduleTime}
                     min={getCurrentTimeForInput()}
                     onChange={(e) => setNewTitle({ ...newTitle, scheduleTime: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-slate-500 focus:outline-none focus:border-blue-500"
+                    disabled={settings?.auto_title_generation !== 'true'}
+                    className={`w-full px-4 py-2 rounded-lg border focus:outline-none ${
+                      settings?.auto_title_generation === 'true'
+                        ? 'bg-slate-600 text-white border-slate-500 focus:border-blue-500'
+                        : 'bg-slate-700 text-slate-400 border-slate-600 cursor-not-allowed'
+                    }`}
                   />
-                  <p className="text-xs text-slate-400 mt-1">비워두면 제목만 추가됩니다 (과거 시간은 선택 불가)</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {settings?.auto_title_generation === 'true'
+                      ? '비워두면 제목만 추가됩니다 (과거 시간은 선택 불가)'
+                      : '⚠️ 자동 제목 생성이 꺼져있어 스케줄을 추가할 수 없습니다'}
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2">
