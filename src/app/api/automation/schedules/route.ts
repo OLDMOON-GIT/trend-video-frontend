@@ -4,7 +4,8 @@ import {
   addSchedule,
   getAllSchedules,
   updateScheduleStatus,
-  getPipelineDetails
+  getPipelineDetails,
+  getAutomationSettings
 } from '@/lib/automation';
 
 // GET: 모든 스케줄 가져오기
@@ -45,6 +46,18 @@ export async function POST(request: NextRequest) {
 
     if (!titleId || !scheduledTime) {
       return NextResponse.json({ error: 'Title ID and scheduled time are required' }, { status: 400 });
+    }
+
+    // ⚠️ 자동 제목 생성 설정 확인 (강제실행이 아닐 때만)
+    if (!forceExecute) {
+      const settings = getAutomationSettings();
+      const autoTitleGeneration = settings.auto_title_generation === 'true';
+      if (!autoTitleGeneration) {
+        return NextResponse.json(
+          { error: '자동 제목 생성이 꺼져있어 스케줄을 추가할 수 없습니다' },
+          { status: 403 }
+        );
+      }
     }
 
     // 시간 유효성 검사
