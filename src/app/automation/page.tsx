@@ -1208,20 +1208,13 @@ function AutomationPageContent() {
 
   async function handleOpenFolder(videoId: string | null, scriptId: string | null, status: string) {
     try {
-      let url: string;
-
-      if (videoId) {
-        // video_id가 있으면 jobId로 사용
-        url = `/api/open-folder?jobId=${videoId}`;
-      } else if (scriptId) {
-        // scriptId만 있으면 경로 직접 지정
-        const folderType = status === 'completed' ? 'output' : 'input';
-        const folderPath = `../trend-video-backend/${folderType}/project_${scriptId}`;
-        url = `/api/open-folder?path=${encodeURIComponent(folderPath)}`;
-      } else {
-        alert('폴더를 열 수 없습니다: ID를 찾을 수 없습니다');
+      // scriptId(프로젝트 ID)를 projectId로 전달
+      if (!scriptId) {
+        alert('폴더를 열 수 없습니다: 프로젝트 ID를 찾을 수 없습니다');
         return;
       }
+
+      const url = `/api/open-folder?projectId=${scriptId}`;
 
       const response = await fetch(url, {
         method: 'POST',

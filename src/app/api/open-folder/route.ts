@@ -3,7 +3,6 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { getCurrentUser } from '@/lib/session';
-import { findJobById } from '@/lib/db';
 
 async function handleOpenFolder(request: NextRequest) {
   try {
@@ -21,46 +20,50 @@ async function handleOpenFolder(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId');
+    const pathParam = searchParams.get('path');
     const jobId = searchParams.get('jobId');
-    console.log('🆔 Job ID:', jobId);
 
-    if (!jobId) {
-      return NextResponse.json(
-        { error: 'jobId가 필요합니다.' },
-        { status: 400 }
-      );
-    }
+    console.log('📝 요청 파라미터:', { projectId, pathParam, jobId });
 
-    // Job 확인
-    const job = await findJobById(jobId);
-
-    if (!job) {
-      return NextResponse.json(
-        { error: '작업을 찾을 수 없습니다.' },
-        { status: 404 }
-      );
-    }
-
-    // 권한 확인: 관리자이거나 자신의 작업인 경우만 허용
-    if (!user.isAdmin && job.userId !== user.userId) {
-      return NextResponse.json(
-        { error: '이 작업의 폴더를 열 권한이 없습니다.' },
-        { status: 403 }
-      );
-    }
-
-    // sourceContentId (script_id)로 폴더 경로 생성
-    if (!job.sourceContentId) {
-      console.error(`❌ sourceContentId가 없습니다: ${jobId}`);
-      return NextResponse.json(
-        { error: `sourceContentId가 없습니다. jobId: ${jobId}` },
-        { status: 400 }
-      );
-    }
-
+    let absoluteFolderPath: string;
     const backendPath = path.join(process.cwd(), '..', 'trend-video-backend');
-    const folderPath = path.join(backendPath, 'input', `project_${job.sourceContentId}`);
-    const absoluteFolderPath = path.resolve(folderPath);
+
+    if (projectId) {
+      // projectId 사용 (자동화 페이지 등)
+      const cleanProjectId = projectId.startsWith('project_')
+        ? projectId.substring(8)
+        : projectId;
+      console.log('🆔 Project ID:', cleanProjectId);
+
+      const folderPath = path.join(backendPath, 'input', `project_${cleanProjectId}`);
+      absoluteFolderPath = path.resolve(folderPath);
+    } else if (pathParam) {
+      // path 파라미터 사용 (my-scripts, my-content 등)
+      console.log('📂 Path 파라미터:', pathParam);
+
+      // path가 상대 경로면 절대 경로로 변환
+      if (pathParam.startsWith('../')) {
+        absoluteFolderPath = path.resolve(process.cwd(), pathParam);
+      } else if (pathParam.startsWith('project_')) {
+        // project_ 로 시작하면 input 폴더에서 찾기
+        absoluteFolderPath = path.resolve(backendPath, 'input', pathParam);
+      } else {
+        absoluteFolderPath = path.resolve(pathParam);
+      }
+    } else if (jobId) {
+      // jobId 사용 (하위 호환성)
+      console.log('🎬 Job ID:', jobId);
+
+      // jobId는 video_id이므로 output 폴더에서 찾기
+      const folderPath = path.join(backendPath, 'output', jobId);
+      absoluteFolderPath = path.resolve(folderPath);
+    } else {
+      return NextResponse.json(
+        { error: 'projectId, path, 또는 jobId가 필요합니다.' },
+        { status: 400 }
+      );
+    }
 
     console.log(`📂 폴더 경로: ${absoluteFolderPath}`);
 
@@ -68,7 +71,7 @@ async function handleOpenFolder(request: NextRequest) {
     if (!fs.existsSync(absoluteFolderPath)) {
       console.error(`❌ 폴더가 존재하지 않습니다: ${absoluteFolderPath}`);
       return NextResponse.json(
-        { error: `폴더가 존재하지 않습니다: ${job.sourceContentId}` },
+        { error: `폴더가 존재하지 않습니다: ${absoluteFolderPath}` },
         { status: 404 }
       );
     }
