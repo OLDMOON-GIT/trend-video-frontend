@@ -2,19 +2,25 @@
 import '@testing-library/jest-dom'
 import 'whatwg-fetch'
 
-// Mock clipboard API
-Object.assign(navigator, {
-  clipboard: {
-    writeText: jest.fn(() => Promise.resolve()),
-    readText: jest.fn(() => Promise.resolve('')),
-  },
-});
+// Mock clipboard API (only in jsdom environment)
+if (typeof navigator !== 'undefined') {
+  Object.assign(navigator, {
+    clipboard: {
+      writeText: jest.fn(() => Promise.resolve()),
+      readText: jest.fn(() => Promise.resolve('')),
+    },
+  });
+}
 
-// Mock document.execCommand
-document.execCommand = jest.fn(() => true);
+// Mock document.execCommand (only in jsdom environment)
+if (typeof document !== 'undefined') {
+  document.execCommand = jest.fn(() => true);
+}
 
-// Mock window.open
-window.open = jest.fn();
+// Mock window.open (only in jsdom environment)
+if (typeof window !== 'undefined') {
+  window.open = jest.fn();
+}
 
 // Mock URL.createObjectURL
 global.URL.createObjectURL = jest.fn(() => 'blob:test-url');

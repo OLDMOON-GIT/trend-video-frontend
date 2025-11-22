@@ -269,8 +269,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, videoFormat, useClaudeLocal, scriptModel, model, category, userId: internalUserId } = body;
+    const { title, type, videoFormat, useClaudeLocal, scriptModel, model, category, userId: internalUserId, mode } = body;
     let productInfo = body.productInfo; // let으로 선언하여 나중에 재할당 가능
+
+    // ⭐ mode 파라미터 확인 (chrome 또는 api)
+    const generationMode = mode || 'chrome'; // 기본값: chrome
+    console.log('🔍 [MODE] Generation mode:', generationMode);
 
     console.log('🔍 [AUTH] internalUserId from body:', internalUserId);
     console.log('🛍️ [PRODUCT-INFO] productInfo 수신:', productInfo ? 'YES ✅' : 'NO ❌');
@@ -298,7 +302,38 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ [AUTH] Final user:', user.userId);
 
-    console.log('🚀 [Scripts Generate] 요청 받음');
+    // ⭐ mode === 'api'일 경우 /api/generate-script로 리다이렉트
+    if (generationMode === 'api') {
+      console.log('🔀 [MODE] Redirecting to /api/generate-script (API mode)');
+
+      // /api/generate-script 형식으로 변환
+      const generateScriptBody = {
+        prompt: '', // 프롬프트는 /api/generate-script 내부에서 로드됨
+        topic: title,
+        format: type,
+        model: scriptModel || model || 'claude',
+        productInfo: productInfo,
+        category: category || '일반',
+        userId: user.userId
+      };
+
+      // 내부 API 호출
+      const generateScriptResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/generate-script`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Request': 'automation-system'
+        },
+        body: JSON.stringify(generateScriptBody)
+      });
+
+      // 응답 그대로 반환
+      const data = await generateScriptResponse.json();
+      return NextResponse.json(data, { status: generateScriptResponse.status });
+    }
+
+    // ⭐ mode === 'chrome' (기본값): 기존 로직 계속 진행
+    console.log('🚀 [Scripts Generate] 요청 받음 (Chrome mode)');
     console.log('  📝 제목:', title);
     console.log('  🤖 scriptModel:', scriptModel);
     console.log('  🤖 model:', model);
@@ -443,11 +478,39 @@ export async function POST(request: NextRequest) {
       // productInfo가 있으면 플레이스홀더 치환
       if (productInfo) {
         console.log('🛍️ 상품 정보 치환 시작:', productInfo);
+
+        // ⭐ 두 가지 형식 지원:
+        // 1. productName, productImage, deepLink (크롤링된 데이터)
+        // 2. title, thumbnail, product_link (수동 입력 데이터)
+        const productTitle = productInfo.title || productInfo.productName || '';
+        const productThumbnail = productInfo.thumbnail || productInfo.productImage || '';
+        const productLink = productInfo.product_link || productInfo.deepLink || productInfo.productUrl || ''; // deepLink 우선!
+        const productDescription = productInfo.description || productInfo.productDescription || '';
+
+        console.log('  - title:', productTitle);
+        console.log('  - thumbnail:', productThumbnail);
+        console.log('  - product_link:', productLink);
+        console.log('  - description:', productDescription);
+
+        // DB에서 사용자 설정 가져오기
+        const db = Database(dbPath);
+        const userSettings = db.prepare('SELECT google_sites_home_url, nickname FROM users WHERE id = ?').get(user.userId) as { google_sites_home_url?: string; nickname?: string } | undefined;
+        db.close();
+        const homeUrl = userSettings?.google_sites_home_url || 'https://www.youtube.com/@살림남';
+        const nickname = userSettings?.nickname || '살림남';
+        console.log('🏠 home_url 설정:', homeUrl);
+        console.log('👤 별명 설정:', nickname);
+
         prompt = prompt
-          .replace(/{thumbnail}/g, productInfo.thumbnail || '')
-          .replace(/{product_link}/g, productInfo.product_link || '')
-          .replace(/{product_description}/g, productInfo.description || '');
+          .replace(/{title}/g, productTitle)
+          .replace(/{thumbnail}/g, productThumbnail)
+          .replace(/{product_link}/g, productLink)
+          .replace(/{product_description}/g, productDescription)
+          .replace(/{home_url}/g, homeUrl)
+          .replace(/{별명}/g, nickname);
+
         console.log('✅ 상품 정보 플레이스홀더 치환 완료');
+        console.log('  - {title} → ', productTitle);
       } else {
         console.warn('⚠️ productInfo를 찾을 수 없습니다! 플레이스홀더가 그대로 남아있을 수 있습니다.');
       }
@@ -493,10 +556,19 @@ export async function POST(request: NextRequest) {
       // productInfo가 있으면 플레이스홀더 치환
       if (productInfo) {
         console.log('🛍️🛍️🛍️ 상품 정보 치환 시작:', productInfo);
-        console.log('  - title:', productInfo.title);
-        console.log('  - thumbnail:', productInfo.thumbnail);
-        console.log('  - product_link:', productInfo.product_link);
-        console.log('  - description:', productInfo.description);
+
+        // ⭐ 두 가지 형식 지원:
+        // 1. productName, productImage, deepLink (크롤링된 데이터)
+        // 2. title, thumbnail, product_link (수동 입력 데이터)
+        const productTitle = productInfo.title || productInfo.productName || '';
+        const productThumbnail = productInfo.thumbnail || productInfo.productImage || '';
+        const productLink = productInfo.product_link || productInfo.deepLink || productInfo.productUrl || ''; // deepLink 우선!
+        const productDescription = productInfo.description || productInfo.productDescription || '';
+
+        console.log('  - title:', productTitle);
+        console.log('  - thumbnail:', productThumbnail);
+        console.log('  - product_link:', productLink);
+        console.log('  - description:', productDescription);
 
         // DB에서 사용자 설정 가져오기
         const db = Database(dbPath);
@@ -508,13 +580,15 @@ export async function POST(request: NextRequest) {
         console.log('👤 별명 설정:', nickname);
 
         prompt = prompt
-          .replace(/{thumbnail}/g, productInfo.thumbnail || '')
-          .replace(/{product_link}/g, productInfo.product_link || '')
-          .replace(/{product_description}/g, productInfo.description || '')
+          .replace(/{title}/g, productTitle)
+          .replace(/{thumbnail}/g, productThumbnail)
+          .replace(/{product_link}/g, productLink)
+          .replace(/{product_description}/g, productDescription)
           .replace(/{home_url}/g, homeUrl)
           .replace(/{별명}/g, nickname);
 
         console.log('✅ 상품 정보 플레이스홀더 치환 완료');
+        console.log('  - {title} → ', productTitle);
       } else {
         console.error('❌ productInfo를 찾을 수 없습니다! 프롬프트에 플레이스홀더가 그대로 남습니다.');
       }
